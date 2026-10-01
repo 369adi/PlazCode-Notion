@@ -1,8 +1,18 @@
 {
-  "version": "1.18.82",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.82.zip",
-  "sha256": "36d945960e4f9064d63114cc3322a0ecf5a014d4063e3dbe3be0099b7c33835d",
+  "version": "1.18.83",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.83.zip",
+  "sha256": "dded11bb04d82f2201457a7527172e3f4fed8ca92316100c87319662c6a4d26e",
   "release_notes": [
+    {
+      "version": "1.18.83",
+      "title": "Clearer update indicators",
+      "summary": "Outdated version badges now explicitly say that a new update is available.",
+      "added": [],
+      "improved": [
+        "Desktop, browser bar and popup version badges show “(Outdated - New update available)” when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved."
+      ],
+      "fixed": []
+    },
     {
       "version": "1.18.82",
       "title": "Desktop overhaul & smoother Notion sessions",

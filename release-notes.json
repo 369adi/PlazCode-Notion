@@ -1,5 +1,15 @@
 [
   {
+    "version": "1.18.83",
+    "title": "Clearer update indicators",
+    "summary": "Outdated version badges now explicitly say that a new update is available.",
+    "added": [],
+    "improved": [
+      "Desktop, browser bar and popup version badges show “(Outdated - New update available)” when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved."
+    ],
+    "fixed": []
+  },
+  {
     "version": "1.18.82",
     "title": "Desktop overhaul & smoother Notion sessions",
     "summary": "A redesigned desktop workspace, complete color themes and a polished animated updater, with focused Notion and Co-Work improvements.",

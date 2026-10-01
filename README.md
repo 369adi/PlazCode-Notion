@@ -4,7 +4,7 @@ This repository hosts the official PlazCode update packages and the automatic up
 
 ## Install once
 
-Download `PlazCode-1.18.82.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
+Download `PlazCode-1.18.83.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
 
 ## Future updates
 
@@ -33,6 +33,14 @@ Browser-rendered desktop preview using sample connection data:
 ![PlazCode desktop](desktop-preview.png)
 
 ## Release history
+
+### PlazCode 1.18.83: Clearer update indicators
+
+Outdated version badges now explicitly say that a new update is available.
+
+#### Improvements
+
+- Desktop, browser bar and popup version badges show “(Outdated - New update available)” when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved.
 
 ### PlazCode 1.18.82: Desktop overhaul & smoother Notion sessions
 
