@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.18.85",
+    "title": "Wait for app shutdown before updating",
+    "summary": "The updater waits for PlazCode to exit and release its executable before installing.",
+    "added": [],
+    "improved": [
+      "The updater checks both app executable paths, waits for stopped processes to exit, and briefly retries file-lock checks. Only processes from the selected installation are stopped; Roblox Studio is left running."
+    ],
+    "fixed": [
+      "Update installation no longer starts copying immediately after Stop-Process. If the executable remains locked, it aborts before copying any update files and retains recovery files."
+    ]
+  },
+  {
     "version": "1.18.84",
     "title": "Clickable palettes & friendly readiness",
     "summary": "Select desktop themes directly from their color swatches, and keep Notion startup acknowledgements readable.",

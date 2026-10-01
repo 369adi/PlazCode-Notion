@@ -1,8 +1,20 @@
 {
-  "version": "1.18.84",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.84.zip",
-  "sha256": "285b64fa54982aba288848b295c8a66a0e23f57bf672e0c09a8c7b8510c1b410",
+  "version": "1.18.85",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.85.zip",
+  "sha256": "940b7b274b9bec71b0164eed3d1c0f21be848a6c64516da1008f76ee4bf9970d",
   "release_notes": [
+    {
+      "version": "1.18.85",
+      "title": "Wait for app shutdown before updating",
+      "summary": "The updater waits for PlazCode to exit and release its executable before installing.",
+      "added": [],
+      "improved": [
+        "The updater checks both app executable paths, waits for stopped processes to exit, and briefly retries file-lock checks. Only processes from the selected installation are stopped; Roblox Studio is left running."
+      ],
+      "fixed": [
+        "Update installation no longer starts copying immediately after Stop-Process. If the executable remains locked, it aborts before copying any update files and retains recovery files."
+      ]
+    },
     {
       "version": "1.18.84",
       "title": "Clickable palettes & friendly readiness",

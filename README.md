@@ -4,9 +4,11 @@ This repository hosts the official PlazCode update packages and the automatic up
 
 ## Install once
 
-Download `PlazCode-1.18.84.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
+Download `PlazCode-1.18.85.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
 
 ## Future updates
+
+If an older updater failed because `PlazCode.exe` was locked, replace `Update-PlazCode.ps1` in your existing installation with [the corrected helper](Update-PlazCode.ps1), then run `Update-PlazCode.bat` again. This one-time helper replacement is needed before the older updater can install the fix. Close any other PlazCode windows first.
 
 Version indicators in 1.18.81 check the published release at startup and every five minutes. They show green **Up to date**, red **Outdated**, or a neutral unavailable/not-checked status.
 
@@ -33,6 +35,18 @@ Browser-rendered desktop preview using sample connection data:
 ![PlazCode desktop](desktop-preview.png)
 
 ## Release history
+
+### PlazCode 1.18.85: Wait for app shutdown before updating
+
+The updater waits for PlazCode to exit and release its executable before installing.
+
+#### Improvements
+
+- The updater checks both app executable paths, waits for stopped processes to exit, and briefly retries file-lock checks. Only processes from the selected installation are stopped; Roblox Studio is left running.
+
+#### Bug fixes
+
+- Update installation no longer starts copying immediately after Stop-Process. If the executable remains locked, it aborts before copying any update files and retains recovery files.
 
 ### PlazCode 1.18.84: Clickable palettes & friendly readiness
 
