@@ -4,9 +4,11 @@ This repository hosts the official PlazCode update packages and the automatic up
 
 ## Install once
 
-Download `PlazCode-1.18.80.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
+Download `PlazCode-1.18.81.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
 
 ## Future updates
+
+Version indicators in 1.18.81 check the published release at startup and every five minutes. They show green **Up to date**, red **Outdated**, or a neutral unavailable/not-checked status.
 
 In the desktop app, open **Updates**, click **Check now**, then **Update now**. Download progress is shown, installation verifies the package, and PlazCode relaunches.
 
@@ -17,8 +19,89 @@ Memory, settings and cached optional runtimes are preserved. A custom non-empty 
 
 ## Publish an update
 
-Upload a complete `PlazCode-VERSION.zip` with a `PlazCode/` top-level folder and update `latest.json` in the same commit. Its fields are `version`, `url` (the ZIP's raw HTTPS download URL), and `sha256` (the ZIP's complete SHA256 hash). Use a higher package/extension version and a new filename for every release. Do not modify published ZIP bytes in place.
+Upload a complete `PlazCode-VERSION.zip` with a `PlazCode/` top-level folder and update `latest.json` in the same commit. Its fields are `version`, `url` (the ZIP's raw HTTPS download URL), `sha256` (the ZIP's complete SHA256 hash), and `release_notes` (release titles, summaries, additions, improvements and fixes). Use a higher package/extension version and a new filename for every release. Do not modify published ZIP bytes in place.
 
 The BAT can only install releases that have been published here. Source changes or chat attachments alone do not publish an update.
 
 See `UPDATE.txt` and `UPDATER.txt` inside the ZIP for change details and recovery information. Windows updater execution still requires live validation.
+
+
+## Release history
+
+### PlazCode 1.18.81: Themes, release notes & desktop refresh
+
+See what each PlazCode update adds, improves and fixes before installing it.
+
+#### New additions
+
+- Release descriptions on the desktop Updates page, including expandable notes for earlier releases.
+- The GitHub README now lists release titles, summaries, additions, improvements and fixes.
+- An updated maintenance prompt documents architecture, current features, debugging, tests, builds and release publishing.
+- Appearance settings with Orange, Amethyst, Polar Cyan, Rose, Emerald and Graphite palettes, glow strength, gradient controls and a default-theme reset. Selections apply immediately and are remembered on this device.
+- Version indicators in the desktop, browser bar/menu and extension popup show green “Up to date”, red “Outdated”, or a neutral unavailable/not-checked status. Release checks run at startup and every five minutes.
+
+#### Improvements
+
+- Published update metadata carries the same release notes used in the README.
+- Installed release notes remain available before checking online.
+- Home places agent controls beside the AI shortcuts on wide windows, reducing unused space; smaller windows stack them neatly.
+- The installed-to-latest version arrow is larger, vertically aligned with the version values and spaced more closely.
+- Visual-only desktop polish: smoother navigation, card depth, hover and press feedback, keyboard focus, toggles and modal backgrounds. Existing actions and workflows stay the same.
+- Quick Actions no longer stretches to match a tall Recent Activity panel; activity stays scrollable.
+- A denser desktop layout reduces empty space in status cards and quick actions, with refreshed typography, surfaces and subtle orange highlights.
+
+### PlazCode 1.18.80: Updates, memory transfer & AI shortcuts
+
+Update PlazCode from the desktop app and carry chat context between supported AI sites.
+
+#### New additions
+
+- Desktop Updates tab with installed/latest versions, Check now, Update now, download progress and relaunch.
+- ChatGPT, DeepSeek and Claude shortcuts below Home’s connection displays.
+- Current-chat memory export and a memory-only export option.
+
+#### Improvements
+
+- Transparent Enhance and Co-Work controls; labels now read Co-Work: Off and Co-Work: On.
+- Styled desktop memory import file picker.
+- Saved AI memories retain conversation origins after edits, including facts learned in more than one chat.
+
+#### Bug fixes
+
+- Memory-only imports now include saved facts in the destination AI’s context.
+- Oversized combined history and memory are rejected before saving or sending.
+- View on GitHub opens in the default browser instead of navigating the embedded app.
+
+### PlazCode 1.18.78: Automatic update setup
+
+A stable repository feed lets the update BAT fetch published packages.
+
+#### New additions
+
+- Configured HTTPS update feed hosted in stoveez/PlazCodeneww.
+
+#### Improvements
+
+- Version and SHA256 checks, staged installation, backups and local settings preservation.
+
+#### Bug fixes
+
+- Blank feed settings from 1.18.77 now fall back to the configured repository.
+
+### PlazCode 1.18.77: Shared memory & activity
+
+PlazCode can remember lasting preferences across chats and transfer loaded conversation context.
+
+#### New additions
+
+- Shared personal memory with automatic saving controls and an editable summary.
+- Chat history and memory import/export.
+- Working/Worked indicators with expandable activity.
+- Studio status below the desktop bridge indicator.
+- Update-PlazCode.bat with a local ZIP fallback.
+
+#### Improvements
+
+- Saved memory is available across supported provider chats.
+- Completed tool activity collapses while final replies remain visible.
+
