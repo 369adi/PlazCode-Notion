@@ -4,7 +4,7 @@ This repository hosts the official PlazCode update packages and the automatic up
 
 ## Install once
 
-Download `PlazCode-1.18.81.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
+Download `PlazCode-1.18.82.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
 
 ## Future updates
 
@@ -26,7 +26,36 @@ The BAT can only install releases that have been published here. Source changes 
 See `UPDATE.txt` and `UPDATER.txt` inside the ZIP for change details and recovery information. Windows updater execution still requires live validation.
 
 
+## Desktop preview
+
+Browser-rendered desktop preview using sample connection data:
+
+![PlazCode desktop](desktop-preview.png)
+
 ## Release history
+
+### PlazCode 1.18.82: Desktop overhaul & smoother Notion sessions
+
+A redesigned desktop workspace, complete color themes and a polished animated updater, with focused Notion and Co-Work improvements.
+
+#### New additions
+
+- A distinct desktop layout: compact navigation, a dedicated agent-session card, AI launch cards, a slim connection strip, and redesigned Tools, MCP, Settings, Terminal and Updates surfaces.
+- Animated SVG update swirl with layered rotating arcs, a pulsing center and a redesigned progress dialog. Reduced-motion preferences are respected.
+- Expandable Working/Worked summaries in the chat show elapsed time and tool activity; completed details collapse automatically and reopen on click.
+
+#### Improvements
+
+- Themes now color panels, navigation, borders, inputs, buttons, connection surfaces, terminal and update dialogs as well as accents.
+- Startup asks the AI to say “PlazCode is ready.”; older readiness acknowledgements remain accepted.
+- Co-Work follow-up text uses the website composer’s text color, font, size and alignment. Only the placeholder is grey. Existing queue behavior is preserved.
+- Copilot and Meta AI removed from supported-site choices, routing and extension injection.
+
+#### Bug fixes
+
+- Notion can settle a stable readiness acknowledgement without waiting through its nine-second generation tail; live Stop or workflow progress still blocks completion.
+- Notion pastes an escaped literal HTML representation alongside plain text so rich-text Markdown conversion does not consume command/result markers. Complete-draft retention and send-confirmation checks remain in place.
+- Notion reserves space inside the composer for the PlazCode bar, keeping response text and the native editor clear without modifying React-owned attributes.
 
 ### PlazCode 1.18.81: Themes, release notes & desktop refresh
 

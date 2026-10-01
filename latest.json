@@ -1,8 +1,29 @@
 {
-  "version": "1.18.81",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.81.zip",
-  "sha256": "82a5f040d378b517b0e425d4a4c45c5d27d284570c67d9065865172247a589e7",
+  "version": "1.18.82",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.82.zip",
+  "sha256": "36d945960e4f9064d63114cc3322a0ecf5a014d4063e3dbe3be0099b7c33835d",
   "release_notes": [
+    {
+      "version": "1.18.82",
+      "title": "Desktop overhaul & smoother Notion sessions",
+      "summary": "A redesigned desktop workspace, complete color themes and a polished animated updater, with focused Notion and Co-Work improvements.",
+      "added": [
+        "A distinct desktop layout: compact navigation, a dedicated agent-session card, AI launch cards, a slim connection strip, and redesigned Tools, MCP, Settings, Terminal and Updates surfaces.",
+        "Animated SVG update swirl with layered rotating arcs, a pulsing center and a redesigned progress dialog. Reduced-motion preferences are respected.",
+        "Expandable Working/Worked summaries in the chat show elapsed time and tool activity; completed details collapse automatically and reopen on click."
+      ],
+      "improved": [
+        "Themes now color panels, navigation, borders, inputs, buttons, connection surfaces, terminal and update dialogs as well as accents.",
+        "Startup asks the AI to say “PlazCode is ready.”; older readiness acknowledgements remain accepted.",
+        "Co-Work follow-up text uses the website composer’s text color, font, size and alignment. Only the placeholder is grey. Existing queue behavior is preserved.",
+        "Copilot and Meta AI removed from supported-site choices, routing and extension injection."
+      ],
+      "fixed": [
+        "Notion can settle a stable readiness acknowledgement without waiting through its nine-second generation tail; live Stop or workflow progress still blocks completion.",
+        "Notion pastes an escaped literal HTML representation alongside plain text so rich-text Markdown conversion does not consume command/result markers. Complete-draft retention and send-confirmation checks remain in place.",
+        "Notion reserves space inside the composer for the PlazCode bar, keeping response text and the native editor clear without modifying React-owned attributes."
+      ]
+    },
     {
       "version": "1.18.81",
       "title": "Themes, release notes & desktop refresh",
