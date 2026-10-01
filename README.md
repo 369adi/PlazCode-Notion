@@ -4,9 +4,12 @@ This repository hosts the official PlazCode update packages and the automatic up
 
 ## Install once
 
-Download `PlazCode-1.18.78.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
+Download `PlazCode-1.18.80.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
 
 ## Future updates
+
+In the desktop app, open **Updates**, click **Check now**, then **Update now**. Download progress is shown, installation verifies the package, and PlazCode relaunches.
+
 
 Run `Update-PlazCode.bat`. It checks `latest.json`, downloads a newer published ZIP, verifies SHA256, installs it, and restarts PlazCode. Reload the extension in `chrome://extensions` and refresh open AI chat tabs afterwards.
 
