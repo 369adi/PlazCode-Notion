@@ -1,8 +1,23 @@
 {
-  "version": "1.18.85",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.85.zip",
-  "sha256": "940b7b274b9bec71b0164eed3d1c0f21be848a6c64516da1008f76ee4bf9970d",
+  "version": "1.18.86",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.86.zip",
+  "sha256": "11a5c65ddc826c75428fcb3f9c444f949ddb301c12331e540c0806d4f78b4d3d",
   "release_notes": [
+    {
+      "version": "1.18.86",
+      "title": "Reliable bridge port startup",
+      "summary": "Agent launch reserves every bridge endpoint before reporting ready and serializes overlapping launches.",
+      "added": [],
+      "improved": [
+        "Windows startup is serialized across PlazCode launches; an existing instance of the same version is focused, and older versions are replaced.",
+        "All three required bridge listeners are bound before background services start. Port release is checked with bounded retries instead of fixed delays."
+      ],
+      "fixed": [
+        "Removed broad process-name cleanup that could kill another launching PlazCode instance. Recovery only targets a PlazCode process holding a required port.",
+        "Port ownership uses exact endpoint matching, avoiding matches such as port 30000 when checking 3000.",
+        "Startup errors now identify the actual blocked port and, when available, its owning process instead of the generic bridge-bind dialog. Legacy listener failures are logged."
+      ]
+    },
     {
       "version": "1.18.85",
       "title": "Wait for app shutdown before updating",

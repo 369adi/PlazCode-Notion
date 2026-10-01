@@ -4,7 +4,7 @@ This repository hosts the official PlazCode update packages and the automatic up
 
 ## Install once
 
-Download `PlazCode-1.18.85.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
+Download `PlazCode-1.18.86.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
 
 ## Future updates
 
@@ -35,6 +35,21 @@ Browser-rendered desktop preview using sample connection data:
 ![PlazCode desktop](desktop-preview.png)
 
 ## Release history
+
+### PlazCode 1.18.86: Reliable bridge port startup
+
+Agent launch reserves every bridge endpoint before reporting ready and serializes overlapping launches.
+
+#### Improvements
+
+- Windows startup is serialized across PlazCode launches; an existing instance of the same version is focused, and older versions are replaced.
+- All three required bridge listeners are bound before background services start. Port release is checked with bounded retries instead of fixed delays.
+
+#### Bug fixes
+
+- Removed broad process-name cleanup that could kill another launching PlazCode instance. Recovery only targets a PlazCode process holding a required port.
+- Port ownership uses exact endpoint matching, avoiding matches such as port 30000 when checking 3000.
+- Startup errors now identify the actual blocked port and, when available, its owning process instead of the generic bridge-bind dialog. Legacy listener failures are logged.
 
 ### PlazCode 1.18.85: Wait for app shutdown before updating
 

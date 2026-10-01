@@ -1,5 +1,20 @@
 [
   {
+    "version": "1.18.86",
+    "title": "Reliable bridge port startup",
+    "summary": "Agent launch reserves every bridge endpoint before reporting ready and serializes overlapping launches.",
+    "added": [],
+    "improved": [
+      "Windows startup is serialized across PlazCode launches; an existing instance of the same version is focused, and older versions are replaced.",
+      "All three required bridge listeners are bound before background services start. Port release is checked with bounded retries instead of fixed delays."
+    ],
+    "fixed": [
+      "Removed broad process-name cleanup that could kill another launching PlazCode instance. Recovery only targets a PlazCode process holding a required port.",
+      "Port ownership uses exact endpoint matching, avoiding matches such as port 30000 when checking 3000.",
+      "Startup errors now identify the actual blocked port and, when available, its owning process instead of the generic bridge-bind dialog. Legacy listener failures are logged."
+    ]
+  },
+  {
     "version": "1.18.85",
     "title": "Wait for app shutdown before updating",
     "summary": "The updater waits for PlazCode to exit and release its executable before installing.",
