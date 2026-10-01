@@ -4,7 +4,7 @@ This repository hosts the official PlazCode update packages and the automatic up
 
 ## Install once
 
-Download `PlazCode-1.18.83.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
+Download `PlazCode-1.18.84.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
 
 ## Future updates
 
@@ -33,6 +33,26 @@ Browser-rendered desktop preview using sample connection data:
 ![PlazCode desktop](desktop-preview.png)
 
 ## Release history
+
+### PlazCode 1.18.84: Clickable palettes & friendly readiness
+
+Select desktop themes directly from their color swatches, and keep Notion startup acknowledgements readable.
+
+#### New additions
+
+- Desktop startup instructions accept up to 25,000 characters, with an input counter and explicit save validation.
+
+#### Improvements
+
+- All six desktop color swatches are clickable, keyboard accessible, show the selected theme and use the same saved appearance settings as the dropdown. Glow and gradient preferences are preserved.
+- Chat export retains messages captured while scrolling during the current page session. Idle Notion exports briefly load older history and restore the previous scroll position. Exports report their captured message count and remaining scope limitations.
+- Download export is styled as a theme-colored button in desktop and browser memory settings.
+
+#### Bug fixes
+
+- All startup instruction variants explicitly request “PlazCode is ready.” instead of a generic readiness sentence.
+- If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to “PlazCode is ready.” without resending startup or modifying Notion-owned DOM.
+- DeepSeek rich-text composers remain discoverable while input-locked, and agent writes temporarily enable editing then restore the lock. Explicit Send labels take precedence over stop-icon guesses.
 
 ### PlazCode 1.18.83: Clearer update indicators
 
