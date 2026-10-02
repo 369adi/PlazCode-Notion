@@ -1,5 +1,21 @@
 [
 {
+  "version": "1.18.102",
+  "title": "Responsive updates, unlocked Stop and native Notion drafts",
+  "summary": "Read release metadata from the current published commit, release the composer on Stop, keep PlazCode work folding off ChatGPT, and use controlled editor events for Notion startup.",
+  "added": [],
+  "improved": [
+    "The default GitHub updater checks the current repository revision every two seconds and fetches metadata by immutable commit. Unchanged metadata is reused; quiet automatic checks and the eight-second request budget remain. Custom feeds retain their configured path. Network delays and browser suspension still apply; this is not guaranteed instant push.",
+    "Notion large startup drafts use one complete native beforeinput/insertText/input write instead of chunked clipboard pastes. Editable/readonly attributes are temporarily restored during the write, focus is acquired after unlocking, and the complete draft must survive two renders before Send.",
+    "Co-work tracks placeholder nodes introduced by composer remounts, and ChatGPT Work literal placeholder labels display Follow up without changing user text or replacing the native input."
+  ],
+  "fixed": [
+    "Stop releases the composer immediately and prevents late work from restoring the Agent is working cover until a new user action resumes work. Tool cancellation and Safe/Immediate semantics remain unchanged.",
+    "PlazCode Working/Worked transcript summaries and bar disclosure are disabled on ChatGPT. Activity records remain available to desktop; other providers retain their collapsible groups.",
+    "Default update checks avoid the cached mutable branch feed when current revision discovery succeeds. Older cached metadata cannot replace a newer known release."
+  ]
+},
+{
   "version": "1.18.101",
   "title": "Notion literal startup and smoother engine switching",
   "summary": "Prevent repeated clearing/refilling after a rejected large Notion prompt and distinguish an intentional engine reconnection from a bridge failure.",
