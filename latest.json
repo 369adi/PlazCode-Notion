@@ -1,8 +1,22 @@
 {
-  "version": "1.18.93",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.93.zip",
-  "sha256": "2f2380fbd6df53c4f6471201331984f0a24e15481b1b3d8b02c977851085518a",
+  "version": "1.18.94",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.94.zip",
+  "sha256": "e1db329519770906142c71a757fd4ed62327f013ecd93f06c5bc9a75a3ed2c61",
   "release_notes": [
+    {
+      "version": "1.18.94",
+      "title": "Studio MCP compatibility and clearer extension folder",
+      "summary": "PlazCode discovers Studio IDs for the updated Roblox MCP tools, while keeping local bridge startup independent of Studio readiness. Fresh-install ZIPs use PlazCode-Extension.",
+      "added": [],
+      "improved": [
+        "Automatically supply studio_id for targeted Studio tools when one instance is connected. Cache discovery briefly, preserve explicit caller IDs, and require a deliberate selection when multiple instances are open. Older schemas are forwarded unchanged.",
+        "Fresh installations extract into PlazCode-Extension. Update packages preserve the layout older updaters accept, and the updated installer accepts either single-root layout without changing the installed folder."
+      ],
+      "fixed": [
+        "The internal get_studio_state connection probe now receives studio_id when required. Missing IDs no longer prevent automatic Studio connection after the new MCP update.",
+        "Studio auto-connect attempts have an eight-second bound and retry in the background; local bridge endpoints are bound before the desktop opens. Timed-out discovery never dispatches the requested Studio command."
+      ]
+    },
     {
       "version": "1.18.93",
       "title": "Shared themes, larger memory and quieter updates",
