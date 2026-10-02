@@ -1,3 +1,7 @@
+PlazCode 1.18.97 validation
+
+Windows GNU release build passed; original executable icon preserved. Native Linux tests: 45 passed, 0 failed, 1 ignored. Includes actual FFmpeg still conversion and video-frame sampling, cancellation scope, cancelled owned-process cleanup, command timeout, startup and Studio-ID fixtures. Syntax: 44 JavaScript files pass Node --check. Stop-mode asynchronous tests, media payload tests, ChatGPT folding and parser tests, activity including old-history isolation, Co-work, desktop regression, Claude adapter checks, Notion result preservation, and updater preservation pass. Live Windows tray, live Studio interruption and live AI-provider uploads/DOM behavior have not been tested in this environment. External tools may not support cancellation; no rollback guarantee.
+
 PlazCode 1.18.96 validation
 
 Windows GNU release build passed; original icon preserved. Native tests: 38 passed, 1 ignored. Real loopback HTTP fixture serves two successive feed requests over one accepted TCP connection; a stalled response times out and releases the request. Automatic timeout is eight seconds; manual checks remain 30 seconds. Desktop regression and updater preservation checks pass. Existing folder layout and desktop-only Tasks remain unchanged. ZIP integrity and manifest asset paths verified. Live Windows update timing and GitHub propagation latency have not been verified or guaranteed. Previous validation follows.

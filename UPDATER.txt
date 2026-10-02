@@ -1,3 +1,6 @@
+PlazCode 1.18.97
+Immediate Stop is the default; Safe Stop waits for the current tool step. External operations may continue and partial changes can remain. Do not promise rollback. Reload the extension AND refresh AI tabs after updating. Keep tray, media and work folding separate from provider parsing/startup contracts.
+
 Fresh downloads use PlazCode/ with browser files inside PlazCode/PlazCode-Extension/. Compatibility update archives also include legacy root extension copies so older installers continue working. Existing installation paths and user data are preserved.
 
 Desktop Updates tab: click Check now, then Update now. The app downloads the

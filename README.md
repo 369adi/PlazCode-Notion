@@ -1,3 +1,14 @@
+## PlazCode 1.18.97: Tray access, stop modes and cleaner work sessions
+
+- Reopen the desktop app using its Windows tray icon. Right-click for Open or Quit. If tray registration fails, the app remains in the taskbar.
+- **Immediate Stop is the default.** It stops generation and new actions, abandons tool waits, signals the active checkpoint, and cleans up command/helper processes owned by that operation. Partial changes can remain; external tools may not honor interruption. Inspect state before retrying.
+- **Safe Stop** stops generation and new actions, then waits for the current tool step. The mode syncs between desktop and browser settings. Neither mode is an undo guarantee.
+- Send images and video with a caption from desktop or the browser bar. Use native video when the selected site accepts it, or up to eight sampled frames. Frames do not include audio or continuous motion. Transfer limits are eight files / 12 MB; local conversion inputs are limited to 64 MB. Browser decoding is used first; an installed FFmpeg/FFprobe can handle additional codecs. Not every format or site is supported.
+- Co-work preserves all unfinished goals and can interleave independent tasks at safe message boundaries. It does not create simultaneous AI reply streams.
+- Work remains expanded while active and folds after finishing. ChatGPT action controls fold with their messages. Empty no-tools-used filler is removed, and live engine checks guard correction of false offline claims.
+
+Update from the Updates tab or Update-PlazCode.bat, reload the extension, and refresh open AI tabs. Existing settings, memory and enabled MCP servers retain their data locations. Windows builds and automated checks are verified; live Windows tray behavior and live provider uploads still require testing on the target machine.
+
 ## PlazCode 1.18.96: Faster automatic release checks
 
 Automatic update checks reuse HTTP connections instead of reopening them for

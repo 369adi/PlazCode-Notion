@@ -1,5 +1,25 @@
 [
   {
+    "version": "1.18.97",
+    "title": "Tray access, shared stop modes and cleaner work sessions",
+    "summary": "Reopen the desktop app from its Windows tray icon, choose Immediate or Safe Stop, send media from desktop, and keep task activity together.",
+    "added": [
+      "Windows tray icon with Open and Quit actions; registration failures keep the app accessible in the taskbar.",
+      "Shared Immediate Stop / Safe Stop settings. Immediate is the default.",
+      "Desktop image/video sender with caption, native upload when supported, sampled-frame fallback and optional installed FFmpeg conversion."
+    ],
+    "improved": [
+      "Co-work treats unfinished requests as active goals and allows independent work to interleave at safe message boundaries. The browser still executes one command per reply.",
+      "Work groups stay expanded during work and collapse after completion, including new messages and ChatGPT action controls.",
+      "Media uploads retain filenames and MIME types, use bounded decoding, and avoid automatic resend after uncertain delivery."
+    ],
+    "fixed": [
+      "Removed empty no-tools-used filler from work summaries.",
+      "Verify the live engine before correcting an inaccurate offline response; a connected bridge alone does not imply Studio is connected.",
+      "Desktop, browser-bar and supported native AI Stop controls share a stop latch. Immediate cancellation is scoped to the active checkpoint and owned command/helper processes; external tools may not honor interruption. Safe Stop waits for the current tool step. Neither mode guarantees rollback."
+    ]
+  },
+  {
     "version": "1.18.96",
     "title": "Faster automatic release checks",
     "summary": "Automatic checks reuse HTTP connections and stop waiting after eight seconds when the release feed stalls.",
