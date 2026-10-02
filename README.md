@@ -1,3 +1,9 @@
+## Extension folder: PlazCode-Extension
+
+For a fresh installation, [download PlazCode-Extension-1.18.93.zip](https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Extension-1.18.93.zip), extract it, and select **PlazCode-Extension** in Chrome’s **Load unpacked** dialog. This is the same 1.18.93 build with a clearer folder name.
+
+For an existing installation, close PlazCode and rename your current folder to **PlazCode-Extension**, keeping its contents and saved settings. Point Chrome’s **Load unpacked** at the renamed folder, restart PlazCode, and refresh open AI tabs. Existing automatic updates continue installing into the current folder; the update feed retains its compatible package layout.
+
 ## PlazCode 1.18.93: Shared themes, larger memory and quieter updates
 
 - Desktop palette, glow and gradient settings sync through shared preferences to the browser bar, menus, controls and activity panels. Selections persist across restarts and updates; legacy browser themes map back to desktop palettes. Existing unsynced appearance is migrated without forcing a reset.
