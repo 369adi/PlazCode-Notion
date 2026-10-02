@@ -1,8 +1,24 @@
 {
-  "version": "1.18.103",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.103.zip",
-  "sha256": "df014c8a9c841fe61e8fb6f898e1319c00868a2c7dac016af3e197124f90d956",
+  "version": "1.18.104",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.104.zip",
+  "sha256": "bb1997e32a8de1db99798491f692da64034a08d958d278dfa5e63ac9ab6223df",
   "release_notes": [
+    {
+      "version": "1.18.104",
+      "title": "Animated installer and explicit Notion protocol files",
+      "summary": "A redesigned installer window stays animated during file work, while Notion long startup/tool messages are staged as one exact named text file rather than repeated auto-converted pastes.",
+      "added": [
+        "A rounded dark installer window with PlazCode orange gradients, an animated shimmer and swirl, stage text and real file-copy progress."
+      ],
+      "improved": [
+        "The installer UI runs on its own STA message loop so download, verification, backup, extraction and process waits cannot freeze its animation. File replacement progress advances from actual completed file counts.",
+        "Notion long protocol messages use one named .txt file containing the complete original text, plus a short native composer instruction. Upload readiness and one confirmed send are required; text is not truncated."
+      ],
+      "fixed": [
+        "Notion no longer retries a 33k+ text paste that the site converts into a Pasted text attachment. Existing draft attachments are preserved and receive a specific fresh-chat/remove-draft explanation. Stopped owned uploads are cleaned up.",
+        "Short protocol messages retain the native composer path. Saved settings, MCP configuration, memory, templates, installation process scope, checksums and rollback behavior are preserved."
+      ]
+    },
     {
       "version": "1.18.103",
       "title": "Notion controlled paste and persistent Co-work placeholders",
