@@ -1,4 +1,21 @@
 [
+{
+  "version": "1.18.101",
+  "title": "Notion literal startup and smoother engine switching",
+  "summary": "Prevent repeated clearing/refilling after a rejected large Notion prompt and distinguish an intentional engine reconnection from a bridge failure.",
+  "added": [],
+  "improved": [
+    "All Notion literal pastes, including startup chunks, use escaped code HTML to avoid rich-text Markdown conversion. Complete normalized text must be retained before Send; sampled near-match acceptance is removed.",
+    "The browser bar shows Switching while AgentScript/RobloxScript reconnects, disables Start, ignores old-engine status and restores actual health on completion or after an eight-second bound."
+  ],
+  "fixed": [
+    "A rejected retained large paste no longer falls into repeated tiny inserts and full rewrites. One initial empty hydration rejection may retry; partial failures stop without sending.",
+    "Intentional engine reconnection does not flash a bridge-down banner. A genuine failure remains visible after the transition timeout."
+  ],
+  "validation": [
+    "Rich-text importer fixtures retain 33k+ prompts with Markdown, paths and Unicode; corruption and Stop abort. Shared startup, native Co-work and Stop checks pass. Notion remains experimental: live-site startup needs confirmation."
+  ]
+},
   {
     "version": "1.18.100",
     "title": "Restore browser bar startup and placement",

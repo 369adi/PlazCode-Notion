@@ -1,3 +1,14 @@
+## PlazCode 1.18.101: Notion startup and engine switching
+
+- All Notion literal pastes, including startup chunks, use escaped code HTML to avoid rich-text Markdown conversion. Complete normalized text must be retained before Send; sampled near-match acceptance is removed.
+- The browser bar shows Switching while AgentScript/RobloxScript reconnects, disables Start, ignores old-engine status and restores actual health on completion or after an eight-second bound.
+- A rejected retained large paste no longer falls into repeated tiny inserts and full rewrites. One initial empty hydration rejection may retry; partial failures stop without sending.
+- Intentional engine reconnection does not flash a bridge-down banner. A genuine failure remains visible after the transition timeout.
+
+Notion remains experimental. Tests use simulated rich-text imports and provider DOMs; live Notion startup still needs confirmation.
+
+After updating, reload the extension AND refresh every existing AI tab.
+
 ## PlazCode 1.18.100: Browser bar startup and placement fix
 
 - Fixed the 1.18.99 shared UI initialization order. When a composer already existed, placeholder state was read before initialization and startup aborted, leaving the bar missing or unpositioned. This affects multiple providers and Chromium browsers.
