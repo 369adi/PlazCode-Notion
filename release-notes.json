@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.18.95",
+    "title": "Separate app and browser extension folders",
+    "summary": "The main installation folder is PlazCode. Only its browser extension subfolder is named PlazCode-Extension.",
+    "added": [],
+    "improved": [
+      "Fresh downloads place the desktop executable, launcher and updater in PlazCode, with Chrome files in PlazCode/PlazCode-Extension.",
+      "Version detection and the installer support both nested and older flat extension layouts. Older installers receive a compatibility ZIP."
+    ],
+    "fixed": [
+      "Corrected the previous release, which renamed the entire installation folder instead of only the Chrome extension folder.",
+      "Removed Tasks from the browser bar; task checkpoints and workflows remain available in the desktop app. Their disclosure header shows a hand cursor on hover. The Templates subtitle is vertically centered beside its title."
+    ]
+  },
+  {
     "version": "1.18.94",
     "title": "Studio MCP compatibility and clearer extension folder",
     "summary": "PlazCode discovers Studio IDs for the updated Roblox MCP tools, while keeping local bridge startup independent of Studio readiness. Fresh-install ZIPs use PlazCode-Extension.",

@@ -1,0 +1,621 @@
+PlazCode 1.18.95: Separate app and browser extension folders
+
+The main folder is PlazCode. Run PlazCode.exe there. In Chrome Load unpacked,
+select PlazCode/PlazCode-Extension, which contains only the browser files.
+The launcher, updater and desktop app stay in the main PlazCode folder.
+Tasks is now desktop-only; its expandable header uses a clickable hand cursor.
+
+Existing installations keep their current outer folder path. The automatic
+update includes legacy extension copies for compatibility, so your currently
+loaded extension keeps working. You can keep loading that existing folder;
+new installations should select the nested PlazCode-Extension folder. Changing
+Chrome's loaded folder creates a separate extension installation and may require
+restoring browser-only preferences. Native settings, memory and enabled MCP
+servers stay in their existing data locations. Reload the extension and refresh
+open AI tabs after updating. No installation folders are renamed automatically.
+
+PlazCode 1.18.94: Studio MCP compatibility and clearer extension folder
+
+PlazCode discovers Studio IDs for the updated Roblox MCP tools, while keeping local bridge startup independent of Studio readiness. Fresh-install ZIPs use PlazCode-Extension.
+
+- Automatically supply studio_id for targeted Studio tools when one instance is connected. Cache discovery briefly, preserve explicit caller IDs, and require a deliberate selection when multiple instances are open. Older schemas are forwarded unchanged.
+- Fresh installations extract into PlazCode-Extension. Update packages preserve the layout older updaters accept, and the updated installer accepts either single-root layout without changing the installed folder.
+- The internal get_studio_state connection probe now receives studio_id when required. Missing IDs no longer prevent automatic Studio connection after the new MCP update.
+- Studio auto-connect attempts have an eight-second bound and retry in the background; local bridge endpoints are bound before the desktop opens. Timed-out discovery never dispatches the requested Studio command.
+
+Fresh installation: extract PlazCode-1.18.94.zip and select PlazCode-Extension with Chrome Load unpacked. Existing installations: use the Updates tab or Update-PlazCode.bat, then reload the extension and refresh AI tabs. Existing settings and folder paths remain intact.
+
+PlazCode 1.18.93: Shared themes, larger memory and quieter updates
+
+- Desktop palette, glow and gradient settings sync through shared preferences to the browser bar, menus, controls and activity panels. Selections persist across restarts and updates; legacy browser themes map back to desktop palettes. Existing unsynced appearance is migrated without forcing a reset.
+
+- Saved memory supports 150,000 characters total, with a capacity display, larger note fields and transactional storage limits. Long notes have previews and paged AI reads instead of being omitted or flooding startup prompts. Memory-only backups can load saved notes without sending an old conversation to the AI.
+
+- Notion tool results paste as literal HTML code instead of Markdown-like rich text. Failed writes have wall-clock retry limits, preventing hundreds of timer-throttled chunk attempts. A failed draft is cleared only when it still matches the locked composer content captured by that send attempt.
+
+DeepSeek’s desktop AI picker description now reads: Recommended for free users. Fast and reliable.
+
+- Release checks run every two seconds, and desktop/browser status reads every second. The default GitHub cache key uses two-second buckets; network and publication delays still apply. This is polling, not guaranteed instant push.
+- Automatic checks do not show Checking for updates… or disable the manual check/install buttons. Manual requests wait for an ongoing background read instead of racing it.
+
+PlazCode 1.18.92
+Tasks close button and live Co-work follow-ups
+
+Close Tasks reliably and send follow-ups during agent work without waiting for the entire task to finish.
+
+- Co-work delivers new requests alongside the next tool result or continuation, preserving the current task and the order of follow-ups. Streaming responses and running commands are not interrupted.
+- Follow-up status confirms receipt and explains delivery at the next safe message boundary. Unconfirmed sends remain paused for review rather than being blindly retried.
+- Tasks has a dedicated sticky header and accessible close button, separated from content, with explicit button type and click handling.
+
+PlazCode 1.18.91
+Desktop work details and responsive status
+
+Expanded desktop work details now show AI replies and commands, with cleaner Home spacing, accurate icons and faster automatic update detection.
+
+- Templates now use Choose a Roblox file and Add template, with short numbered directions. Advanced script search is optional and collapsed.
+- Desktop template imports support Roblox files up to 128 MB using direct binary uploads, avoiding base64 copies. Browser imports remain limited to 32 MB; script-index bounds still apply.
+- Memory transfer separates Save to a file from Load into another chat, explains saved notes versus messages, and uses clear create/download/load buttons.
+- Desktop Working/Worked details show AI replies, command text and results from the selected browser chat, loaded only while the panel is open.
+- Automatic release checks run every five seconds, with desktop/browser status propagation every two seconds. The default GitHub feed uses a five-second cache key; network/cache delays can still apply. Checks do not overlap.
+- DeepSeek and Claude shortcuts use vector logos from the supplied references. Tools uses the supplied icon, and Settings has a symmetric centered gear.
+- Task checkpoints & workflows has a clear gap below the Home cards; the Working panel also has consistent spacing.
+- Expanded work details preserve unchanged content and scrolling across refreshes, collapse once on completion and remain reopenable. Retention is bounded; oversized/older omitted details receive an explicit notice.
+- The updater swirl rotates normally and uses a slower continuous rotation when reduced motion is enabled, instead of freezing.
+
+PlazCode 1.18.90
+Grouped replies and extension status
+
+Task replies and commands collapse together, with extension status under the bar name and a corrected ChatGPT shortcut logo.
+- The browser bar shows its installed extension version below PlazCode, with green (Up to date), red (Outdated - New update available), or a neutral unavailable/unchecked status.
+- The desktop ChatGPT shortcut uses a vector logo traced from the supplied reference instead of a circle character. Its existing browser-opening action is preserved.
+- Working/Worked now includes task prose, final responses, command cards and injected results. Completed groups collapse together and reopen on click. Startup, list_commands/list_tools and PlazCode is ready. remain outside; user requests remain visible.
+- Activity identity survives streaming text changes and transcript remounts, and remains scoped to the chat.
+
+- **Added:** ChatGPT: Highly intelligent in all aspects. DeepSeek: Recommended for free users. Claude: Expert at scripting and game development. Each description appears below its name and above Open in browser.
+
+- The updater explicitly preserves native settings, MCP configuration/enabled servers, memory, pairing, templates, update source and WebView user data, even if a package contains saved-data files.
+- The Tools page includes both engine skill libraries, imported Studio helpers, asset_bridge_import and developer-product tools with descriptions.
+- Working/Worked uses a centered vector chevron that points right when collapsed and rotates down when expanded.
+
+PlazCode 1.18.89
+
+Switch between RobloxScript and AgentScript directly above Start Agent on the desktop Home page.
+
+- A themed, keyboard-accessible RobloxScript / AgentScript button group under the active AI status and above Start Agent. The selected engine is highlighted.
+- The Home buttons use the existing saved engine preference and browser synchronization, and stay synchronized with the Settings engine selector. Repeated clicks are disabled while saving.
+- Start Agent is temporarily disabled while the engine change is saving or the selected browser chat still reports a different engine, preventing a start on the previous engine.
+
+Update, reload the extension and refresh open AI chat tabs.
+
+Earlier release notes:
+
+PlazCode 1.18.88 (extension and desktop/agent)
+
+Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task’s first tool call.
+
+- Templates tab in the desktop app and a Template library inside browser Tasks. Import .rbxl, .rbxlx, .rbxm and .rbxmx files up to 32 MB, add a systems description, browse/read scripts and remove saved references.
+- Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit “reference this template” request is required.
+- Read-only plazcode_templates tools support explicit matching, script lists and paged source reading. Duplicate script paths have separate IDs.
+- Open in Studio explicitly opens the retained original through the Windows Roblox file association; select the desired Studio session in PlazCode afterwards.
+- Template code is reference data, not executable instructions. Existing project conventions take priority. Matching is a relevance hint rather than guaranteed semantic understanding.
+- Template files/indexes persist in your private app data, survive updates and are excluded from distribution ZIPs. Source indexes and excerpts have explicit size limits to avoid flooding long chats.
+- Malformed, unsupported and source-free files report clear import errors. Missing scripts in copied/decompiled games are not fabricated or recovered. Binary and XML imports preserve the original file bytes.
+
+Update, reload the extension and refresh open AI chat tabs. Import templates in desktop Templates or browser Tasks > Template library. Only readable script sources present in the supplied file can be referenced. Relevance is determined from names/identifiers/descriptions, so add an accurate description for better matches. Live Windows file association and Studio session selection require verification.
+
+Earlier release notes:
+
+PlazCode 1.18.87 (extension and desktop/agent)
+
+Review and recover agent tasks, keep project facts separate, and reduce repeated tool errors and long-chat overhead.
+
+- Tasks panel in the desktop Home page and browser bar: bounded task history, file before/after previews, conflict-checked Revert and resume in the original chat.
+- AgentScript file checkpoints persist across app restarts. Studio Revert is offered only when exact undo records are confirmed in the current bridge/Studio session. Unsupported operations disable whole-task automatic restore.
+- Protected paths with explicit task approval; project memory scopes shared by named projects; reusable built-in and custom workflows.
+- Long-chat activity retains at most 60 groups, builds collapsed details only when expanded, ignores its own UI mutations and caches unchanged export text. Retention overflow produces an explicit export error.
+- Automatic release checks run on launch and every minute; returning to an AI tab or desktop window triggers a throttled check. Update labels refresh without pressing Check now. Network/cache delays can still apply.
+- Tool preflight checks JSON argument shapes against available schemas, detects incomplete Luau strings/delimiters and preserves datamodel defaults. Three consecutive malformed replies or execution failures pause the agent.
+- Studio mutation commands are not blindly replayed after a dropped helper connection; uncertain results require inspecting Studio before retrying.
+- Unchanged memory and release snapshots no longer generate repeated storage broadcasts. Workflow delivery acknowledgements are deduplicated.
+
+Update, reload the extension, and refresh open AI chat tabs.
+Revert does not cover commands, external MCP side effects, folders or runtime operations. Studio undo checkpoints do not survive bridge restarts. Workflow test cycles depend on available tools; no hidden Play/Stop automation was added. Project scopes are assigned in Tasks; existing memory remains global. Live Windows/Studio/provider verification is still required.
+
+Earlier release notes:
+
+PlazCode 1.18.86 (extension and desktop/agent)
+
+Agent launch reserves every bridge endpoint before reporting ready and serializes overlapping launches.
+
+- Windows startup is serialized across PlazCode launches; an existing instance of the same version is focused, and older versions are replaced.
+- All three required bridge listeners are bound before background services start. Port release is checked with bounded retries instead of fixed delays.
+- Removed broad process-name cleanup that could kill another launching PlazCode instance. Recovery only targets a PlazCode process holding a required port.
+- Port ownership uses exact endpoint matching, avoiding matches such as port 30000 when checking 3000.
+- Startup errors now identify the actual blocked port and, when available, its owning process instead of the generic bridge-bind dialog. Legacy listener failures are logged.
+
+Replace the package, reload the extension and refresh AI tabs.
+External programs holding bridge ports still require closing that program; the launch dialog identifies the conflict.
+
+Earlier release notes:
+
+PlazCode 1.18.85
+
+The updater waits for PlazCode to exit and release its executable before installing.
+
+- The updater checks both app executable paths, waits for stopped processes to exit, and briefly retries file-lock checks. Only processes from the selected installation are stopped; Roblox Studio is left running.
+- Update installation no longer starts copying immediately after Stop-Process. If the executable remains locked, it aborts before copying any update files and retains recovery files.
+
+If the installed older updater failed with a locked PlazCode.exe, replace
+Update-PlazCode.ps1 with this corrected helper before running the update BAT.
+The desktop Updates tab runs the same installed helper.
+Reload the extension and refresh open AI chat tabs after updating.
+Live Windows installation still requires verification.
+
+Earlier release notes:
+
+PlazCode 1.18.84 (extension and desktop/agent)
+
+Select desktop themes directly from their color swatches, and keep Notion startup acknowledgements readable.
+
+- Desktop startup instructions accept up to 25,000 characters, with an input counter and explicit save validation.
+- All six desktop color swatches are clickable, keyboard accessible, show the selected theme and use the same saved appearance settings as the dropdown. Glow and gradient preferences are preserved.
+- Chat export retains messages captured while scrolling during the current page session. Idle Notion exports briefly load older history and restore the previous scroll position. Exports report their captured message count and remaining scope limitations.
+- Download export is styled as a theme-colored button in desktop and browser memory settings.
+- All startup instruction variants explicitly request “PlazCode is ready.” instead of a generic readiness sentence.
+- If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to “PlazCode is ready.” without resending startup or modifying Notion-owned DOM.
+- DeepSeek rich-text composers remain discoverable while input-locked, and agent writes temporarily enable editing then restore the lock. Explicit Send labels take precedence over stop-icon guesses.
+
+Update, reload the extension, and refresh open AI chat tabs.
+Live Notion, DeepSeek, ChatGPT, Claude and Windows app behavior require
+verification. Chat exports include only messages the site has loaded or
+captured, and are not guaranteed complete archives. History import still
+requires a context under 40,000 characters; summarize larger exports first.
+
+Earlier release notes:
+
+PlazCode 1.18.83 (extension and desktop/agent)
+
+Desktop, browser bar and popup version badges show “(Outdated - New update available)” when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved.
+
+Update from the desktop Updates page or Update-PlazCode.bat, then reload
+the extension and refresh open AI chat tabs.
+
+Earlier release notes:
+
+PlazCode 1.18.82 (extension and desktop/agent)
+
+A redesigned desktop workspace, complete color themes and a polished animated updater, with focused Notion and Co-Work improvements.
+
+- A distinct desktop layout: compact navigation, a dedicated agent-session card, AI launch cards, a slim connection strip, and redesigned Tools, MCP, Settings, Terminal and Updates surfaces.
+- Animated SVG update swirl with layered rotating arcs, a pulsing center and a redesigned progress dialog. Reduced-motion preferences are respected.
+- Expandable Working/Worked summaries in the chat show elapsed time and tool activity; completed details collapse automatically and reopen on click.
+- Themes now color panels, navigation, borders, inputs, buttons, connection surfaces, terminal and update dialogs as well as accents.
+- Startup asks the AI to say “PlazCode is ready.”; older readiness acknowledgements remain accepted.
+- Co-Work follow-up text uses the website composer’s text color, font, size and alignment. Only the placeholder is grey. Existing queue behavior is preserved.
+- Copilot and Meta AI removed from supported-site choices, routing and extension injection.
+- Notion can settle a stable readiness acknowledgement without waiting through its nine-second generation tail; live Stop or workflow progress still blocks completion.
+- Notion pastes an escaped literal HTML representation alongside plain text so rich-text Markdown conversion does not consume command/result markers. Complete-draft retention and send-confirmation checks remain in place.
+- Notion reserves space inside the composer for the PlazCode bar, keeping response text and the native editor clear without modifying React-owned attributes.
+
+Install with Updates -> Check now -> Update now or the update BAT. Reload the
+extension and refresh open chat tabs afterwards.
+
+Verified: JS syntax, desktop interaction and provider/queue regressions,
+focused Notion tests, browser-rendered layouts using sample API data, and
+Windows release compilation. Live Notion and Windows updater execution
+remain unverified.
+
+Earlier release notes:
+
+PlazCode 1.18.81 (extension and desktop/agent)
+
+All desktop, browser menu and popup version readouts now show green Up to
+date, red Outdated, or a neutral Not checked/Check unavailable status. The
+bridge checks the published release at startup and every five minutes.
+Browser readouts synchronize through the authenticated bridge.
+
+Quick Actions now fits its contents instead of stretching to the Recent Activity
+panel. Status cards, typography and spacing are denser; activity stays scrollable.
+
+New Appearance settings offer six desktop palettes, glow intensity and gradient
+controls. They apply immediately, save locally and can restore the default.
+
+Visual-only desktop polish adds smoother hover/press feedback, card depth,
+keyboard focus, toggles and modal backgrounds. Existing actions remain unchanged.
+
+Release descriptions are now shown in the desktop Updates tab and the GitHub
+README. Each published release has a title, summary, additions, improvements
+and fixes. The newest release is expanded; earlier releases can be expanded
+individually. Notes are shared through release-notes.json and the update feed.
+Installed notes are available offline; Check now refreshes published notes.
+Home spacing is tighter, with agent controls sharing the shortcut area on wide
+windows. The installed/latest arrow is larger, lower and spaced more closely.
+
+Use Updates -> Check now -> Update now, or run the update BAT. Reload the
+extension and refresh AI tabs afterwards.
+
+Verified: desktop note rendering, safe text handling and native metadata tests,
+JS syntax, package checks and Windows release compilation. Live Windows
+installer/UI execution remains unverified.
+
+Earlier release notes:
+
+PlazCode 1.18.80 (extension and desktop/agent)
+
+- Home now has ChatGPT, DeepSeek and Claude shortcuts below its connection
+  displays, opening the default browser. View on GitHub opens externally too.
+- Desktop Updates tab: installed/latest versions, Check now, Update now and
+  View on GitHub. A progress overlay shows download/install status, errors can
+  be dismissed, and the installer relaunches PlazCode after replacing files.
+- The installer validates the downloaded SHA256 and expected package version
+  before stopping the app. Settings and memory are preserved; Studio stays open.
+- Browser Enhance and Co-Work keep transparent backgrounds matching the latest
+  reference. Co-Work label is now Co-Work: Off / Co-Work: On on both surfaces.
+- Includes chat-only/memory-only exports, themed memory import file picker and
+  the automatic BAT updater from the preceding changes.
+
+One-time setup from 1.18.77: download this ZIP and select it with the existing
+Update-PlazCode.bat. Later updates can use the app's Updates tab or the BAT.
+Reload the extension AND refresh open AI chat tabs after every update.
+
+Verified: JS syntax, desktop interactions/progress/error states, chat memory
+export isolation, persistence/version/feed validation tests and Windows release
+compilation. Live Windows UI/provider and PowerShell installation remain
+unverified in this environment.
+
+Earlier release notes:
+
+PlazCode 1.18.79 (extension and desktop/agent)
+
+Chat-specific memory export:
+- Chat transfer now defaults to Current chat only, with All shared memory as
+  an explicit choice. Uncheck Include loaded chat history for a memory-only
+  JSON export.
+- Memories saved by AI tools retain provider/conversation identifiers even
+  after editing. The same fact learned in multiple chats records each origin.
+- Existing memories use their exact saved source where available. Manual and
+  imported global entries have no chat origin and are excluded by chat-only
+  export. Missing origins are never guessed.
+- A new chat without a stable conversation ID must receive a message first
+  before chat-only export is available.
+- Export uses the browser tab's provider adapter and conversation key; desktop
+  exports route to the browser tab selected by the extension.
+
+Includes 1.18.78 automatic updater setup and themed controls. Install this ZIP
+once with the old update BAT (select it manually). Future BAT runs check the
+repository automatically. Reload the extension AND refresh AI chat tabs.
+
+Verified: filter isolation, no shared-memory mutation, memory-only export,
+legacy compatibility, origin persistence after edits, JS syntax, desktop
+regressions and Windows release compilation. Live Windows/provider UI and
+PowerShell updater execution remain unverified.
+
+Earlier release notes:
+
+PlazCode 1.18.78 (extension and desktop/agent)
+
+Automatic updater configured for stoveez/PlazCodeneww.
+- Update-PlazCode.bat checks hosted latest.json and downloads the newest ZIP.
+  Version/checksum checks, backups and local configuration preservation apply.
+- Blank feed settings from 1.18.77 fall back to this repository. Custom settings
+  remain in use.
+- Browser Enhance, Co-work, Pending and activity controls now use themed dark
+  pills, orange accents, smooth hover transitions and visible keyboard focus.
+  Enhance and enabled Co-work have the orange gradient. Click actions unchanged.
+- Desktop memory import Choose File control now matches the orange/navy theme.
+
+Install this ZIP once with your existing update BAT (select it manually).
+Afterwards run the BAT, reload the extension and refresh open AI chat tabs.
+A future update must be published to the repository before the BAT can find it.
+
+Verified: package/version/checksum and existing desktop regression checks;
+JavaScript syntax and Windows release compilation. Live Windows UI/PowerShell
+execution remains unverified.
+
+Earlier release notes:
+
+PlazCode 1.18.77 (extension and desktop/agent)
+
+New in this update:
+- Personal memory stored by the local agent, shared across chats/providers.
+  Settings in the desktop and browser bar show a memory summary with Add,
+  Edit, Remove, Refresh and Automatic memory controls. Saving preferences is
+  requested from the AI through the built-in plazcode_memory tool; saved facts
+  are injected when an agent starts and refreshed during tool feedback.
+  Automatic OFF blocks AI saving but keeps existing saved context available.
+- Memory survives folder replacement in LOCALAPPDATA/PlazCode/memory.json.
+  Compact providers receive a smaller selection and can list complete memory.
+- Chat transfer exports currently loaded messages plus memory as JSON, or
+  imports an export/plain-text context from any provider. Historical commands
+  are reference material; imports ask for acknowledgement, not execution.
+  Context imports are capped at 40,000 characters; use a summary for large chats.
+- Working/Worked indicators in the browser bar and desktop Home. Click to
+  expand activity. Completed activity folds automatically; tool/feedback rows
+  can be restored from the browser activity controls. Final replies remain visible.
+- Studio status directly below the desktop bridge status: closed, open but not
+  linked, or connected. Uses existing Studio-process and MCP status checks.
+- Update-PlazCode.bat supports a configured HTTPS release feed and local ZIPs.
+  It checks versions, stages files, backs up overwritten files, preserves MCP
+  config/feed settings and local data, replaces only this install, then restarts.
+  There is no configured public release feed yet; see UPDATER.txt for setup.
+
+Install: close PlazCode, replace the folder, run PlazCode.exe, reload the
+extension in chrome://extensions, and refresh open AI chat tabs.
+For later updates run Update-PlazCode.bat, then reload and refresh the browser.
+
+Verified: JS syntax; desktop and Studio status interactions; memory persistence,
+import validation/atomicity, API authentication, cross-chat prompt injection,
+activity collapse; Co-work queue/agent-loop/delivery tests; existing ChatGPT,
+Claude and parser regressions; Windows x64 release compilation.
+Live Windows UI/provider and PowerShell updater execution remain unverified.
+Automatic AI memory saving depends on the AI following the supplied policy.
+
+Earlier release notes:
+
+PlazCode 1.18.76 (extension and desktop/agent)
+
+Co-work is now a persistent mode, not a separate prompt dialog.
+- Toggle Co-work beside Start/Stop; turning it on does not open a modal.
+- In an active agent session, the browser chat composer stays usable in this
+  mode while the agent works. Type normally and press Enter/Send.
+- Desktop Home shows a persistent inline chat when Co-work is on.
+- Both show "Follow up" during work and "Message" when idle.
+- Requests received while working wait in order. The current task finishes
+  first, then the same agent loop handles each new request automatically.
+- Pending previews, Remove and Resume are separate from composing a message.
+  Stop pauses the queue; Off restores normal behavior. Drafts remain saved in
+  the current tab. Chat/engine and delivery guards remain unchanged.
+
+Install: close PlazCode, replace the folder, run PlazCode.exe, reload the
+Chrome extension, and refresh AI chat tabs. The desktop executable changed.
+
+Verified: browser mode renderer and desktop interaction tests; queue ordering,
+actual agent-loop continuation and duplicate-delivery guard tests; JavaScript
+syntax and Windows release build. Live Windows/provider testing is pending.
+
+Earlier release notes:
+
+PlazCode 1.18.75 (extension and desktop/agent)
+
+New in this update:
+- Co-work button beside Start/Stop in the desktop Home page and browser bar.
+  Co-work is off by default and its toggle is shared through extension storage.
+- Add multiple requests while the agent works; they run in order in the same
+  chat after the current task finishes, without ending the agent loop.
+- The browser working composer accepts follow-ups directly. Both request boxes
+  use the grey "Follow up" placeholder while Co-work is on and work is active.
+- Queue previews, Remove and Resume controls. Stop pauses pending requests;
+  turning Co-work off preserves pending requests without dispatching them.
+- Chat/engine changes pause the queue rather than redirecting requests.
+  Failed or unconfirmed delivery never automatically retries a queued request.
+- Desktop waits for browser acceptance before clearing a queued draft; retrying
+  an unacknowledged desktop submission uses the same ID to prevent duplicates.
+- Follow-up drafts are kept when the current task finishes. Pending requests
+  belong to the current browser tab/session; refreshing it clears the queue.
+
+Install: close the desktop app, replace the whole PlazCode folder, run
+PlazCode.exe, reload the extension in chrome://extensions and refresh open
+AI chat tabs. The executable changed in this release.
+
+Verified: queue state and actual agent-loop tests; desktop UI interactions;
+real local HTTP/WebSocket acceptance/rejection/authentication tests; native
+unit tests; ChatGPT/Claude/parser regressions; JavaScript syntax; Windows
+release cross-build with icon. Live Windows/provider confirmation remains
+necessary; browser installation was unavailable in this test environment.
+
+Earlier release notes:
+
+PlazCode 1.18.74 (extension); desktop/agent remains 1.18.73
+
+New in this update:
+- Notion retries rejected landing-page writes with bounded backoff before any
+  Send click, so initial editor hydration can finish within one Start attempt.
+  An unconfirmed commit is never automatically submitted again.
+- Notion uses the existing compact startup protocol; custom instructions remain
+  intact. A closed startup reply can settle after 1.5 seconds without Stop or
+  native workflow progress, instead of waiting through the 9-second growth tail.
+- Plain JSON semantic assistant rows without block IDs receive immutable CSS
+  cards, including same-ID remounts; user examples remain untouched.
+- No Rust/desktop changes: the existing 1.18.73 executable is included unchanged.
+- Kill Roblox Studio smoothly enlarges with a thicker red glow on hover.
+- Home keeps a disabled Play button visible until ready; Stop replaces it while
+  working. Prompt enhancer moves beside these controls and opens a dialog.
+- Wire Notion immutable command rendering into the shared renderer and mutation
+  hooks. Cards use CSS outside the locked transcript; raw JSON remains readable
+  to the agent but hidden visually. Exclude result chips from transcript reads.
+- Desktop opens only after the HTTP bridge successfully binds. Bind failures
+  produce an actual startup error rather than a dead waiting window.
+- Desktop UI and API share the loopback origin. Native WebView initialization
+  provides credentials; the public UI shell contains no pairing key.
+- Repeated fetch failures show their actual error and address.
+- Contextual MCP guidance for complex reasoning, documentation, and verified
+  project memory; tools must be enabled and available.
+- Notion rich editors try model-aware paste with delayed retention checks before
+  the existing insertion fallback. No send occurs unless the complete draft stays.
+- Emergency Kill Roblox Studio button above the sidebar bridge indicator; uses
+  Windows force-close without waiting for MCP or any agent task.
+- Prompt enhancer beside desktop Home Play/Stop and on the browser bar.
+  The selected AI rewrites with the supplied universal rules, then receives the
+  enhanced request. Enhancement replies cannot enter the agent tool loop.
+- Hung desktop refresh requests time out and retry automatically.
+- Tool cards smoothly expand full descriptions on click and collapse on a second click.
+- Browser preference edits stay protected until saved. Only changed keys are
+  pushed, preventing stale desktop snapshots from reverting AgentScript mode.
+- AgentScript status uses workspace readiness rather than Roblox process state.
+- Tool descriptions show two lines until the card is clicked.
+- Browser bridge acknowledgement is immediate and no longer waits for MCP
+  initialization. Offline reconnect retries run every 500 ms.
+- Home Start/Stop controls mirror the selected browser AI tab and use its existing
+  bar handlers. Stale or unavailable tabs cannot be started from desktop.
+- Desktop settings push immediately over the existing bridge socket; the five-
+  second preference poll remains a reconnect fallback.
+- Notion startup reacquires hidden/remounted composers and confirms consumed
+  drafts with new generation/reply signals, without duplicate commit clicks.
+- Notion uses the real fenced JSON list_commands handshake and waits for the
+  startup turn to settle before sending the command catalogue.
+- Tools show server-provided descriptions beneath their source label; cards
+  smoothly enlarge with an orange highlight and revert on mouse leave.
+- Ship one desktop executable, PlazCode.exe. Remove the old duplicate
+  plazcode-agent.exe when installing this update. Legacy launch fallback and
+  process detection remain compatible with older installations.
+- MCP toggles respond immediately, show pending feedback, and synchronize only
+  changed servers instead of restarting every enabled server.
+- Browser DOM fixture tests cover Notion startup; live Notion needs verification.
+
+
+Changes:
+- Add a 16px minimum gap between Recent Activity and Clear, place Clear at the right edge, and allow wrapping at narrow widths.
+- Preserve the Clear action and all other layouts and behavior.
+- Add the extension/bar Instructions editor to desktop Settings, with Save and sync through the existing rsCustomPrompt preference. Preserve existing extension instructions when upgrading older saved desktop settings. Changes apply to new sessions.
+- Keep the lightweight first-use MCP runtime setup from 1.18.68.
+
+Install:
+1. Exit PlazCode completely and replace its folder with this release.
+2. Reload the extension in chrome://extensions and refresh open chat tabs.
+3. Open PlazCode.exe.
+
+Validation:
+- Rendered Recent Activity header checked at multiple desktop widths.
+- Existing desktop regression and JavaScript syntax checks pass.
+- Windows x64 release rebuilt with the original icon and WebView2 loader.
+
+Previous release notes:
+
+PlazCode 1.18.68
+
+Changes:
+- Remove bundled Node.js, npm, uv, and the extra rollback executable from the share ZIP to reduce download size and extraction time.
+- Use existing compatible runtimes first. If a needed runtime is missing, download only that runtime when a configured MCP server starts.
+- Cache runtimes under %LOCALAPPDATA%\PlazCode\runtimes so replacing the app folder does not require downloading them again.
+- Pin official runtime downloads and verify their SHA-256 checksums before extraction. Stage setup separately and publish only complete installations, with a lock to prevent duplicate concurrent installs.
+- Preserve automatic Studio MCP connection and existing providers, settings, permissions, and message contracts.
+
+Install:
+1. Fully exit the old app through Settings > Exit PlazCode.
+2. Keep your previous folder separately for rollback, then extract this ZIP into a fresh PlazCode folder. Do not merge with 1.18.67 if you want to avoid retaining its bundled runtimes.
+3. Reload the unpacked extension in chrome://extensions and refresh all open chat tabs.
+4. Open PlazCode.exe. Studio MCP startup needs no additional runtime download.
+5. Enable the desired optional MCP servers. First use may take a few minutes to download the required runtime and MCP package. Subsequent launches reuse the cache.
+
+If first-use setup fails, check internet access and disable/enable the affected MCP server to retry. No administrator installation or global PATH changes are required.
+
+Validation:
+- Rust tests and existing desktop regression checks pass.
+- Windows x64 release rebuilt; original app icon and required WebView2 loader retained.
+- Runtime installer checks cover syntax, checksum rejection, successful extraction, cached reuse, and retry after a failed download.
+- Live Windows/Roblox Studio testing remains unverified in this Linux environment.
+
+Previous release notes:
+
+PlazCode 1.18.67
+
+Changes:
+- Start and probe the Studio MCP helper automatically while Roblox Studio is open. Retry every five seconds when it is disconnected, without requiring Start-PlazCode-Agent.cmd or a chat tab.
+- Set the app working directory to its own folder when opened from Explorer or a shortcut.
+- Bundle unmodified official Windows Node.js 22.22.0 and uv 0.12.21 runtimes. Optional MCP servers use these first, with installed-runtime fallbacks.
+- Launch npx through node.exe and npx-cli.js directly, avoiding Windows batch/PATH issues. Put the selected runtime directory on the child process PATH.
+- Keep a failed initialization from being mistaken for a ready MCP connection. Capture the server stderr tail for useful startup errors.
+- Load configured optional servers at app startup and refresh the catalog after enabling or disabling a server.
+- Keep optional servers opt-in and preserve provider adapters, permissions, pairing, and tool/message contracts.
+
+Install:
+1. Fully exit the old app through Settings > Exit PlazCode before replacing the folder.
+2. Extract the complete PlazCode-1.18.67.zip, including runtimes/, and replace the previous folder.
+3. Reload the extension in chrome://extensions and refresh every open AI chat tab.
+4. Open Roblox Studio with its built-in MCP server enabled, then open PlazCode.exe.
+5. Verify Studio connects automatically and enable the desired optional MCP servers.
+
+First-time optional-server startup requires internet access to download their npm/Python packages. Blender MCP also needs the Blender add-on running inside Blender. Git tools need Git installed for Git operations.
+
+Validation:
+- Rust unit tests, including real stdio subprocess handshake, tool calls, and initialization rejection/retry.
+- Existing desktop, parser, ChatGPT, Claude, skills, animation, and blocking version regressions.
+- Extension JavaScript syntax checks.
+- Windows x64 release executable cross-compiled from the updated Rust source, retaining the original branded icon and including the required WebView2 loader.
+- Live Windows/Roblox Studio and Blender connection tests cannot run in this Linux build environment.
+
+Previous release notes:
+
+PlazCode 1.18.66
+
+Changes:
+- Restore vertical scrolling across all desktop pages by fixing the WebView flex/grid min-height constraints. Home, Tools, MCP Servers, Terminal, and Settings now scroll whenever content exceeds the window height.
+- Keep the sidebar and titlebar fixed while only the page content region scrolls, with a visible stable scrollbar and extra bottom padding so lower cards are reachable.
+- Reset the page scroll position to the top when switching sections and add a regression guard for the desktop scroll-container contract.
+- Load the desktop HTML/CSS directly from the packaged executable through a dedicated plazcode:// custom WebView protocol instead of navigating the WebView to http://127.0.0.1:3000/desktop. The PlazCode window now renders even if the local bridge is still starting, so the app cannot fall through to an Edge ERR_CONNECTION_REFUSED page.
+- Keep the existing authenticated loopback APIs for live state/actions. The desktop uses the dedicated http://plazcode.localhost WebView origin on Windows, while generic webpage and null origins remain rejected and the existing bearer pairing key remains required.
+- Treat temporary bridge-startup connection failures as a retry/reconnecting state instead of reporting them as fatal JavaScript crashes.
+- Add regression guards that require embedded with_html startup and reject any return to server-dependent WebView document loading.
+- Restore WebView interaction bootstrap so navigation and controls bind before any bridge/API request. Home, Tools, MCP Servers, Terminal, Settings, quick actions, settings controls, and native window controls remain usable even if live status data is temporarily unavailable.
+- Replace newer JavaScript syntax in the embedded desktop runtime with compatibility-safe syntax for older WebView2 runtimes and add DOMContentLoaded initialization.
+- Add a native ui-ready / js-error handshake so PlazCode logs successful desktop initialization and surfaces JavaScript startup failures instead of silently showing a dead interface.
+- Replace the long text-dash titlebar controls with compact CSS-drawn minimize, maximize, and close icons.
+- Add a CI interaction regression that boots the embedded desktop JavaScript, verifies ui-ready, switches through all five pages, and validates native minimize IPC.
+- Replace the native egui presentation layer with an HTML/CSS WebView2 desktop shell so the real app can closely follow the approved PlazCode preview instead of approximating it with stock native widgets.
+- Keep the existing Rust bridge, Studio MCP, AgentScript, tool catalog, MCP catalog, autosave, process cleanup, extension sync, and background behavior underneath the new presentation layer.
+- Implement Home, Tools, MCP Servers, Terminal, and Settings as real live-data screens. There is no desktop Chat page, no mountain artwork, no marketing slogan, no AI-companion subtitle, and no fake tool/MCP artwork.
+- Add CI guards that parse the embedded desktop JavaScript, enforce the WebView UI contracts, reject removed design content, and require the extension version to exactly match the Rust desktop package version.
+- Automatically clean up stale PlazCode.exe and plazcode-agent.exe processes on startup when there is no healthy same-version instance to reuse. A graceful local shutdown is attempted first for version upgrades, followed by a targeted force-clean fallback only for known PlazCode process names.
+- Synchronize the browser extension and desktop app at version 1.18.60, including manifest version, popup title, pairing message, regression guard, and distribution filename.
+- Fix broken/cramped desktop layout behavior with a real vertical page scroll area, width-aware responsive Home/Tools/MCP grids, smaller stable hero/sidebar proportions, truncated long activity rows, and glow rendering constrained inside component bounds so card edges are not clipped.
+- Fix startup after updating from an older hidden/background PlazCode instance. A new build now reuses only an already-running instance with the exact same desktop version; older background versions are replaced so the new window can open normally.
+- Add regression coverage for same-version reopen versus older-version replacement.
+- Correct the desktop redesign so the implemented app closely follows the approved PlazCode previews instead of only borrowing their colors.
+- Add custom-painted orange glow layers, navy depth, preview-style navigation selection, a branded PlazCode mark, and the large Welcome to PlazCode hero treatment.
+- Increase the dashboard proportions and card hierarchy to match the approved layout more closely while keeping the decorative mountain/landscape artwork out.
+- Rebuild Tools into the preview-style three-column live catalog with RS / AS / PC / MCP filters, source badges, availability states, and no decorative per-tool images.
+- Rebuild MCP Servers into a three-column live server catalog with status glow, descriptions, commands, tool counts, and enable/disable controls, without decorative server artwork.
+- Replace the plain utility-style desktop layout with the production PlazCode dashboard design: stronger sidebar, branded header, cleaner status cards, quick actions, recent activity, and improved spacing.
+- Redesign Tools as a real data-driven RS / AS / PC / MCP catalog with source filters and searchable live entries; no decorative marketplace images or fake tool metadata.
+- Redesign MCP Servers as a live server-management catalog with primary Roblox Studio status plus real optional-server states and enable/disable actions; no decorative server artwork.
+- Redesign Terminal and Settings around the same dark navy + orange glow language while keeping all existing bridge, autosave, background, permissions, reasoning, and MCP behavior.
+- Add a branded PlazCode runtime icon and stamp the same PlazCode identity into the packaged Windows executable so File Explorer, taskbar, and titlebar no longer use the generic app icon.
+- Rename the obvious Windows desktop launcher to PlazCode.exe. The old compatibility alias is no longer included starting in 1.18.73.
+- Redesign the native desktop control center around the extension's dark navy + warm gold PlazCode theme.
+- Closing the desktop window now hides it while the bridge keeps running in the background. Launching PlazCode.exe again reopens the existing background instance instead of starting a second bridge.
+- Add an explicit Exit PlazCode action for actually shutting the background process down.
+- Desktop settings autosave immediately to plazcode-settings.json and restore after hiding, exiting, reopening, or rebooting.
+- Existing saved desktop settings are authoritative after reopen. The browser extension only seeds the desktop settings file on the first run when no saved desktop settings exist yet.
+- Keep desktop and extension settings synchronized through the authenticated loopback bridge.
+- Make the desktop Tools page source-aware and complete: Roblox Studio tools, AgentScript workspace tools, optional MCP add-ons, and browser-side PlazCode utility/skill/motion tools are merged into one searchable catalog.
+- Keep the MCP server catalog with optional Blender, Context7, Fetch, Git, Memory, and Sequential Thinking entries. Roblox Studio remains the protected primary server.
+- Reduce long-chat CPU/DOM churn by throttling diagnostic DOM mirroring, lowering idle camouflage sweep frequency, and replacing the always-on high-frequency bar layout loop with adaptive scheduling.
+- Fix staged-media memory retention by revoking blob URLs when media is removed, cleared, or the page unloads.
+- Preserve every provider adapter and the existing background/provider message contract. Notion remains the known live-site exception from the previous baseline.
+
+Regression validation:
+- JavaScript syntax checks run for background.js, popup.js, core/*.js and providers/*.js.
+- Provider adapters remain hash-protected; the intentional core/main.js performance update has its own updated baseline hash.
+- Existing parser, ChatGPT, Claude, skills, animation, v1.11, v1.12, v1.15, and v1.18 regression tests run in GitHub Actions.
+- Desktop regression checks validate the settings relay, browser-tool relay, performance guards, and version.
+- Rust cargo check and cargo test run on Windows.
+- Rust tests include settings persistence across process reopen and normalization of invalid saved choices.
+- The Windows workflow builds PlazCode.exe, embeds the branded Windows icon, and packages PlazCode-1.18.66.zip.
+- Live authenticated provider smoke tests are still required before merging the draft branch because GitHub Actions cannot drive the user's logged-in AI website sessions.
+
+Install / test:
+1. Close the old PlazCode process completely before replacing files.
+2. Keep your old folder outside the installation as a rollback copy if desired.
+3. Extract PlazCode-1.18.66.zip and replace the previous PlazCode folder.
+4. Reload the unpacked extension in chrome://extensions.
+5. Refresh every already-open supported AI chat tab. Reloading the extension alone leaves the old content scripts running.
+6. Run PlazCode.exe.
+7. Change several desktop settings, close the window, reopen PlazCode.exe, and verify the settings remain unchanged.
+8. Open Tools and verify RS, AS, PC, and MCP source labels appear as those tool sources become available.
+9. Test the currently working AI websites in a normal chat and a long existing chat. Notion remains the known exception for this release.
+
+Background behavior:
+- X / Hide: hides the desktop UI but leaves the PlazCode bridge running.
+- Launch PlazCode.exe again: reopens the already-running desktop instance.
+- Settings > Exit PlazCode: fully exits the process.
+
+Security boundary:
+- Local command and desktop endpoints still require the pairing key.
+- Optional MCP servers remain disabled until explicitly enabled.
+- Roblox Studio MCP cannot be removed from the catalog.
+- The pairing key stays outside the release ZIP.
+- No new Chrome permissions were added.
+
+Distribution:
+- Distribute the complete PlazCode-1.18.66.zip.
+- Keep the extension and desktop app from the same build together.

@@ -1,0 +1,48 @@
+Fresh downloads use PlazCode/ with browser files inside PlazCode/PlazCode-Extension/. Compatibility update archives also include legacy root extension copies so older installers continue working. Existing installation paths and user data are preserved.
+
+Desktop Updates tab: click Check now, then Update now. The app downloads the
+release and shows progress. A separate verified installer replaces files and
+relaunches PlazCode. Afterwards reload the extension and refresh AI chat tabs.
+
+PlazCode automatic updater
+
+Double-click Update-PlazCode.bat. It checks the latest published release at:
+https://github.com/stoveez/PlazCodeneww
+If a newer version exists, it downloads the ZIP, verifies its SHA256, backs up
+changed files, installs it and restarts PlazCode. Otherwise it reports that you
+are already up to date. Afterwards reload the extension in chrome://extensions
+AND refresh open AI chat tabs. No manual ZIP selection is needed.
+
+One-time setup for installations before 1.18.78:
+Download PlazCode-1.18.80.zip and run your current Update-PlazCode.bat with that
+ZIP selected. Future runs use the configured repository automatically, even
+when the old update-source.json still has an empty feedUrl.
+
+The stable feed is:
+https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/latest.json
+A custom non-empty feedUrl in update-source.json takes precedence.
+You can still drag a local release ZIP onto the BAT to install it manually.
+
+Publishing future updates:
+1. Produce the complete PlazCode-VERSION.zip with a PlazCode/ top-level folder.
+2. Upload that ZIP to the main branch of stoveez/PlazCodeneww.
+3. Update latest.json with version, the ZIP's raw HTTPS URL, and its SHA256.
+Publish the ZIP and feed together when possible. The feed must point at bytes
+that have already been uploaded; never change a published ZIP in place.
+Each release must have a higher extension version. Agent and extension version
+numbers may differ when the agent was not changed.
+
+The updater leaves Roblox Studio running. It stops only PlazCode agent
+processes from this installation. It preserves config.json, custom feed
+settings and LOCALAPPDATA/PlazCode data, including memory and optional runtimes.
+It validates/stages the ZIP before replacing files and keeps overwritten-file
+backups under Windows TEMP. On failure it attempts restoration and prints the
+recovery location. It does not remove obsolete files automatically.
+
+Windows PowerShell 5.1 is required (included with supported Windows versions).
+Live Windows updater execution has not been verified here.
+
+Release-note publishing: update release-notes.json with the version, title,
+summary, added, improved and fixed lists. Include the same array under
+release_notes in latest.json and generate the README sections from that array.
+Every new published version must document its actual changes.

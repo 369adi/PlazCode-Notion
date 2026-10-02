@@ -1,3 +1,19 @@
+## PlazCode 1.18.95: Separate app and browser extension folders
+
+The main folder is PlazCode. Run PlazCode.exe there. In Chrome Load unpacked,
+select PlazCode/PlazCode-Extension, which contains only the browser files.
+The launcher, updater and desktop app stay in the main PlazCode folder.
+Tasks is now desktop-only; its expandable header uses a clickable hand cursor.
+
+Existing installations keep their current outer folder path. The automatic
+update includes legacy extension copies for compatibility, so your currently
+loaded extension keeps working. You can keep loading that existing folder;
+new installations should select the nested PlazCode-Extension folder. Changing
+Chrome's loaded folder creates a separate extension installation and may require
+restoring browser-only preferences. Native settings, memory and enabled MCP
+servers stay in their existing data locations. Reload the extension and refresh
+open AI tabs after updating. No installation folders are renamed automatically.
+
 ## PlazCode 1.18.94: Studio MCP compatibility and clearer extension folder
 
 PlazCode discovers Studio IDs for the updated Roblox MCP tools, while keeping local bridge startup independent of Studio readiness. Fresh-install ZIPs use PlazCode-Extension.
@@ -7,7 +23,7 @@ PlazCode discovers Studio IDs for the updated Roblox MCP tools, while keeping lo
 - The internal get_studio_state connection probe now receives studio_id when required. Missing IDs no longer prevent automatic Studio connection after the new MCP update.
 - Studio auto-connect attempts have an eight-second bound and retry in the background; local bridge endpoints are bound before the desktop opens. Timed-out discovery never dispatches the requested Studio command.
 
-Fresh installation: extract [PlazCode-1.18.94.zip](https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.94.zip) and select PlazCode-Extension with Chrome Load unpacked. Existing installations: use the Updates tab or Update-PlazCode.bat, then reload the extension and refresh AI tabs. Existing settings and folder paths remain intact.
+Fresh installation: extract PlazCode-1.18.94.zip and select PlazCode-Extension with Chrome Load unpacked. Existing installations: use the Updates tab or Update-PlazCode.bat, then reload the extension and refresh AI tabs. Existing settings and folder paths remain intact.
 
 ## PlazCode 1.18.93: Shared themes, larger memory and quieter updates
 

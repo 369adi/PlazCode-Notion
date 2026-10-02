@@ -1,8 +1,22 @@
 {
-  "version": "1.18.94",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.94.zip",
-  "sha256": "e1db329519770906142c71a757fd4ed62327f013ecd93f06c5bc9a75a3ed2c61",
+  "version": "1.18.95",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.95.zip",
+  "sha256": "663a26ce47819aeecda75fa794dffa391b412da0964139a7e88f97839b3f6576",
   "release_notes": [
+    {
+      "version": "1.18.95",
+      "title": "Separate app and browser extension folders",
+      "summary": "The main installation folder is PlazCode. Only its browser extension subfolder is named PlazCode-Extension.",
+      "added": [],
+      "improved": [
+        "Fresh downloads place the desktop executable, launcher and updater in PlazCode, with Chrome files in PlazCode/PlazCode-Extension.",
+        "Version detection and the installer support both nested and older flat extension layouts. Older installers receive a compatibility ZIP."
+      ],
+      "fixed": [
+        "Corrected the previous release, which renamed the entire installation folder instead of only the Chrome extension folder.",
+        "Removed Tasks from the browser bar; task checkpoints and workflows remain available in the desktop app. Their disclosure header shows a hand cursor on hover. The Templates subtitle is vertically centered beside its title."
+      ]
+    },
     {
       "version": "1.18.94",
       "title": "Studio MCP compatibility and clearer extension folder",

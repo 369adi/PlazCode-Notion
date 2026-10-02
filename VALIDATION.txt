@@ -1,0 +1,54 @@
+PlazCode 1.18.95 validation
+
+Windows GNU release build passed; original app icon preserved. Native suite: 37 passed, 1 ignored. Nested/legacy installed-version tests pass. Desktop regression, ChatGPT, Claude and Co-work checks pass; 68 JavaScript syntax checks pass. Browser Tasks markup and initialization removed; desktop Tasks retained. Templates header margins reset; desktop task header uses cursor:pointer. Installer preservation and nested/flat/migrated path selection checks pass. ZIP integrity and manifest asset-path checks pass. The pre-existing Ollama page references missing providers/ollama.js (also absent in 1.18.94); that unrelated missing asset is unchanged. Live Windows UI and installation migration have not been exercised. Existing release 1.18.94 validation and limitations follow.
+
+PlazCode 1.18.94 validation
+
+Windows GNU release build passed; original app icon preserved. Native suite: 36 passed, 1 ignored. Real stdio fixture verifies automatic studio_id injection, cached discovery, explicit caller ID preservation, optional public studio_id schemas and unchanged legacy calls. Empty/multiple/stale Studio selection tests pass. Existing port-reuse, occupied-port and listener-release checks pass. A Linux headless bridge API responded in 0.06 seconds while MCP deliberately stalled and remained responsive after the bounded auto-connect timeout. Windows/Studio live timing has not been verified. 68 JS syntax checks passed. Desktop, provider, parser, memory, theme, Co-work, template and tool-guard checks pass. Broader checks found two pre-existing motion string-match failures; the test and implementation bytes exactly match published 1.18.93. Updater preservation fixtures pass. Release ZIP layout/hash/content checks pass.
+
+PlazCode 1.18.93 validation
+
+Windows GNU release build passed. Existing desktop regression and Chromium UI checks pass. Shared theme native preferences persist and normalize; Chromium checks desktop-to-preference writes, external preference application, browser surfaces/controls/gradients/glow, legacy theme mapping and unchanged host-page styling. Native updater tests verify that background progress does not show Checking for updates. Manual update controls stay enabled during background reads; foreground requests take priority after a read completes. DeepSeek description is the exact requested text. Native 150K memory add/edit/import/reopen tests verify capacity and transactional rejection; JS tests reconstruct long notes exactly through bounded project-scoped pages and verify large memory-only transfers. Notion result-paste HTML, strict retention, bounded chunk writes and owned draft cleanup pass focused tests; Chromium preserves exact multiline code through the HTML roundtrip. ChatGPT/Claude and Co-work checks pass. No signed-in live Notion or Windows/Studio session was available.
+
+PlazCode 1.18.92 validation
+
+Windows GNU release build passed. All 66 JS files pass syntax checks. Desktop/activity/templates/memory/catalog/Co-work/version regression suites pass. Native template tests pass, including a valid Roblox XML place over 33 MB with a small script index. Previous full native suite: 29 passed, 1 ignored. New actual-browser Tasks close tests pass pointer, keyboard, reopen and scrolled content. Co-work queue and actual submission wrapper tests verify delivery during the running loop, exact follow-ups, image preservation, disabled/paused/chat isolation, concurrent enqueue, startup exclusions and uncertain delivery. Actual Chromium verifies expanded work messages and commands, revision refreshes, collapse/reopen, spacing, centered gear, animated swirl in normal and reduced motion, and direct exact-byte template upload. Provider adapters remain unchanged. No live Windows/Studio or signed-in AI testing was available.
+
+PlazCode 1.18.91 validation
+
+Windows GNU release build passed. All 66 JS files pass syntax checks. Desktop/activity/templates/memory/catalog/Co-work/version regression suites pass. Native template tests pass, including a valid Roblox XML place over 33 MB with a small script index. Previous full native suite: 29 passed, 1 ignored. Actual Chromium verifies expanded work messages and commands, revision refreshes, collapse/reopen, spacing, centered gear, animated swirl in normal and reduced motion, and direct exact-byte template upload. Provider adapters remain unchanged. No live Windows/Studio or signed-in AI testing was available.
+
+PlazCode 1.18.90 validation
+
+Windows GNU release build passed. JavaScript syntax and focused activity, catalog, desktop, parser, ChatGPT, Claude, Co-work, memory/activity, history and version checks pass. Updater selection fixtures include Windows and slash paths for saved preferences, MCP config, memory, pairing, templates and WebView storage. This is source/selection verification, not a live PowerShell installation.
+Headless Chromium tests pass actual text/card/result collapse and reopening, startup/list/request exceptions, preserved transcript text, green/red version rendering, engine controls and existing desktop interactions. Desktop screenshots reviewed for the corrected logo and exact AI descriptions. No live Windows, Studio or signed-in AI session was available.
+
+Previous batch validation:
+
+PlazCode 1.18.89 validation
+
+Windows GNU release build completed with the app icon. Desktop JavaScript syntax, desktop regression, version and Co-work suites pass. Headless Chromium interaction checks pass engine preference writes, selected states, Settings synchronization and disabling Start until the browser confirms the engine. Previous Templates interactions also pass. Screenshots reviewed. No live Windows/Studio or signed-in provider session was available.
+
+Previous batch validation:
+
+PlazCode 1.18.88 validation
+
+All 64 JavaScript files pass node --check (Node 24 available here). Eleven focused suites passed: parser, ChatGPT, Claude, Co-work, memory/activity, import, tool guard, history performance, templates, version and desktop interaction.
+Native Rust tests: 29 passed, one opt-in external stdio fixture ignored. Windows GNU release build completed with the app icon.
+Template native fixtures serialize/import both binary and XML Roblox files, retain exact original bytes, preserve across restart, match inventory requests, reject unrelated/no-source/invalid files, distinguish duplicate paths and read source pages.
+Headless Chromium desktop tests pass Templates navigation, source preview, explicit Open request, exact binary upload, project scope saving and no JS errors. Screenshots reviewed for layout. Windows file-association launch and actual Studio connection/undo remain unverified.
+Automatic matching uses names, identifiers and descriptions, not guaranteed semantic understanding. Sources are indexed at import and must be reimported after external template edits. Excerpts are bounded and full sources are paged. Only readable sources present in the file are referenced.
+Provider source hashes remain unchanged. No live signed-in AI provider session or Windows/Studio session was available.
+
+Previous batch validation:
+
+PlazCode 1.18.87 validation
+
+All shipped JavaScript files pass node --check (Node 24 available here).
+Native Rust tests: 27 passed, one opt-in external stdio fixture ignored.
+Windows GNU release build completed with the app icon.
+Parser, ChatGPT, Claude, Co-work, memory/activity, import, tool guard, history performance, version, desktop interaction and Studio skill/command wrapper fixtures passed.
+Long-chat fixture: 1,500 unchanged messages reuse cached text; scoped periodic processing; explicit 2,000-message overflow guard.
+Native checkpoint tests cover restart persistence, exact CRLF restore, multi-file conflict prevalidation, created-file removal, protected edits and durable project chat scopes.
+Provider source hashes remain unchanged. No live Windows GUI, Studio undo/playtest or signed-in AI provider session was available. Bridge integration checks require a running local agent and are not live-verified.
+Revert is intentionally unavailable for tasks with incomplete inverses or unconfirmed Studio undo history. Workflows direct the selected AI to inspect/test/fix using available tools; they do not promise unsupported automatic Play control.
