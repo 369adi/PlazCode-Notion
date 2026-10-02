@@ -1,3 +1,15 @@
+## PlazCode 1.18.99: Native Co-work, continuation and reliability
+
+- Co-work uses the existing ChatGPT, Claude, DeepSeek and Notion composer. While work is active, its placeholder becomes **Follow up**. Requests are accepted immediately and delivered at the next safe AI message boundary. Native Stop keeps its role. Unsent drafts are protected during tool feedback.
+- Notion long startup/results use bounded, verified paste chunks rather than repeatedly pasting a large prompt as a text-file attachment. Startup still requires the list/ready acknowledgement; failed delivery stays stopped.
+- New chats can offer **Yes, continue.** or **No, I wanna start a new project.** Context is loaded only after successful startup. Captured history is bounded to 2,000 messages / 800,000 text bytes per chat, 20 chats / 8 MB total; continuation is a shorter excerpt and can omit unloaded messages. Inspect current state before resuming uncertain actions.
+- Shared command/time budgets pause before the next command; zero disables a limit. Export continuation or explicitly resume a paused task. Automatic Studio visual checks are bounded, optional and do not prove runtime correctness.
+- Restore an individual captured local file or Studio script in Tasks. Restoration checks current contents first and refuses conflicting later edits. Studio script snapshots cover direct multi_edit/script_set_source edits in Edit mode and the same bridge session; arbitrary Luau mutations are not selectively restored.
+- The extension toolbar popup now follows the desktop/bar palette, glow and gradient settings.
+- Each update now creates a GitHub Release with both ZIPs and change notes.
+
+Update in the desktop Updates tab or run Update-PlazCode.bat, then reload the extension and refresh AI tabs. Automated checks and the Windows build are verified; live Windows/Studio and live provider behavior still need target-machine confirmation.
+
 ## PlazCode 1.18.98: Cancellation settling guard
 
 Includes all 1.18.97 features below. Keeps Immediate Stop latched while an interrupted tool is settling and blocks further tool dispatch during that interval. Safe Stop waits for the current tool step. Reload the extension and refresh AI tabs.

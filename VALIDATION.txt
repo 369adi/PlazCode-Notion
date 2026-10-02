@@ -1,3 +1,13 @@
+PlazCode 1.18.99 validation
+
+Windows x86_64 GNU release build passed; original desktop icon preserved. Native tests: 48 passed, 0 failed, 1 ignored. Targeted JS suites cover parser/tool guards, ChatGPT and Claude provider parsing, DeepSeek readiness, Notion literal results and bounded 33k+ / 789-line startup pastes, native Co-work composer/placeholder/queue delivery, Stop behavior, desktop state, history retention/performance, memory import, continuation startup/navigation guards, reliability budgets/visual classification, shared popup themes, media and version handling. JS syntax checks passed. Desktop checks preserve other providers and existing native Stop semantics. Existing live bridge checks cannot run without the user's bridge/Studio; older motion/v1.15 fixture assertions are stale and were not changed to hide that fact. Live Windows, Studio and provider interactions remain unverified here.
+
+History capture is bounded, not an unlimited transcript or verified project-memory summary. Notion failure/rejection never authorizes a fabricated ready state. Existing pasted-text attachments are not deleted because PlazCode cannot establish ownership. Selective Studio restore is limited to captured direct script edits in Edit mode and the same bridge session; conflicts are refused. Automatic screenshots are bounded to three attempts/task, ten-second requests, deduplicated and interruption-aware; they do not establish runtime correctness.
+
+Archive packaging checks exclude private settings/history/memory, logs, target, Git metadata and rollback binaries. Fresh and compatibility archives verify manifest asset paths and ZIP integrity. Reload the extension AND refresh existing AI tabs.
+
+Previous validation follows.
+
 PlazCode 1.18.98 validation
 
 Windows release rebuilt with the original icon. Immediate-stop async tests additionally reject a second tool during cancellation settling. Updated desktop regression, activity old-history isolation, media and updater preservation checks pass. Native Rust operation code is unchanged from the 45-pass / 1-ignored 1.18.97 run; only its version and embedded browser assets changed. Live Windows/provider limits below still apply.

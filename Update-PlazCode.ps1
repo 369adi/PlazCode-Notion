@@ -6,6 +6,13 @@ $stage = Join-Path ([IO.Path]::GetTempPath()) ('PlazCode-update-' + [guid]::NewG
 $backup = Join-Path $stage 'backup'
 $written = New-Object 'System.Collections.Generic.List[string]'
 $stopped = $false
+function Get-ExtensionRoot([string]$Root) {
+    $nested = Join-Path $Root 'PlazCode-Extension'
+    if (Test-Path -LiteralPath (Join-Path $nested 'manifest.json')) { return $nested }
+    return $Root
+}
+$extensionRoot = Get-ExtensionRoot $install
+$splitInstall = $extensionRoot -ne $install -and !(Test-Path -LiteralPath (Join-Path $install 'manifest.json'))
 try {
     if ($ShowProgress) {
         Add-Type -AssemblyName System.Windows.Forms
@@ -23,7 +30,7 @@ try {
         $form.Controls.Add($label); $form.Controls.Add($bar); $form.Show(); [Windows.Forms.Application]::DoEvents()
     }
     Write-Host 'PlazCode updater' -ForegroundColor Yellow
-    $current = [version](Get-Content (Join-Path $install 'manifest.json') -Raw | ConvertFrom-Json).version
+    $current = [version](Get-Content (Join-Path $extensionRoot 'manifest.json') -Raw | ConvertFrom-Json).version
     $source = Get-Content (Join-Path $install 'update-source.json') -Raw | ConvertFrom-Json
     if (!$source.feedUrl) { $source.feedUrl = "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/latest.json" }
     New-Item $stage -ItemType Directory | Out-Null
@@ -55,24 +62,40 @@ try {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $unpacked = Join-Path $stage 'unpacked'
     $archive = [IO.Compression.ZipFile]::OpenRead($ZipPath)
+    $packageRoot = $null
     try {
         foreach ($entry in $archive.Entries) {
             $name = $entry.FullName.Replace('\','/')
-            if ($name -notmatch '^PlazCode/' -or $name -match '(^|/)\.\.(/|$)|:|(^|/)(logs|target|\.git)(/|$)') { throw "Unexpected ZIP entry: $name" }
+            if ($name -notmatch '^(PlazCode|PlazCode-Extension)/' -or $name -match '(^|/)\.\.(/|$)|:|(^|/)(logs|target|\.git)(/|$)') { throw "Unexpected ZIP entry: $name" }
+            $root = $name.Split('/')[0]
+            if (!$packageRoot) { $packageRoot = $root } elseif ($root -ne $packageRoot) { throw 'Release ZIP contains mixed installation folders.' }
             $destination = [IO.Path]::GetFullPath((Join-Path $unpacked $name))
             if (!$destination.StartsWith([IO.Path]::GetFullPath($unpacked) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid ZIP path.' }
         }
     } finally { $archive.Dispose() }
     [IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $unpacked)
-    $package = Join-Path $unpacked 'PlazCode'
-    $next = [version](Get-Content (Join-Path $package 'manifest.json') -Raw | ConvertFrom-Json).version
+    if (!$packageRoot) { throw 'Release ZIP is empty.' }
+    $package = Join-Path $unpacked $packageRoot
+    $packageExtension = Get-ExtensionRoot $package
+    $next = [version](Get-Content (Join-Path $packageExtension 'manifest.json') -Raw | ConvertFrom-Json).version
     if ($ExpectedVersion -and $next -ne [version]$ExpectedVersion) { throw 'Release version does not match the verified feed.' }
     if ($next -le $current) { Write-Host "Already up to date ($current; selected package $next)."; exit 0 }
-    foreach ($required in @('PlazCode.exe','WebView2Loader.dll','background.js','core/main.js','Start-PlazCode-Agent.cmd')) {
+    foreach ($required in @('PlazCode.exe','WebView2Loader.dll','Start-PlazCode-Agent.cmd')) {
         if (!(Test-Path -LiteralPath (Join-Path $package $required))) { throw "Release is missing $required." }
     }
+    foreach ($required in @('background.js','core/main.js')) {
+        if (!(Test-Path -LiteralPath (Join-Path $packageExtension $required))) { throw "Extension is missing $required." }
+    }
     if ($release -and $next -ne $latest) { throw 'Release feed version does not match the downloaded package.' }
-    $files = @(Get-ChildItem $package -File -Recurse | Where-Object { $_.Name -notin @('config.json','update-source.json') })
+    $preservedNames = @('config.json','config.local.json','plazcode-settings.json','bridge-pairing.json','memory.json','chat-history.json','checkpoints.json','catalog.json','update-source.json')
+    $preservedFolders = '^(?:logs|backups|templates|runtimes|PlazCode\.exe\.WebView2)(?:[\\/]|$)'
+    # Compatibility ZIPs also carry legacy root extension copies for old installers.
+    # Do not add those duplicates to installations already using the split layout.
+    $legacyExtensionFiles = '^(?:manifest\.json|background\.js|popup\.(?:html|js)|overlay\.css|icon\.png|ollama\.html|ollama-page\.js|(?:core|providers|ui)[\\/].*)$'
+    $files = @(Get-ChildItem $package -File -Recurse | Where-Object {
+        $relative = $_.FullName.Substring($package.Length + 1)
+        $_.Name -notin $preservedNames -and $relative -notmatch $preservedFolders -and !($splitInstall -and $packageExtension -ne $package -and $relative -match $legacyExtensionFiles)
+    })
     # Back up overwritten files before stopping the app or modifying the installation.
     foreach ($file in $files) {
         $relative = $file.FullName.Substring($package.Length + 1)

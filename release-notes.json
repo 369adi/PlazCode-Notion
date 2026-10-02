@@ -1,5 +1,27 @@
 [
   {
+    "version": "1.18.99",
+    "title": "Native Co-work, continuation and reliability",
+    "summary": "Use the site's own composer for Co-work, preserve chat context across sites, and bound long-running work. Notion long prompts use verified small pastes.",
+    "added": [
+      "New-chat continuation choices: Yes, continue. / No, I wanna start a new project. Context is loaded only after successful startup; captured chat history and continuation excerpts have explicit retention limits.",
+      "Shared command and task-time budgets, continuation export and explicit paused-task resume; zero disables a budget.",
+      "Selective restoration of captured local files and direct Studio script edits, with current-content conflict checks and Edit-mode/session guards.",
+      "Optional bounded, deduplicated Studio screenshots for visual review. Screenshots do not verify runtime behavior.",
+      "Versioned GitHub Releases with fresh-install and compatibility ZIP assets and matching change notes."
+    ],
+    "improved": [
+      "Co-work uses the original ChatGPT, Claude, DeepSeek and Notion composer and native Send control. Follow up is placeholder text only while work is active. Requests are accepted immediately and reach the AI at a safe message boundary; native Stop keeps its role.",
+      "Unsent native composer drafts are guarded and protected during internal tool-result sends. Existing settings, memory and MCP preferences retain their data locations.",
+      "The extension toolbar popup follows shared palette, glow and gradient settings from desktop/bar."
+    ],
+    "fixed": [
+      "Notion 33k+ startup prompts are split into bounded, retained paste chunks, avoiding repeated long-paste attachment conversion. Rejection, cancellation and timeouts do not authorize startup.",
+      "Budget pauses resist automatic watchdog restart; continuation requires a positively confirmed startup in the intended chat.",
+      "Automatic visual checks participate in Immediate Stop and cancellation settling."
+    ]
+  },
+  {
     "version": "1.18.98",
     "title": "Keep Immediate Stop latched until cancellation settles",
     "summary": "Includes all 1.18.97 improvements, with an additional guard against dispatching tools while an interrupted operation is still settling.",

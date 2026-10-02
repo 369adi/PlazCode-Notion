@@ -1,3 +1,5 @@
+PlazCode 1.18.99: Native Co-work, continuation and reliability. Updates preserve chat-history.json as well as existing settings, memory and MCP data. GitHub Releases include both ZIPs and matching change notes. Reload the extension and refresh AI tabs after updating.
+
 PlazCode 1.18.98: Keeps Immediate Stop latched and blocks new tool dispatch while cancellation settles. Includes all 1.18.97 changes. Reload the extension and refresh AI tabs.
 
 PlazCode 1.18.97
