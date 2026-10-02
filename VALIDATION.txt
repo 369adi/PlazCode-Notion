@@ -1,3 +1,7 @@
+PlazCode 1.18.96 validation
+
+Windows GNU release build passed; original icon preserved. Native tests: 38 passed, 1 ignored. Real loopback HTTP fixture serves two successive feed requests over one accepted TCP connection; a stalled response times out and releases the request. Automatic timeout is eight seconds; manual checks remain 30 seconds. Desktop regression and updater preservation checks pass. Existing folder layout and desktop-only Tasks remain unchanged. ZIP integrity and manifest asset paths verified. Live Windows update timing and GitHub propagation latency have not been verified or guaranteed. Previous validation follows.
+
 PlazCode 1.18.95 validation
 
 Windows GNU release build passed; original app icon preserved. Native suite: 37 passed, 1 ignored. Nested/legacy installed-version tests pass. Desktop regression, ChatGPT, Claude and Co-work checks pass; 68 JavaScript syntax checks pass. Browser Tasks markup and initialization removed; desktop Tasks retained. Templates header margins reset; desktop task header uses cursor:pointer. Installer preservation and nested/flat/migrated path selection checks pass. ZIP integrity and manifest asset-path checks pass. The pre-existing Ollama page references missing providers/ollama.js (also absent in 1.18.94); that unrelated missing asset is unchanged. Live Windows UI and installation migration have not been exercised. Existing release 1.18.94 validation and limitations follow.

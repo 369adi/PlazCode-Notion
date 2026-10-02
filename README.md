@@ -1,3 +1,15 @@
+## PlazCode 1.18.96: Faster automatic release checks
+
+Automatic update checks reuse HTTP connections instead of reopening them for
+every check. A stalled automatic request times out after eight seconds and retries
+in the background. Manual checks keep their 30-second timeout; download handling
+and quiet background UI are preserved. GitHub propagation and network delays
+still apply: this remains polling, not guaranteed instant push notifications.
+
+Update with the desktop Updates tab or Update-PlazCode.bat. Reload the extension
+and refresh open AI tabs afterwards. The corrected PlazCode/PlazCode-Extension
+folder layout and desktop-only Tasks from 1.18.95 are retained.
+
 ## PlazCode 1.18.95: Separate app and browser extension folders
 
 The main folder is PlazCode. Run PlazCode.exe there. In Chrome Load unpacked,

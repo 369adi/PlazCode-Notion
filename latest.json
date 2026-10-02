@@ -1,8 +1,20 @@
 {
-  "version": "1.18.95",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.95.zip",
-  "sha256": "663a26ce47819aeecda75fa794dffa391b412da0964139a7e88f97839b3f6576",
+  "version": "1.18.96",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.96.zip",
+  "sha256": "cadd3afb793352206dac1d1f05d73e5c1e7e29c433c11855d24551068f1092af",
   "release_notes": [
+    {
+      "version": "1.18.96",
+      "title": "Faster automatic release checks",
+      "summary": "Automatic checks reuse HTTP connections and stop waiting after eight seconds when the release feed stalls.",
+      "added": [],
+      "improved": [
+        "Keep the update HTTP connection pool alive between checks to avoid repeated connection setup. Automatic checks remain quiet and retry in the background."
+      ],
+      "fixed": [
+        "A stalled automatic feed request no longer holds the checker for up to 30 seconds; it has a eight-second timeout. Manual checks retain 30 seconds and downloads retain their existing timeout."
+      ]
+    },
     {
       "version": "1.18.95",
       "title": "Separate app and browser extension folders",
