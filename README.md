@@ -1,40 +1,94 @@
-# PlazCode updates
+# PlazCode — Roblox Studio + AgentScript AI agent
 
-This repository hosts the official PlazCode update packages and the automatic update feed.
+Turn any major AI chat (**DeepSeek, ChatGPT, Google Gemini, Kimi, GLM, Qwen, Arena, Crax GPT, or Ollama running locally**) into an autonomous development agent. Three switchable engines:
 
-## Install once
+| Engine | Toggle | Target | Port |
+|---|---|---|---|
+| **Roblox** (RS) | — | Roblox Studio via its built-in MCP server | ws://127.0.0.1:17613 |
+| **AgentScript** (AS) | — | A local project folder — files + terminal | ws://127.0.0.1:17615 |
+| **Animation** (AN) | — | Roblox Studio scoped to the motion workflow | ws://127.0.0.1:17613 |
 
-Download `PlazCode-1.18.86.zip`. On an existing 1.18.77 installation, run `Update-PlazCode.bat` and select that ZIP. For a new installation, extract it and run `PlazCode.exe`, then load its browser extension.
+Describe what you want in plain English and the AI builds instances, writes Luau/code files, sculpts terrain, tunes lighting, generates UI, runs builds and tests, and audits your project — inside Studio or directly on disk.
 
-## Future updates
+No API keys, no monthly fees. Chromium browsers (Chrome, Brave, Edge, Thorium). The extension and desktop app use the same dark navy + warm gold PlazCode theme.
 
-If an older updater failed because `PlazCode.exe` was locked, replace `Update-PlazCode.ps1` in your existing installation with [the corrected helper](Update-PlazCode.ps1), then run `Update-PlazCode.bat` again. This one-time helper replacement is needed before the older updater can install the fix. Close any other PlazCode windows first.
+---
 
-Version indicators in 1.18.81 check the published release at startup and every five minutes. They show green **Up to date**, red **Outdated**, or a neutral unavailable/not-checked status.
+## Engines
 
-In the desktop app, open **Updates**, click **Check now**, then **Update now**. Download progress is shown, installation verifies the package, and PlazCode relaunches.
+- The bar above every supported chat composer carries a segmented **RS / AS / AN** toggle. Switching engines wipes tool caches so commands cannot cross engines.
+- **RS** drives Roblox Studio through StudioMCP (stdio JSON-RPC spawned by `plazcode-agent`).
+- **AS** gives the AI full control of ONE local folder ("the workspace") through native Rust tools — sandboxed paths, exact-match diff editing, glob/content search, and terminal execution with hard timeouts.
+- **AN** rides the same Roblox bridge as RS but steers the system prompt into the animation_* workflow.
 
+Large `execute_luau` scripts are auto-chunked around 24 KB so Studio's parser never hits the ~64 KB wall. Each chunk is still one NDJSON/JSON-RPC line.
 
-Run `Update-PlazCode.bat`. It checks `latest.json`, downloads a newer published ZIP, verifies SHA256, installs it, and restarts PlazCode. Reload the extension in `chrome://extensions` and refresh open AI chat tabs afterwards.
+---
 
-Memory, settings and cached optional runtimes are preserved. A custom non-empty release-feed URL takes precedence over the default repository.
+## Setup
 
-## Publish an update
+1. Open `chrome://extensions` → Developer mode → **Load unpacked** → this folder (`manifest.json`).
+2. Double-click **`PlazCode.exe`**. `PlazCode.exe --headless` runs without the desktop window. It starts:
+   - HTTP API on `http://127.0.0.1:3000`
+   - WS bridges on `17613` (RS/AN) and `17615` (AS)
+   - Workspace folder for AgentScript (`PLAZCODE_WORKSPACE_ROOT` / `--workspace` / `%USERPROFILE%\PlazCodeWorkspace`)
+3. **RS/AN:** Roblox Studio → Assistant AI → ⋯ → Manage MCP Servers → Enable Studio as MCP Server.
+4. Open a supported chat and click **Start agent**.
 
-Upload a complete `PlazCode-VERSION.zip` with a `PlazCode/` top-level folder and update `latest.json` in the same commit. Its fields are `version`, `url` (the ZIP's raw HTTPS download URL), `sha256` (the ZIP's complete SHA256 hash), and `release_notes` (release titles, summaries, additions, improvements and fixes). Use a higher package/extension version and a new filename for every release. Do not modify published ZIP bytes in place.
+---
 
-The BAT can only install releases that have been published here. Source changes or chat attachments alone do not publish an update.
+## Agent
 
-See `UPDATE.txt` and `UPDATER.txt` inside the ZIP for change details and recovery information. Windows updater execution still requires live validation.
+- Native crate: `agent/` (`plazcode-agent` 1.18.86). Desktop control center, MCP helper spawn, outbound WS channel so ping/status keep flowing during a 20 s `execute_luau`.
+- Service worker skips stale-socket reconnect and MCP heal while a `call_tool` is in flight (the 25 s stale window used to kill long tools).
+- 30 Studio skills, a 24-command animation suite, AgentScript file/terminal tools.
+- Personas (Builder / Scripter / Animator / Fixer), Extra Thinking, Forge GUI, Image → Model, auto-fix playtest errors.
 
+---
 
-## Desktop preview
+## Testing
 
-Browser-rendered desktop preview using sample connection data:
+```bash
+node test-skills.js
+node test-parser.js
+node test-chatgpt.js
+node test-animlib.js
+node test-v111.js
+node test-v112.js
+node --check core/main.js && node --check core/config.js && node --check background.js
+cd agent && cargo test
+```
 
-![PlazCode desktop](desktop-preview.png)
+`test-bridges.js` is a live smoke test: start `PlazCode.exe` first. It checks HTTP `:3000` and WS `17613` / `17615` (no Unreal port).
+
+## Privacy
+
+Everything runs locally. The extension talks only to `127.0.0.1`. No telemetry. AgentScript stays inside the workspace root unless you flip FULL ACCESS.
+
+Optional MCP runtimes are downloaded on first use if no installed runtime is found. They are cached under %LOCALAPPDATA%\PlazCode\runtimes and reused across app updates. The release ZIP contains no Node.js/npm/uv bundle. First use requires internet access.
 
 ## Release history
+
+### PlazCode 1.18.87: Task checkpoints, project memory & reliable tools
+
+Review and recover agent tasks, keep project facts separate, and reduce repeated tool errors and long-chat overhead.
+
+#### Added
+
+- Tasks panel in the desktop Home page and browser bar: bounded task history, file before/after previews, conflict-checked Revert and resume in the original chat.
+- AgentScript file checkpoints persist across app restarts. Studio Revert is offered only when exact undo records are confirmed in the current bridge/Studio session. Unsupported operations disable whole-task automatic restore.
+- Protected paths with explicit task approval; project memory scopes shared by named projects; reusable built-in and custom workflows.
+
+#### Improved
+
+- Long-chat activity retains at most 60 groups, builds collapsed details only when expanded, ignores its own UI mutations and caches unchanged export text. Retention overflow produces an explicit export error.
+- Automatic release checks run on launch and every minute; returning to an AI tab or desktop window triggers a throttled check. Update labels refresh without pressing Check now. Network/cache delays can still apply.
+
+#### Fixed
+
+- Tool preflight checks JSON argument shapes against available schemas, detects incomplete Luau strings/delimiters and preserves datamodel defaults. Three consecutive malformed replies or execution failures pause the agent.
+- Studio mutation commands are not blindly replayed after a dropped helper connection; uncertain results require inspecting Studio before retrying.
+- Unchanged memory and release snapshots no longer generate repeated storage broadcasts. Workflow delivery acknowledgements are deduplicated.
 
 ### PlazCode 1.18.86: Reliable bridge port startup
 

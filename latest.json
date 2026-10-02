@@ -1,8 +1,27 @@
 {
-  "version": "1.18.86",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.86.zip",
-  "sha256": "11a5c65ddc826c75428fcb3f9c444f949ddb301c12331e540c0806d4f78b4d3d",
+  "version": "1.18.87",
+  "url": "https://github.com/stoveez/PlazCodeneww/raw/refs/heads/main/PlazCode-1.18.87.zip",
+  "sha256": "db2a7832a73d449566383e626af0a5bfe4b846e7a408acc6b0dbc35eb193f4fc",
   "release_notes": [
+    {
+      "version": "1.18.87",
+      "title": "Task checkpoints, project memory & reliable tools",
+      "summary": "Review and recover agent tasks, keep project facts separate, and reduce repeated tool errors and long-chat overhead.",
+      "added": [
+        "Tasks panel in the desktop Home page and browser bar: bounded task history, file before/after previews, conflict-checked Revert and resume in the original chat.",
+        "AgentScript file checkpoints persist across app restarts. Studio Revert is offered only when exact undo records are confirmed in the current bridge/Studio session. Unsupported operations disable whole-task automatic restore.",
+        "Protected paths with explicit task approval; project memory scopes shared by named projects; reusable built-in and custom workflows."
+      ],
+      "improved": [
+        "Long-chat activity retains at most 60 groups, builds collapsed details only when expanded, ignores its own UI mutations and caches unchanged export text. Retention overflow produces an explicit export error.",
+        "Automatic release checks run on launch and every minute; returning to an AI tab or desktop window triggers a throttled check. Update labels refresh without pressing Check now. Network/cache delays can still apply."
+      ],
+      "fixed": [
+        "Tool preflight checks JSON argument shapes against available schemas, detects incomplete Luau strings/delimiters and preserves datamodel defaults. Three consecutive malformed replies or execution failures pause the agent.",
+        "Studio mutation commands are not blindly replayed after a dropped helper connection; uncertain results require inspecting Studio before retrying.",
+        "Unchanged memory and release snapshots no longer generate repeated storage broadcasts. Workflow delivery acknowledgements are deduplicated."
+      ]
+    },
     {
       "version": "1.18.86",
       "title": "Reliable bridge port startup",
