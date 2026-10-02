@@ -1,5 +1,19 @@
 [
 {
+  "version": "1.18.103",
+  "title": "Notion controlled paste and persistent Co-work placeholders",
+  "summary": "Remove bulk native editing from Notion startup, keep its input mask on the editor, and display Follow up whenever Co-work is enabled and the composer is available.",
+  "added": [],
+  "improved": [
+    "Notion sends complete startup and tool-result text through one literal controlled paste transaction, verifies retention through two renders, and commits at most once. No prompt truncation or repeated tiny inserts.",
+    "Co-work uses Follow up in the native composer while enabled, including idle time and after Stop. Internal startup/tool injection retains its temporary input mask. Turning Co-work off restores the original placeholder."
+  ],
+  "fixed": [
+    "Notion no longer uses bulk execCommand or direct React-owned DOM replacement as the large-send fallback. Short native edits rely on Chromium input events instead of duplicate synthetic model events.",
+    "Notion input cover targets only the editable, preventing a growing ancestor from becoming the click-blocking mask. Start on a populated AI landing first opens a fresh chat."
+  ]
+},
+{
   "version": "1.18.102",
   "title": "Responsive updates, unlocked Stop and native Notion drafts",
   "summary": "Read release metadata from the current published commit, release the composer on Stop, keep PlazCode work folding off ChatGPT, and use controlled editor events for Notion startup.",

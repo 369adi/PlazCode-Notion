@@ -1,3 +1,12 @@
+## PlazCode 1.18.103: Notion controlled paste and Co-work
+
+- Notion sends complete startup and tool-result text through one literal controlled paste transaction, verifies retention through two renders, and commits at most once. No prompt truncation or repeated tiny inserts.
+- Co-work uses Follow up in the native composer while enabled, including idle time and after Stop. Internal startup/tool injection retains its temporary input mask. Turning Co-work off restores the original placeholder.
+- Notion no longer uses bulk execCommand or direct React-owned DOM replacement as the large-send fallback. Short native edits rely on Chromium input events instead of duplicate synthetic model events.
+- Notion input cover targets only the editable, preventing a growing ancestor from becoming the click-blocking mask. Start on a populated AI landing first opens a fresh chat.
+
+Notion remains experimental: simulated model/DOM tests cannot confirm live Notion behavior. After updating, reload the extension AND refresh all open AI tabs.
+
 ## PlazCode 1.18.102: Updates, Stop, Notion and Co-work
 
 - The default GitHub updater checks the current repository revision every two seconds and fetches metadata by immutable commit. Unchanged metadata is reused; quiet automatic checks and the eight-second request budget remain. Custom feeds retain their configured path. Network delays and browser suspension still apply; this is not guaranteed instant push.

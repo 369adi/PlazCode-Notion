@@ -1,3 +1,7 @@
+PlazCode 1.18.103 validation
+
+Controlled-paste integration exercises the actual Notion provider in both RobloxScript and AgentScript, including complete large startup/catalogue text, single commit, Stop, document-route rejection and hydration loss. Bulk execCommand is forbidden in these fixtures. Editor-only mask is asserted. Co-work full content-script tests cover the enabled idle placeholder and restoration on Off. Changed JS syntax, native Co-work, Stop, Notion result/native edit/paste, composer recovery, desktop regression, theme, ChatGPT anchors, four-provider startup and v1.18 checks pass. Windows GNU release build passed; original icon resources match. Other provider source hashes remain unchanged. Live Notion and Windows interaction remain unverified.
+
 PlazCode 1.18.102 validation
 
 The supplied 1.18.101 Notion trace retains the first two code-paste chunks but rejects the third (1804 retained vs 1800 expected; compact mismatch). Large startup now uses one complete native controlled write instead of clipboard chunks. The supplied reference provider was inspected for its beforeinput/insertText/input path; its clearing-only send acknowledgement, truncation and repeated commit attempts were not adopted. Native write tests retain 33k+ characters through a controlled model, restore readonly/editable attributes, and reject hydration loss, Stop and remounts. Full send acknowledgement remains required. Notion live behavior is not verified here.
