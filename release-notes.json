@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.18.100",
+    "title": "Restore browser bar startup and placement",
+    "summary": "Fix the 1.18.99 shared UI initialization regression that could leave the bar absent or unpositioned when the chat composer was already loaded.",
+    "added": [],
+    "improved": [
+      "Desktop browser status now distinguishes a visible page bar from a hidden or unmounted page, instead of treating a worker connection as proof of visibility.",
+      "ChatGPT anchors to a bounded visible composer card, including Work layouts and generic class names; page-sized forms and inner text-only scrollers are rejected."
+    ],
+    "fixed": [
+      "Initialize Co-work placeholder state before the first UI render. The shared fix covers ChatGPT, DeepSeek, Claude, Notion and other providers using the same bar.",
+      "Full content-script boot tests exercise composers already present on ChatGPT, DeepSeek, Claude and Notion; placement and native Co-work/Stop regression checks are retained."
+    ]
+  },
+  {
     "version": "1.18.99",
     "title": "Native Co-work, continuation and reliability",
     "summary": "Use the site's own composer for Co-work, preserve chat context across sites, and bound long-running work. Notion long prompts use verified small pastes.",

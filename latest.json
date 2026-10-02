@@ -1,8 +1,22 @@
 {
-  "version": "1.18.99",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.99.zip",
-  "sha256": "62fd5e270dbbd17daef30d8ec36b628f22322046e2743edf633cd3984b239efe",
+  "version": "1.18.100",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.100.zip",
+  "sha256": "d313c6ae8ca88e8e0ca9c9d05cd2a67c1cac3c7ac53d981e2ab8bc77c4ecbe0d",
   "release_notes": [
+    {
+      "version": "1.18.100",
+      "title": "Restore browser bar startup and placement",
+      "summary": "Fix the 1.18.99 shared UI initialization regression that could leave the bar absent or unpositioned when the chat composer was already loaded.",
+      "added": [],
+      "improved": [
+        "Desktop browser status now distinguishes a visible page bar from a hidden or unmounted page, instead of treating a worker connection as proof of visibility.",
+        "ChatGPT anchors to a bounded visible composer card, including Work layouts and generic class names; page-sized forms and inner text-only scrollers are rejected."
+      ],
+      "fixed": [
+        "Initialize Co-work placeholder state before the first UI render. The shared fix covers ChatGPT, DeepSeek, Claude, Notion and other providers using the same bar.",
+        "Full content-script boot tests exercise composers already present on ChatGPT, DeepSeek, Claude and Notion; placement and native Co-work/Stop regression checks are retained."
+      ]
+    },
     {
       "version": "1.18.99",
       "title": "Native Co-work, continuation and reliability",

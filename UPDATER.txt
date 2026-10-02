@@ -1,3 +1,12 @@
+## PlazCode 1.18.100: Browser bar startup and placement fix
+
+- Fixed the 1.18.99 shared UI initialization order. When a composer already existed, placeholder state was read before initialization and startup aborted, leaving the bar missing or unpositioned. This affects multiple providers and Chromium browsers.
+- ChatGPT anchors to the actual bounded composer card, rather than a full-page form or its inner text scroller. Existing DeepSeek/Claude/Notion placement rules are preserved.
+- Desktop browser status now reports bar visible, bar hidden or refresh AI tab separately from bridge connectivity. A worker connection alone does not establish that the page UI loaded.
+- Full content-script startup tests cover preloaded ChatGPT, DeepSeek, Claude and Notion composers. Native Co-work and Stop behavior are preserved. Live tester layouts still require confirmation.
+
+After updating, reload the extension in chrome://extensions or edge://extensions AND refresh existing AI tabs.
+
 PlazCode 1.18.99: Native Co-work, continuation and reliability. Updates preserve chat-history.json as well as existing settings, memory and MCP data. GitHub Releases include both ZIPs and matching change notes. Reload the extension and refresh AI tabs after updating.
 
 PlazCode 1.18.98: Keeps Immediate Stop latched and blocks new tool dispatch while cancellation settles. Includes all 1.18.97 changes. Reload the extension and refresh AI tabs.

@@ -1,3 +1,11 @@
+PlazCode 1.18.100 validation
+
+Reproduced the 1.18.99 full content-script startup failure: renderBar -> renderCowork -> setFollowupPlaceholder accessed followupPlaceholders before initialization. The targeted fix initializes shared placeholder state before build's first render. Full manifest-ordered content-script tests with preloaded composers now mount and position the bar for ChatGPT, DeepSeek, Claude and Notion. Tests verify pageMounted and barVisible, including a hidden bar. The development-only DOM fixture uses jsdom; no app runtime dependencies were added.
+
+ChatGPT anchor tests cover rounded inner text scrollers, page-sized Work forms, unnamed composer cards, traditional form fallbacks, hidden ancestors and editor remounts. Native Co-work, Stop, desktop regression, shared theme, Notion literal-result and v1.18 checks pass. Changed JavaScript passes node --check. Native logic is unchanged; the Windows release rebuild includes the version, desktop bar-status display and current release notes. Original executable icon is retained.
+
+These are synthetic DOM tests, not live Chrome/Edge sessions or all tester layouts. Reload the extension AND refresh existing AI tabs after updating. ZIP integrity, manifest asset references and private-data exclusion are checked by the packager. Earlier validation follows.
+
 PlazCode 1.18.99 validation
 
 Windows x86_64 GNU release build passed; original desktop icon preserved. Native tests: 48 passed, 0 failed, 1 ignored. Targeted JS suites cover parser/tool guards, ChatGPT and Claude provider parsing, DeepSeek readiness, Notion literal results and bounded 33k+ / 789-line startup pastes, native Co-work composer/placeholder/queue delivery, Stop behavior, desktop state, history retention/performance, memory import, continuation startup/navigation guards, reliability budgets/visual classification, shared popup themes, media and version handling. JS syntax checks passed. Desktop checks preserve other providers and existing native Stop semantics. Existing live bridge checks cannot run without the user's bridge/Studio; older motion/v1.15 fixture assertions are stale and were not changed to hide that fact. Live Windows, Studio and provider interactions remain unverified here.
