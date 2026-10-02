@@ -69,6 +69,21 @@ Optional MCP runtimes are downloaded on first use if no installed runtime is fou
 
 ## Release history
 
+### PlazCode 1.18.90: Grouped replies and extension status
+
+Task replies and commands collapse together, with extension status under the bar name and a corrected ChatGPT shortcut logo.
+
+- **Added:** The browser bar shows its installed extension version below PlazCode, with green (Up to date), red (Outdated - New update available), or a neutral unavailable/unchecked status.
+- **Improved:** The desktop ChatGPT shortcut uses a vector logo traced from the supplied reference instead of a circle character. Its existing browser-opening action is preserved.
+- **Fixed:** Working/Worked now includes task prose, final responses, command cards and injected results. Completed groups collapse together and reopen on click. Startup, list_commands/list_tools and PlazCode is ready. remain outside; user requests remain visible.
+- **Fixed:** Activity identity survives streaming text changes and transcript remounts, and remains scoped to the chat.
+
+- **Added:** ChatGPT: Highly intelligent in all aspects. DeepSeek: Recommended for free users. Claude: Expert at scripting and game development. Each description appears below its name and above Open in browser.
+
+- The updater explicitly preserves native settings, MCP configuration/enabled servers, memory, pairing, templates, update source and WebView user data, even if a package contains saved-data files.
+- The Tools page includes both engine skill libraries, imported Studio helpers, asset_bridge_import and developer-product tools with descriptions.
+- Working/Worked uses a centered vector chevron that points right when collapsed and rotates down when expanded.
+
 ### PlazCode 1.18.89: Home engine switch
 
 Switch between RobloxScript and AgentScript directly above Start Agent on the desktop Home page.
