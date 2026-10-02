@@ -1,3 +1,11 @@
+## PlazCode 1.18.92: Tasks close button and live Co-work follow-ups
+
+Close Tasks reliably and send follow-ups during agent work without waiting for the entire task to finish.
+
+- Co-work delivers new requests alongside the next tool result or continuation, preserving the current task and the order of follow-ups. Streaming responses and running commands are not interrupted.
+- Follow-up status confirms receipt and explains delivery at the next safe message boundary. Unconfirmed sends remain paused for review rather than being blindly retried.
+- Tasks has a dedicated sticky header and accessible close button, separated from content, with explicit button type and click handling.
+
 # PlazCode — Roblox Studio + AgentScript AI agent
 
 Turn any major AI chat (**DeepSeek, ChatGPT, Google Gemini, Kimi, GLM, Qwen, Arena, Crax GPT, or Ollama running locally**) into an autonomous development agent. Three switchable engines:

@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.18.92",
+    "title": "Tasks close button and live Co-work follow-ups",
+    "summary": "Close Tasks reliably and send follow-ups during agent work without waiting for the entire task to finish.",
+    "added": [],
+    "improved": [
+      "Co-work delivers new requests alongside the next tool result or continuation, preserving the current task and the order of follow-ups. Streaming responses and running commands are not interrupted.",
+      "Follow-up status confirms receipt and explains delivery at the next safe message boundary. Unconfirmed sends remain paused for review rather than being blindly retried."
+    ],
+    "fixed": [
+      "Tasks has a dedicated sticky header and accessible close button, separated from content, with explicit button type and click handling."
+    ]
+  },
+  {
     "version": "1.18.91",
     "title": "Desktop work details and responsive status",
     "summary": "Expanded desktop work details now show AI replies and commands, with cleaner Home spacing, accurate icons and faster automatic update detection.",
