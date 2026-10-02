@@ -1,8 +1,26 @@
 {
-  "version": "1.18.87",
-  "url": "https://github.com/stoveez/PlazCodeneww/raw/refs/heads/main/PlazCode-1.18.87.zip",
-  "sha256": "db2a7832a73d449566383e626af0a5bfe4b846e7a408acc6b0dbc35eb193f4fc",
+  "version": "1.18.88",
+  "url": "https://github.com/stoveez/PlazCodeneww/raw/refs/heads/main/PlazCode-1.18.88.zip",
+  "sha256": "4c8120d34a27d6cbdc79e167f8bfbcc9b97aca360497296a2836fc47b7572320",
   "release_notes": [
+    {
+      "version": "1.18.88",
+      "title": "Automatic template references",
+      "summary": "Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task’s first tool call.",
+      "added": [
+        "Templates tab in the desktop app and a Template library inside browser Tasks. Import .rbxl, .rbxlx, .rbxm and .rbxmx files up to 32 MB, add a systems description, browse/read scripts and remove saved references.",
+        "Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit “reference this template” request is required.",
+        "Read-only plazcode_templates tools support explicit matching, script lists and paged source reading. Duplicate script paths have separate IDs.",
+        "Open in Studio explicitly opens the retained original through the Windows Roblox file association; select the desired Studio session in PlazCode afterwards."
+      ],
+      "improved": [
+        "Template code is reference data, not executable instructions. Existing project conventions take priority. Matching is a relevance hint rather than guaranteed semantic understanding.",
+        "Template files/indexes persist in your private app data, survive updates and are excluded from distribution ZIPs. Source indexes and excerpts have explicit size limits to avoid flooding long chats."
+      ],
+      "fixed": [
+        "Malformed, unsupported and source-free files report clear import errors. Missing scripts in copied/decompiled games are not fabricated or recovered. Binary and XML imports preserve the original file bytes."
+      ]
+    },
     {
       "version": "1.18.87",
       "title": "Task checkpoints, project memory & reliable tools",

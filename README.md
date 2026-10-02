@@ -69,6 +69,26 @@ Optional MCP runtimes are downloaded on first use if no installed runtime is fou
 
 ## Release history
 
+### PlazCode 1.18.88: Automatic template references
+
+Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task’s first tool call.
+
+#### Added
+
+- Templates tab in the desktop app and a Template library inside browser Tasks. Import .rbxl, .rbxlx, .rbxm and .rbxmx files up to 32 MB, add a systems description, browse/read scripts and remove saved references.
+- Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit “reference this template” request is required.
+- Read-only plazcode_templates tools support explicit matching, script lists and paged source reading. Duplicate script paths have separate IDs.
+- Open in Studio explicitly opens the retained original through the Windows Roblox file association; select the desired Studio session in PlazCode afterwards.
+
+#### Improved
+
+- Template code is reference data, not executable instructions. Existing project conventions take priority. Matching is a relevance hint rather than guaranteed semantic understanding.
+- Template files/indexes persist in your private app data, survive updates and are excluded from distribution ZIPs. Source indexes and excerpts have explicit size limits to avoid flooding long chats.
+
+#### Fixed
+
+- Malformed, unsupported and source-free files report clear import errors. Missing scripts in copied/decompiled games are not fabricated or recovered. Binary and XML imports preserve the original file bytes.
+
 ### PlazCode 1.18.87: Task checkpoints, project memory & reliable tools
 
 Review and recover agent tasks, keep project facts separate, and reduce repeated tool errors and long-chat overhead.
