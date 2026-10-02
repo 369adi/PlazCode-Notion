@@ -1,0 +1,24 @@
+name: Publish PlazCode release page
+on:
+  push:
+    branches: [main]
+    paths: [latest.json, .github/workflows/release.yml, publish_release.py]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: plazcode-release-pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch release publisher from this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api "repos/$GITHUB_REPOSITORY/contents/publish_release.py?ref=$GITHUB_SHA" --jq .content | base64 --decode > publish_release.py
+      - name: Publish verified ZIPs and release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 publish_release.py
