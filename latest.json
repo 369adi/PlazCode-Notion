@@ -1,8 +1,25 @@
 {
-  "version": "1.18.92",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.92.zip",
-  "sha256": "498b36b0440eaf343018d44d10879e725a8ec89deebd302202e8ab0a953137a9",
+  "version": "1.18.93",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.18.93.zip",
+  "sha256": "2f2380fbd6df53c4f6471201331984f0a24e15481b1b3d8b02c977851085518a",
   "release_notes": [
+    {
+      "version": "1.18.93",
+      "title": "Shared themes, larger memory and quieter updates",
+      "summary": "Desktop themes sync to the browser bar and panels, saved memory supports 150K characters, and automatic update checks stay quiet. Notion tool-result delivery has bounded retries and literal code paste.",
+      "added": [
+        "Desktop palette, glow and gradient settings sync through shared preferences to the browser bar, menus, controls and activity panels. Selections persist across restarts and updates; legacy browser themes map back to desktop palettes. Existing unsynced appearance is migrated without forcing a reset.",
+        "Saved memory supports 150,000 characters total, with a capacity display, larger note fields and transactional storage limits. Long notes have previews and paged AI reads instead of being omitted or flooding startup prompts. Memory-only backups can load saved notes without sending an old conversation to the AI."
+      ],
+      "improved": [
+        "Updated the DeepSeek shortcut description; its Open in browser action is unchanged.",
+        "Release checks run every two seconds, and desktop/browser status reads every second. The default GitHub cache key uses two-second buckets; network and publication delays still apply. This is polling, not guaranteed instant push."
+      ],
+      "fixed": [
+        "Automatic checks do not show Checking for updates\u2026 or disable the manual check/install buttons. Manual requests wait for an ongoing background read instead of racing it.",
+        "Notion tool results paste as literal HTML code instead of Markdown-like rich text. Failed writes have wall-clock retry limits, preventing hundreds of timer-throttled chunk attempts. A failed draft is cleared only when it still matches the locked composer content captured by that send attempt."
+      ]
+    },
     {
       "version": "1.18.92",
       "title": "Tasks close button and live Co-work follow-ups",

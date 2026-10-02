@@ -1,3 +1,16 @@
+## PlazCode 1.18.93: Shared themes, larger memory and quieter updates
+
+- Desktop palette, glow and gradient settings sync through shared preferences to the browser bar, menus, controls and activity panels. Selections persist across restarts and updates; legacy browser themes map back to desktop palettes. Existing unsynced appearance is migrated without forcing a reset.
+
+- Saved memory supports 150,000 characters total, with a capacity display, larger note fields and transactional storage limits. Long notes have previews and paged AI reads instead of being omitted or flooding startup prompts. Memory-only backups can load saved notes without sending an old conversation to the AI.
+
+- Notion tool results paste as literal HTML code instead of Markdown-like rich text. Failed writes have wall-clock retry limits, preventing hundreds of timer-throttled chunk attempts. A failed draft is cleared only when it still matches the locked composer content captured by that send attempt.
+
+DeepSeek’s desktop AI picker description now reads: Recommended for free users. Fast and reliable.
+
+- Release checks run every two seconds, and desktop/browser status reads every second. The default GitHub cache key uses two-second buckets; network and publication delays still apply. This is polling, not guaranteed instant push.
+- Automatic checks do not show Checking for updates… or disable the manual check/install buttons. Manual requests wait for an ongoing background read instead of racing it.
+
 ## PlazCode 1.18.92: Tasks close button and live Co-work follow-ups
 
 Close Tasks reliably and send follow-ups during agent work without waiting for the entire task to finish.

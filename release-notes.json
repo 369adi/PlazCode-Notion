@@ -1,5 +1,22 @@
 [
   {
+    "version": "1.18.93",
+    "title": "Shared themes, larger memory and quieter updates",
+    "summary": "Desktop themes sync to the browser bar and panels, saved memory supports 150K characters, and automatic update checks stay quiet. Notion tool-result delivery has bounded retries and literal code paste.",
+    "added": [
+      "Desktop palette, glow and gradient settings sync through shared preferences to the browser bar, menus, controls and activity panels. Selections persist across restarts and updates; legacy browser themes map back to desktop palettes. Existing unsynced appearance is migrated without forcing a reset.",
+      "Saved memory supports 150,000 characters total, with a capacity display, larger note fields and transactional storage limits. Long notes have previews and paged AI reads instead of being omitted or flooding startup prompts. Memory-only backups can load saved notes without sending an old conversation to the AI."
+    ],
+    "improved": [
+      "Updated the DeepSeek shortcut description; its Open in browser action is unchanged.",
+      "Release checks run every two seconds, and desktop/browser status reads every second. The default GitHub cache key uses two-second buckets; network and publication delays still apply. This is polling, not guaranteed instant push."
+    ],
+    "fixed": [
+      "Automatic checks do not show Checking for updates… or disable the manual check/install buttons. Manual requests wait for an ongoing background read instead of racing it.",
+      "Notion tool results paste as literal HTML code instead of Markdown-like rich text. Failed writes have wall-clock retry limits, preventing hundreds of timer-throttled chunk attempts. A failed draft is cleared only when it still matches the locked composer content captured by that send attempt."
+    ]
+  },
+  {
     "version": "1.18.92",
     "title": "Tasks close button and live Co-work follow-ups",
     "summary": "Close Tasks reliably and send follow-ups during agent work without waiting for the entire task to finish.",
@@ -68,10 +85,10 @@
   {
     "version": "1.18.88",
     "title": "Automatic template references",
-    "summary": "Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task\u2019s first tool call.",
+    "summary": "Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task’s first tool call.",
     "added": [
       "Templates tab in the desktop app and a Template library inside browser Tasks. Import .rbxl, .rbxlx, .rbxm and .rbxmx files up to 32 MB, add a systems description, browse/read scripts and remove saved references.",
-      "Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit \u201creference this template\u201d request is required.",
+      "Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit “reference this template” request is required.",
       "Read-only plazcode_templates tools support explicit matching, script lists and paged source reading. Duplicate script paths have separate IDs.",
       "Open in Studio explicitly opens the retained original through the Windows Roblox file association; select the desired Studio session in PlazCode afterwards."
     ],
@@ -142,8 +159,8 @@
       "Download export is styled as a theme-colored button in desktop and browser memory settings."
     ],
     "fixed": [
-      "All startup instruction variants explicitly request \u201cPlazCode is ready.\u201d instead of a generic readiness sentence.",
-      "If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to \u201cPlazCode is ready.\u201d without resending startup or modifying Notion-owned DOM.",
+      "All startup instruction variants explicitly request “PlazCode is ready.” instead of a generic readiness sentence.",
+      "If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to “PlazCode is ready.” without resending startup or modifying Notion-owned DOM.",
       "DeepSeek rich-text composers remain discoverable while input-locked, and agent writes temporarily enable editing then restore the lock. Explicit Send labels take precedence over stop-icon guesses."
     ]
   },
@@ -153,7 +170,7 @@
     "summary": "Outdated version badges now explicitly say that a new update is available.",
     "added": [],
     "improved": [
-      "Desktop, browser bar and popup version badges show \u201c(Outdated - New update available)\u201d when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved."
+      "Desktop, browser bar and popup version badges show “(Outdated - New update available)” when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved."
     ],
     "fixed": []
   },
@@ -168,8 +185,8 @@
     ],
     "improved": [
       "Themes now color panels, navigation, borders, inputs, buttons, connection surfaces, terminal and update dialogs as well as accents.",
-      "Startup asks the AI to say \u201cPlazCode is ready.\u201d; older readiness acknowledgements remain accepted.",
-      "Co-Work follow-up text uses the website composer\u2019s text color, font, size and alignment. Only the placeholder is grey. Existing queue behavior is preserved.",
+      "Startup asks the AI to say “PlazCode is ready.”; older readiness acknowledgements remain accepted.",
+      "Co-Work follow-up text uses the website composer’s text color, font, size and alignment. Only the placeholder is grey. Existing queue behavior is preserved.",
       "Copilot and Meta AI removed from supported-site choices, routing and extension injection."
     ],
     "fixed": [
@@ -187,7 +204,7 @@
       "The GitHub README now lists release titles, summaries, additions, improvements and fixes.",
       "An updated maintenance prompt documents architecture, current features, debugging, tests, builds and release publishing.",
       "Appearance settings with Orange, Amethyst, Polar Cyan, Rose, Emerald and Graphite palettes, glow strength, gradient controls and a default-theme reset. Selections apply immediately and are remembered on this device.",
-      "Version indicators in the desktop, browser bar/menu and extension popup show green \u201cUp to date\u201d, red \u201cOutdated\u201d, or a neutral unavailable/not-checked status. Release checks run at startup and every five minutes."
+      "Version indicators in the desktop, browser bar/menu and extension popup show green “Up to date”, red “Outdated”, or a neutral unavailable/not-checked status. Release checks run at startup and every five minutes."
     ],
     "improved": [
       "Published update metadata carries the same release notes used in the README.",
@@ -206,7 +223,7 @@
     "summary": "Update PlazCode from the desktop app and carry chat context between supported AI sites.",
     "added": [
       "Desktop Updates tab with installed/latest versions, Check now, Update now, download progress and relaunch.",
-      "ChatGPT, DeepSeek and Claude shortcuts below Home\u2019s connection displays.",
+      "ChatGPT, DeepSeek and Claude shortcuts below Home’s connection displays.",
       "Current-chat memory export and a memory-only export option."
     ],
     "improved": [
@@ -215,7 +232,7 @@
       "Saved AI memories retain conversation origins after edits, including facts learned in more than one chat."
     ],
     "fixed": [
-      "Memory-only imports now include saved facts in the destination AI\u2019s context.",
+      "Memory-only imports now include saved facts in the destination AI’s context.",
       "Oversized combined history and memory are rejected before saving or sending.",
       "View on GitHub opens in the default browser instead of navigating the embedded app."
     ]
