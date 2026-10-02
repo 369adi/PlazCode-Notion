@@ -1,3 +1,7 @@
+PlazCode 1.18.98 validation
+
+Windows release rebuilt with the original icon. Immediate-stop async tests additionally reject a second tool during cancellation settling. Updated desktop regression, activity old-history isolation, media and updater preservation checks pass. Native Rust operation code is unchanged from the 45-pass / 1-ignored 1.18.97 run; only its version and embedded browser assets changed. Live Windows/provider limits below still apply.
+
 PlazCode 1.18.97 validation
 
 Windows GNU release build passed; original executable icon preserved. Native Linux tests: 45 passed, 0 failed, 1 ignored. Includes actual FFmpeg still conversion and video-frame sampling, cancellation scope, cancelled owned-process cleanup, command timeout, startup and Studio-ID fixtures. Syntax: 44 JavaScript files pass Node --check. Stop-mode asynchronous tests, media payload tests, ChatGPT folding and parser tests, activity including old-history isolation, Co-work, desktop regression, Claude adapter checks, Notion result preservation, and updater preservation pass. Live Windows tray, live Studio interruption and live AI-provider uploads/DOM behavior have not been tested in this environment. External tools may not support cancellation; no rollback guarantee.

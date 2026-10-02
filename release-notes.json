@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.18.98",
+    "title": "Keep Immediate Stop latched until cancellation settles",
+    "summary": "Includes all 1.18.97 improvements, with an additional guard against dispatching tools while an interrupted operation is still settling.",
+    "added": [],
+    "improved": [
+      "Immediate Stop remains the default; Safe Stop continues to wait for the current tool step."
+    ],
+    "fixed": [
+      "Keep the browser stop latch while an abandoned tool remains active and block tool dispatch until it settles. New task startup remains guarded."
+    ]
+  },
+  {
     "version": "1.18.97",
     "title": "Tray access, shared stop modes and cleaner work sessions",
     "summary": "Reopen the desktop app from its Windows tray icon, choose Immediate or Safe Stop, send media from desktop, and keep task activity together.",

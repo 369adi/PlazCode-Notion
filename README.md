@@ -1,3 +1,7 @@
+## PlazCode 1.18.98: Cancellation settling guard
+
+Includes all 1.18.97 features below. Keeps Immediate Stop latched while an interrupted tool is settling and blocks further tool dispatch during that interval. Safe Stop waits for the current tool step. Reload the extension and refresh AI tabs.
+
 ## PlazCode 1.18.97: Tray access, stop modes and cleaner work sessions
 
 - Reopen the desktop app using its Windows tray icon. Right-click for Open or Quit. If tray registration fails, the app remains in the taskbar.
