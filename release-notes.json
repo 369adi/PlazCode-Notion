@@ -1,5 +1,19 @@
 [
   {
+    "version": "1.18.89",
+    "title": "Home engine switch",
+    "summary": "Switch between RobloxScript and AgentScript directly above Start Agent on the desktop Home page.",
+    "added": [
+      "A themed, keyboard-accessible RobloxScript / AgentScript button group under the active AI status and above Start Agent. The selected engine is highlighted."
+    ],
+    "improved": [
+      "The Home buttons use the existing saved engine preference and browser synchronization, and stay synchronized with the Settings engine selector. Repeated clicks are disabled while saving."
+    ],
+    "fixed": [
+      "Start Agent is temporarily disabled while the engine change is saving or the selected browser chat still reports a different engine, preventing a start on the previous engine."
+    ]
+  },
+  {
     "version": "1.18.88",
     "title": "Automatic template references",
     "summary": "Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task’s first tool call.",

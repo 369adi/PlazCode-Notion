@@ -69,6 +69,22 @@ Optional MCP runtimes are downloaded on first use if no installed runtime is fou
 
 ## Release history
 
+### PlazCode 1.18.89: Home engine switch
+
+Switch between RobloxScript and AgentScript directly above Start Agent on the desktop Home page.
+
+#### Added
+
+- A themed, keyboard-accessible RobloxScript / AgentScript button group under the active AI status and above Start Agent. The selected engine is highlighted.
+
+#### Improved
+
+- The Home buttons use the existing saved engine preference and browser synchronization, and stay synchronized with the Settings engine selector. Repeated clicks are disabled while saving.
+
+#### Fixed
+
+- Start Agent is temporarily disabled while the engine change is saving or the selected browser chat still reports a different engine, preventing a start on the previous engine.
+
 ### PlazCode 1.18.88: Automatic template references
 
 Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task’s first tool call.
