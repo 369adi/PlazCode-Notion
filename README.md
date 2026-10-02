@@ -69,6 +69,21 @@ Optional MCP runtimes are downloaded on first use if no installed runtime is fou
 
 ## Release history
 
+### PlazCode 1.18.91: Desktop work details and responsive status
+
+Expanded desktop work details now show AI replies and commands, with cleaner Home spacing, accurate icons and faster automatic update detection.
+
+- Templates now use Choose a Roblox file and Add template, with short numbered directions. Advanced script search is optional and collapsed.
+- Desktop template imports support Roblox files up to 128 MB using direct binary uploads, avoiding base64 copies. Browser imports remain limited to 32 MB; script-index bounds still apply.
+- Memory transfer separates Save to a file from Load into another chat, explains saved notes versus messages, and uses clear create/download/load buttons.
+
+- **Added:** Desktop Working/Worked details show AI replies, command text and results from the selected browser chat, loaded only while the panel is open.
+- **Improved:** Automatic release checks run every five seconds, with desktop/browser status propagation every two seconds. The default GitHub feed uses a five-second cache key; network/cache delays can still apply. Checks do not overlap.
+- **Improved:** DeepSeek and Claude shortcuts use vector logos from the supplied references. Tools uses the supplied icon, and Settings has a symmetric centered gear.
+- **Fixed:** Task checkpoints & workflows has a clear gap below the Home cards; the Working panel also has consistent spacing.
+- **Fixed:** Expanded work details preserve unchanged content and scrolling across refreshes, collapse once on completion and remain reopenable. Retention is bounded; oversized/older omitted details receive an explicit notice.
+- **Fixed:** The updater swirl rotates normally and uses a slower continuous rotation when reduced motion is enabled, instead of freezing.
+
 ### PlazCode 1.18.90: Grouped replies and extension status
 
 Task replies and commands collapse together, with extension status under the bar name and a corrected ChatGPT shortcut logo.
