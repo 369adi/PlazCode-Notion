@@ -1,0 +1,74 @@
+name: Creator and native platform validation
+on:
+  push:
+    branches: [creator-platform-v14]
+permissions:
+  contents: read
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-15-intel, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract validation source
+        shell: bash
+        run: python -m zipfile -e validation-source.zip source
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: JavaScript checks
+        shell: bash
+        working-directory: source
+        run: |
+          npm install --prefix ../test-deps --no-audit --no-fund jsdom@26
+          export NODE_PATH="$(cd ../test-deps/node_modules && pwd)"
+          for f in background.js popup.js core/*.js providers/*.js; do node --check "$f"; done
+          for f in test-creator.js test-creator-ui.js test-desktop-regression.js test-tool-guard.js test-tool-result-send.js test-stop.js test-mode-switch.js test-claude-command-frame.js test-reply-recovery.js test-session-continuity.js test-continuation.js test-memory-activity.js test-history-performance.js test-media.js test-templates.js test-native-cowork.js; do node "$f"; done
+          for p in chatgpt claude deepseek notion; do PLAZCODE_TEST_PROVIDER="$p" node test-page-startup.js; done
+      - name: Native regression suite
+        shell: bash
+        working-directory: source
+        run: cargo test --manifest-path agent/Cargo.toml --no-fail-fast
+      - name: Build release
+        shell: bash
+        working-directory: source
+        run: cargo build --manifest-path agent/Cargo.toml --release
+      - name: Native bridge smoke test
+        shell: bash
+        working-directory: source
+        run: python test-platform-smoke.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ matrix.os }}
+          path: |
+            source/agent/target/release/PlazCode
+            source/agent/target/release/PlazCode.exe
+          if-no-files-found: error
+  mac-bundle:
+    needs: native
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-macos-*
+          path: binaries
+      - name: Build universal application
+        shell: bash
+        run: |
+          python -m zipfile -e validation-source.zip source
+          mkdir -p PlazCode.app/Contents/MacOS
+          lipo -create binaries/native-macos-15/PlazCode binaries/native-macos-15-intel/PlazCode -output PlazCode.app/Contents/MacOS/PlazCode
+          cp source/macos/Info.plist PlazCode.app/Contents/Info.plist
+          chmod 755 PlazCode.app/Contents/MacOS/PlazCode
+          codesign --force --sign - PlazCode.app
+          codesign --verify --deep --strict PlazCode.app
+          lipo -verify_arch arm64 x86_64 PlazCode.app/Contents/MacOS/PlazCode
+          ditto -c -k --keepParent PlazCode.app PlazCode-macOS.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macOS-universal-app
+          path: PlazCode-macOS.zip
