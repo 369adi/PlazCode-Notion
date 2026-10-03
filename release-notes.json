@@ -1,5 +1,22 @@
 [
 {
+  "version": "1.18.105",
+  "title": "Notion upload and Claude command cards",
+  "summary": "Fixes the reported Notion native file-drop startup crash and removes empty Claude JSON frame remnants beneath tool cards.",
+  "added": [],
+  "improved": [
+    "Notion file drops now use browser-native DragEvent dataTransfer fields rather than isolated-world Event properties."
+  ],
+  "fixed": [
+    "Startup protocol and screenshot drop fallbacks no longer dispatch generic drag events that hide transfer data from Notion page handlers.",
+    "A native dragleave finishes the upload sequence so drag overlays and cursors can reset.",
+    "Claude command cards hide the surrounding code-only frame, including its JSON label and border, without hiding narration, thinking, normal code or response actions."
+  ],
+  "notes": [
+    "Complete protocol contents, upload confirmation, single-send acknowledgement and Stop cleanup remain required. Live signed-in Notion AI startup still needs confirmation. Reload the extension AND refresh open AI tabs after installing."
+  ]
+},
+{
   "version": "1.18.104",
   "title": "Animated installer and explicit Notion protocol files",
   "summary": "A redesigned installer window stays animated during file work, while Notion long startup/tool messages are staged as one exact named text file rather than repeated auto-converted pastes.",

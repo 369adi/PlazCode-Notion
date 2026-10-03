@@ -1,3 +1,12 @@
+## PlazCode 1.18.105: Notion upload and Claude command cards
+
+- Fixes the reported startup crash: Notion page drag handlers could not see transfer types/files on generic events dispatched by the extension. Upload fallback now uses native DragEvent fields.
+- Ends the drop sequence with dragleave so the site can reset its drag overlay and cursor.
+- Claude hides the empty JSON label/border around a tool command, preserving adjacent narration, thinking, normal code and response actions.
+- Full protocol files, confirmed uploads, one acknowledged send, Stop cleanup and existing draft preservation remain unchanged.
+
+Reload the extension AND refresh all open AI tabs. Live Notion startup remains unverified; this release fixes the specific supplied drag-event exception.
+
 PlazCode 1.18.104: Animated installer and Notion protocol files
 
 - A rounded dark installer window with PlazCode orange gradients, an animated shimmer and swirl, stage text and real file-copy progress.
