@@ -68,7 +68,7 @@ jobs:
           chmod 755 PlazCode.app/Contents/MacOS/PlazCode
           codesign --force --sign - PlazCode.app
           codesign --verify --deep --strict PlazCode.app
-          lipo -verify_arch arm64 x86_64 PlazCode.app/Contents/MacOS/PlazCode
+          lipo PlazCode.app/Contents/MacOS/PlazCode -verify_arch arm64 x86_64
           ditto -c -k --keepParent PlazCode.app PlazCode-macOS.zip
       - uses: actions/upload-artifact@v4
         with:
