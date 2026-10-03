@@ -4,6 +4,9 @@ on:
     branches: [design-upgrade-1.19.16]
     paths: [design-source.zip, .github/workflows/design-build.yml]
   workflow_dispatch:
+concurrency:
+  group: plazcode-design-validation
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -65,6 +68,10 @@ jobs:
           mkdir -p target/release
           lipo -create target/x86_64-apple-darwin/release/PlazCode target/aarch64-apple-darwin/release/PlazCode -output target/release/PlazCode
           lipo -info target/release/PlazCode
+          python ../build-macos-bundle.py
+      - name: Native runtime smoke test
+        working-directory: build/PlazCode
+        run: python test-platform-smoke.py
       - uses: actions/upload-artifact@v4
         with:
           name: native-${{ runner.os }}
