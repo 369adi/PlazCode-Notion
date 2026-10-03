@@ -105,6 +105,24 @@ jobs:
           lipo -create target/x86_64-apple-darwin/release/PlazCode target/aarch64-apple-darwin/release/PlazCode -output target/release/PlazCode
           lipo -info target/release/PlazCode
           python ../build-macos-bundle.py
+      - name: Windows bundled Engram integration
+        if: runner.os == 'Windows'
+        working-directory: build/PlazCode
+        env:
+          PLAZCODE_TEST_BINARY: agent/target/release/PlazCode.exe
+          PLAZCODE_TEST_ENGRAM: ../../engram-runtime/engram.exe
+        run: |
+          curl.exe --fail --location --retry 3 https://github.com/Gentleman-Programming/engram/releases/download/v3.0.0/engram_3.0.0_windows_amd64.zip -o ../../engram.zip
+          if ((Get-FileHash ../../engram.zip -Algorithm SHA256).Hash -ne 'bb410e4a578bee96888f848764dbbf9e7dd78971204c05bb7fb81a4a8db324a3') { throw 'Engram checksum mismatch' }
+          Expand-Archive ../../engram.zip ../../engram-runtime
+          python test-memory-template-runtime.py
+      - name: macOS signed-bundle Engram integration
+        if: runner.os == 'macOS'
+        working-directory: build/PlazCode
+        env:
+          PLAZCODE_TEST_BUNDLE: agent/target/release/PlazCode.app
+        run: |
+          python -c "import os,platform,runpy; arch='arm64' if platform.machine().lower() in ['arm64','aarch64'] else 'amd64'; os.environ['PLAZCODE_TEST_ENGRAM']='agent/target/release/PlazCode.app/Contents/Resources/engram/engram-darwin-'+arch; runpy.run_path('test-memory-template-runtime.py',run_name='__main__')"
       - name: Native runtime smoke test
         working-directory: build/PlazCode
         run: |

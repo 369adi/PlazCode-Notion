@@ -18,7 +18,8 @@ for suffix,name,sha in assets:
   with zipfile.ZipFile(io.BytesIO(raw)) as z:data=z.read(next(n for n in z.namelist() if Path(n).name=='engram.exe'))
  else:
   with tarfile.open(fileobj=io.BytesIO(raw),mode='r:gz') as t:data=t.extractfile(next(n for n in t.getmembers() if Path(n.name).name=='engram')).read()
- p=root/'runtime/engram'/('engram-'+name);p.write_bytes(data);p.chmod(0o755)
+ if name.startswith('windows'):
+  p=root/'runtime/engram'/('engram-'+name);p.write_bytes(data);p.chmod(0o755)
 (root/'runtime/engram/SHA256SUMS.txt').write_text(''.join(f'{sha}  engram_3.0.0_{suffix}\n' for suffix,name,sha in assets))
 with zipfile.ZipFile(repo/'artifacts/native-macOS/PlazCode-app.zip') as app:
  plist=plistlib.loads(app.read('PlazCode.app/Contents/Info.plist'));assert plist['CFBundleShortVersionString']==version
@@ -52,7 +53,7 @@ for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-
   for path in ['PlazCode/manifest.json','PlazCode/PlazCode-Extension/manifest.json']:assert json.loads(z.read(path))['version']==version
   assert ('PlazCode/PlazCode.exe' in z.namelist())==(platform=='windows')
   assert ('PlazCode/runtime/engram/engram-windows-amd64.exe' in z.namelist())==(platform=='windows')
-  for arch in ['amd64','arm64']:assert z.getinfo(f'PlazCode/runtime/engram/engram-darwin-{arch}').external_attr>>16&0o111
+  for arch in ['amd64','arm64']:assert z.getinfo(f'PlazCode/PlazCode.app/Contents/Resources/engram/engram-darwin-{arch}').external_attr>>16&0o111
   assert z.getinfo('PlazCode/PlazCode.app/Contents/MacOS/PlazCode').external_attr>>16&0o111
   with zipfile.ZipFile(original) as old:
    for path in old.namelist():
