@@ -1,0 +1,71 @@
+name: Validate PlazCode design upgrade
+on:
+  push:
+    branches: [design-upgrade-1.19.16]
+    paths: [design-source.zip, .github/workflows/design-build.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: unzip -q design-source.zip -d build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix /tmp/plazcode-tests jsdom@26 playwright
+      - run: /tmp/plazcode-tests/node_modules/.bin/playwright install --with-deps chromium
+      - name: Check existing behavior and shared themes
+        working-directory: build/PlazCode
+        env:
+          NODE_PATH: /tmp/plazcode-tests/node_modules
+          PLAZCODE_DESIGN_BASELINE: design-baseline.html
+        run: |
+          node test-design-upgrade.js
+          node test-desktop-regression.js
+          node test-theme-sync.js
+          node test-design-visual.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-visual-checks
+          path: build/PlazCode/visual-checks
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract source
+        shell: bash
+        run: python -c "import zipfile; zipfile.ZipFile('design-source.zip').extractall('build')"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: build/PlazCode/agent
+      - name: Native regression tests
+        working-directory: build/PlazCode/agent
+        run: cargo test --locked
+      - name: Windows release build
+        if: runner.os == 'Windows'
+        working-directory: build/PlazCode/agent
+        run: cargo build --release --locked
+      - name: Universal macOS release build
+        if: runner.os == 'macOS'
+        working-directory: build/PlazCode/agent
+        run: |
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin
+          mkdir -p target/release
+          lipo -create target/x86_64-apple-darwin/release/PlazCode target/aarch64-apple-darwin/release/PlazCode -output target/release/PlazCode
+          lipo -info target/release/PlazCode
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ runner.os }}
+          path: build/PlazCode/agent/target/release/PlazCode*
