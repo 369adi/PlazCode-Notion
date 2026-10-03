@@ -1,5 +1,25 @@
 [
 {
+  "version": "1.18.109",
+  "title": "Stable startup and session reminders",
+  "summary": "Keep active chats running without repeating startup, and retain confirmed startup command results across message remounts.",
+  "added": [],
+  "improved": [
+    "Context reminders preserve the current task and pending follow-ups instead of reissuing the startup handshake. Both engines and both reminder delivery paths use the continuation instructions."
+  ],
+  "fixed": [
+    "Confirmed startup list_commands calls retain their completed/error status when the site replaces the message node. They are marked dispatched before awaiting execution so the watchdog cannot replay them.",
+    "Notion command identity follows its stable transcript row across inner editor/code-block replacements.",
+    "Duplicate Start requests on an already-started populated chat no longer inject startup again. Explicit Restart and new-chat Start remain available.",
+    "Notion clears pending navigation-start intent when its composer is prepared or a session is active, and rechecks activity before a delayed resume."
+  ],
+  "notes": [
+    "The plan-based progress ring remains on collapsible Working/Worked headings for supported sites. Custom work groups remain disabled on Notion and ChatGPT.",
+    "Settings, memory, templates and MCP server configuration retain their existing update preservation rules.",
+    "Reload the extension and refresh open AI tabs after updating."
+  ]
+},
+{
   "version": "1.18.108",
   "title": "Work indicators and Notion startup controls",
   "summary": "Cleans up work details, disables custom foldouts on Notion and ChatGPT, adds plan-based progress rings, and protects Notion startup input.",

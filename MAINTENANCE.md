@@ -1,3 +1,13 @@
+## PlazCode 1.18.109: Stable startup and session reminders
+
+- Automatic context reminders preserve the active task and follow-ups. They no longer reissue the startup handshake, request a readiness reply or wait for a new first request. This applies to both engines and both reminder paths.
+- Startup list_commands is recorded before execution and its confirmed result survives message replacements, preventing stale “not run” cards and watchdog replay.
+- Notion uses its stable transcript row to identify commands. Pending navigation startup is cleared on composer preparation or an active session; delayed requests check again before starting.
+- Duplicate Start on an already-started populated chat is harmless. Explicit Restart and fresh-chat startup remain available.
+- Working/Worked progress circles continue to reflect explicit assistant Plan/Checklist steps; unknown totals animate. Custom grouping remains disabled for Notion and ChatGPT.
+
+Reload the extension AND refresh open AI tabs after updating. Saved settings, memory, templates and enabled MCP servers retain their existing preservation rules.
+
 ## PlazCode 1.18.108: Work indicators and Notion startup controls
 
 - Removes the empty bordered bar beneath expanded Working/Worked headings. Waiting text clears when a real reply arrives.
@@ -191,6 +201,8 @@ Use the existing navy/orange design language, readable contrast, restrained dept
 ## Versioning, tests and builds
 
 Bump `manifest.json` for every shipped update that changes extension JS, CSS or its manifest. Update the native crate/lockfile version when shipping a changed native build. The components may have different versions; report them accurately. Package versions used by the updater must advance. Never replace the bytes of an already published versioned ZIP.
+
+After 1.18.109, the next user-facing version is 1.19.09. Increment through 1.19.99, then roll over to 1.20.00 (confirmed by the user). Chromium manifest versions cannot contain leading zeroes: use 1.19.9 / 1.20.0 internally and zero-pad the final component only for display. Keep feed, desktop and extension comparisons numeric and monotonically increasing; do not roll over to 1.2.00. Implement this display normalization consistently when shipping the next release.
 
 After edited JavaScript, run:
 `C:\Users\plazm\PlazCodeWorkspace\node\node-v22.11.0-win-x64\node.exe --check <file>`
