@@ -1,241 +1,261 @@
 [
-{
-  "version": "1.19.12",
-  "title": "Consistent package versions and current release checks",
-  "summary": "Fix contradictory desktop version indicators and refresh BAT update metadata without cached intermediate releases.",
-  "added": [
-    "Official-origin and branding notice identifies the maintained release channel and distinguishes third-party modifications without changing the GPL license."
-  ],
-  "improved": [
-    "All desktop version labels use the installed package version from the updater rather than an independently versioned embedded native binary.",
-    "The BAT updater requests uncached current metadata before selecting the latest complete release ZIP."
-  ],
-  "fixed": [
-    "Sidebar/title/settings no longer show an older native build as outdated while Updates correctly reports the installed extension package as current."
-  ],
-  "notes": [
-    "Updates already select the latest complete package directly, including when multiple versions behind; intermediate releases are not installed one by one.",
-    "Native build and extension are both 1.19.12 in this package. Saved settings, memory, templates and MCP configuration remain preserved.",
-    "Origin notices and SHA256 checks are not copy protection. Existing GPL and third-party licenses remain in effect. Reload the extension and refresh AI tabs after updating."
-  ]
-},
-{
-  "version": "1.19.11",
-  "title": "Urgent tool-result loop fix",
-  "summary": "Fix the internal toSend is not defined error that interrupted normal commands after execution.",
-  "added": [],
-  "improved": [],
-  "fixed": [
-    "Initialize the outgoing message directly from the completed tool feedback before adding changed memory context. Successful results, formatted errors and screenshots reach the AI without an undeclared-variable crash.",
-    "Periodic command-list reminders remain disabled; the three-consecutive-failure pause and existing cancellation behavior are preserved."
-  ],
-  "notes": [
-    "Extension-only hotfix. The native executable remains the unchanged 1.19.10 binary; no Rust/agent changes were needed.",
-    "Reload the extension and refresh open AI tabs after updating. Settings, memory, templates and MCP configuration retain their preservation rules."
-  ]
-},
-{
-  "version": "1.19.10",
-  "title": "Notion startup status and meaningful chat continuation",
-  "summary": "Retain the confirmed startup command status after Notion replaces its event anchor, distinguish result attachments, and skip continuation offers for startup-only chats.",
-  "added": [],
-  "improved": [
-    "Notion command-feedback files are named plazcode_tool_result_*.txt and instruct the AI to continue the existing handshake or task, rather than repeat startup.",
-    "Continuation records explicitly track whether a real user request was captured; startup-only legacy records are also filtered."
-  ],
-  "fixed": [
-    "Capture startup identity before card rendering. Restore the confirmed outcome when Notion settles under a replacement event anchor, matching the original conversation, assistant position, preceding user message and command text. Later identical commands stay separate.",
-    "The already-dispatched guard also recognizes restored startup outcomes so a remounted startup call is not replayed.",
-    "The new-chat continuation prompt does not appear for a chat containing only startup instructions, command feedback and readiness acknowledgement."
-  ],
-  "notes": [
-    "The console confirmed list_commands was executed; the second attachment carries its result, not a second full startup.",
-    "Reload the extension and refresh open AI tabs. Saved settings, memory, templates and enabled MCP servers remain preserved."
-  ]
-},
-{
-  "version": "1.19.09",
-  "title": "Normal chat flow and targeted command recovery",
-  "summary": "Release completed replies promptly, preserve native idle Co-work messages, and recover command access only when the AI explicitly loses it.",
-  "added": [
-    "User-facing versions now use two patch digits: 1.19.09 through 1.19.99, then 1.20.00. Chrome and native package versions stay numeric without leading zeroes."
-  ],
-  "improved": [
-    "Idle Co-work sends use the same native composer and send path as normal messages. Active follow-ups remain accepted through the existing queue and safe-boundary delivery.",
-    "Normal replies release the composer before asynchronous checkpoint bookkeeping. Superseded or stopped send callbacks cannot start another loop."
-  ],
-  "fixed": [
-    "Notion pre-send response identity is preserved instead of capturing its newly mounted assistant shell, preventing waiting for an already-visible response.",
-    "Removed periodic command-list reminders, periodic full-prompt riders and idle reminder sends. Memory context changes remain distinct from reminders.",
-    "An explicit command-access refusal triggers a live-engine check and one same-chat startup handshake. Successful recovery resumes the unfinished request; repeated refusals stop without a restart loop. Disconnected engines, changed chats, Stop and unsent drafts prevent recovery.",
-    "Delayed injection cleanup is tied to the send that owns it, and an idle composer cannot be covered by a stale working request."
-  ],
-  "notes": [
-    "Settings, memory, templates and enabled MCP servers retain their update preservation rules.",
-    "Reload the extension and refresh open AI tabs after updating."
-  ]
-},
-{
-  "version": "1.18.109",
-  "title": "Stable startup and session reminders",
-  "summary": "Keep active chats running without repeating startup, and retain confirmed startup command results across message remounts.",
-  "added": [],
-  "improved": [
-    "Context reminders preserve the current task and pending follow-ups instead of reissuing the startup handshake. Both engines and both reminder delivery paths use the continuation instructions."
-  ],
-  "fixed": [
-    "Confirmed startup list_commands calls retain their completed/error status when the site replaces the message node. They are marked dispatched before awaiting execution so the watchdog cannot replay them.",
-    "Notion command identity follows its stable transcript row across inner editor/code-block replacements.",
-    "Duplicate Start requests on an already-started populated chat no longer inject startup again. Explicit Restart and new-chat Start remain available.",
-    "Notion clears pending navigation-start intent when its composer is prepared or a session is active, and rechecks activity before a delayed resume."
-  ],
-  "notes": [
-    "The plan-based progress ring remains on collapsible Working/Worked headings for supported sites. Custom work groups remain disabled on Notion and ChatGPT.",
-    "Settings, memory, templates and MCP server configuration retain their existing update preservation rules.",
-    "Reload the extension and refresh open AI tabs after updating."
-  ]
-},
-{
-  "version": "1.18.108",
-  "title": "Work indicators and Notion startup controls",
-  "summary": "Cleans up work details, disables custom foldouts on Notion and ChatGPT, adds plan-based progress rings, and protects Notion startup input.",
-  "added": [
-    "The Working circle fills according to explicitly checked-off assistant plan steps. Unknown totals use an animated indicator; successful completion fills the ring."
-  ],
-  "improved": [
-    "Custom chat foldouts remain enabled on other supported sites. Notion and ChatGPT use their normal transcript presentation.",
-    "Notion blocks input before composer preparation and covers a bounded composer card, including its send area."
-  ],
-  "fixed": [
-    "Expanded prose-only work no longer displays an empty activity detail box.",
-    "Collapsed work cannot populate an invisible waiting placeholder.",
-    "Notion protocol startup no longer opens the general plus menu while searching for an upload input. Existing file-input/direct-drop upload and single-send checks remain intact.",
-    "Notion input guards block trusted typing, paste, drop and Send during startup, including editor remounts, while allowing internal writes, copy, navigation and Stop."
-  ],
-  "notes": [
-    "Progress reflects explicit assistant Plan/Checklist checkboxes, not an invented percentage based on time or tool budgets. Without a known total the circle stays animated. Interrupted work does not become completed.",
-    "Stop and startup failure release the input lock. Custom work indicators in the browser bar are also hidden for Notion and ChatGPT.",
-    "Reload the extension and refresh open AI tabs after updating."
-  ]
-},
-{
-  "version": "1.18.107",
-  "title": "Visible paused work and accurate Co-work state",
-  "summary": "Keeps interrupted work visible and removes the empty Paused queue shown while Co-work is off.",
-  "added": [],
-  "improved": [
-    "Messages only fold when their expandable work heading is available; missing or failed headings leave replies visible.",
-    "Collapsed headings still update their placement, and temporary mount failures can retry."
-  ],
-  "fixed": [
-    "Stopped, interrupted and budget-paused work stays expanded instead of silently collapsing the transcript.",
-    "Stopping with Co-work off and no queued requests no longer pauses an empty queue.",
-    "An empty off-mode Co-work panel and stale Paused/Resume buttons are hidden; real pending requests stay saved and reviewable."
-  ],
-  "notes": [
-    "Completed work still folds and can be reopened. ChatGPT remains exempt from custom work folding.",
-    "The Notion startup provider confirmed working by the user is unchanged, along with all other providers.",
-    "Reload the extension and refresh open AI tabs after updating."
-  ]
-},
-{
-  "version": "1.18.106",
-  "title": "Notion uploaded-file preview recognition",
-  "summary": "Recognizes uploaded protocol files that Notion displays outside the inner editor frame or with shortened filenames, instead of timing out while the file card is visibly present.",
-  "added": [],
-  "improved": [
-    "Attachment inspection includes the bounded local composer shell, while excluding transcript history and other editors.",
-    "Preview detection supports reserved PlazCode filenames split across spans, ellipsized names and file-title labels."
-  ],
-  "fixed": [
-    "Notion startup no longer rejects a visible protocol-file card merely because its label is shortened or outside the inner editor/send frame.",
-    "Upload readiness includes busy indicators on recognized file cards. Stop cleanup supports the owned card\u2019s Close or small unlabeled icon control."
-  ],
-  "notes": [
-    "Full protocol text, single-send acknowledgement, foreign draft preservation and exact-name delayed cleanup remain required. ChatGPT, Claude and DeepSeek providers are unchanged.",
-    "Reload the extension AND refresh open AI tabs. Remove any old failed-upload card before retrying. Live signed-in Notion startup still needs confirmation."
-  ]
-},
-{
-  "version": "1.18.105",
-  "title": "Notion upload and Claude command cards",
-  "summary": "Fixes the reported Notion native file-drop startup crash and removes empty Claude JSON frame remnants beneath tool cards.",
-  "added": [],
-  "improved": [
-    "Notion file drops now use browser-native DragEvent dataTransfer fields rather than isolated-world Event properties."
-  ],
-  "fixed": [
-    "Startup protocol and screenshot drop fallbacks no longer dispatch generic drag events that hide transfer data from Notion page handlers.",
-    "A native dragleave finishes the upload sequence so drag overlays and cursors can reset.",
-    "Claude command cards hide the surrounding code-only frame, including its JSON label and border, without hiding narration, thinking, normal code or response actions."
-  ],
-  "notes": [
-    "Complete protocol contents, upload confirmation, single-send acknowledgement and Stop cleanup remain required. Live signed-in Notion AI startup still needs confirmation. Reload the extension AND refresh open AI tabs after installing."
-  ]
-},
-{
-  "version": "1.18.104",
-  "title": "Animated installer and explicit Notion protocol files",
-  "summary": "A redesigned installer window stays animated during file work, while Notion long startup/tool messages are staged as one exact named text file rather than repeated auto-converted pastes.",
-  "added": [
-    "A rounded dark installer window with PlazCode orange gradients, an animated shimmer and swirl, stage text and real file-copy progress."
-  ],
-  "improved": [
-    "The installer UI runs on its own STA message loop so download, verification, backup, extraction and process waits cannot freeze its animation. File replacement progress advances from actual completed file counts.",
-    "Notion long protocol messages use one named .txt file containing the complete original text, plus a short native composer instruction. Upload readiness and one confirmed send are required; text is not truncated."
-  ],
-  "fixed": [
-    "Notion no longer retries a 33k+ text paste that the site converts into a Pasted text attachment. Existing draft attachments are preserved and receive a specific fresh-chat/remove-draft explanation. Stopped owned uploads are cleaned up.",
-    "Short protocol messages retain the native composer path. Saved settings, MCP configuration, memory, templates, installation process scope, checksums and rollback behavior are preserved."
-  ]
-},
-{
-  "version": "1.18.103",
-  "title": "Notion controlled paste and persistent Co-work placeholders",
-  "summary": "Remove bulk native editing from Notion startup, keep its input mask on the editor, and display Follow up whenever Co-work is enabled and the composer is available.",
-  "added": [],
-  "improved": [
-    "Notion sends complete startup and tool-result text through one literal controlled paste transaction, verifies retention through two renders, and commits at most once. No prompt truncation or repeated tiny inserts.",
-    "Co-work uses Follow up in the native composer while enabled, including idle time and after Stop. Internal startup/tool injection retains its temporary input mask. Turning Co-work off restores the original placeholder."
-  ],
-  "fixed": [
-    "Notion no longer uses bulk execCommand or direct React-owned DOM replacement as the large-send fallback. Short native edits rely on Chromium input events instead of duplicate synthetic model events.",
-    "Notion input cover targets only the editable, preventing a growing ancestor from becoming the click-blocking mask. Start on a populated AI landing first opens a fresh chat."
-  ]
-},
-{
-  "version": "1.18.102",
-  "title": "Responsive updates, unlocked Stop and native Notion drafts",
-  "summary": "Read release metadata from the current published commit, release the composer on Stop, keep PlazCode work folding off ChatGPT, and use controlled editor events for Notion startup.",
-  "added": [],
-  "improved": [
-    "The default GitHub updater checks the current repository revision every two seconds and fetches metadata by immutable commit. Unchanged metadata is reused; quiet automatic checks and the eight-second request budget remain. Custom feeds retain their configured path. Network delays and browser suspension still apply; this is not guaranteed instant push.",
-    "Notion large startup drafts use one complete native beforeinput/insertText/input write instead of chunked clipboard pastes. Editable/readonly attributes are temporarily restored during the write, focus is acquired after unlocking, and the complete draft must survive two renders before Send.",
-    "Co-work tracks placeholder nodes introduced by composer remounts, and ChatGPT Work literal placeholder labels display Follow up without changing user text or replacing the native input."
-  ],
-  "fixed": [
-    "Stop releases the composer immediately and prevents late work from restoring the Agent is working cover until a new user action resumes work. Tool cancellation and Safe/Immediate semantics remain unchanged.",
-    "PlazCode Working/Worked transcript summaries and bar disclosure are disabled on ChatGPT. Activity records remain available to desktop; other providers retain their collapsible groups.",
-    "Default update checks avoid the cached mutable branch feed when current revision discovery succeeds. Older cached metadata cannot replace a newer known release."
-  ]
-},
-{
-  "version": "1.18.101",
-  "title": "Notion literal startup and smoother engine switching",
-  "summary": "Prevent repeated clearing/refilling after a rejected large Notion prompt and distinguish an intentional engine reconnection from a bridge failure.",
-  "added": [],
-  "improved": [
-    "All Notion literal pastes, including startup chunks, use escaped code HTML to avoid rich-text Markdown conversion. Complete normalized text must be retained before Send; sampled near-match acceptance is removed.",
-    "The browser bar shows Switching while AgentScript/RobloxScript reconnects, disables Start, ignores old-engine status and restores actual health on completion or after an eight-second bound."
-  ],
-  "fixed": [
-    "A rejected retained large paste no longer falls into repeated tiny inserts and full rewrites. One initial empty hydration rejection may retry; partial failures stop without sending.",
-    "Intentional engine reconnection does not flash a bridge-down banner. A genuine failure remains visible after the transition timeout."
-  ],
-  "validation": [
-    "Rich-text importer fixtures retain 33k+ prompts with Markdown, paths and Unicode; corruption and Stop abort. Shared startup, native Co-work and Stop checks pass. Notion remains experimental: live-site startup needs confirmation."
-  ]
-},
+  {
+    "version": "1.19.13",
+    "title": "Stable mode switching and manual work folding",
+    "summary": "Prevent duplicate bridge resets while switching script modes; remove Arena work folding, keep completed tasks expanded and hide Claude command frames completely.",
+    "added": [],
+    "improved": [
+      "Completed Working/Worked sections retain your chosen expanded or folded state. Click their heading to fold or reopen them manually."
+    ],
+    "fixed": [
+      "Storage and message notifications for the same script-mode change no longer reset the connection twice. Retired sockets are detached before reconnecting, and stale startup settings cannot reverse a recent manual choice.",
+      "Double-clicking a mode segment no longer cycles back. Transitional disconnected status is held behind the Switching message until the new connection settles.",
+      "Arena has no custom Working/Worked foldout; its replies and tool execution remain available. ChatGPT and Notion exclusions remain unchanged.",
+      "Claude hides single command frames including CodeMirror content and language-label paragraphs, preserving narration, ordinary code, thinking and message actions."
+    ],
+    "notes": [
+      "Saved settings, memory, templates and MCP configuration remain preserved. Reload the extension and refresh AI tabs after updating.",
+      "Verified with JavaScript syntax checks, actual-handler mode-switch tests, command-frame DOM tests and activity/task regressions. Live Windows and signed-in AI-site behavior is not independently verified.",
+      "Existing licensing remains unchanged in this bug-fix release. Private-source licensing/dependency preparation is separate; earlier GPL releases remain licensed under GPL."
+    ]
+  },
+  {
+    "version": "1.19.12",
+    "title": "Consistent package versions and current release checks",
+    "summary": "Fix contradictory desktop version indicators and refresh BAT update metadata without cached intermediate releases.",
+    "added": [
+      "Official-origin and branding notice identifies the maintained release channel and distinguishes third-party modifications without changing the GPL license."
+    ],
+    "improved": [
+      "All desktop version labels use the installed package version from the updater rather than an independently versioned embedded native binary.",
+      "The BAT updater requests uncached current metadata before selecting the latest complete release ZIP."
+    ],
+    "fixed": [
+      "Sidebar/title/settings no longer show an older native build as outdated while Updates correctly reports the installed extension package as current."
+    ],
+    "notes": [
+      "Updates already select the latest complete package directly, including when multiple versions behind; intermediate releases are not installed one by one.",
+      "Native build and extension are both 1.19.12 in this package. Saved settings, memory, templates and MCP configuration remain preserved.",
+      "Origin notices and SHA256 checks are not copy protection. Existing GPL and third-party licenses remain in effect. Reload the extension and refresh AI tabs after updating."
+    ]
+  },
+  {
+    "version": "1.19.11",
+    "title": "Urgent tool-result loop fix",
+    "summary": "Fix the internal toSend is not defined error that interrupted normal commands after execution.",
+    "added": [],
+    "improved": [],
+    "fixed": [
+      "Initialize the outgoing message directly from the completed tool feedback before adding changed memory context. Successful results, formatted errors and screenshots reach the AI without an undeclared-variable crash.",
+      "Periodic command-list reminders remain disabled; the three-consecutive-failure pause and existing cancellation behavior are preserved."
+    ],
+    "notes": [
+      "Extension-only hotfix. The native executable remains the unchanged 1.19.10 binary; no Rust/agent changes were needed.",
+      "Reload the extension and refresh open AI tabs after updating. Settings, memory, templates and MCP configuration retain their preservation rules."
+    ]
+  },
+  {
+    "version": "1.19.10",
+    "title": "Notion startup status and meaningful chat continuation",
+    "summary": "Retain the confirmed startup command status after Notion replaces its event anchor, distinguish result attachments, and skip continuation offers for startup-only chats.",
+    "added": [],
+    "improved": [
+      "Notion command-feedback files are named plazcode_tool_result_*.txt and instruct the AI to continue the existing handshake or task, rather than repeat startup.",
+      "Continuation records explicitly track whether a real user request was captured; startup-only legacy records are also filtered."
+    ],
+    "fixed": [
+      "Capture startup identity before card rendering. Restore the confirmed outcome when Notion settles under a replacement event anchor, matching the original conversation, assistant position, preceding user message and command text. Later identical commands stay separate.",
+      "The already-dispatched guard also recognizes restored startup outcomes so a remounted startup call is not replayed.",
+      "The new-chat continuation prompt does not appear for a chat containing only startup instructions, command feedback and readiness acknowledgement."
+    ],
+    "notes": [
+      "The console confirmed list_commands was executed; the second attachment carries its result, not a second full startup.",
+      "Reload the extension and refresh open AI tabs. Saved settings, memory, templates and enabled MCP servers remain preserved."
+    ]
+  },
+  {
+    "version": "1.19.09",
+    "title": "Normal chat flow and targeted command recovery",
+    "summary": "Release completed replies promptly, preserve native idle Co-work messages, and recover command access only when the AI explicitly loses it.",
+    "added": [
+      "User-facing versions now use two patch digits: 1.19.09 through 1.19.99, then 1.20.00. Chrome and native package versions stay numeric without leading zeroes."
+    ],
+    "improved": [
+      "Idle Co-work sends use the same native composer and send path as normal messages. Active follow-ups remain accepted through the existing queue and safe-boundary delivery.",
+      "Normal replies release the composer before asynchronous checkpoint bookkeeping. Superseded or stopped send callbacks cannot start another loop."
+    ],
+    "fixed": [
+      "Notion pre-send response identity is preserved instead of capturing its newly mounted assistant shell, preventing waiting for an already-visible response.",
+      "Removed periodic command-list reminders, periodic full-prompt riders and idle reminder sends. Memory context changes remain distinct from reminders.",
+      "An explicit command-access refusal triggers a live-engine check and one same-chat startup handshake. Successful recovery resumes the unfinished request; repeated refusals stop without a restart loop. Disconnected engines, changed chats, Stop and unsent drafts prevent recovery.",
+      "Delayed injection cleanup is tied to the send that owns it, and an idle composer cannot be covered by a stale working request."
+    ],
+    "notes": [
+      "Settings, memory, templates and enabled MCP servers retain their update preservation rules.",
+      "Reload the extension and refresh open AI tabs after updating."
+    ]
+  },
+  {
+    "version": "1.18.109",
+    "title": "Stable startup and session reminders",
+    "summary": "Keep active chats running without repeating startup, and retain confirmed startup command results across message remounts.",
+    "added": [],
+    "improved": [
+      "Context reminders preserve the current task and pending follow-ups instead of reissuing the startup handshake. Both engines and both reminder delivery paths use the continuation instructions."
+    ],
+    "fixed": [
+      "Confirmed startup list_commands calls retain their completed/error status when the site replaces the message node. They are marked dispatched before awaiting execution so the watchdog cannot replay them.",
+      "Notion command identity follows its stable transcript row across inner editor/code-block replacements.",
+      "Duplicate Start requests on an already-started populated chat no longer inject startup again. Explicit Restart and new-chat Start remain available.",
+      "Notion clears pending navigation-start intent when its composer is prepared or a session is active, and rechecks activity before a delayed resume."
+    ],
+    "notes": [
+      "The plan-based progress ring remains on collapsible Working/Worked headings for supported sites. Custom work groups remain disabled on Notion and ChatGPT.",
+      "Settings, memory, templates and MCP server configuration retain their existing update preservation rules.",
+      "Reload the extension and refresh open AI tabs after updating."
+    ]
+  },
+  {
+    "version": "1.18.108",
+    "title": "Work indicators and Notion startup controls",
+    "summary": "Cleans up work details, disables custom foldouts on Notion and ChatGPT, adds plan-based progress rings, and protects Notion startup input.",
+    "added": [
+      "The Working circle fills according to explicitly checked-off assistant plan steps. Unknown totals use an animated indicator; successful completion fills the ring."
+    ],
+    "improved": [
+      "Custom chat foldouts remain enabled on other supported sites. Notion and ChatGPT use their normal transcript presentation.",
+      "Notion blocks input before composer preparation and covers a bounded composer card, including its send area."
+    ],
+    "fixed": [
+      "Expanded prose-only work no longer displays an empty activity detail box.",
+      "Collapsed work cannot populate an invisible waiting placeholder.",
+      "Notion protocol startup no longer opens the general plus menu while searching for an upload input. Existing file-input/direct-drop upload and single-send checks remain intact.",
+      "Notion input guards block trusted typing, paste, drop and Send during startup, including editor remounts, while allowing internal writes, copy, navigation and Stop."
+    ],
+    "notes": [
+      "Progress reflects explicit assistant Plan/Checklist checkboxes, not an invented percentage based on time or tool budgets. Without a known total the circle stays animated. Interrupted work does not become completed.",
+      "Stop and startup failure release the input lock. Custom work indicators in the browser bar are also hidden for Notion and ChatGPT.",
+      "Reload the extension and refresh open AI tabs after updating."
+    ]
+  },
+  {
+    "version": "1.18.107",
+    "title": "Visible paused work and accurate Co-work state",
+    "summary": "Keeps interrupted work visible and removes the empty Paused queue shown while Co-work is off.",
+    "added": [],
+    "improved": [
+      "Messages only fold when their expandable work heading is available; missing or failed headings leave replies visible.",
+      "Collapsed headings still update their placement, and temporary mount failures can retry."
+    ],
+    "fixed": [
+      "Stopped, interrupted and budget-paused work stays expanded instead of silently collapsing the transcript.",
+      "Stopping with Co-work off and no queued requests no longer pauses an empty queue.",
+      "An empty off-mode Co-work panel and stale Paused/Resume buttons are hidden; real pending requests stay saved and reviewable."
+    ],
+    "notes": [
+      "Completed work still folds and can be reopened. ChatGPT remains exempt from custom work folding.",
+      "The Notion startup provider confirmed working by the user is unchanged, along with all other providers.",
+      "Reload the extension and refresh open AI tabs after updating."
+    ]
+  },
+  {
+    "version": "1.18.106",
+    "title": "Notion uploaded-file preview recognition",
+    "summary": "Recognizes uploaded protocol files that Notion displays outside the inner editor frame or with shortened filenames, instead of timing out while the file card is visibly present.",
+    "added": [],
+    "improved": [
+      "Attachment inspection includes the bounded local composer shell, while excluding transcript history and other editors.",
+      "Preview detection supports reserved PlazCode filenames split across spans, ellipsized names and file-title labels."
+    ],
+    "fixed": [
+      "Notion startup no longer rejects a visible protocol-file card merely because its label is shortened or outside the inner editor/send frame.",
+      "Upload readiness includes busy indicators on recognized file cards. Stop cleanup supports the owned card’s Close or small unlabeled icon control."
+    ],
+    "notes": [
+      "Full protocol text, single-send acknowledgement, foreign draft preservation and exact-name delayed cleanup remain required. ChatGPT, Claude and DeepSeek providers are unchanged.",
+      "Reload the extension AND refresh open AI tabs. Remove any old failed-upload card before retrying. Live signed-in Notion startup still needs confirmation."
+    ]
+  },
+  {
+    "version": "1.18.105",
+    "title": "Notion upload and Claude command cards",
+    "summary": "Fixes the reported Notion native file-drop startup crash and removes empty Claude JSON frame remnants beneath tool cards.",
+    "added": [],
+    "improved": [
+      "Notion file drops now use browser-native DragEvent dataTransfer fields rather than isolated-world Event properties."
+    ],
+    "fixed": [
+      "Startup protocol and screenshot drop fallbacks no longer dispatch generic drag events that hide transfer data from Notion page handlers.",
+      "A native dragleave finishes the upload sequence so drag overlays and cursors can reset.",
+      "Claude command cards hide the surrounding code-only frame, including its JSON label and border, without hiding narration, thinking, normal code or response actions."
+    ],
+    "notes": [
+      "Complete protocol contents, upload confirmation, single-send acknowledgement and Stop cleanup remain required. Live signed-in Notion AI startup still needs confirmation. Reload the extension AND refresh open AI tabs after installing."
+    ]
+  },
+  {
+    "version": "1.18.104",
+    "title": "Animated installer and explicit Notion protocol files",
+    "summary": "A redesigned installer window stays animated during file work, while Notion long startup/tool messages are staged as one exact named text file rather than repeated auto-converted pastes.",
+    "added": [
+      "A rounded dark installer window with PlazCode orange gradients, an animated shimmer and swirl, stage text and real file-copy progress."
+    ],
+    "improved": [
+      "The installer UI runs on its own STA message loop so download, verification, backup, extraction and process waits cannot freeze its animation. File replacement progress advances from actual completed file counts.",
+      "Notion long protocol messages use one named .txt file containing the complete original text, plus a short native composer instruction. Upload readiness and one confirmed send are required; text is not truncated."
+    ],
+    "fixed": [
+      "Notion no longer retries a 33k+ text paste that the site converts into a Pasted text attachment. Existing draft attachments are preserved and receive a specific fresh-chat/remove-draft explanation. Stopped owned uploads are cleaned up.",
+      "Short protocol messages retain the native composer path. Saved settings, MCP configuration, memory, templates, installation process scope, checksums and rollback behavior are preserved."
+    ]
+  },
+  {
+    "version": "1.18.103",
+    "title": "Notion controlled paste and persistent Co-work placeholders",
+    "summary": "Remove bulk native editing from Notion startup, keep its input mask on the editor, and display Follow up whenever Co-work is enabled and the composer is available.",
+    "added": [],
+    "improved": [
+      "Notion sends complete startup and tool-result text through one literal controlled paste transaction, verifies retention through two renders, and commits at most once. No prompt truncation or repeated tiny inserts.",
+      "Co-work uses Follow up in the native composer while enabled, including idle time and after Stop. Internal startup/tool injection retains its temporary input mask. Turning Co-work off restores the original placeholder."
+    ],
+    "fixed": [
+      "Notion no longer uses bulk execCommand or direct React-owned DOM replacement as the large-send fallback. Short native edits rely on Chromium input events instead of duplicate synthetic model events.",
+      "Notion input cover targets only the editable, preventing a growing ancestor from becoming the click-blocking mask. Start on a populated AI landing first opens a fresh chat."
+    ]
+  },
+  {
+    "version": "1.18.102",
+    "title": "Responsive updates, unlocked Stop and native Notion drafts",
+    "summary": "Read release metadata from the current published commit, release the composer on Stop, keep PlazCode work folding off ChatGPT, and use controlled editor events for Notion startup.",
+    "added": [],
+    "improved": [
+      "The default GitHub updater checks the current repository revision every two seconds and fetches metadata by immutable commit. Unchanged metadata is reused; quiet automatic checks and the eight-second request budget remain. Custom feeds retain their configured path. Network delays and browser suspension still apply; this is not guaranteed instant push.",
+      "Notion large startup drafts use one complete native beforeinput/insertText/input write instead of chunked clipboard pastes. Editable/readonly attributes are temporarily restored during the write, focus is acquired after unlocking, and the complete draft must survive two renders before Send.",
+      "Co-work tracks placeholder nodes introduced by composer remounts, and ChatGPT Work literal placeholder labels display Follow up without changing user text or replacing the native input."
+    ],
+    "fixed": [
+      "Stop releases the composer immediately and prevents late work from restoring the Agent is working cover until a new user action resumes work. Tool cancellation and Safe/Immediate semantics remain unchanged.",
+      "PlazCode Working/Worked transcript summaries and bar disclosure are disabled on ChatGPT. Activity records remain available to desktop; other providers retain their collapsible groups.",
+      "Default update checks avoid the cached mutable branch feed when current revision discovery succeeds. Older cached metadata cannot replace a newer known release."
+    ]
+  },
+  {
+    "version": "1.18.101",
+    "title": "Notion literal startup and smoother engine switching",
+    "summary": "Prevent repeated clearing/refilling after a rejected large Notion prompt and distinguish an intentional engine reconnection from a bridge failure.",
+    "added": [],
+    "improved": [
+      "All Notion literal pastes, including startup chunks, use escaped code HTML to avoid rich-text Markdown conversion. Complete normalized text must be retained before Send; sampled near-match acceptance is removed.",
+      "The browser bar shows Switching while AgentScript/RobloxScript reconnects, disables Start, ignores old-engine status and restores actual health on completion or after an eight-second bound."
+    ],
+    "fixed": [
+      "A rejected retained large paste no longer falls into repeated tiny inserts and full rewrites. One initial empty hydration rejection may retry; partial failures stop without sending.",
+      "Intentional engine reconnection does not flash a bridge-down banner. A genuine failure remains visible after the transition timeout."
+    ],
+    "validation": [
+      "Rich-text importer fixtures retain 33k+ prompts with Markdown, paths and Unicode; corruption and Stop abort. Shared startup, native Co-work and Stop checks pass. Notion remains experimental: live-site startup needs confirmation."
+    ]
+  },
   {
     "version": "1.18.100",
     "title": "Restore browser bar startup and placement",
@@ -357,7 +377,7 @@
       "Release checks run every two seconds, and desktop/browser status reads every second. The default GitHub cache key uses two-second buckets; network and publication delays still apply. This is polling, not guaranteed instant push."
     ],
     "fixed": [
-      "Automatic checks do not show Checking for updates\u2026 or disable the manual check/install buttons. Manual requests wait for an ongoing background read instead of racing it.",
+      "Automatic checks do not show Checking for updates… or disable the manual check/install buttons. Manual requests wait for an ongoing background read instead of racing it.",
       "Notion tool results paste as literal HTML code instead of Markdown-like rich text. Failed writes have wall-clock retry limits, preventing hundreds of timer-throttled chunk attempts. A failed draft is cleared only when it still matches the locked composer content captured by that send attempt."
     ]
   },
@@ -430,10 +450,10 @@
   {
     "version": "1.18.88",
     "title": "Automatic template references",
-    "summary": "Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task\u2019s first tool call.",
+    "summary": "Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task’s first tool call.",
     "added": [
       "Templates tab in the desktop app and a Template library inside browser Tasks. Import .rbxl, .rbxlx, .rbxm and .rbxmx files up to 32 MB, add a systems description, browse/read scripts and remove saved references.",
-      "Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit \u201creference this template\u201d request is required.",
+      "Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit “reference this template” request is required.",
       "Read-only plazcode_templates tools support explicit matching, script lists and paged source reading. Duplicate script paths have separate IDs.",
       "Open in Studio explicitly opens the retained original through the Windows Roblox file association; select the desired Studio session in PlazCode afterwards."
     ],
@@ -504,8 +524,8 @@
       "Download export is styled as a theme-colored button in desktop and browser memory settings."
     ],
     "fixed": [
-      "All startup instruction variants explicitly request \u201cPlazCode is ready.\u201d instead of a generic readiness sentence.",
-      "If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to \u201cPlazCode is ready.\u201d without resending startup or modifying Notion-owned DOM.",
+      "All startup instruction variants explicitly request “PlazCode is ready.” instead of a generic readiness sentence.",
+      "If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to “PlazCode is ready.” without resending startup or modifying Notion-owned DOM.",
       "DeepSeek rich-text composers remain discoverable while input-locked, and agent writes temporarily enable editing then restore the lock. Explicit Send labels take precedence over stop-icon guesses."
     ]
   },
@@ -515,7 +535,7 @@
     "summary": "Outdated version badges now explicitly say that a new update is available.",
     "added": [],
     "improved": [
-      "Desktop, browser bar and popup version badges show \u201c(Outdated - New update available)\u201d when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved."
+      "Desktop, browser bar and popup version badges show “(Outdated - New update available)” when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved."
     ],
     "fixed": []
   },
@@ -530,8 +550,8 @@
     ],
     "improved": [
       "Themes now color panels, navigation, borders, inputs, buttons, connection surfaces, terminal and update dialogs as well as accents.",
-      "Startup asks the AI to say \u201cPlazCode is ready.\u201d; older readiness acknowledgements remain accepted.",
-      "Co-Work follow-up text uses the website composer\u2019s text color, font, size and alignment. Only the placeholder is grey. Existing queue behavior is preserved.",
+      "Startup asks the AI to say “PlazCode is ready.”; older readiness acknowledgements remain accepted.",
+      "Co-Work follow-up text uses the website composer’s text color, font, size and alignment. Only the placeholder is grey. Existing queue behavior is preserved.",
       "Copilot and Meta AI removed from supported-site choices, routing and extension injection."
     ],
     "fixed": [
@@ -549,7 +569,7 @@
       "The GitHub README now lists release titles, summaries, additions, improvements and fixes.",
       "An updated maintenance prompt documents architecture, current features, debugging, tests, builds and release publishing.",
       "Appearance settings with Orange, Amethyst, Polar Cyan, Rose, Emerald and Graphite palettes, glow strength, gradient controls and a default-theme reset. Selections apply immediately and are remembered on this device.",
-      "Version indicators in the desktop, browser bar/menu and extension popup show green \u201cUp to date\u201d, red \u201cOutdated\u201d, or a neutral unavailable/not-checked status. Release checks run at startup and every five minutes."
+      "Version indicators in the desktop, browser bar/menu and extension popup show green “Up to date”, red “Outdated”, or a neutral unavailable/not-checked status. Release checks run at startup and every five minutes."
     ],
     "improved": [
       "Published update metadata carries the same release notes used in the README.",
@@ -568,7 +588,7 @@
     "summary": "Update PlazCode from the desktop app and carry chat context between supported AI sites.",
     "added": [
       "Desktop Updates tab with installed/latest versions, Check now, Update now, download progress and relaunch.",
-      "ChatGPT, DeepSeek and Claude shortcuts below Home\u2019s connection displays.",
+      "ChatGPT, DeepSeek and Claude shortcuts below Home’s connection displays.",
       "Current-chat memory export and a memory-only export option."
     ],
     "improved": [
@@ -577,7 +597,7 @@
       "Saved AI memories retain conversation origins after edits, including facts learned in more than one chat."
     ],
     "fixed": [
-      "Memory-only imports now include saved facts in the destination AI\u2019s context.",
+      "Memory-only imports now include saved facts in the destination AI’s context.",
       "Oversized combined history and memory are rejected before saving or sending.",
       "View on GitHub opens in the default browser instead of navigating the embedded app."
     ]

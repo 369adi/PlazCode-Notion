@@ -1,8 +1,28 @@
 {
-  "version": "1.19.12",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.19.12.zip",
-  "sha256": "f4628aaffadef0f384657bd691a0894ef1c2081c1a7d3c6d428acba867cdb610",
+  "version": "1.19.13",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.19.13.zip",
+  "sha256": "de0d49f69fd59d5b20fd61440f5a8ded262e3500d48b31bfbcb504d00e578cbc",
   "release_notes": [
+    {
+      "version": "1.19.13",
+      "title": "Stable mode switching and manual work folding",
+      "summary": "Prevent duplicate bridge resets while switching script modes; remove Arena work folding, keep completed tasks expanded and hide Claude command frames completely.",
+      "added": [],
+      "improved": [
+        "Completed Working/Worked sections retain your chosen expanded or folded state. Click their heading to fold or reopen them manually."
+      ],
+      "fixed": [
+        "Storage and message notifications for the same script-mode change no longer reset the connection twice. Retired sockets are detached before reconnecting, and stale startup settings cannot reverse a recent manual choice.",
+        "Double-clicking a mode segment no longer cycles back. Transitional disconnected status is held behind the Switching message until the new connection settles.",
+        "Arena has no custom Working/Worked foldout; its replies and tool execution remain available. ChatGPT and Notion exclusions remain unchanged.",
+        "Claude hides single command frames including CodeMirror content and language-label paragraphs, preserving narration, ordinary code, thinking and message actions."
+      ],
+      "notes": [
+        "Saved settings, memory, templates and MCP configuration remain preserved. Reload the extension and refresh AI tabs after updating.",
+        "Verified with JavaScript syntax checks, actual-handler mode-switch tests, command-frame DOM tests and activity/task regressions. Live Windows and signed-in AI-site behavior is not independently verified.",
+        "Existing licensing remains unchanged in this bug-fix release. Private-source licensing/dependency preparation is separate; earlier GPL releases remain licensed under GPL."
+      ]
+    },
     {
       "version": "1.19.12",
       "title": "Consistent package versions and current release checks",

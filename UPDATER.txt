@@ -1,3 +1,13 @@
+## PlazCode 1.19.13: Stable mode switching and manual work folding
+
+- Completed Working/Worked sections retain your chosen expanded or folded state. Click their heading to fold or reopen them manually.
+- Storage and message notifications for the same script-mode change no longer reset the connection twice. Retired sockets are detached before reconnecting, and stale startup settings cannot reverse a recent manual choice.
+- Double-clicking a mode segment no longer cycles back. Transitional disconnected status is held behind the Switching message until the new connection settles.
+- Arena has no custom Working/Worked foldout; its replies and tool execution remain available. ChatGPT and Notion exclusions remain unchanged.
+- Claude hides single command frames including CodeMirror content and language-label paragraphs, preserving narration, ordinary code, thinking and message actions.
+
+Reload the extension AND refresh open AI tabs after updating. Saved settings, memory, templates and MCP configuration remain preserved.
+
 ## PlazCode 1.19.12: Consistent package versions and current release checks
 
 - Sidebar, title, Settings and Updates display the same installed package version. An independently versioned app binary no longer produces a contradictory outdated badge.

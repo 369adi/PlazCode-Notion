@@ -17,7 +17,7 @@ def notes(feed):
     lines=['# PlazCode '+version+': '+entry['title'],'',entry['summary'],'']
     for key,title in [('added','Added'),('improved','Improved'),('fixed','Fixed')]:
         if entry.get(key):lines+=['## '+title,'']+['- '+x for x in entry[key]]+['']
-    lines+=['## Update','','- In the desktop app: **Updates → Update now**, or run **Update-PlazCode.bat**.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- For a fresh installation, download **PlazCode-'+version+'.zip**. The compatibility update ZIP is for existing installations.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
+    lines+=['## Update','','- In the desktop app: **Updates → Update now**, or run **Update-PlazCode.bat**.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- Download **PlazCode-'+version+'.zip** for either a fresh installation or updating an existing one.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
     return 'PlazCode '+version+': '+entry['title'],'\n'.join(lines)+'\n'
 
 def validate_archive(data,version):
@@ -39,12 +39,12 @@ def main():
     if existing and not existing['isDraft']:
         print('Version is already published; leaving it unchanged.');return
     assets=[]
-    for name in ['PlazCode-'+version+'.zip','PlazCode-Update-'+version+'.zip']:
+    for name in ['PlazCode-'+version+'.zip']:
         data=fetch(root+name)
         content=json.loads(gh('api','repos/'+repo+'/contents/'+name+'?ref='+commit))
         actual=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
         if actual!=content['sha']:raise ValueError('Repository ZIP hash mismatch')
-        if name.startswith('PlazCode-Update-') and hashlib.sha256(data).hexdigest()!=feed['sha256']:raise ValueError('Update SHA-256 mismatch')
+        if hashlib.sha256(data).hexdigest()!=feed['sha256']:raise ValueError('Update SHA-256 mismatch')
         validate_archive(data,version);pathlib.Path(name).write_bytes(data);assets.append(name)
     pathlib.Path('release-notes.md').write_text(body)
     if not existing:gh('release','create',tag,'--repo',repo,'--target',commit,'--draft','--title',title,'--notes-file','release-notes.md')
