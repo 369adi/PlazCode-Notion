@@ -1,3 +1,13 @@
+## PlazCode 1.18.108: Work indicators and Notion startup controls
+
+- Removes the empty bordered bar beneath expanded Working/Worked headings. Waiting text clears when a real reply arrives.
+- Disables custom browser chat foldouts and bar work indicators on Notion and ChatGPT; other supported sites keep them.
+- Working circles fill with explicit assistant Plan/Checklist checkbox progress. Unknown totals stay animated, successful completion fills the ring, and interrupted work keeps its partial state.
+- Notion startup locks input before composer preparation, guards typing/paste/drop/Send across remounts, and covers a bounded composer card. Internal writes, copy, navigation and Stop remain available.
+- Protocol upload no longer opens Notion’s general plus menu. Existing file-input/direct-drop upload, exact content, single-send confirmation and owned cleanup remain required.
+
+Reload the extension AND refresh open AI tabs after updating.
+
 ## PlazCode 1.18.107: Visible paused work and accurate Co-work state
 
 - Interrupted, stopped and budget-paused work stays expanded, so replies remain visible. Completed work still folds and can be reopened; ChatGPT keeps its native presentation.

@@ -1,8 +1,31 @@
 {
-  "version": "1.18.107",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.107.zip",
-  "sha256": "ca209a146b031a21d9556140ebc725566b6568a03abc7fcb7a1b0c38a28e2380",
+  "version": "1.18.108",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.108.zip",
+  "sha256": "f9bc7fae8345889c484bc9971ea66ec2ae80c0112b66f6e164587420cd924310",
   "release_notes": [
+    {
+      "version": "1.18.108",
+      "title": "Work indicators and Notion startup controls",
+      "summary": "Cleans up work details, disables custom foldouts on Notion and ChatGPT, adds plan-based progress rings, and protects Notion startup input.",
+      "added": [
+        "The Working circle fills according to explicitly checked-off assistant plan steps. Unknown totals use an animated indicator; successful completion fills the ring."
+      ],
+      "improved": [
+        "Custom chat foldouts remain enabled on other supported sites. Notion and ChatGPT use their normal transcript presentation.",
+        "Notion blocks input before composer preparation and covers a bounded composer card, including its send area."
+      ],
+      "fixed": [
+        "Expanded prose-only work no longer displays an empty activity detail box.",
+        "Collapsed work cannot populate an invisible waiting placeholder.",
+        "Notion protocol startup no longer opens the general plus menu while searching for an upload input. Existing file-input/direct-drop upload and single-send checks remain intact.",
+        "Notion input guards block trusted typing, paste, drop and Send during startup, including editor remounts, while allowing internal writes, copy, navigation and Stop."
+      ],
+      "notes": [
+        "Progress reflects explicit assistant Plan/Checklist checkboxes, not an invented percentage based on time or tool budgets. Without a known total the circle stays animated. Interrupted work does not become completed.",
+        "Stop and startup failure release the input lock. Custom work indicators in the browser bar are also hidden for Notion and ChatGPT.",
+        "Reload the extension and refresh open AI tabs after updating."
+      ]
+    },
     {
       "version": "1.18.107",
       "title": "Visible paused work and accurate Co-work state",
