@@ -12,7 +12,7 @@ const fs=require('fs');const {chromium}=require('playwright');
   await page.setViewportSize({width,height:960});
   for(const name of ['home','settings','tools','creators']){
    await page.evaluate(name=>{document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-'+name));},name);
-   await page.screenshot({path:`visual-checks/${name}-${width}.png`});
+   await page.screenshot({animations:"disabled",path:`visual-checks/${name}-${width}.png`});
    const overflow=await page.evaluate(()=>{const n=document.getElementById('content');return n.scrollWidth>n.clientWidth+1});
    if(overflow)throw Error(`${name} overflows at ${width}`);
   }
@@ -20,7 +20,7 @@ const fs=require('fs');const {chromium}=require('playwright');
  await page.setViewportSize({width:1440,height:960});
  for(const theme of ['ocean','copper','aurora','orchid','solar']){
   await page.evaluate(theme=>{Applyappearance({theme});document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-home'));},theme);
-  await page.screenshot({path:`visual-checks/theme-${theme}.png`});
+  await page.screenshot({animations:"disabled",path:`visual-checks/theme-${theme}.png`});
  }
  await page.emulateMedia({reducedMotion:'reduce'});
  const motion=await page.locator('.page.active').evaluate(n=>getComputedStyle(n).animationName);if(motion!=='none')throw Error('Reduced motion was ignored');
