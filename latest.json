@@ -1,8 +1,26 @@
 {
-  "version": "1.18.105",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.105.zip",
-  "sha256": "256752420c77490b4dc6cf52e99d040ae1dfa47c121c6d65726be304a156b28a",
+  "version": "1.18.106",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.106.zip",
+  "sha256": "9af61d3112e445845795dcbadcbf0dbb7a58dabcc3a47e19722c2c7685baa071",
   "release_notes": [
+    {
+      "version": "1.18.106",
+      "title": "Notion uploaded-file preview recognition",
+      "summary": "Recognizes uploaded protocol files that Notion displays outside the inner editor frame or with shortened filenames, instead of timing out while the file card is visibly present.",
+      "added": [],
+      "improved": [
+        "Attachment inspection includes the bounded local composer shell, while excluding transcript history and other editors.",
+        "Preview detection supports reserved PlazCode filenames split across spans, ellipsized names and file-title labels."
+      ],
+      "fixed": [
+        "Notion startup no longer rejects a visible protocol-file card merely because its label is shortened or outside the inner editor/send frame.",
+        "Upload readiness includes busy indicators on recognized file cards. Stop cleanup supports the owned card’s Close or small unlabeled icon control."
+      ],
+      "notes": [
+        "Full protocol text, single-send acknowledgement, foreign draft preservation and exact-name delayed cleanup remain required. ChatGPT, Claude and DeepSeek providers are unchanged.",
+        "Reload the extension AND refresh open AI tabs. Remove any old failed-upload card before retrying. Live signed-in Notion startup still needs confirmation."
+      ]
+    },
     {
       "version": "1.18.105",
       "title": "Notion upload and Claude command cards",

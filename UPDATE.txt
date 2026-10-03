@@ -1,3 +1,11 @@
+## PlazCode 1.18.106: Notion uploaded-file preview recognition
+
+- Fixes the supplied visible-file timeout: Notion protocol cards may be siblings of the smaller editor/send frame or show a shortened filename. Attachment inspection now stays within the bounded composer shell and recognizes those labels.
+- Upload readiness waits for busy indicators on detected file cards. Stop cleanup supports the owned card’s Close or small unlabeled icon button.
+- Complete protocol text, one acknowledged send, preserved foreign drafts and exact-name delayed cleanup remain required. ChatGPT, Claude and DeepSeek providers are unchanged.
+
+Reload the extension AND refresh open AI tabs. Remove any old failed-upload card before retrying. Live signed-in Notion startup remains unverified.
+
 ## PlazCode 1.18.105: Notion upload and Claude command cards
 
 - Fixes the reported startup crash: Notion page drag handlers could not see transfer types/files on generic events dispatched by the extension. Upload fallback now uses native DragEvent fields.
