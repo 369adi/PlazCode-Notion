@@ -71,8 +71,47 @@ jobs:
           python ../build-macos-bundle.py
       - name: Native runtime smoke test
         working-directory: build/PlazCode
-        run: python test-platform-smoke.py
+        run: |
+          python test-platform-smoke.py
+          python test-auto-update-launch.py
       - uses: actions/upload-artifact@v4
         with:
           name: native-${{ runner.os }}
           path: build/PlazCode/agent/target/release/PlazCode*
+  package-and-publish:
+    needs: [visual, native]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: artifacts
+      - name: Fetch validated source and packager from the exact build commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail --location --silent --show-error "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/design-source.zip" -o design-source.zip
+          gh api "repos/$GITHUB_REPOSITORY/contents/package-design.py?ref=$GITHUB_SHA" --jq .content | base64 --decode > package-design.py
+          unzip -q design-source.zip -d build
+      - name: Create and validate both platform downloads
+        run: |
+          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.15', 'Main release changed; manual rebase required'"
+          python package-design.py
+          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.16.zip').read_bytes(),'1.19.16','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.16.zip').read_bytes(),'1.19.16','macos')"
+      - name: Commit release files and publish verified GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'PlazCode release automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm PlazCode-1.19.15.zip PlazCode-macOS-1.19.15.zip
+          git add PlazCode-1.19.16.zip PlazCode-macOS-1.19.16.zip latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.16.txt
+          git commit -m 'Release PlazCode 1.19.16: workspace design, five themes and macOS update freshness'
+          git push origin HEAD:main
+          export GITHUB_SHA=$(git rev-parse HEAD)
+          python publish_release.py
