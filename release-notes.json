@@ -1,5 +1,29 @@
 [
   {
+    "version": "1.19.15",
+    "title": "Create models and UI directly in chat",
+    "summary": "RobloxScript model/UI requests use saved PlazCode creator drafts and insert the exact ready revision into Studio without opening the desktop creator page.",
+    "added": [
+      "Provider-independent creator routing for model/UI requests in the active RobloxScript chat, including one task-scoped routing correction for existing sessions.",
+      "creation_insert command reads and inserts a ready saved blueprint by build ID and exact revision; no manual desktop Insert button is required.",
+      "Dedicated PlazCode-macOS-VERSION.zip release asset alongside the normal PlazCode-VERSION.zip; Mac launchers select a separate current macOS feed."
+    ],
+    "improved": [
+      "Insertion uses the saved model/UI hierarchy, dimensions, transforms, materials, colors and supported UI properties through the existing validated Studio compiler.",
+      "Bounded insertion passes use stable action IDs, cached outcomes, concurrency guards and per-pass revision/chat/engine/Stop checks. Successful insertion can use the existing automatic visual verification path."
+    ],
+    "fixed": [
+      "Saved draft root-parent and absent-name normalization is handled before chat insertion without mutating the stored preview.",
+      "Preview-only requests are blocked from chat insertion; AgentScript and ordinary script fixes retain their existing paths."
+    ],
+    "notes": [
+      "Extension-only release. Signed Windows and universal macOS native components remain unchanged from 1.19.14.",
+      "Creator preview rendering approximates Studio. Matching blueprint data does not establish pixel-identical lighting, textures, fonts, advanced layout or gameplay behavior.",
+      "Live signed-in AI chats and real Studio insertion have not been tested in this environment. Reload the extension and refresh AI tabs.",
+      "The normal ZIP retains the Mac app for older shared-feed updaters. The dedicated macOS ZIP omits Windows binaries; custom update-feed settings are preserved."
+    ]
+  },
+  {
     "version": "1.19.14",
     "title": "Creators, native macOS and launch updates",
     "summary": "Create and revise model/UI drafts in a compact preview workspace, export to Studio, and update the desktop app to the newest release on launch.",
@@ -190,7 +214,7 @@
     ],
     "fixed": [
       "Notion startup no longer rejects a visible protocol-file card merely because its label is shortened or outside the inner editor/send frame.",
-      "Upload readiness includes busy indicators on recognized file cards. Stop cleanup supports the owned card’s Close or small unlabeled icon control."
+      "Upload readiness includes busy indicators on recognized file cards. Stop cleanup supports the owned card\u2019s Close or small unlabeled icon control."
     ],
     "notes": [
       "Full protocol text, single-send acknowledgement, foreign draft preservation and exact-name delayed cleanup remain required. ChatGPT, Claude and DeepSeek providers are unchanged.",
@@ -398,7 +422,7 @@
       "Release checks run every two seconds, and desktop/browser status reads every second. The default GitHub cache key uses two-second buckets; network and publication delays still apply. This is polling, not guaranteed instant push."
     ],
     "fixed": [
-      "Automatic checks do not show Checking for updates… or disable the manual check/install buttons. Manual requests wait for an ongoing background read instead of racing it.",
+      "Automatic checks do not show Checking for updates\u2026 or disable the manual check/install buttons. Manual requests wait for an ongoing background read instead of racing it.",
       "Notion tool results paste as literal HTML code instead of Markdown-like rich text. Failed writes have wall-clock retry limits, preventing hundreds of timer-throttled chunk attempts. A failed draft is cleared only when it still matches the locked composer content captured by that send attempt."
     ]
   },
@@ -471,10 +495,10 @@
   {
     "version": "1.18.88",
     "title": "Automatic template references",
-    "summary": "Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task’s first tool call.",
+    "summary": "Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task\u2019s first tool call.",
     "added": [
       "Templates tab in the desktop app and a Template library inside browser Tasks. Import .rbxl, .rbxlx, .rbxm and .rbxmx files up to 32 MB, add a systems description, browse/read scripts and remove saved references.",
-      "Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit “reference this template” request is required.",
+      "Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit \u201creference this template\u201d request is required.",
       "Read-only plazcode_templates tools support explicit matching, script lists and paged source reading. Duplicate script paths have separate IDs.",
       "Open in Studio explicitly opens the retained original through the Windows Roblox file association; select the desired Studio session in PlazCode afterwards."
     ],
@@ -545,8 +569,8 @@
       "Download export is styled as a theme-colored button in desktop and browser memory settings."
     ],
     "fixed": [
-      "All startup instruction variants explicitly request “PlazCode is ready.” instead of a generic readiness sentence.",
-      "If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to “PlazCode is ready.” without resending startup or modifying Notion-owned DOM.",
+      "All startup instruction variants explicitly request \u201cPlazCode is ready.\u201d instead of a generic readiness sentence.",
+      "If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to \u201cPlazCode is ready.\u201d without resending startup or modifying Notion-owned DOM.",
       "DeepSeek rich-text composers remain discoverable while input-locked, and agent writes temporarily enable editing then restore the lock. Explicit Send labels take precedence over stop-icon guesses."
     ]
   },
@@ -556,7 +580,7 @@
     "summary": "Outdated version badges now explicitly say that a new update is available.",
     "added": [],
     "improved": [
-      "Desktop, browser bar and popup version badges show “(Outdated - New update available)” when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved."
+      "Desktop, browser bar and popup version badges show \u201c(Outdated - New update available)\u201d when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved."
     ],
     "fixed": []
   },
@@ -571,8 +595,8 @@
     ],
     "improved": [
       "Themes now color panels, navigation, borders, inputs, buttons, connection surfaces, terminal and update dialogs as well as accents.",
-      "Startup asks the AI to say “PlazCode is ready.”; older readiness acknowledgements remain accepted.",
-      "Co-Work follow-up text uses the website composer’s text color, font, size and alignment. Only the placeholder is grey. Existing queue behavior is preserved.",
+      "Startup asks the AI to say \u201cPlazCode is ready.\u201d; older readiness acknowledgements remain accepted.",
+      "Co-Work follow-up text uses the website composer\u2019s text color, font, size and alignment. Only the placeholder is grey. Existing queue behavior is preserved.",
       "Copilot and Meta AI removed from supported-site choices, routing and extension injection."
     ],
     "fixed": [
@@ -590,7 +614,7 @@
       "The GitHub README now lists release titles, summaries, additions, improvements and fixes.",
       "An updated maintenance prompt documents architecture, current features, debugging, tests, builds and release publishing.",
       "Appearance settings with Orange, Amethyst, Polar Cyan, Rose, Emerald and Graphite palettes, glow strength, gradient controls and a default-theme reset. Selections apply immediately and are remembered on this device.",
-      "Version indicators in the desktop, browser bar/menu and extension popup show green “Up to date”, red “Outdated”, or a neutral unavailable/not-checked status. Release checks run at startup and every five minutes."
+      "Version indicators in the desktop, browser bar/menu and extension popup show green \u201cUp to date\u201d, red \u201cOutdated\u201d, or a neutral unavailable/not-checked status. Release checks run at startup and every five minutes."
     ],
     "improved": [
       "Published update metadata carries the same release notes used in the README.",
@@ -609,7 +633,7 @@
     "summary": "Update PlazCode from the desktop app and carry chat context between supported AI sites.",
     "added": [
       "Desktop Updates tab with installed/latest versions, Check now, Update now, download progress and relaunch.",
-      "ChatGPT, DeepSeek and Claude shortcuts below Home’s connection displays.",
+      "ChatGPT, DeepSeek and Claude shortcuts below Home\u2019s connection displays.",
       "Current-chat memory export and a memory-only export option."
     ],
     "improved": [
@@ -618,7 +642,7 @@
       "Saved AI memories retain conversation origins after edits, including facts learned in more than one chat."
     ],
     "fixed": [
-      "Memory-only imports now include saved facts in the destination AI’s context.",
+      "Memory-only imports now include saved facts in the destination AI\u2019s context.",
       "Oversized combined history and memory are rejected before saving or sending.",
       "View on GitHub opens in the default browser instead of navigating the embedded app."
     ]

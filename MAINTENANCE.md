@@ -1,3 +1,18 @@
+## PlazCode 1.19.15: Create models and UI directly in chat
+
+- Asking an active RobloxScript AI chat to make a model or UI uses PlazCode's saved creator workflow. The desktop creator page does not need to be opened.
+- The AI saves shape/layout and detail passes with creation_preview, then calls creation_insert with the exact ready draft revision for Studio creation requests.
+- Insertion reads the saved blueprint rather than recreating it in Luau. Geometry, hierarchy and supported properties use the same validated compiler.
+- Preview-only/draft-only requests stay out of Studio. The desktop Create preview flow remains preview-only. Existing script repairs and AgentScript retain their normal tools.
+- Duplicate insertion calls retain their outcome; stale drafts, concurrent insertion, Stop, chat/engine changes and unconfirmed Studio results are handled explicitly. Finished/uncertain passes require inspection before retrying.
+- Saved root-parent and absent-name normalization is repaired in the chat insertion path without changing the stored draft.
+
+This extension-only update retains the signed 1.19.14 Windows/macOS native components. Studio rendering can differ from the creator preview; data parity does not promise pixel-identical lighting, materials, fonts or advanced layouts. Live signed-in AI chats and real Studio insertion remain unverified.
+
+- Each GitHub release offers PlazCode-VERSION.zip for Windows and PlazCode-macOS-VERSION.zip for Mac. The normal package retains compatibility with older shared-feed Mac updaters. Mac setup/start launchers select latest-macos.json and preserve custom feed settings.
+
+Reload the extension AND refresh open AI tabs after updating.
+
 ## PlazCode 1.19.14: Creators, native macOS and launch updates
 
 ### Model and UI creators
@@ -308,3 +323,5 @@ Keep user settings, MCP configuration, pairing data, personal memory and cached 
 A task is complete when its requested behavior is implemented, relevant checks pass, the correct build and ZIP are produced, and publication succeeds when authorized and available. Explain what changed and what remains unverified. Distinguish automated tests, compilation, simulated UI checks and live Windows/provider testing. Never claim visual quality, installer success, bridge connectivity or provider compatibility that you did not actually observe.
 
 RAW USER REQUEST:
+
+For future releases, publish both normal/Windows and dedicated macOS ZIP assets, validate each checksum and Mac executable permissions, update latest.json and latest-macos.json, and include a copyable detailed release description in the chat. Preserve shared-feed updater compatibility until a tested migration supports platform-only normal packages.

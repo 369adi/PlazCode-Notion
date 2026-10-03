@@ -17,15 +17,16 @@ def notes(feed):
     lines=['# PlazCode '+version+': '+entry['title'],'',entry['summary'],'']
     for key,title in [('added','Added'),('improved','Improved'),('fixed','Fixed')]:
         if entry.get(key):lines+=['## '+title,'']+['- '+x for x in entry[key]]+['']
-    lines+=['## Update','','- Desktop launch automatically checks and updates to the newest release when outdated. You can also choose **Updates → Update now**.\n- Windows: run **Update-PlazCode.bat** for a manual update. macOS: launch **PlazCode.app** from the extracted folder; use **MacOS_Setup.command** for setup.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- Download **PlazCode-'+version+'.zip** for either a fresh installation or updating an existing one.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
+    lines+=['## Update','','- Desktop launch automatically checks and updates to the newest release when outdated. You can also choose **Updates → Update now**.\n- Windows: run **Update-PlazCode.bat** for a manual update. macOS: launch **PlazCode.app** from the extracted folder; use **MacOS_Setup.command** for setup.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- Windows: download **PlazCode-'+version+'.zip**. macOS: download **PlazCode-macOS-'+version+'.zip**. The normal ZIP retains Mac compatibility for older installed updaters.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
     return 'PlazCode '+version+': '+entry['title'],'\n'.join(lines)+'\n'
 
-def validate_archive(data,version):
+def validate_archive(data,version,platform="windows"):
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         if archive.testzip() is not None:raise ValueError('ZIP checksum failure')
         manifest=json.loads(archive.read('PlazCode/PlazCode-Extension/manifest.json'))
         if tuple(map(int,manifest['version'].split('.')))!=tuple(map(int,version.split('.'))):raise ValueError('ZIP version does not match feed')
-        if 'PlazCode/PlazCode.exe' not in archive.namelist():raise ValueError('Desktop executable missing')
+        if platform=='windows' and 'PlazCode/PlazCode.exe' not in archive.namelist():raise ValueError('Windows desktop executable missing')
+        if platform=='macos' and 'PlazCode/PlazCode.exe' in archive.namelist():raise ValueError('Mac download must not contain the Windows executable')
         import plistlib, struct
         app='PlazCode/PlazCode.app/Contents/'
         if tuple(map(int,plistlib.loads(archive.read(app+'Info.plist'))['CFBundleShortVersionString'].split('.')))>tuple(map(int,version.split('.'))):raise ValueError('Mac app version exceeds package version')
@@ -48,13 +49,13 @@ def main():
     if existing and not existing['isDraft']:
         print('Version is already published; leaving it unchanged.');return
     assets=[]
-    for name in ['PlazCode-'+version+'.zip']:
+    for name,platform,expected_hash in [('PlazCode-'+version+'.zip','windows',feed['sha256']),('PlazCode-macOS-'+version+'.zip','macos',feed['platforms']['macos']['sha256'])]:
         data=fetch(root+name)
         content=json.loads(gh('api','repos/'+repo+'/contents/'+name+'?ref='+commit))
         actual=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
         if actual!=content['sha']:raise ValueError('Repository ZIP hash mismatch')
-        if hashlib.sha256(data).hexdigest()!=feed['sha256']:raise ValueError('Update SHA-256 mismatch')
-        validate_archive(data,version);pathlib.Path(name).write_bytes(data);assets.append(name)
+        if hashlib.sha256(data).hexdigest()!=expected_hash:raise ValueError('Update SHA-256 mismatch')
+        validate_archive(data,version,platform);pathlib.Path(name).write_bytes(data);assets.append(name)
     pathlib.Path('release-notes.md').write_text(body)
     if not existing:gh('release','create',tag,'--repo',repo,'--target',commit,'--draft','--title',title,'--notes-file','release-notes.md')
     gh('release','upload',tag,*assets,'--repo',repo,'--clobber')

@@ -1,13 +1,7 @@
 {
   "version": "1.19.15",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.19.15.zip",
-  "sha256": "02b3c4e1031766c916d977c2c4da1db4e30987a9cd3be870906bd32b2cca6466",
-  "platforms": {
-    "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-macOS-1.19.15.zip",
-      "sha256": "976ed5e73b1af2cbcdc0ab7ce34f1764a846e9e11ccc5e4b56099b3b77cdbc6e"
-    }
-  },
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-macOS-1.19.15.zip",
+  "sha256": "976ed5e73b1af2cbcdc0ab7ce34f1764a846e9e11ccc5e4b56099b3b77cdbc6e",
   "release_notes": [
     {
       "version": "1.19.15",
