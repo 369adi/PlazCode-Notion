@@ -1,5 +1,5 @@
 # PlazCode updater, Windows PowerShell 5.1. Accepts an optional local release ZIP.
-param([string]$ZipPath, [string]$ExpectedSha256, [string]$ExpectedVersion, [switch]$ShowProgress)
+param([string]$ZipPath, [string]$ExpectedSha256, [string]$ExpectedVersion, [switch]$ShowProgress, [switch]$BackgroundUpdate, [string]$Theme="default", [string]$Glow="subtle", [switch]$NoGradients)
 $ErrorActionPreference = 'Stop'
 $install = $PSScriptRoot
 $stage = Join-Path ([IO.Path]::GetTempPath()) ('PlazCode-update-' + [guid]::NewGuid())
@@ -23,7 +23,13 @@ try {
             Add-Type -AssemblyName System.Windows.Forms
             Add-Type -AssemblyName System.Drawing
             Add-Type -Path (Join-Path $install 'Updater-Progress.cs') -ReferencedAssemblies ([Windows.Forms.Form].Assembly.Location),([Drawing.Color].Assembly.Location),'System.dll'
-            [PlazCode.UpdateProgress]::Open($ExpectedVersion)
+            $Preferencespath = Join-Path $install 'plazcode-settings.json'
+            if (Test-Path -LiteralPath $Preferencespath) {
+                try { $Appearance = (Get-Content -LiteralPath $Preferencespath -Raw | ConvertFrom-Json).rsAppearance
+                    if ($Appearance) { $Theme=$Appearance.theme; $Glow=$Appearance.glow; $NoGradients=$Appearance.gradients -eq 'off' }
+                } catch { }
+            }
+            [PlazCode.UpdateProgress]::Open($ExpectedVersion,$Theme,[bool]$BackgroundUpdate,$Glow,!$NoGradients)
             $uiReady = $true
         } catch { Write-Host ('Progress window unavailable: ' + $_.Exception.Message) -ForegroundColor Yellow }
     }
@@ -31,7 +37,9 @@ try {
     Write-Host 'PlazCode updater' -ForegroundColor Yellow
     $current = [version](Get-Content (Join-Path $extensionRoot 'manifest.json') -Raw | ConvertFrom-Json).version
     $source = Get-Content (Join-Path $install 'update-source.json') -Raw | ConvertFrom-Json
-    if (!$source.feedUrl) { $source.feedUrl = "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/latest.json" }
+    if ($source.feedUrl -eq 'https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/latest.json') { $source.feedUrl='https://raw.githubusercontent.com/stoveez/PlazCode/main/latest.json' }
+    if ($source.feedUrl -eq 'https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/latest-macos.json') { $source.feedUrl='https://raw.githubusercontent.com/stoveez/PlazCode/main/latest-macos.json' }
+    if (!$source.feedUrl) { $source.feedUrl = "https://raw.githubusercontent.com/stoveez/PlazCode/main/latest.json" }
     New-Item $stage -ItemType Directory | Out-Null
     if (!$ZipPath -and $source.feedUrl) {
         if ($source.feedUrl -notmatch '^https://') { throw 'The release feed must use HTTPS.' }
@@ -157,7 +165,8 @@ try {
         Set-UpdaterProgress (65 + [int](30 * $copied / [Math]::Max(1, $files.Count))) 'Installing update' ("Replacing files: $copied of $($files.Count).")
     }
     Set-UpdaterProgress 98 'Relaunching PlazCode' 'Opening the updated desktop app.'
-    Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -WorkingDirectory $install
+    if ($BackgroundUpdate) { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -ArgumentList '--background' -WorkingDirectory $install }
+    else { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -WorkingDirectory $install }
     Set-UpdaterProgress 100 'Update complete' 'Reload the extension and refresh your open AI chat tabs.'
     Write-Host "Updated $current -> $next. Reload the extension, then refresh open AI chat tabs." -ForegroundColor Green
 } catch {
@@ -170,8 +179,9 @@ try {
             else { Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
         } catch { Write-Host "Could not restore $relative. Backup retained at $backup" -ForegroundColor Red }
     }
-    if ($stopped) { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -WorkingDirectory $install -ErrorAction SilentlyContinue }
-    if ($ShowProgress) { [Windows.Forms.MessageBox]::Show(('Update failed: ' + $_.Exception.Message + [Environment]::NewLine + 'Recovery files: ' + $stage), 'PlazCode updater') | Out-Null }
+    if ($stopped) { if ($BackgroundUpdate) { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -ArgumentList '--background' -WorkingDirectory $install -ErrorAction SilentlyContinue } else { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -WorkingDirectory $install -ErrorAction SilentlyContinue } }
+    if ($ShowProgress -and !$BackgroundUpdate) { [Windows.Forms.MessageBox]::Show(('Update failed: ' + $_.Exception.Message + [Environment]::NewLine + 'Recovery files: ' + $stage), 'PlazCode updater') | Out-Null }
+    if ($uiReady -and $BackgroundUpdate) { [PlazCode.UpdateProgress]::NotifyFailure(); Start-Sleep -Seconds 3 }
     Write-Host ('Update failed: ' + $_.Exception.Message) -ForegroundColor Red
     Write-Host "Recovery files: $stage"
     if ($uiReady) { [PlazCode.UpdateProgress]::Close() }

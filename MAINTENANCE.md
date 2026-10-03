@@ -1,3 +1,18 @@
+PlazCode 1.19.19 — Updated navigation icons and theme-aware background updates
+
+Refresh Home, Templates and Settings icons and keep automatic updates from interrupting the foreground app.
+
+- Non-activating update progress and a tray notification explain automatic background updates on Windows.
+- Background relaunch mode keeps an automatically updated desktop behind the current app.
+- Home uses a house icon, Templates an open folder with a document, and Settings a gear with a wrench, based on the supplied references.
+- Windows update animation follows the saved PlazCode theme, glow and gradient settings. PlazCode Orange keeps its default update colors.
+- Manual updates retain visible progress; automatic updates use foreground progress when PlazCode is active.
+- Release descriptions use a title, short summary, New additions, Improvements and Bug fixes.
+- An automatic update no longer brings the Windows progress window or relaunched desktop to the foreground when PlazCode is in the background.
+- The macOS automatic updater relaunches a background desktop without activating it.
+- Official release checks migrate the previous PlazCodeneww feed to the renamed PlazCode repository while preserving custom update feeds.
+- Published feeds keep recent descriptions within the updater size limit; the complete release history remains in release-notes.json.
+
 PlazCode 1.19.18 — Engram memory, larger templates and automatic creator enhancement
 
 Persistent project memory and clearer saved chat logs improve continuation across chats. Large templates stream in small chunks, creator requests reuse the prompt enhancer automatically, and saved memory expands to 500,000 characters.

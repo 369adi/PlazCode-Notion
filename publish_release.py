@@ -19,9 +19,9 @@ def fetch(url):
 
 def notes(feed):
     version=feed['version'];entry=next(x for x in feed['release_notes'] if x['version']==version)
-    lines=['# PlazCode '+version+': '+entry['title'],'',entry['summary'],'']
-    for key,title in [('added','Added'),('improved','Improved'),('fixed','Fixed')]:
-        if entry.get(key):lines+=['## '+title,'']+['- '+x for x in entry[key]]+['']
+    lines=['**PlazCode '+version+': '+entry['title']+'**','','- '+entry['summary'],'']
+    for key,title in [('added','New additions'),('improved','Improvements'),('fixed','Bug fixes')]:
+        if entry.get(key):lines+=['***'+title+'***','']+['- '+x for x in entry[key]]+['']
     lines+=['## Update','','- Desktop launch automatically checks and updates to the newest release when outdated. Manual update: choose **Updates → Update now**.\n- Windows: run **Update-PlazCode.bat** for a manual update. macOS: launch **PlazCode.app** from the extracted folder; use **MacOS_Setup.command** for setup.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- Windows: download **PlazCode-'+version+'.zip**. macOS: download **PlazCode-macOS-'+version+'.zip**. The normal ZIP retains Mac compatibility for older installed updaters.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
     return 'PlazCode '+version+': '+entry['title'],'\n'.join(lines)+'\n'
 

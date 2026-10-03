@@ -1,9 +1,30 @@
 {
-  "version": "1.19.18",
-  "desktop_version": "1.19.18",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-macOS-1.19.18.zip",
-  "sha256": "ed902bcce12e6265a7e5d5dab16d58802738ef915ef5026afbd203fdf82926d1",
+  "version": "1.19.19",
+  "desktop_version": "1.19.19",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.19.zip",
+  "sha256": "fe6cb72ce700c7606981049fecd49c37f7842d98cde7899904dfdabc87300c1c",
   "release_notes": [
+    {
+      "version": "1.19.19",
+      "title": "Updated navigation icons and theme-aware background updates",
+      "summary": "Refresh Home, Templates and Settings icons and keep automatic updates from interrupting the foreground app.",
+      "added": [
+        "Non-activating update progress and a tray notification explain automatic background updates on Windows.",
+        "Background relaunch mode keeps an automatically updated desktop behind the current app."
+      ],
+      "improved": [
+        "Home uses a house icon, Templates an open folder with a document, and Settings a gear with a wrench, based on the supplied references.",
+        "Windows update animation follows the saved PlazCode theme, glow and gradient settings. PlazCode Orange keeps its default update colors.",
+        "Manual updates retain visible progress; automatic updates use foreground progress when PlazCode is active.",
+        "Release descriptions use a title, short summary, New additions, Improvements and Bug fixes."
+      ],
+      "fixed": [
+        "An automatic update no longer brings the Windows progress window or relaunched desktop to the foreground when PlazCode is in the background.",
+        "The macOS automatic updater relaunches a background desktop without activating it.",
+        "Official release checks migrate the previous PlazCodeneww feed to the renamed PlazCode repository while preserving custom update feeds.",
+        "Published feeds keep recent descriptions within the updater size limit; the complete release history remains in release-notes.json."
+      ]
+    },
     {
       "version": "1.19.18",
       "title": "Engram memory, larger templates and automatic creator enhancement",
@@ -690,79 +711,6 @@
         "Notion pastes an escaped literal HTML representation alongside plain text so rich-text Markdown conversion does not consume command/result markers. Complete-draft retention and send-confirmation checks remain in place.",
         "Notion reserves space inside the composer for the PlazCode bar, keeping response text and the native editor clear without modifying React-owned attributes."
       ]
-    },
-    {
-      "version": "1.18.81",
-      "title": "Themes, release notes & desktop refresh",
-      "summary": "See what each PlazCode update adds, improves and fixes before installing it.",
-      "added": [
-        "Release descriptions on the desktop Updates page, including expandable notes for earlier releases.",
-        "The GitHub README now lists release titles, summaries, additions, improvements and fixes.",
-        "An updated maintenance prompt documents architecture, current features, debugging, tests, builds and release publishing.",
-        "Appearance settings with Orange, Amethyst, Polar Cyan, Rose, Emerald and Graphite palettes, glow strength, gradient controls and a default-theme reset. Selections apply immediately and are remembered on this device.",
-        "Version indicators in the desktop, browser bar/menu and extension popup show green \u201cUp to date\u201d, red \u201cOutdated\u201d, or a neutral unavailable/not-checked status. Release checks run at startup and every five minutes."
-      ],
-      "improved": [
-        "Published update metadata carries the same release notes used in the README.",
-        "Installed release notes remain available before checking online.",
-        "Home places agent controls beside the AI shortcuts on wide windows, reducing unused space; smaller windows stack them neatly.",
-        "The installed-to-latest version arrow is larger, vertically aligned with the version values and spaced more closely.",
-        "Visual-only desktop polish: smoother navigation, card depth, hover and press feedback, keyboard focus, toggles and modal backgrounds. Existing actions and workflows stay the same.",
-        "Quick Actions no longer stretches to match a tall Recent Activity panel; activity stays scrollable.",
-        "A denser desktop layout reduces empty space in status cards and quick actions, with refreshed typography, surfaces and subtle orange highlights."
-      ],
-      "fixed": []
-    },
-    {
-      "version": "1.18.80",
-      "title": "Updates, memory transfer & AI shortcuts",
-      "summary": "Update PlazCode from the desktop app and carry chat context between supported AI sites.",
-      "added": [
-        "Desktop Updates tab with installed/latest versions, Check now, Update now, download progress and relaunch.",
-        "ChatGPT, DeepSeek and Claude shortcuts below Home\u2019s connection displays.",
-        "Current-chat memory export and a memory-only export option."
-      ],
-      "improved": [
-        "Transparent Enhance and Co-Work controls; labels now read Co-Work: Off and Co-Work: On.",
-        "Styled desktop memory import file picker.",
-        "Saved AI memories retain conversation origins after edits, including facts learned in more than one chat."
-      ],
-      "fixed": [
-        "Memory-only imports now include saved facts in the destination AI\u2019s context.",
-        "Oversized combined history and memory are rejected before saving or sending.",
-        "View on GitHub opens in the default browser instead of navigating the embedded app."
-      ]
-    },
-    {
-      "version": "1.18.78",
-      "title": "Automatic update setup",
-      "summary": "A stable repository feed lets the update BAT fetch published packages.",
-      "added": [
-        "Configured HTTPS update feed hosted in stoveez/PlazCodeneww."
-      ],
-      "improved": [
-        "Version and SHA256 checks, staged installation, backups and local settings preservation."
-      ],
-      "fixed": [
-        "Blank feed settings from 1.18.77 now fall back to the configured repository."
-      ]
-    },
-    {
-      "version": "1.18.77",
-      "title": "Shared memory & activity",
-      "summary": "PlazCode can remember lasting preferences across chats and transfer loaded conversation context.",
-      "added": [
-        "Shared personal memory with automatic saving controls and an editable summary.",
-        "Chat history and memory import/export.",
-        "Working/Worked indicators with expandable activity.",
-        "Studio status below the desktop bridge indicator.",
-        "Update-PlazCode.bat with a local ZIP fallback."
-      ],
-      "improved": [
-        "Saved memory is available across supported provider chats.",
-        "Completed tool activity collapses while final replies remain visible."
-      ],
-      "fixed": []
     }
   ]
 }
