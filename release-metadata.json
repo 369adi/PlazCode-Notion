@@ -1,0 +1,14 @@
+[
+  {
+    "file": "PlazCode-1.19.16.zip",
+    "platform": "windows",
+    "bytes": 12609859,
+    "sha256": "a2ac505e29375fd906d633fbd4e37b2dd61e194053e02c469f5a5046cf4dae67"
+  },
+  {
+    "file": "PlazCode-macOS-1.19.16.zip",
+    "platform": "macos",
+    "bytes": 8955759,
+    "sha256": "a4105ad74af88204115d0de71147397609efb17f8e78a1dd7451112d0acd8df3"
+  }
+]

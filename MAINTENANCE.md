@@ -1,3 +1,16 @@
+PlazCode 1.19.16 — Workspace design upgrade and new themes
+
+A visual refinement built on the existing workspace layout, with smoother interaction tweens, clearer controls and five new shared themes. Startup update detection also receives dedicated macOS feed freshness protection.
+
+- Five shared themes: Oceanic, Copper Atelier, Aurora, Orchid Noir and Solar Dusk. Each colors the complete desktop surface system, browser bar and extension popup.
+- Named theme preview tiles with visible selection and keyboard focus states.
+- Workspace card spacing, rounded surfaces, session hierarchy, navigation feedback and form styling build on the existing desktop design.
+- Short CSS hover, press and page-entry tweens add interaction feedback without new animation libraries, timers or DOM observers.
+- Reduced-motion settings disable desktop transitions and animations, including the update spinner. Existing glow and gradient controls still apply.
+- Normal app launch and reopening an existing app instance request automatic installation when a newer published version is detected.
+- New palettes stay synchronized across desktop preferences, browser overlays and popup appearance.
+- The dedicated macOS release feed now uses the same commit-pinned freshness lookup and cache-busting fallback as the normal feed. Platform feed cache entries cannot reuse another platform payload.
+
 ## PlazCode 1.19.15: Create models and UI directly in chat
 
 - Asking an active RobloxScript AI chat to make a model or UI uses PlazCode's saved creator workflow. The desktop creator page does not need to be opened.

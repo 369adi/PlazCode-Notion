@@ -1,0 +1,20 @@
+PlazCode 1.19.16 — Workspace design upgrade and new themes
+
+A visual refinement built on the existing workspace layout, with smoother interaction tweens, clearer controls and five new shared themes. Startup update detection also receives dedicated macOS feed freshness protection.
+
+- Five shared themes: Oceanic, Copper Atelier, Aurora, Orchid Noir and Solar Dusk. Each colors the complete desktop surface system, browser bar and extension popup.
+- Named theme preview tiles with visible selection and keyboard focus states.
+- Workspace card spacing, rounded surfaces, session hierarchy, navigation feedback and form styling build on the existing desktop design.
+- Short CSS hover, press and page-entry tweens add interaction feedback without new animation libraries, timers or DOM observers.
+- Reduced-motion settings disable desktop transitions and animations, including the update spinner. Existing glow and gradient controls still apply.
+- Normal app launch and reopening an existing app instance request automatic installation when a newer published version is detected.
+- New palettes stay synchronized across desktop preferences, browser overlays and popup appearance.
+- The dedicated macOS release feed now uses the same commit-pinned freshness lookup and cache-busting fallback as the normal feed. Platform feed cache entries cannot reuse another platform payload.
+
+
+Validation
+PlazCode 1.19.16 validation
+56 applicable JavaScript regressions pass, including desktop behavior, supported providers, creator workflows, tool handling, Stop, Co-work and continuation. Twelve shared palettes are accepted by desktop, native preferences and browser overlays; popup propagation covers every palette. Desktop script parity confirms existing handlers and navigation routes are preserved outside theme definitions.
+Hosted Chromium layout checks cover Home, Settings, Tools and Creators at 1440, 1024 and 760 pixels, all five new themes, and reduced motion. Screenshot review corrected theme-control alignment and number-input styling. New motion uses short event-driven CSS only; no new timers, observers, animation libraries or continuous decorative loops were added. No end-to-end performance benchmark or guarantee is inferred from these checks.
+Windows and macOS native tests and authenticated headless smoke checks must pass before this package is published. Universal macOS binaries are combined with lipo and the app bundle is ad hoc signed and verified. Launch-update tests use a temporary outdated installation, real published feed/download and SHA256 verification, and record the installer version/checksum handoff. A test helper replaces full GUI installation/relaunch. Mac feed migration and updater archive/checksum rejection fixtures pass. Live signed-in AI chats, real Studio operations and real GUI update/relaunch are not exercised.
+

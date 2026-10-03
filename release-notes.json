@@ -1,5 +1,30 @@
 [
   {
+    "version": "1.19.16",
+    "title": "Workspace design upgrade and new themes",
+    "summary": "A visual refinement built on the existing workspace layout, with smoother interaction tweens, clearer controls and five new shared themes. Startup update detection also receives dedicated macOS feed freshness protection.",
+    "added": [
+      "Five shared themes: Oceanic, Copper Atelier, Aurora, Orchid Noir and Solar Dusk. Each colors the complete desktop surface system, browser bar and extension popup.",
+      "Named theme preview tiles with visible selection and keyboard focus states."
+    ],
+    "improved": [
+      "Workspace card spacing, rounded surfaces, session hierarchy, navigation feedback and form styling build on the existing desktop design.",
+      "Short CSS hover, press and page-entry tweens add interaction feedback without new animation libraries, timers or DOM observers.",
+      "Reduced-motion settings disable desktop transitions and animations, including the update spinner. Existing glow and gradient controls still apply.",
+      "Normal app launch and reopening an existing app instance request automatic installation when a newer published version is detected."
+    ],
+    "fixed": [
+      "New palettes stay synchronized across desktop preferences, browser overlays and popup appearance.",
+      "The dedicated macOS release feed now uses the same commit-pinned freshness lookup and cache-busting fallback as the normal feed. Platform feed cache entries cannot reuse another platform payload."
+    ],
+    "notes": [
+      "Desktop native executables rebuilt for Windows and universal Intel/Apple Silicon macOS.",
+      "All existing UI IDs, navigation routes and desktop JavaScript handlers remain unchanged outside the theme definitions. Design changes do not alter AI/provider/tool behavior.",
+      "The normal ZIP retains macOS compatibility for older shared-feed updaters; a separate macOS ZIP is also supplied.",
+      "No live signed-in AI chat or real Studio workflow was exercised for this design update. Automated launch-update verification uses the real published download and checksum with an isolated installer test helper; full GUI installation/relaunch is not exercised."
+    ]
+  },
+  {
     "version": "1.19.15",
     "title": "Create models and UI directly in chat",
     "summary": "RobloxScript model/UI requests use saved PlazCode creator drafts and insert the exact ready revision into Studio without opening the desktop creator page.",
