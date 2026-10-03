@@ -1,3 +1,11 @@
+PlazCode 1.19.14 validation
+54 current JavaScript regression scripts passed, plus an isolated authenticated HTTP/WebSocket bridge suite. Syntax checked for 47 extension JavaScript files. The historical v1.15 feature snapshot is not a current release gate: it asserts removed providers and obsolete exact versions.
+Native regression suite: 3 library + 55 application tests passed; 2 test harness/live-network cases ignored. The final GitHub Actions run 37145247678 passed on native Windows, Apple Silicon macOS and Intel macOS, including four-provider startup fixtures, creator tests, actual bridge/API smoke tests and release builds. The universal Mac bundle passed code signature and architecture verification. Windows updater file-lock/process-scope, runtime checksum/cache and saved-data preservation tests passed on the Windows runner.
+Mac updater preflight tests exercise checksum, archive traversal, absolute/backslash paths, unexpected roots and symlink rejection before any install/termination, preserving a user-data fixture. Version checks allow unchanged signed native components in extension-only updates and reject native downgrades. Final package validation checks both architectures, launch permissions, matched manifest versions, asset presence and excluded private data.
+Performance checks include 1,500-message cache reuse, bounded chat-history retention and analytic 799-sphere bounds (approximately 15 ms in the local fixture). These are focused automated checks, not a universal performance guarantee.
+Live desktop GUI, signed-in AI-site interactions, real Roblox Studio rendering/gameplay, Developer ID notarization and complete macOS in-place replacement/relaunch have not been verified in this environment. Provider DOM code is unchanged in this release. Advanced model/UI preview approximations are labeled in the UI.
+
+
 PlazCode 1.19.13: syntax, actual mode-handler ordering/deduplication, transition status, double-click, manual activity folding, Arena exclusions, Claude command-frame DOM, desktop interaction, startup/result delivery and saved-data preservation checks passed. Windows GNU release compiled; icon resources match the previous build. No live Windows or signed-in AI-site test was performed.
 
 PlazCode 1.19.12 validation

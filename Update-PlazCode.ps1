@@ -6,6 +6,10 @@ $stage = Join-Path ([IO.Path]::GetTempPath()) ('PlazCode-update-' + [guid]::NewG
 $backup = Join-Path $stage 'backup'
 $written = New-Object 'System.Collections.Generic.List[string]'
 $stopped = $false
+$uiReady = $false
+function Set-UpdaterProgress([int]$Percent, [string]$Title, [string]$Detail) {
+    if ($uiReady) { [PlazCode.UpdateProgress]::Set($Percent, $Title, $Detail) }
+}
 function Get-ExtensionRoot([string]$Root) {
     $nested = Join-Path $Root 'PlazCode-Extension'
     if (Test-Path -LiteralPath (Join-Path $nested 'manifest.json')) { return $nested }
@@ -15,20 +19,15 @@ $extensionRoot = Get-ExtensionRoot $install
 $splitInstall = $extensionRoot -ne $install -and !(Test-Path -LiteralPath (Join-Path $install 'manifest.json'))
 try {
     if ($ShowProgress) {
-        Add-Type -AssemblyName System.Windows.Forms
-        Add-Type -AssemblyName System.Drawing
-        $form = New-Object System.Windows.Forms.Form
-        $form.Text = 'Updating PlazCode'; $form.Width = 460; $form.Height = 180
-        $form.StartPosition = 'CenterScreen'; $form.ControlBox = $false
-        $form.BackColor = [Drawing.Color]::FromArgb(9,21,34)
-        $label = New-Object System.Windows.Forms.Label
-        $label.ForeColor = [Drawing.Color]::FromArgb(255,192,82)
-        $label.Location = New-Object Drawing.Point(24,24); $label.Width=400; $label.Height=60
-        $label.Text = 'Verifying update...'
-        $bar = New-Object System.Windows.Forms.ProgressBar
-        $bar.Location = New-Object Drawing.Point(24,90); $bar.Width=400; $bar.Style='Marquee'
-        $form.Controls.Add($label); $form.Controls.Add($bar); $form.Show(); [Windows.Forms.Application]::DoEvents()
+        try {
+            Add-Type -AssemblyName System.Windows.Forms
+            Add-Type -AssemblyName System.Drawing
+            Add-Type -Path (Join-Path $install 'Updater-Progress.cs') -ReferencedAssemblies ([Windows.Forms.Form].Assembly.Location),([Drawing.Color].Assembly.Location),'System.dll'
+            [PlazCode.UpdateProgress]::Open($ExpectedVersion)
+            $uiReady = $true
+        } catch { Write-Host ('Progress window unavailable: ' + $_.Exception.Message) -ForegroundColor Yellow }
     }
+    Set-UpdaterProgress -1 'Checking release' 'Reading the verified update information.'
     Write-Host 'PlazCode updater' -ForegroundColor Yellow
     $current = [version](Get-Content (Join-Path $extensionRoot 'manifest.json') -Raw | ConvertFrom-Json).version
     $source = Get-Content (Join-Path $install 'update-source.json') -Raw | ConvertFrom-Json
@@ -37,11 +36,15 @@ try {
     if (!$ZipPath -and $source.feedUrl) {
         if ($source.feedUrl -notmatch '^https://') { throw 'The release feed must use HTTPS.' }
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $release = Invoke-RestMethod -Uri $source.feedUrl -TimeoutSec 30
+        $feedUri = [UriBuilder]$source.feedUrl
+        $query = $feedUri.Query.TrimStart('?')
+        $feedUri.Query = ($query + $(if ($query) { '&' } else { '' }) + 'plazcode_check=' + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+        $release = Invoke-RestMethod -Uri $feedUri.Uri.AbsoluteUri -Headers @{ 'Cache-Control' = 'no-cache, max-age=0' } -TimeoutSec 30
         $latest = [version]$release.version
         if ($latest -le $current) { Write-Host "Already up to date ($current)."; exit 0 }
         if ($release.url -notmatch '^https://' -or $release.sha256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Invalid release feed: expected version, HTTPS url and SHA256.' }
         $ZipPath = Join-Path $stage 'release.zip'
+        Set-UpdaterProgress -1 'Downloading update' 'Downloading the release package. This step depends on your connection.'
         Write-Host "Downloading $latest..."
         Invoke-WebRequest -UseBasicParsing -Uri $release.url -OutFile $ZipPath -TimeoutSec 180
         if ((Get-FileHash $ZipPath -Algorithm SHA256).Hash -ne $release.sha256) { throw 'Download checksum mismatch. No installed files were changed.' }
@@ -55,10 +58,11 @@ try {
         $ZipPath = $picker.FileName
     }
     $ZipPath = (Resolve-Path -LiteralPath $ZipPath).Path
+    Set-UpdaterProgress 15 'Verifying package' 'Checking the download before any installed files are changed.'
     if ($ExpectedSha256) {
         if ($ExpectedSha256 -notmatch '^[a-fA-F0-9]{64}$' -or (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash -ne $ExpectedSha256) { throw 'Package checksum mismatch. Installed files were not changed.' }
     }
-    if ($ShowProgress) { $label.Text='Preparing verified update...'; [Windows.Forms.Application]::DoEvents() }
+    Set-UpdaterProgress 25 'Inspecting package' 'Validating the release contents and installation layout.'
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $unpacked = Join-Path $stage 'unpacked'
     $archive = [IO.Compression.ZipFile]::OpenRead($ZipPath)
@@ -73,6 +77,7 @@ try {
             if (!$destination.StartsWith([IO.Path]::GetFullPath($unpacked) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid ZIP path.' }
         }
     } finally { $archive.Dispose() }
+    Set-UpdaterProgress 35 'Unpacking update' 'Extracting the verified files to a temporary folder.'
     [IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $unpacked)
     if (!$packageRoot) { throw 'Release ZIP is empty.' }
     $package = Join-Path $unpacked $packageRoot
@@ -87,7 +92,7 @@ try {
         if (!(Test-Path -LiteralPath (Join-Path $packageExtension $required))) { throw "Extension is missing $required." }
     }
     if ($release -and $next -ne $latest) { throw 'Release feed version does not match the downloaded package.' }
-    $preservedNames = @('config.json','config.local.json','plazcode-settings.json','bridge-pairing.json','memory.json','chat-history.json','checkpoints.json','catalog.json','update-source.json')
+    $preservedNames = @('config.json','config.local.json','plazcode-settings.json','bridge-pairing.json','memory.json','chat-history.json','checkpoints.json','catalog.json','creations.json','update-source.json')
     $preservedFolders = '^(?:logs|backups|templates|runtimes|PlazCode\.exe\.WebView2)(?:[\\/]|$)'
     # Compatibility ZIPs also carry legacy root extension copies for old installers.
     # Do not add those duplicates to installations already using the split layout.
@@ -96,6 +101,8 @@ try {
         $relative = $_.FullName.Substring($package.Length + 1)
         $_.Name -notin $preservedNames -and $relative -notmatch $preservedFolders -and !($splitInstall -and $packageExtension -ne $package -and $relative -match $legacyExtensionFiles)
     })
+    Set-UpdaterProgress 45 'Saving recovery copies' 'Backing up installed files. Your preferences and templates are preserved.'
+    $backedUp = 0
     # Back up overwritten files before stopping the app or modifying the installation.
     foreach ($file in $files) {
         $relative = $file.FullName.Substring($package.Length + 1)
@@ -105,8 +112,10 @@ try {
             New-Item (Split-Path $copy) -ItemType Directory -Force | Out-Null
             Copy-Item -LiteralPath $old -Destination $copy
         }
+        $backedUp++
+        Set-UpdaterProgress (45 + [int](15 * $backedUp / [Math]::Max(1, $files.Count))) 'Saving recovery copies' ("Preparing files: $backedUp of $($files.Count).")
     }
-    if ($ShowProgress) { $label.Text='Installing update. PlazCode will relaunch...'; [Windows.Forms.Application]::DoEvents() }
+    Set-UpdaterProgress 60 'Closing PlazCode' 'Waiting for this installation to release its files. Roblox Studio stays open.'
     # Stop only agent processes belonging to this installation. Leave Studio running.
     $agentPaths = @('PlazCode.exe','plazcode-agent.exe') | ForEach-Object { [IO.Path]::GetFullPath((Join-Path $install $_)) }
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
@@ -132,20 +141,26 @@ try {
         }
         if (!$locked) { break }
         if ([DateTime]::UtcNow -ge $deadline) { throw 'PlazCode.exe is still locked. Close other PlazCode windows and retry. No update files were copied.' }
-        if ($ShowProgress) { $label.Text='Waiting for PlazCode to close...'; [Windows.Forms.Application]::DoEvents() }
+        if ($ShowProgress) { Set-UpdaterProgress 60 'Waiting for PlazCode to close' 'Finishing process shutdown before replacing files.' }
         Start-Sleep -Milliseconds 250
     } while ($true)
+    $copied = 0
+    Set-UpdaterProgress 65 'Installing update' 'Replacing application and extension files.'
     foreach ($file in $files) {
         $relative = $file.FullName.Substring($package.Length + 1)
         $target = Join-Path $install $relative
         $written.Add($relative)
         New-Item (Split-Path $target) -ItemType Directory -Force | Out-Null
         Copy-Item -LiteralPath $file.FullName -Destination $target -Force
-        if ($ShowProgress) { [Windows.Forms.Application]::DoEvents() }
+        $copied++
+        Set-UpdaterProgress (65 + [int](30 * $copied / [Math]::Max(1, $files.Count))) 'Installing update' ("Replacing files: $copied of $($files.Count).")
     }
+    Set-UpdaterProgress 98 'Relaunching PlazCode' 'Opening the updated desktop app.'
     Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -WorkingDirectory $install
+    Set-UpdaterProgress 100 'Update complete' 'Reload the extension and refresh your open AI chat tabs.'
     Write-Host "Updated $current -> $next. Reload the extension, then refresh open AI chat tabs." -ForegroundColor Green
 } catch {
+    Set-UpdaterProgress -1 'Restoring installation' 'The update failed. Restoring recovery copies before reporting the error.'
     foreach ($relative in $written) {
         $target = Join-Path $install $relative
         $saved = Join-Path $backup $relative
@@ -158,9 +173,10 @@ try {
     if ($ShowProgress) { [Windows.Forms.MessageBox]::Show(('Update failed: ' + $_.Exception.Message + [Environment]::NewLine + 'Recovery files: ' + $stage), 'PlazCode updater') | Out-Null }
     Write-Host ('Update failed: ' + $_.Exception.Message) -ForegroundColor Red
     Write-Host "Recovery files: $stage"
+    if ($uiReady) { [PlazCode.UpdateProgress]::Close() }
     exit 1
 }
-if ($ShowProgress) { $form.Close() }
+if ($uiReady) { [PlazCode.UpdateProgress]::Close() }
 # Keep backup for recovery; downloaded/extracted staging files can be removed.
 Remove-Item (Join-Path $stage 'unpacked') -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item (Join-Path $stage 'release.zip') -Force -ErrorAction SilentlyContinue

@@ -1,5 +1,26 @@
 [
   {
+    "version": "1.19.14",
+    "title": "Creators, native macOS and launch updates",
+    "summary": "Create and revise model/UI drafts in a compact preview workspace, export to Studio, and update the desktop app to the newest release on launch.",
+    "added": [
+      "Creators page with model and UI drafts, preview/blueprint tabs, reference attachments and current-chat revisions.",
+      "Model style/detail choices, bounded shape/detail passes, part editing, draft undo, recolour, resize, ground alignment, welded insertion and native .rbxmx export.",
+      "Phone, tablet and PC UI preview, readable text/button checks, optional presentation animations, saved drafts and explicit feedback notes.",
+      "Native macOS desktop application for Apple Silicon and Intel, StudioMCP discovery and macOS setup/start/update launchers."
+    ],
+    "improved": [
+      "Desktop launch queues a quiet current-release check and installs the newest complete release directly when outdated; download/install progress remains visible.",
+      "Large model bounds use analytic geometry and previews reduce sphere detail for larger drafts; work remains bounded to 800 nodes and validated insertion passes.",
+      "Creator data lives outside the installation, with revision conflicts, bounded undo history and corrupt-library protection."
+    ],
+    "fixed": [
+      "Desktop routing accepts current-chat creation requests and bounded insertion actions.",
+      "Mac Finder launch PATH, application-folder discovery, startup locking, browser/path opening and Studio process selection use native platform handling.",
+      "Bridge tests use authenticated HTTP/WebSocket connections and validate the current tool catalog."
+    ]
+  },
+  {
     "version": "1.19.13",
     "title": "Stable mode switching and manual work folding",
     "summary": "Prevent duplicate bridge resets while switching script modes; remove Arena work folding, keep completed tasks expanded and hide Claude command frames completely.",

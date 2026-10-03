@@ -1,8 +1,29 @@
 {
-  "version": "1.19.13",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.19.13.zip",
-  "sha256": "de0d49f69fd59d5b20fd61440f5a8ded262e3500d48b31bfbcb504d00e578cbc",
+  "version": "1.19.14",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.19.14.zip",
+  "sha256": "eb94b30cec2868ecb3f8ff451a937d64847243945b818422a915b640fd649320",
   "release_notes": [
+    {
+      "version": "1.19.14",
+      "title": "Creators, native macOS and launch updates",
+      "summary": "Create and revise model/UI drafts in a compact preview workspace, export to Studio, and update the desktop app to the newest release on launch.",
+      "added": [
+        "Creators page with model and UI drafts, preview/blueprint tabs, reference attachments and current-chat revisions.",
+        "Model style/detail choices, bounded shape/detail passes, part editing, draft undo, recolour, resize, ground alignment, welded insertion and native .rbxmx export.",
+        "Phone, tablet and PC UI preview, readable text/button checks, optional presentation animations, saved drafts and explicit feedback notes.",
+        "Native macOS desktop application for Apple Silicon and Intel, StudioMCP discovery and macOS setup/start/update launchers."
+      ],
+      "improved": [
+        "Desktop launch queues a quiet current-release check and installs the newest complete release directly when outdated; download/install progress remains visible.",
+        "Large model bounds use analytic geometry and previews reduce sphere detail for larger drafts; work remains bounded to 800 nodes and validated insertion passes.",
+        "Creator data lives outside the installation, with revision conflicts, bounded undo history and corrupt-library protection."
+      ],
+      "fixed": [
+        "Desktop routing accepts current-chat creation requests and bounded insertion actions.",
+        "Mac Finder launch PATH, application-folder discovery, startup locking, browser/path opening and Studio process selection use native platform handling.",
+        "Bridge tests use authenticated HTTP/WebSocket connections and validate the current tool catalog."
+      ]
+    },
     {
       "version": "1.19.13",
       "title": "Stable mode switching and manual work folding",

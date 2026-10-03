@@ -1,3 +1,25 @@
+## PlazCode 1.19.14: Creators, native macOS and launch updates
+
+### Model and UI creators
+
+- A compact prompt row, Preview/Blueprint tabs, export/insert controls above the preview, and an "Ask for a change…" row below it.
+- Models: Realistic, Low poly, Cartoon and Blocky styles; shape/detail passes; part colour/material edits; undo; recolour; resize; ground alignment; optional welded insertion; .rbxmx and preview PNG export.
+- UI: Phone/Tablet/PC preview, list/grid layout support, gradients, readability/tap-target checks and optional hover/click/panel animations.
+- Saved drafts and explicit likes/improvement notes inform later creation prompts. Revisions target stable node IDs instead of replacing the complete build.
+- Use an active RobloxScript chat to Generate, revise or Insert. AgentScript remains available for ordinary project work. Draft previews do not modify Studio until you choose Insert.
+
+### Desktop updates and macOS
+
+- Desktop launch checks quietly and installs the latest complete release directly when outdated. The app shows progress for the actual download/install; extension reload and chat-tab refresh remain manual.
+- A native universal macOS app supports Apple Silicon and Intel. macOS launchers, StudioMCP discovery, startup locking and file/browser opening have platform-specific handling.
+- Creator drafts join settings, memory, templates and MCP configuration outside the replaceable installation. Corrupt creator libraries are reported rather than overwritten.
+
+### Scope and validation
+
+Creation uses the current browser AI, with bounded completed build passes rather than token-by-token rendering. Advanced UI layouts, live Studio appearance and reference fidelity still require Studio review. The Mac app is ad-hoc signed, not Developer ID notarized; first-launch approval may be required. Native automated tests do not establish live signed-in AI-site, desktop GUI or Roblox Studio compatibility.
+
+After updating, reload the extension AND refresh open AI tabs.
+
 ## PlazCode 1.19.13: Stable mode switching and manual work folding
 
 - Completed Working/Worked sections retain your chosen expanded or folded state. Click their heading to fold or reopen them manually.

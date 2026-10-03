@@ -17,7 +17,7 @@ def notes(feed):
     lines=['# PlazCode '+version+': '+entry['title'],'',entry['summary'],'']
     for key,title in [('added','Added'),('improved','Improved'),('fixed','Fixed')]:
         if entry.get(key):lines+=['## '+title,'']+['- '+x for x in entry[key]]+['']
-    lines+=['## Update','','- In the desktop app: **Updates → Update now**, or run **Update-PlazCode.bat**.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- Download **PlazCode-'+version+'.zip** for either a fresh installation or updating an existing one.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
+    lines+=['## Update','','- Desktop launch automatically checks and updates to the newest release when outdated. You can also choose **Updates → Update now**.\n- Windows: run **Update-PlazCode.bat** for a manual update. macOS: launch **PlazCode.app** from the extracted folder; use **MacOS_Setup.command** for setup.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- Download **PlazCode-'+version+'.zip** for either a fresh installation or updating an existing one.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
     return 'PlazCode '+version+': '+entry['title'],'\n'.join(lines)+'\n'
 
 def validate_archive(data,version):
@@ -26,6 +26,15 @@ def validate_archive(data,version):
         manifest=json.loads(archive.read('PlazCode/PlazCode-Extension/manifest.json'))
         if tuple(map(int,manifest['version'].split('.')))!=tuple(map(int,version.split('.'))):raise ValueError('ZIP version does not match feed')
         if 'PlazCode/PlazCode.exe' not in archive.namelist():raise ValueError('Desktop executable missing')
+        import plistlib, struct
+        app='PlazCode/PlazCode.app/Contents/'
+        if tuple(map(int,plistlib.loads(archive.read(app+'Info.plist'))['CFBundleShortVersionString'].split('.')))>tuple(map(int,version.split('.'))):raise ValueError('Mac app version exceeds package version')
+        binary=archive.read(app+'MacOS/PlazCode')
+        if binary[:4]!=bytes.fromhex('cafebabe'):raise ValueError('Universal Mac application missing')
+        count=struct.unpack('>I',binary[4:8])[0]
+        architectures={struct.unpack('>I',binary[8+i*20:12+i*20])[0] for i in range(count)}
+        if not {0x01000007,0x0100000c}.issubset(architectures):raise ValueError('Mac architecture missing')
+
 
 def main():
     repo=os.environ['GITHUB_REPOSITORY'];commit=os.environ['GITHUB_SHA']
@@ -54,3 +63,4 @@ def main():
     gh('release','edit',tag,'--repo',repo,'--draft=false','--latest='+str(current['version']==version).lower())
     print('Published https://github.com/'+repo+'/releases/tag/'+tag)
 if __name__=='__main__':main()
+

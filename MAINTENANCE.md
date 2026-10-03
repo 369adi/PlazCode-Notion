@@ -1,3 +1,33 @@
+## PlazCode 1.19.14: Creators, native macOS and launch updates
+
+### Model and UI creators
+
+- A compact prompt row, Preview/Blueprint tabs, export/insert controls above the preview, and an "Ask for a change…" row below it.
+- Models: Realistic, Low poly, Cartoon and Blocky styles; shape/detail passes; part colour/material edits; undo; recolour; resize; ground alignment; optional welded insertion; .rbxmx and preview PNG export.
+- UI: Phone/Tablet/PC preview, list/grid layout support, gradients, readability/tap-target checks and optional hover/click/panel animations.
+- Saved drafts and explicit likes/improvement notes inform later creation prompts. Revisions target stable node IDs instead of replacing the complete build.
+- Use an active RobloxScript chat to Generate, revise or Insert. AgentScript remains available for ordinary project work. Draft previews do not modify Studio until you choose Insert.
+
+### Desktop updates and macOS
+
+- Desktop launch checks quietly and installs the latest complete release directly when outdated. The app shows progress for the actual download/install; extension reload and chat-tab refresh remain manual.
+- A native universal macOS app supports Apple Silicon and Intel. macOS launchers, StudioMCP discovery, startup locking and file/browser opening have platform-specific handling.
+- Creator drafts join settings, memory, templates and MCP configuration outside the replaceable installation. Corrupt creator libraries are reported rather than overwritten.
+
+### Scope and validation
+
+Creation uses the current browser AI, with bounded completed build passes rather than token-by-token rendering. Advanced UI layouts, live Studio appearance and reference fidelity still require Studio review. The Mac app is ad-hoc signed, not Developer ID notarized; first-launch approval may be required. Native automated tests do not establish live signed-in AI-site, desktop GUI or Roblox Studio compatibility.
+
+After updating, reload the extension AND refresh open AI tabs.
+
+### Maintaining creators and native platforms
+
+Creator drafts, geometry, validation and insertion passes live in core/creator.js; desktop preview controls live in core/creator-ui.js. Native storage/export live in agent/src/creations.rs and creation_export.rs. Preserve stable IDs, revision checks, typed properties, pass limits and explicit Studio insertion. Never silently truncate drafts or claim saved previews changed Studio. Keep creator data outside the installation and release ZIPs.
+
+When embedded desktop/creator assets or Rust change, build and validate Windows plus both macOS architectures. Combine the Mac slices, sign and verify the bundle, and preserve executable permissions in the ZIP. Ad-hoc signing does not replace Developer ID notarization. Extension-only updates may retain the existing signed native component; never force a native rebuild just to match the package version or downgrade a native component.
+
+Run current JS regression fixtures and authenticated bridge smoke tests. Check Windows updater locks/process scope and runtime installation on Windows, and Mac preflight on macOS. Preserve provider/startup contracts, user data, Stop and native composers. Record benchmarks and live-test limits in VALIDATION.txt. Publish one current complete ZIP, a new GitHub Release and matching SHA-256 feed; retain prior release history.
+
 ## PlazCode 1.19.12: Consistent package versions and current release checks
 
 - Sidebar, title, Settings and Updates display the same installed package version. An independently versioned app binary no longer produces a contradictory outdated badge.
