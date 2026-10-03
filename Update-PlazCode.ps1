@@ -84,7 +84,8 @@ try {
     $packageExtension = Get-ExtensionRoot $package
     $next = [version](Get-Content (Join-Path $packageExtension 'manifest.json') -Raw | ConvertFrom-Json).version
     if ($ExpectedVersion -and $next -ne [version]$ExpectedVersion) { throw 'Release version does not match the verified feed.' }
-    if ($next -le $current) { Write-Host "Already up to date ($current; selected package $next)."; exit 0 }
+    # A verified native download may repair an older executable at the same extension version.
+    if ($next -lt $current -or ($next -eq $current -and !($ExpectedVersion -and $ExpectedSha256))) { Write-Host "Already up to date ($current; selected package $next)."; exit 0 }
     foreach ($required in @('PlazCode.exe','WebView2Loader.dll','Start-PlazCode-Agent.cmd')) {
         if (!(Test-Path -LiteralPath (Join-Path $package $required))) { throw "Release is missing $required." }
     }

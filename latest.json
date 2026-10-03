@@ -1,8 +1,36 @@
 {
-  "version": "1.19.16",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.19.16.zip",
-  "sha256": "a2ac505e29375fd906d633fbd4e37b2dd61e194053e02c469f5a5046cf4dae67",
+  "version": "1.19.17",
+  "desktop_version": "1.19.17",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-1.19.17.zip",
+  "sha256": "c9e28dc6d181ac320f72a66a361f55b23fe5ce10c0cd98af007b3c7b6ac3975c",
   "release_notes": [
+    {
+      "version": "1.19.17",
+      "title": "Visible desktop revamp and persistent automatic updates",
+      "summary": "A more visible upgrade to the existing desktop workspace, paired with automatic installation for updates detected after launch and accurate desktop build detection.",
+      "added": [
+        "Larger stacked AI launch cards, a stronger session panel, four separate status cards, and framed Quick Access and Recent Activity panels.",
+        "A clearer navigation rail, larger headings, more readable card text, improved input controls, and consistent spacing throughout the desktop.",
+        "Separate running desktop and extension version reporting, with native build requirements in both platform release feeds."
+      ],
+      "improved": [
+        "Smooth CSS hover, press, and navigation transitions retain existing controls and workflows. Reduced-motion preferences remain respected.",
+        "All twelve themes remain available, including Oceanic, Copper Atelier, Aurora, Orchid Noir, and Solar Dusk.",
+        "Responsive layouts adapt the upgraded workspace to wide, medium, and compact windows.",
+        "Automatic installation stays enabled after an up-to-date launch check, so releases detected while the app remains open can install."
+      ],
+      "fixed": [
+        "Verified same-version Windows packages can repair an older executable without bypassing checksum/version verification or permitting package downgrades.",
+        "Extension manifest updates no longer hide an older running desktop executable or make its older interface appear current.",
+        "Background release checks are spaced thirty seconds apart, replacing the two-second network loop. Transient check failures retry; installer failures remain visible and avoid repeated install loops."
+      ],
+      "notes": [
+        "Rebuilt Windows and universal Intel/Apple Silicon macOS desktop executables; separate normal and macOS ZIP downloads.",
+        "The desktop design retains existing navigation routes and control handlers, apart from the explicit version-reporting correction. AI, Studio, and creator behavior are unchanged in this update.",
+        "Engram memory and large-template improvements remain separate work and are not included in this release.",
+        "Authenticated native tests use the real published release download and checksum with an installer test helper; full GUI installation and relaunch are not exercised."
+      ]
+    },
     {
       "version": "1.19.16",
       "title": "Workspace design upgrade and new themes",
@@ -710,8 +738,8 @@
   ],
   "platforms": {
     "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-macOS-1.19.16.zip",
-      "sha256": "a4105ad74af88204115d0de71147397609efb17f8e78a1dd7451112d0acd8df3"
+      "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-macOS-1.19.17.zip",
+      "sha256": "3fe9b6130ddeec45c47e0e51526b5d7337bbe986e08f0ed5be9a219ac9f24365"
     }
   }
 }

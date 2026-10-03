@@ -1,3 +1,18 @@
+PlazCode 1.19.17 — Visible desktop revamp and persistent automatic updates
+
+A more visible upgrade to the existing desktop workspace, paired with automatic installation for updates detected after launch and accurate desktop build detection.
+
+- Larger stacked AI launch cards, a stronger session panel, four separate status cards, and framed Quick Access and Recent Activity panels.
+- A clearer navigation rail, larger headings, more readable card text, improved input controls, and consistent spacing throughout the desktop.
+- Separate running desktop and extension version reporting, with native build requirements in both platform release feeds.
+- Smooth CSS hover, press, and navigation transitions retain existing controls and workflows. Reduced-motion preferences remain respected.
+- All twelve themes remain available, including Oceanic, Copper Atelier, Aurora, Orchid Noir, and Solar Dusk.
+- Responsive layouts adapt the upgraded workspace to wide, medium, and compact windows.
+- Automatic installation stays enabled after an up-to-date launch check, so releases detected while the app remains open can install.
+- Verified same-version Windows packages can repair an older executable without bypassing checksum/version verification or permitting package downgrades.
+- Extension manifest updates no longer hide an older running desktop executable or make its older interface appear current.
+- Background release checks are spaced thirty seconds apart, replacing the two-second network loop. Transient check failures retry; installer failures remain visible and avoid repeated install loops.
+
 PlazCode 1.19.16 — Workspace design upgrade and new themes
 
 A visual refinement built on the existing workspace layout, with smoother interaction tweens, clearer controls and five new shared themes. Startup update detection also receives dedicated macOS feed freshness protection.
