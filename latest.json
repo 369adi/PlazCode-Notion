@@ -1,8 +1,23 @@
 {
-  "version": "1.19.10",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.19.10.zip",
-  "sha256": "81c3b6d32bb44a779c1ad27829b3ce05571cb6b7c4b5376fcfd8c68cf723b6e1",
+  "version": "1.19.11",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.19.11.zip",
+  "sha256": "3b0312678f75ed169c428cc86c5a397f6d74b60dad10821cb19a86762519a58d",
   "release_notes": [
+    {
+      "version": "1.19.11",
+      "title": "Urgent tool-result loop fix",
+      "summary": "Fix the internal toSend is not defined error that interrupted normal commands after execution.",
+      "added": [],
+      "improved": [],
+      "fixed": [
+        "Initialize the outgoing message directly from the completed tool feedback before adding changed memory context. Successful results, formatted errors and screenshots reach the AI without an undeclared-variable crash.",
+        "Periodic command-list reminders remain disabled; the three-consecutive-failure pause and existing cancellation behavior are preserved."
+      ],
+      "notes": [
+        "Extension-only hotfix. The native executable remains the unchanged 1.19.10 binary; no Rust/agent changes were needed.",
+        "Reload the extension and refresh open AI tabs after updating. Settings, memory, templates and MCP configuration retain their preservation rules."
+      ]
+    },
     {
       "version": "1.19.10",
       "title": "Notion startup status and meaningful chat continuation",

@@ -1,3 +1,7 @@
+PlazCode 1.19.11 validation
+
+The actual tool-result send block is executed in a VM fixture for successful text feedback, formatted errors, screenshot attachments and the three-consecutive-failure pause. The outgoing message carries exact feedback plus changed-memory context; successful paths send once. JS syntax, reply recovery, native send intent, startup outcome, session continuity, parser, tool guards and continuation tests pass. The native binary and site providers are unchanged from 1.19.10. Both distribution ZIPs are validated before publishing; settings-preservation checks are retained. Live signed-in AI-site behavior was not tested in this environment.
+
 PlazCode 1.19.10 validation
 
 Bootstrap fixtures exercise Notion replacing the outer event anchor, restore completed status without executing again, and reject later identical commands, changed preceding requests, other chats and user messages. Continuation fixtures reject startup-only current and legacy records and accept actual user requests and pending tasks. Full-provider protocol upload fixtures cover startup and result files, full exact contents, one send, shortened attachment labels, foreign draft preservation and Stop cleanup. Relevant shared/provider/desktop/updater regression checks and JS syntax checks are required before shipping. Live signed-in Notion behavior has not been verified in this environment.

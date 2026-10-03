@@ -1,3 +1,12 @@
+## PlazCode 1.19.11: Urgent tool-result loop fix
+
+- Fixed `toSend is not defined`, which interrupted normal tool-result delivery after a command executed.
+- Outgoing feedback is initialized directly from the completed result. Successful results, formatted errors and screenshots retain their send path and changed-memory context.
+- Periodic command-list reminders remain disabled. Existing repeated-failure pause, startup, Stop and recovery behavior remain intact.
+- Extension-only hotfix: the native executable remains the unchanged 1.19.10 binary; no Rust/agent rebuild was required.
+
+Reload the extension AND refresh open AI tabs after updating. Settings, memory, templates and MCP configuration remain preserved. Do not assume a command was undone because the old result-delivery error appeared; inspect its result/project state before repeating a mutation.
+
 ## PlazCode 1.19.10: Notion startup status and meaningful chat continuation
 
 - Startup command outcomes survive Notion settling under a replacement event anchor. Matching stays scoped to the conversation, original assistant position, preceding user message and command text; later identical commands remain distinct.
