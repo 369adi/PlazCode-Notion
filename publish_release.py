@@ -2,10 +2,15 @@
 No secrets or local install data are packaged. Existing published releases are
 never edited; an interrupted draft can be completed by rerunning the workflow.
 """
-import base64, hashlib, io, json, os, pathlib, re, subprocess, urllib.request, zipfile
+import base64, hashlib, io, json, os, pathlib, re, subprocess, time, urllib.request, zipfile
 
 def gh(*args):
-    return subprocess.check_output(['gh',*args],text=True)
+    attempts=6 if (args[:2] in [('release','upload'),('release','edit'),('release','view')] or args[:1]==('api',)) else 1
+    for attempt in range(attempts):
+        try:return subprocess.check_output(['gh',*args],text=True)
+        except subprocess.CalledProcessError:
+            if attempt+1==attempts:raise
+            time.sleep(min(2**attempt,8))
 def fetch(url):
     with urllib.request.urlopen(url,timeout=60) as r:
         data=r.read(32*1024*1024+1)
