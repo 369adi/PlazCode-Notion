@@ -1,3 +1,21 @@
+PlazCode 1.19.18 — Engram memory, larger templates and automatic creator enhancement
+
+Persistent project memory and clearer saved chat logs improve continuation across chats. Large templates stream in small chunks, creator requests reuse the prompt enhancer automatically, and saved memory expands to 500,000 characters.
+
+- Bundled Engram 3.0.0 with local project-isolated databases, memory search, observation reads, stable topic updates and session summaries.
+- Engram context recall during tasks and new-chat continuation, plus durable completed/interrupted checkpoint references. Current project state is checked before resuming historical work.
+- Desktop controls to review/search/read/save/soft-remove project observations and download retained saved chat logs.
+- Automatic prompt enhancement before chat-driven model or UI creation, using the existing enhancer rules and preserving the original constraints.
+- Saved memory capacity increases from 150,000 to 500,000 characters in total, including adding, editing, importing and restoring notes. Long notes remain available through paged reads; prompt previews stay bounded.
+- Template uploads accept .rbxl, .rbxlx, .rbxm and .rbxmx files up to 512 MiB using 2 MiB chunks, progress reporting, cancellation and asynchronous indexing.
+- Template search accepts descriptions of systems and matches related script paths and source, with synonym/plural handling, bounded previews and exact paged script reads.
+- Template indexing supports up to 10,000 scripts, 64 MiB of source per template and 128 MiB across the catalog. The original uploaded file is preserved exactly.
+- The 1.19.17 desktop design, twelve themes and automatic-update fixes remain included. Separate normal and macOS downloads contain rebuilt native apps.
+- Oversized saved notes no longer prevent chat-context restoration: full notes are stored while only short reference excerpts are sent.
+- Automatic creator enhancement cancels on Stop or chat changes, coalesces concurrent attempts and reuses a manually enhanced prompt without another rewrite.
+- Project memory does not cross into unrelated project databases. Disabling automatic memory blocks automatic observations and checkpoint writes while keeping explicit manual saves available.
+- Corrupt or unreadable chat archives are preserved and reported instead of overwritten. Log exports expose retention omissions.
+
 PlazCode 1.19.17 — Visible desktop revamp and persistent automatic updates
 
 A more visible upgrade to the existing desktop workspace, paired with automatic installation for updates detected after launch and accurate desktop build detection.

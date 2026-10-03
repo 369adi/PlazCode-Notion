@@ -13,8 +13,8 @@ def gh(*args):
             time.sleep(min(2**attempt,8))
 def fetch(url):
     with urllib.request.urlopen(url,timeout=60) as r:
-        data=r.read(32*1024*1024+1)
-    if len(data)>32*1024*1024: raise ValueError('Release download exceeds 32 MB')
+        data=r.read(64*1024*1024+1)
+    if len(data)>64*1024*1024: raise ValueError('Release download exceeds 64 MB')
     return data
 
 def notes(feed):
@@ -22,7 +22,7 @@ def notes(feed):
     lines=['# PlazCode '+version+': '+entry['title'],'',entry['summary'],'']
     for key,title in [('added','Added'),('improved','Improved'),('fixed','Fixed')]:
         if entry.get(key):lines+=['## '+title,'']+['- '+x for x in entry[key]]+['']
-    lines+=['## Update','','- Desktop launch automatically checks and updates to the newest release when outdated. You can also choose **Updates → Update now**.\n- Windows: run **Update-PlazCode.bat** for a manual update. macOS: launch **PlazCode.app** from the extracted folder; use **MacOS_Setup.command** for setup.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- Windows: download **PlazCode-'+version+'.zip**. macOS: download **PlazCode-macOS-'+version+'.zip**. The normal ZIP retains Mac compatibility for older installed updaters.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
+    lines+=['## Update','','- Desktop launch automatically checks and updates to the newest release when outdated. Manual update: choose **Updates → Update now**.\n- Windows: run **Update-PlazCode.bat** for a manual update. macOS: launch **PlazCode.app** from the extracted folder; use **MacOS_Setup.command** for setup.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- Windows: download **PlazCode-'+version+'.zip**. macOS: download **PlazCode-macOS-'+version+'.zip**. The normal ZIP retains Mac compatibility for older installed updaters.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
     return 'PlazCode '+version+': '+entry['title'],'\n'.join(lines)+'\n'
 
 def validate_archive(data,version,platform="windows"):
