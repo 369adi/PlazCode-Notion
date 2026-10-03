@@ -1,5 +1,25 @@
 [
 {
+  "version": "1.18.107",
+  "title": "Visible paused work and accurate Co-work state",
+  "summary": "Keeps interrupted work visible and removes the empty Paused queue shown while Co-work is off.",
+  "added": [],
+  "improved": [
+    "Messages only fold when their expandable work heading is available; missing or failed headings leave replies visible.",
+    "Collapsed headings still update their placement, and temporary mount failures can retry."
+  ],
+  "fixed": [
+    "Stopped, interrupted and budget-paused work stays expanded instead of silently collapsing the transcript.",
+    "Stopping with Co-work off and no queued requests no longer pauses an empty queue.",
+    "An empty off-mode Co-work panel and stale Paused/Resume buttons are hidden; real pending requests stay saved and reviewable."
+  ],
+  "notes": [
+    "Completed work still folds and can be reopened. ChatGPT remains exempt from custom work folding.",
+    "The Notion startup provider confirmed working by the user is unchanged, along with all other providers.",
+    "Reload the extension and refresh open AI tabs after updating."
+  ]
+},
+{
   "version": "1.18.106",
   "title": "Notion uploaded-file preview recognition",
   "summary": "Recognizes uploaded protocol files that Notion displays outside the inner editor frame or with shortened filenames, instead of timing out while the file card is visibly present.",

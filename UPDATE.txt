@@ -1,3 +1,12 @@
+## PlazCode 1.18.107: Visible paused work and accurate Co-work state
+
+- Interrupted, stopped and budget-paused work stays expanded, so replies remain visible. Completed work still folds and can be reopened; ChatGPT keeps its native presentation.
+- Work messages only fold when their expandable heading is successfully mounted. Missing or failed headings leave the original messages visible, and temporary mount failures retry.
+- Co-work Off hides the empty queue panel and stale Paused/Resume buttons. Stop does not pause an empty disabled queue; real pending requests remain saved and reviewable.
+- The Notion startup provider confirmed working by the user is unchanged. All other provider files are also unchanged.
+
+Reload the extension AND refresh open AI tabs after updating.
+
 ## PlazCode 1.18.106: Notion uploaded-file preview recognition
 
 - Fixes the supplied visible-file timeout: Notion protocol cards may be siblings of the smaller editor/send frame or show a shortened filename. Attachment inspection now stays within the bounded composer shell and recognizes those labels.
