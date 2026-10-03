@@ -1,0 +1,35 @@
+name: Validate PlazCode Engram and large templates
+on:
+  push:
+    branches: [memory-templates-work]
+    paths: [memory-source.zip, .github/workflows/memory-validation.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  memory-and-templates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - run: unzip -q memory-source.zip -d memory-build
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: memory-build/PlazCode/agent
+      - name: Native tests and debug runtime
+        working-directory: memory-build/PlazCode/agent
+        run: |
+          cargo test --locked
+          cargo build --locked
+      - name: Fetch pinned official Engram runtime
+        run: |
+          curl --fail --location --retry 3 https://github.com/Gentleman-Programming/engram/releases/download/v3.0.0/engram_3.0.0_linux_amd64.tar.gz -o /tmp/engram.tar.gz
+          echo '22bbfd81ee9071a04d446f653842c383a3101b594e8829519a63a7c747602e69  /tmp/engram.tar.gz' | sha256sum --check
+          mkdir -p /tmp/engram-runtime
+          tar -xzf /tmp/engram.tar.gz -C /tmp/engram-runtime
+      - name: Real MCP and large-template integration checks
+        working-directory: memory-build/PlazCode
+        env:
+          PLAZCODE_TEST_ENGRAM: /tmp/engram-runtime/engram
+        run: python test-memory-template-runtime.py
