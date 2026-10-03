@@ -1,0 +1,180 @@
+name: Build PlazCode icons and background update presentation
+on:
+  push:
+    branches: [icons-updater-1.19.19]
+    paths: [appearance-source.zip, .github/workflows/appearance-build.yml]
+  workflow_dispatch:
+concurrency:
+  group: plazcode-appearance-validation
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  memory-and-templates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - run: unzip -q appearance-source.zip -d build
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: build/PlazCode/agent
+      - name: Native tests and debug runtime
+        working-directory: build/PlazCode/agent
+        run: |
+          cargo test --locked
+          cargo build --locked
+      - name: Fetch pinned official Engram runtime
+        run: |
+          curl --fail --location --retry 3 https://github.com/Gentleman-Programming/engram/releases/download/v3.0.0/engram_3.0.0_linux_amd64.tar.gz -o /tmp/engram.tar.gz
+          echo '22bbfd81ee9071a04d446f653842c383a3101b594e8829519a63a7c747602e69  /tmp/engram.tar.gz' | sha256sum --check
+          mkdir -p /tmp/engram-runtime
+          tar -xzf /tmp/engram.tar.gz -C /tmp/engram-runtime
+      - name: Real MCP and large-template integration checks
+        working-directory: build/PlazCode
+        env:
+          PLAZCODE_TEST_ENGRAM: /tmp/engram-runtime/engram
+        run: python test-memory-template-runtime.py
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: unzip -q appearance-source.zip -d build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix /tmp/plazcode-tests jsdom@26 playwright
+      - run: /tmp/plazcode-tests/node_modules/.bin/playwright install --with-deps chromium
+      - name: Check existing behavior and shared themes
+        working-directory: build/PlazCode
+        env:
+          NODE_PATH: /tmp/plazcode-tests/node_modules
+        run: |
+          python ../../test-javascript.py
+          node test-design-upgrade.js
+          node test-desktop-regression.js
+          node test-theme-sync.js
+          node test-package-version-display.js
+          node ../../appearance-visual.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: appearance-visual-checks
+          path: build/PlazCode/visual-checks
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract source
+        shell: bash
+        run: python -c "import zipfile; zipfile.ZipFile('appearance-source.zip').extractall('build')"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: build/PlazCode/agent
+      - name: Fetch verified prior release for macOS bundle resources
+        if: runner.os == 'macOS'
+        run: |
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/stoveez/PlazCode/cf7142231cb8cdb228b019d809dd09d053641720/PlazCode-1.19.18.zip -o PlazCode-1.19.18.zip
+          echo '3efe85efe809fb0da6852a880980ef545fd61d9e53d55171637fc74ae58bc1ab  PlazCode-1.19.18.zip' | shasum -a 256 --check
+      - name: Native regression tests
+        working-directory: build/PlazCode/agent
+        run: cargo test --locked
+      - name: Windows installer regression checks
+        if: runner.os == 'Windows'
+        working-directory: build/PlazCode
+        run: |
+          ./test-updater.ps1
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File test-update-presentation.ps1
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows' && always()
+        with:
+          name: windows-updater-presentation
+          path: build/PlazCode/visual-checks/updater-*
+      - name: Windows release build
+        if: runner.os == 'Windows'
+        working-directory: build/PlazCode/agent
+        run: cargo build --release --locked
+      - name: Universal macOS release build
+        if: runner.os == 'macOS'
+        working-directory: build/PlazCode/agent
+        run: |
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin
+          mkdir -p target/release
+          lipo -create target/x86_64-apple-darwin/release/PlazCode target/aarch64-apple-darwin/release/PlazCode -output target/release/PlazCode
+          lipo -info target/release/PlazCode
+          python ../build-macos-bundle.py
+      - name: Windows bundled Engram integration
+        if: runner.os == 'Windows'
+        working-directory: build/PlazCode
+        env:
+          PLAZCODE_TEST_BINARY: agent/target/release/PlazCode.exe
+          PLAZCODE_TEST_ENGRAM: ../../engram-runtime/engram.exe
+        run: |
+          curl.exe --fail --location --retry 3 https://github.com/Gentleman-Programming/engram/releases/download/v3.0.0/engram_3.0.0_windows_amd64.zip -o ../../engram.zip
+          if ((Get-FileHash ../../engram.zip -Algorithm SHA256).Hash -ne 'bb410e4a578bee96888f848764dbbf9e7dd78971204c05bb7fb81a4a8db324a3') { throw 'Engram checksum mismatch' }
+          Expand-Archive ../../engram.zip ../../engram-runtime
+          python test-memory-template-runtime.py
+      - name: macOS signed-bundle Engram integration
+        if: runner.os == 'macOS'
+        working-directory: build/PlazCode
+        env:
+          PLAZCODE_TEST_BUNDLE: agent/target/release/PlazCode.app
+        run: |
+          python -c "import os,platform,runpy; arch='arm64' if platform.machine().lower() in ['arm64','aarch64'] else 'amd64'; os.environ['PLAZCODE_TEST_ENGRAM']='agent/target/release/PlazCode.app/Contents/Resources/engram/engram-darwin-'+arch; runpy.run_path('test-memory-template-runtime.py',run_name='__main__')"
+      - name: Native runtime smoke test
+        working-directory: build/PlazCode
+        run: |
+          python test-platform-smoke.py
+          python test-auto-update-launch.py
+          python test-auto-update-after-launch.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ runner.os }}
+          path: build/PlazCode/agent/target/release/PlazCode*
+  package-and-publish:
+    needs: [visual, native, memory-and-templates]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: artifacts
+      - name: Fetch validated source and packager from the exact build commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail --location --silent --show-error "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/appearance-source.zip" -o appearance-source.zip
+          gh api "repos/$GITHUB_REPOSITORY/contents/package-appearance.py?ref=$GITHUB_SHA" --jq .content | base64 --decode > package-appearance.py
+          gh api "repos/$GITHUB_REPOSITORY/contents/publisher-appearance.py?ref=$GITHUB_SHA" --jq .content | base64 --decode > publisher-appearance.py
+          unzip -q appearance-source.zip -d build
+      - name: Create and validate both platform downloads
+        run: |
+          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.18', 'Main release changed; manual rebase required'"
+          python package-appearance.py
+          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.19.zip').read_bytes(),'1.19.19','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.19.zip').read_bytes(),'1.19.19','macos')"
+      - name: Commit release files and publish verified GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'PlazCode release automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm PlazCode-1.19.18.zip PlazCode-macOS-1.19.18.zip
+          git add publish_release.py Update-PlazCode.ps1 PlazCode-1.19.19.zip PlazCode-macOS-1.19.19.zip latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.19.txt
+          git commit -m 'Release PlazCode 1.19.19: navigation icons and theme-aware background updates'
+          git push origin HEAD:main
+          export GITHUB_SHA=$(git rev-parse HEAD)
+          python publish_release.py
