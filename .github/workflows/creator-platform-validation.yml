@@ -15,7 +15,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Extract validation source
         shell: bash
-        run: python -m zipfile -e validation-source.zip source
+        run: |
+          python -m zipfile -e validation-source.zip source
+          cp validation-overrides/test-desktop-regression.js source/test-desktop-regression.js
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
