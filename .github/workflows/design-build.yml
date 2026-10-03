@@ -1,0 +1,119 @@
+name: Validate PlazCode desktop revamp and automatic updates
+on:
+  push:
+    branches: [desktop-revamp-1.19.17]
+    paths: [design-source.zip, .github/workflows/design-build.yml]
+  workflow_dispatch:
+concurrency:
+  group: plazcode-design-validation
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: unzip -q design-source.zip -d build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix /tmp/plazcode-tests jsdom@26 playwright
+      - run: /tmp/plazcode-tests/node_modules/.bin/playwright install --with-deps chromium
+      - name: Check existing behavior and shared themes
+        working-directory: build/PlazCode
+        env:
+          NODE_PATH: /tmp/plazcode-tests/node_modules
+          PLAZCODE_DESIGN_BASELINE: design-baseline.html
+        run: |
+          node test-design-upgrade.js
+          node test-desktop-regression.js
+          node test-theme-sync.js
+          node test-package-version-display.js
+          node ../../design-visual.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-visual-checks
+          path: build/PlazCode/visual-checks
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract source
+        shell: bash
+        run: python -c "import zipfile; zipfile.ZipFile('design-source.zip').extractall('build')"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: build/PlazCode/agent
+      - name: Native regression tests
+        working-directory: build/PlazCode/agent
+        run: cargo test --locked
+      - name: Windows release build
+        if: runner.os == 'Windows'
+        working-directory: build/PlazCode/agent
+        run: cargo build --release --locked
+      - name: Universal macOS release build
+        if: runner.os == 'macOS'
+        working-directory: build/PlazCode/agent
+        run: |
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+          cargo build --release --locked --target x86_64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin
+          mkdir -p target/release
+          lipo -create target/x86_64-apple-darwin/release/PlazCode target/aarch64-apple-darwin/release/PlazCode -output target/release/PlazCode
+          lipo -info target/release/PlazCode
+          python ../build-macos-bundle.py
+      - name: Native runtime smoke test
+        working-directory: build/PlazCode
+        run: |
+          python test-platform-smoke.py
+          python test-auto-update-launch.py
+          python test-auto-update-after-launch.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ runner.os }}
+          path: build/PlazCode/agent/target/release/PlazCode*
+  package-and-publish:
+    needs: [visual, native]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: native-*
+          path: artifacts
+      - name: Fetch validated source and packager from the exact build commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          curl --fail --location --silent --show-error "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/design-source.zip" -o design-source.zip
+          gh api "repos/$GITHUB_REPOSITORY/contents/package-design.py?ref=$GITHUB_SHA" --jq .content | base64 --decode > package-design.py
+          unzip -q design-source.zip -d build
+      - name: Create and validate both platform downloads
+        run: |
+          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.16', 'Main release changed; manual rebase required'"
+          python package-design.py
+          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.17.zip').read_bytes(),'1.19.17','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.17.zip').read_bytes(),'1.19.17','macos')"
+      - name: Commit release files and publish verified GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'PlazCode release automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git rm PlazCode-1.19.16.zip PlazCode-macOS-1.19.16.zip
+          git add PlazCode-1.19.17.zip PlazCode-macOS-1.19.17.zip latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.17.txt
+          git commit -m 'Release PlazCode 1.19.17: visible desktop revamp and persistent automatic updates'
+          git push origin HEAD:main
+          export GITHUB_SHA=$(git rev-parse HEAD)
+          python publish_release.py
