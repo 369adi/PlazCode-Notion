@@ -1,3 +1,14 @@
+## PlazCode 1.19.09: Normal chat flow and targeted command recovery
+
+- Normal replies release the composer before checkpoint bookkeeping. Notion retains its pre-send response identity; stale/duplicate send callbacks cannot start another loop.
+- Idle Co-work messages use the site’s normal composer/send path, matching Co-work Off. Active follow-ups keep their existing queue and safe-boundary delivery.
+- Removed periodic command-list reminders, full-prompt riders and idle reminder sends. Changed memory context remains supported.
+- Explicit command-access refusal triggers a connected-engine check and one same-chat restart handshake, then resumes the unfinished request. Stop, changed chat/engine, disconnected engine and unsent drafts prevent recovery. A repeated refusal stops rather than repeatedly restarting.
+- Delayed injection cleanup cannot clear a newer send, and stale cover requests cannot block an idle composer.
+- Display versions use 1.19.09, 1.19.10 … 1.19.99, then 1.20.00. Internal Chrome/native versions remain 1.19.9, 1.19.10 … 1.20.0 for valid update comparisons.
+
+Reload the extension AND refresh open AI tabs after updating. Settings, memory, templates and enabled MCP servers retain their preservation rules.
+
 ## PlazCode 1.18.109: Stable startup and session reminders
 
 - Automatic context reminders preserve the active task and follow-ups. They no longer reissue the startup handshake, request a readiness reply or wait for a new first request. This applies to both engines and both reminder paths.

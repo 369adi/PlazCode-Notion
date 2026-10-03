@@ -24,7 +24,7 @@ def validate_archive(data,version):
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         if archive.testzip() is not None:raise ValueError('ZIP checksum failure')
         manifest=json.loads(archive.read('PlazCode/PlazCode-Extension/manifest.json'))
-        if manifest['version']!=version:raise ValueError('ZIP version does not match feed')
+        if tuple(map(int,manifest['version'].split('.')))!=tuple(map(int,version.split('.'))):raise ValueError('ZIP version does not match feed')
         if 'PlazCode/PlazCode.exe' not in archive.namelist():raise ValueError('Desktop executable missing')
 
 def main():

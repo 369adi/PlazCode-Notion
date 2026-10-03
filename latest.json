@@ -1,8 +1,30 @@
 {
-  "version": "1.18.109",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.18.109.zip",
-  "sha256": "66e4ec6a4b78dc51c04af2ec8ae53ba9ba1804cf286bb0d39834a3e521d03bba",
+  "version": "1.19.09",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.19.09.zip",
+  "sha256": "5de437fb2b1657c870f9c1c6421883c18aeb24ab8584a809bd4b461a31810f33",
   "release_notes": [
+    {
+      "version": "1.19.09",
+      "title": "Normal chat flow and targeted command recovery",
+      "summary": "Release completed replies promptly, preserve native idle Co-work messages, and recover command access only when the AI explicitly loses it.",
+      "added": [
+        "User-facing versions now use two patch digits: 1.19.09 through 1.19.99, then 1.20.00. Chrome and native package versions stay numeric without leading zeroes."
+      ],
+      "improved": [
+        "Idle Co-work sends use the same native composer and send path as normal messages. Active follow-ups remain accepted through the existing queue and safe-boundary delivery.",
+        "Normal replies release the composer before asynchronous checkpoint bookkeeping. Superseded or stopped send callbacks cannot start another loop."
+      ],
+      "fixed": [
+        "Notion pre-send response identity is preserved instead of capturing its newly mounted assistant shell, preventing waiting for an already-visible response.",
+        "Removed periodic command-list reminders, periodic full-prompt riders and idle reminder sends. Memory context changes remain distinct from reminders.",
+        "An explicit command-access refusal triggers a live-engine check and one same-chat startup handshake. Successful recovery resumes the unfinished request; repeated refusals stop without a restart loop. Disconnected engines, changed chats, Stop and unsent drafts prevent recovery.",
+        "Delayed injection cleanup is tied to the send that owns it, and an idle composer cannot be covered by a stale working request."
+      ],
+      "notes": [
+        "Settings, memory, templates and enabled MCP servers retain their update preservation rules.",
+        "Reload the extension and refresh open AI tabs after updating."
+      ]
+    },
     {
       "version": "1.18.109",
       "title": "Stable startup and session reminders",
