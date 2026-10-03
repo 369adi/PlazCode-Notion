@@ -1,3 +1,7 @@
+PlazCode 1.19.12 validation
+
+Actual desktop render calls are exercised with installed package 1.19.11 and an independently older native fallback, verifying identical sidebar/title/settings/Updates labels. A later 1.19.99 target is displayed directly. Desktop regression validates Update button behavior, unchanged providers and version transitions. Native build and archive integrity are checked before publication. Existing command-feedback, startup and data-preservation checks remain required. No live Windows updater or signed-in AI-site testing was performed in this environment. Branding/origin documentation is not technical copy protection; GPL rights are preserved.
+
 PlazCode 1.19.11 validation
 
 The actual tool-result send block is executed in a VM fixture for successful text feedback, formatted errors, screenshot attachments and the three-consecutive-failure pause. The outgoing message carries exact feedback plus changed-memory context; successful paths send once. JS syntax, reply recovery, native send intent, startup outcome, session continuity, parser, tool guards and continuation tests pass. The native binary and site providers are unchanged from 1.19.10. Both distribution ZIPs are validated before publishing; settings-preservation checks are retained. Live signed-in AI-site behavior was not tested in this environment.

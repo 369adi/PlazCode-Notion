@@ -1,3 +1,12 @@
+## PlazCode 1.19.12: Consistent package versions and current release checks
+
+- Sidebar, title, Settings and Updates display the same installed package version. An independently versioned app binary no longer produces a contradictory outdated badge.
+- BAT update checks request uncached current release metadata. Both update paths select the latest complete package directly, including across multiple skipped releases.
+- Native build and extension are both 1.19.12 in this package. Existing settings, memory, templates and MCP configuration remain preserved.
+- BRANDING-NOTICE.txt identifies the official repository/release channel and distinguishes unofficial modified distributions. Existing GPL and third-party licenses remain unchanged. This notice and update SHA256 verification do not prevent copying or modification.
+
+Reload the extension AND refresh open AI tabs after updating.
+
 ## PlazCode 1.19.11: Urgent tool-result loop fix
 
 - Fixed `toSend is not defined`, which interrupted normal tool-result delivery after a command executed.

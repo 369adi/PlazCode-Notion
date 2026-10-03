@@ -1,8 +1,28 @@
 {
-  "version": "1.19.11",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.19.11.zip",
-  "sha256": "3b0312678f75ed169c428cc86c5a397f6d74b60dad10821cb19a86762519a58d",
+  "version": "1.19.12",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/PlazCode-Update-1.19.12.zip",
+  "sha256": "f4628aaffadef0f384657bd691a0894ef1c2081c1a7d3c6d428acba867cdb610",
   "release_notes": [
+    {
+      "version": "1.19.12",
+      "title": "Consistent package versions and current release checks",
+      "summary": "Fix contradictory desktop version indicators and refresh BAT update metadata without cached intermediate releases.",
+      "added": [
+        "Official-origin and branding notice identifies the maintained release channel and distinguishes third-party modifications without changing the GPL license."
+      ],
+      "improved": [
+        "All desktop version labels use the installed package version from the updater rather than an independently versioned embedded native binary.",
+        "The BAT updater requests uncached current metadata before selecting the latest complete release ZIP."
+      ],
+      "fixed": [
+        "Sidebar/title/settings no longer show an older native build as outdated while Updates correctly reports the installed extension package as current."
+      ],
+      "notes": [
+        "Updates already select the latest complete package directly, including when multiple versions behind; intermediate releases are not installed one by one.",
+        "Native build and extension are both 1.19.12 in this package. Saved settings, memory, templates and MCP configuration remain preserved.",
+        "Origin notices and SHA256 checks are not copy protection. Existing GPL and third-party licenses remain in effect. Reload the extension and refresh AI tabs after updating."
+      ]
+    },
     {
       "version": "1.19.11",
       "title": "Urgent tool-result loop fix",
