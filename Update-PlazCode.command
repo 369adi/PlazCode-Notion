@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 root=$(cd -- "$(dirname -- "$0")" && pwd)
+version_order(){
+ /usr/bin/awk -v left="$1" -v right="$2" 'BEGIN{split(left,a,".");split(right,b,".");for(i=1;i<=3;i++){if(a[i]+0<b[i]+0){print -1;exit}if(a[i]+0>b[i]+0){print 1;exit}}print 0}'
+}
 zip=${1:?Update ZIP path required}
 expectedhash=${2:?Checksum required}
 version=${3:?Version required}
@@ -15,7 +18,11 @@ backup="$stage/backup";mkdir -p "$backup"
 /usr/bin/ditto -x -k "$zip" "$stage/extracted"
 source="$stage/extracted/PlazCode"
 [[ "$(/usr/bin/plutil -extract version raw -o - "$source/PlazCode-Extension/manifest.json")" == "$version" ]]
-[[ "$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$source/PlazCode.app/Contents/Info.plist")" == "$version" ]]
+nativeversion=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$source/PlazCode.app/Contents/Info.plist")
+installednative=$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "$root/PlazCode.app/Contents/Info.plist")
+[[ "$nativeversion" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$installednative" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+# Extension-only updates may retain the signed native app; never downgrade it.
+[[ "$(version_order "$installednative" "$nativeversion")" != 1 && "$(version_order "$nativeversion" "$version")" != 1 ]]
 /usr/bin/file "$source/PlazCode.app/Contents/MacOS/PlazCode" | /usr/bin/grep -q 'Mach-O'
 /usr/bin/codesign --verify --deep --strict "$source/PlazCode.app"
 [[ "$(/bin/ps -ww -p "$pid" -o comm=)" == "$root/PlazCode.app/Contents/MacOS/PlazCode" ]] || { echo 'Running installation changed. Retry from the app.' >&2; exit 5; }
