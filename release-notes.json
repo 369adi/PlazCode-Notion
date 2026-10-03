@@ -1,5 +1,24 @@
 [
 {
+  "version": "1.19.10",
+  "title": "Notion startup status and meaningful chat continuation",
+  "summary": "Retain the confirmed startup command status after Notion replaces its event anchor, distinguish result attachments, and skip continuation offers for startup-only chats.",
+  "added": [],
+  "improved": [
+    "Notion command-feedback files are named plazcode_tool_result_*.txt and instruct the AI to continue the existing handshake or task, rather than repeat startup.",
+    "Continuation records explicitly track whether a real user request was captured; startup-only legacy records are also filtered."
+  ],
+  "fixed": [
+    "Capture startup identity before card rendering. Restore the confirmed outcome when Notion settles under a replacement event anchor, matching the original conversation, assistant position, preceding user message and command text. Later identical commands stay separate.",
+    "The already-dispatched guard also recognizes restored startup outcomes so a remounted startup call is not replayed.",
+    "The new-chat continuation prompt does not appear for a chat containing only startup instructions, command feedback and readiness acknowledgement."
+  ],
+  "notes": [
+    "The console confirmed list_commands was executed; the second attachment carries its result, not a second full startup.",
+    "Reload the extension and refresh open AI tabs. Saved settings, memory, templates and enabled MCP servers remain preserved."
+  ]
+},
+{
   "version": "1.19.09",
   "title": "Normal chat flow and targeted command recovery",
   "summary": "Release completed replies promptly, preserve native idle Co-work messages, and recover command access only when the AI explicitly loses it.",

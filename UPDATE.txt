@@ -1,3 +1,12 @@
+## PlazCode 1.19.10: Notion startup status and meaningful chat continuation
+
+- Startup command outcomes survive Notion settling under a replacement event anchor. Matching stays scoped to the conversation, original assistant position, preceding user message and command text; later identical commands remain distinct.
+- Bootstrap identity is captured before card rendering, and restored completed/error outcomes also prevent re-dispatch.
+- Notion result attachments use `plazcode_tool_result_*.txt` and tell the AI to continue the existing handshake or task. The second attachment is the command result, not a second startup.
+- New-chat continuation is offered only for chats with real user requests or pending follow-ups. Startup-only records, including legacy exports, are excluded.
+
+Reload the extension AND refresh open AI tabs after updating. Saved settings, memory, templates and enabled MCP servers remain preserved.
+
 ## PlazCode 1.19.09: Normal chat flow and targeted command recovery
 
 - Normal replies release the composer before checkpoint bookkeeping. Notion retains its pre-send response identity; stale/duplicate send callbacks cannot start another loop.
