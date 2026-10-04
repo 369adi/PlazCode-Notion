@@ -1,3 +1,12 @@
+PlazCode 1.19.21 — Branded Windows application and tray icons
+
+Add the missing PlazCode application icon to the Windows executable and background tray.
+
+- Embedded multi-resolution PlazCode icon includes 16–256 pixel sizes for Windows application files and display scaling.
+- The application window, taskbar and background tray share the existing orange PlazCode brand mark.
+- The updater uses the PlazCode icon for its progress window and background tray notification while retaining the selected theme and background behavior.
+- File Explorer and the running application tray no longer fall back to the generic white and blue Windows application icon because the executable lacked an icon resource.
+
 PlazCode 1.19.20 — Clear Settings icon at sidebar size
 
 Correct the distorted Settings wrench and gear while retaining the 1.19.19 navigation and updater improvements.

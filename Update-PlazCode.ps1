@@ -29,7 +29,7 @@ try {
                     if ($Appearance) { $Theme=$Appearance.theme; $Glow=$Appearance.glow; $NoGradients=$Appearance.gradients -eq 'off' }
                 } catch { }
             }
-            [PlazCode.UpdateProgress]::Open($ExpectedVersion,$Theme,[bool]$BackgroundUpdate,$Glow,!$NoGradients)
+            [PlazCode.UpdateProgress]::Open($ExpectedVersion,$Theme,[bool]$BackgroundUpdate,$Glow,!$NoGradients,(Join-Path $install 'agent/assets/plazcode.ico'))
             $uiReady = $true
         } catch { Write-Host ('Progress window unavailable: ' + $_.Exception.Message) -ForegroundColor Yellow }
     }
