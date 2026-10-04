@@ -1,0 +1,21 @@
+**PlazCode 1.19.27: Separate builders, Studio Toolkit and readable notifications**
+
+- Separate Model Builder and UI Builder, add the Toolkit page, and introduce notifications that become read when opened.
+
+***New additions***
+
+- Model Builder and UI Builder each have a dedicated page, relevant controls and a filtered saved-draft library.
+- Toolkit includes 12 AI game starters, six AI script jobs, six direct lighting presets, seeded terrain generation, Creator Store search and model insertion, a Luau console, Play controls, a read-only health scan and saved place backups.
+- A themed notification bell records Studio connection changes, completed AI tasks, update availability and errors, and Toolkit results. Opening the panel marks messages read; read state persists and notifications can be cleared.
+
+***Improvements***
+
+- Both builders retain Describe, Review preview and Insert in Studio steps, reference images, revision requests, exports and saved preview edits. UI Builder hides model-only controls.
+- Toolkit explains which actions use the AI chat, which run directly in Studio, and which work with saved files.
+- New pages use responsive cards, wrapping action rows, consistent gaps, themed focus states and a scrollable sidebar that fits short windows.
+
+***Bug fixes***
+
+- Builder libraries and blueprint imports cannot silently open a draft of the wrong type.
+- Terrain accepts seed 0 and replaces only the selected generation area when replacement is enabled.
+- Backups verify checksums before restoring, block restoration while Studio is detected open, and preserve the replaced file as another backup.

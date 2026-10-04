@@ -1,9 +1,34 @@
 {
-  "version": "1.19.26",
-  "desktop_version": "1.19.26",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.26.zip",
-  "sha256": "5e96bd78a46117c09455b96cc0d3fc29feb3972d8b6db3c90fffe8971d0879a3",
+  "version": "1.19.27",
+  "desktop_version": "1.19.27",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.27.zip",
+  "sha256": "51c3eba0ac945cb1e0ae3da0d5ccc5e6e754ed7db904a00ca0abdceb31e3a0ad",
   "release_notes": [
+    {
+      "version": "1.19.27",
+      "title": "Separate builders, Studio Toolkit and readable notifications",
+      "summary": "Separate Model Builder and UI Builder, add the Toolkit page, and introduce notifications that become read when opened.",
+      "added": [
+        "Model Builder and UI Builder each have a dedicated page, relevant controls and a filtered saved-draft library.",
+        "Toolkit includes 12 AI game starters, six AI script jobs, six direct lighting presets, seeded terrain generation, Creator Store search and model insertion, a Luau console, Play controls, a read-only health scan and saved place backups.",
+        "A themed notification bell records Studio connection changes, completed AI tasks, update availability and errors, and Toolkit results. Opening the panel marks messages read; read state persists and notifications can be cleared."
+      ],
+      "improved": [
+        "Both builders retain Describe, Review preview and Insert in Studio steps, reference images, revision requests, exports and saved preview edits. UI Builder hides model-only controls.",
+        "Toolkit explains which actions use the AI chat, which run directly in Studio, and which work with saved files.",
+        "New pages use responsive cards, wrapping action rows, consistent gaps, themed focus states and a scrollable sidebar that fits short windows."
+      ],
+      "fixed": [
+        "Builder libraries and blueprint imports cannot silently open a draft of the wrong type.",
+        "Terrain accepts seed 0 and replaces only the selected generation area when replacement is enabled.",
+        "Backups verify checksums before restoring, block restoration while Studio is detected open, and preserve the replaced file as another backup."
+      ],
+      "notes": [
+        "Native and JavaScript regressions, action-routing tests, saved-file backup/restore integration and hosted Chromium spacing checks run before publication.",
+        "Live AI game generation, asset permissions and Studio rendering require a connected Studio/AI session and were not exercised on a real user machine.",
+        "Reload the browser extension after updating and refresh open AI tabs."
+      ]
+    },
     {
       "version": "1.19.26",
       "title": "Supported AI shortcuts and reliable Studio connection status",
@@ -705,45 +730,12 @@
         "Expanded work details preserve unchanged content and scrolling across refreshes, collapse once on completion and remain reopenable. Retention is bounded; oversized/older omitted details receive an explicit notice.",
         "The updater swirl rotates normally and uses a slower continuous rotation when reduced motion is enabled, instead of freezing."
       ]
-    },
-    {
-      "version": "1.18.90",
-      "title": "Grouped replies and extension status",
-      "summary": "Task replies and commands collapse together, with extension status under the bar name and a corrected ChatGPT shortcut logo.",
-      "added": [
-        "The browser bar shows its installed extension version below PlazCode, with green (Up to date), red (Outdated - New update available), or a neutral unavailable/unchecked status.",
-        "ChatGPT: Highly intelligent in all aspects. DeepSeek: Recommended for free users. Claude: Expert at scripting and game development. Each description appears below its name and above Open in browser."
-      ],
-      "improved": [
-        "The desktop ChatGPT shortcut uses a vector logo traced from the supplied reference instead of a circle character. Its existing browser-opening action is preserved."
-      ],
-      "fixed": [
-        "Working/Worked now includes task prose, final responses, command cards and injected results. Completed groups collapse together and reopen on click. Startup, list_commands/list_tools and PlazCode is ready. remain outside; user requests remain visible.",
-        "Activity identity survives streaming text changes and transcript remounts, and remains scoped to the chat.",
-        "The updater explicitly preserves native settings, MCP configuration/enabled servers, memory, pairing, templates, update source and WebView user data, even if a package contains saved-data files.",
-        "The Tools page includes both engine skill libraries, imported Studio helpers, asset_bridge_import and developer-product tools with descriptions.",
-        "Working/Worked uses a centered vector chevron that points right when collapsed and rotates down when expanded."
-      ]
-    },
-    {
-      "version": "1.18.89",
-      "title": "Home engine switch",
-      "summary": "Switch between RobloxScript and AgentScript directly above Start Agent on the desktop Home page.",
-      "added": [
-        "A themed, keyboard-accessible RobloxScript / AgentScript button group under the active AI status and above Start Agent. The selected engine is highlighted."
-      ],
-      "improved": [
-        "The Home buttons use the existing saved engine preference and browser synchronization, and stay synchronized with the Settings engine selector. Repeated clicks are disabled while saving."
-      ],
-      "fixed": [
-        "Start Agent is temporarily disabled while the engine change is saving or the selected browser chat still reports a different engine, preventing a start on the previous engine."
-      ]
     }
   ],
   "platforms": {
     "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.26.zip",
-      "sha256": "4455958f913337b92ed0a44ea759b4206c343c699444ea6360d9819d370ef07c"
+      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.27.zip",
+      "sha256": "02201e5b4890d45d62142659080e931ec651979fbe6f11e25ee7c9fc027f182b"
     }
   }
 }
