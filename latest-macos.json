@@ -1,9 +1,30 @@
 {
-  "version": "1.19.27",
-  "desktop_version": "1.19.27",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.27.zip",
-  "sha256": "02201e5b4890d45d62142659080e931ec651979fbe6f11e25ee7c9fc027f182b",
+  "version": "1.19.28",
+  "desktop_version": "1.19.28",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.28.zip",
+  "sha256": "63cf7b8315aa3e7778d9b75ca132f263e6a4cb7baa958318f34a43275690cdf1",
   "release_notes": [
+    {
+      "version": "1.19.28",
+      "title": "Reliable Blender checks, tab-local engines and update recovery",
+      "summary": "Verify actual Blender responses, isolate script modes per AI tab, recover missing update helpers and improve Notion/Claude command presentation.",
+      "added": [
+        "Test Blender connection verifies an actual addon scene response and explains addon setup separately from the MCP process.",
+        "Browser connection errors include pairing and extension/local-network permission guidance."
+      ],
+      "improved": [
+        "Blender commands use a bounded native TCP bridge instead of temporary PowerShell/Python request files; scene checks finish or report an error within eight seconds.",
+        "RobloxScript and AgentScript choices persist per tab across service-worker restarts. Popup and desktop switches target only the selected AI tab.",
+        "Notion protocol uploads select text-compatible file inputs and allow more time for slow uploads without duplicate submissions."
+      ],
+      "fixed": [
+        "Missing update helpers are recovered from the compiled app in temporary staging; incomplete application-only installations receive a clear full-folder extraction error.",
+        "Failed update screens no longer promise a restart that is not pending.",
+        "Blender no longer appears connected merely because a port or MCP process is running.",
+        "Each browser socket has its own connection ID, preventing one browser disconnect from removing another browser connection.",
+        "Claude command frames support deeper wrappers and Copy-to-clipboard controls while preserving narration and ordinary code."
+      ]
+    },
     {
       "version": "1.19.27",
       "title": "Separate builders, Studio Toolkit and readable notifications",
@@ -729,25 +750,6 @@
         "Task checkpoints & workflows has a clear gap below the Home cards; the Working panel also has consistent spacing.",
         "Expanded work details preserve unchanged content and scrolling across refreshes, collapse once on completion and remain reopenable. Retention is bounded; oversized/older omitted details receive an explicit notice.",
         "The updater swirl rotates normally and uses a slower continuous rotation when reduced motion is enabled, instead of freezing."
-      ]
-    },
-    {
-      "version": "1.18.90",
-      "title": "Grouped replies and extension status",
-      "summary": "Task replies and commands collapse together, with extension status under the bar name and a corrected ChatGPT shortcut logo.",
-      "added": [
-        "The browser bar shows its installed extension version below PlazCode, with green (Up to date), red (Outdated - New update available), or a neutral unavailable/unchecked status.",
-        "ChatGPT: Highly intelligent in all aspects. DeepSeek: Recommended for free users. Claude: Expert at scripting and game development. Each description appears below its name and above Open in browser."
-      ],
-      "improved": [
-        "The desktop ChatGPT shortcut uses a vector logo traced from the supplied reference instead of a circle character. Its existing browser-opening action is preserved."
-      ],
-      "fixed": [
-        "Working/Worked now includes task prose, final responses, command cards and injected results. Completed groups collapse together and reopen on click. Startup, list_commands/list_tools and PlazCode is ready. remain outside; user requests remain visible.",
-        "Activity identity survives streaming text changes and transcript remounts, and remains scoped to the chat.",
-        "The updater explicitly preserves native settings, MCP configuration/enabled servers, memory, pairing, templates, update source and WebView user data, even if a package contains saved-data files.",
-        "The Tools page includes both engine skill libraries, imported Studio helpers, asset_bridge_import and developer-product tools with descriptions.",
-        "Working/Worked uses a centered vector chevron that points right when collapsed and rotates down when expanded."
       ]
     }
   ]

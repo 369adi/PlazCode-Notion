@@ -1,9 +1,30 @@
 {
-  "version": "1.19.27",
-  "desktop_version": "1.19.27",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.27.zip",
-  "sha256": "51c3eba0ac945cb1e0ae3da0d5ccc5e6e754ed7db904a00ca0abdceb31e3a0ad",
+  "version": "1.19.28",
+  "desktop_version": "1.19.28",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.28.zip",
+  "sha256": "79f4a5061fb30c8ab8bf52289eb477795756cbe218a383dccce3e5740393ad92",
   "release_notes": [
+    {
+      "version": "1.19.28",
+      "title": "Reliable Blender checks, tab-local engines and update recovery",
+      "summary": "Verify actual Blender responses, isolate script modes per AI tab, recover missing update helpers and improve Notion/Claude command presentation.",
+      "added": [
+        "Test Blender connection verifies an actual addon scene response and explains addon setup separately from the MCP process.",
+        "Browser connection errors include pairing and extension/local-network permission guidance."
+      ],
+      "improved": [
+        "Blender commands use a bounded native TCP bridge instead of temporary PowerShell/Python request files; scene checks finish or report an error within eight seconds.",
+        "RobloxScript and AgentScript choices persist per tab across service-worker restarts. Popup and desktop switches target only the selected AI tab.",
+        "Notion protocol uploads select text-compatible file inputs and allow more time for slow uploads without duplicate submissions."
+      ],
+      "fixed": [
+        "Missing update helpers are recovered from the compiled app in temporary staging; incomplete application-only installations receive a clear full-folder extraction error.",
+        "Failed update screens no longer promise a restart that is not pending.",
+        "Blender no longer appears connected merely because a port or MCP process is running.",
+        "Each browser socket has its own connection ID, preventing one browser disconnect from removing another browser connection.",
+        "Claude command frames support deeper wrappers and Copy-to-clipboard controls while preserving narration and ordinary code."
+      ]
+    },
     {
       "version": "1.19.27",
       "title": "Separate builders, Studio Toolkit and readable notifications",
@@ -710,32 +731,12 @@
       "fixed": [
         "Tasks has a dedicated sticky header and accessible close button, separated from content, with explicit button type and click handling."
       ]
-    },
-    {
-      "version": "1.18.91",
-      "title": "Desktop work details and responsive status",
-      "summary": "Expanded desktop work details now show AI replies and commands, with cleaner Home spacing, accurate icons and faster automatic update detection.",
-      "added": [
-        "Desktop Working/Worked details show AI replies, command text and results from the selected browser chat, loaded only while the panel is open."
-      ],
-      "improved": [
-        "Automatic release checks run every five seconds, with desktop/browser status propagation every two seconds. The default GitHub feed uses a five-second cache key; network/cache delays can still apply. Checks do not overlap.",
-        "DeepSeek and Claude shortcuts use vector logos from the supplied references. Tools uses the supplied icon, and Settings has a symmetric centered gear.",
-        "Templates now use Choose a Roblox file and Add template, with short numbered directions. Advanced script search is optional and collapsed.",
-        "Desktop template imports support Roblox files up to 128 MB using direct binary uploads, avoiding base64 copies. Browser imports remain limited to 32 MB; script-index bounds still apply.",
-        "Memory transfer separates Save to a file from Load into another chat, explains saved notes versus messages, and uses clear create/download/load buttons."
-      ],
-      "fixed": [
-        "Task checkpoints & workflows has a clear gap below the Home cards; the Working panel also has consistent spacing.",
-        "Expanded work details preserve unchanged content and scrolling across refreshes, collapse once on completion and remain reopenable. Retention is bounded; oversized/older omitted details receive an explicit notice.",
-        "The updater swirl rotates normally and uses a slower continuous rotation when reduced motion is enabled, instead of freezing."
-      ]
     }
   ],
   "platforms": {
     "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.27.zip",
-      "sha256": "02201e5b4890d45d62142659080e931ec651979fbe6f11e25ee7c9fc027f182b"
+      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.28.zip",
+      "sha256": "63cf7b8315aa3e7778d9b75ca132f263e6a4cb7baa958318f34a43275690cdf1"
     }
   }
 }

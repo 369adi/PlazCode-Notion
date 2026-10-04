@@ -1,0 +1,22 @@
+**PlazCode 1.19.28: Reliable Blender checks, tab-local engines and update recovery**
+
+- Verify actual Blender responses, isolate script modes per AI tab, recover missing update helpers and improve Notion/Claude command presentation.
+
+***New additions***
+
+- Test Blender connection verifies an actual addon scene response and explains addon setup separately from the MCP process.
+- Browser connection errors include pairing and extension/local-network permission guidance.
+
+***Improvements***
+
+- Blender commands use a bounded native TCP bridge instead of temporary PowerShell/Python request files; scene checks finish or report an error within eight seconds.
+- RobloxScript and AgentScript choices persist per tab across service-worker restarts. Popup and desktop switches target only the selected AI tab.
+- Notion protocol uploads select text-compatible file inputs and allow more time for slow uploads without duplicate submissions.
+
+***Bug fixes***
+
+- Missing update helpers are recovered from the compiled app in temporary staging; incomplete application-only installations receive a clear full-folder extraction error.
+- Failed update screens no longer promise a restart that is not pending.
+- Blender no longer appears connected merely because a port or MCP process is running.
+- Each browser socket has its own connection ID, preventing one browser disconnect from removing another browser connection.
+- Claude command frames support deeper wrappers and Copy-to-clipboard controls while preserving narration and ordinary code.
