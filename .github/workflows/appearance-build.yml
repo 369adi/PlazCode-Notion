@@ -81,8 +81,8 @@ jobs:
       - name: Fetch verified prior release for macOS bundle resources
         if: runner.os == 'macOS'
         run: |
-          curl --fail --location --retry 3 https://raw.githubusercontent.com/stoveez/PlazCode/46820c83c8c979ec20347569ab31d714b621f382/PlazCode-1.19.20.zip -o PlazCode-1.19.20.zip
-          echo '42bd8ff95abae59fba49013abf86af0169b1bdc7309d96d63105fc3cc068515c  PlazCode-1.19.20.zip' | shasum -a 256 --check
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/stoveez/PlazCode/adc6b52202ffa69911e9382cf6248a3d2fb92cf8/PlazCode-1.19.21.zip -o PlazCode-1.19.21.zip
+          echo 'af75f010a5e7e1d1f83c88cff4eba303e5340ac90e70466855c8042d003a6a71  PlazCode-1.19.21.zip' | shasum -a 256 --check
       - name: Native regression tests
         working-directory: build/PlazCode/agent
         run: cargo test --locked
@@ -172,18 +172,18 @@ jobs:
           unzip -q appearance-source.zip -d build
       - name: Create and validate both platform downloads
         run: |
-          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.20', 'Main release changed; manual rebase required'"
+          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.21', 'Main release changed; manual rebase required'"
           python package-appearance.py
-          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.21.zip').read_bytes(),'1.19.21','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.21.zip').read_bytes(),'1.19.21','macos')"
+          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.22.zip').read_bytes(),'1.19.22','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.22.zip').read_bytes(),'1.19.22','macos')"
       - name: Commit release files and publish verified GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name 'PlazCode release automation'
           git config user.email 'actions@users.noreply.github.com'
-          git rm PlazCode-1.19.20.zip PlazCode-macOS-1.19.20.zip
-          git add publish_release.py Update-PlazCode.ps1 PlazCode-1.19.21.zip PlazCode-macOS-1.19.21.zip latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.21.txt
-          git commit -m 'Release PlazCode 1.19.21: branded Windows application and tray icons'
+          git rm PlazCode-1.19.21.zip PlazCode-macOS-1.19.21.zip
+          git add publish_release.py Update-PlazCode.ps1 PlazCode-1.19.22.zip PlazCode-macOS-1.19.22.zip latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.22.txt
+          git commit -m 'Release PlazCode 1.19.22: reliable application and updater tray icons'
           git push origin HEAD:main
           export GITHUB_SHA=$(git rev-parse HEAD)
           python publish_release.py
