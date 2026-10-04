@@ -1,3 +1,16 @@
+PlazCode 1.19.26 — Supported AI shortcuts and reliable Studio connection status
+
+Add a supported-AI dropdown to Home, match Quick Access icons, and fix conflicting Studio connection checks.
+
+- Home includes an All supported AIs dropdown with launch buttons for every registered browser AI provider and an Ollama website entry.
+- Ollama includes a clear note that local chat opens from the browser extension; Notion is labeled experimental.
+- AI launch buttons use the same external-browser flow as the recommended ChatGPT, DeepSeek and Claude buttons.
+- The dropdown uses a responsive grid, consistent button gaps, wrapping labels and themed focus/hover states.
+- Quick Access Tools, MCP Servers, Terminal and Settings icons now use the exact SVG artwork from the sidebar.
+- The supported-AI list expands in normal page flow, keeping Task checkpoints & workflows and following content from overlapping.
+- The browser bar now reads the desktop’s confirmed Studio connection status instead of ignoring it.
+- A missed process scan or a disconnected browser tab no longer clears a verified Studio MCP connection. Unknown probe timeouts retain the last confirmed result; explicit connection failures still disable the agent.
+
 PlazCode 1.19.25 — Reliable updater restarts and clear Notion settings
 
 Confirm the updated desktop has loaded, keep background restarts accessible and hide the floating bar over Notion settings.

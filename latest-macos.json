@@ -1,9 +1,33 @@
 {
-  "version": "1.19.25",
-  "desktop_version": "1.19.25",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.25.zip",
-  "sha256": "fc0566b1363365edf23da27141433414912d40dbca367a9716349b70274eef35",
+  "version": "1.19.26",
+  "desktop_version": "1.19.26",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.26.zip",
+  "sha256": "4455958f913337b92ed0a44ea759b4206c343c699444ea6360d9819d370ef07c",
   "release_notes": [
+    {
+      "version": "1.19.26",
+      "title": "Supported AI shortcuts and reliable Studio connection status",
+      "summary": "Add a supported-AI dropdown to Home, match Quick Access icons, and fix conflicting Studio connection checks.",
+      "added": [
+        "Home includes an All supported AIs dropdown with launch buttons for every registered browser AI provider and an Ollama website entry.",
+        "Ollama includes a clear note that local chat opens from the browser extension; Notion is labeled experimental."
+      ],
+      "improved": [
+        "AI launch buttons use the same external-browser flow as the recommended ChatGPT, DeepSeek and Claude buttons.",
+        "The dropdown uses a responsive grid, consistent button gaps, wrapping labels and themed focus/hover states."
+      ],
+      "fixed": [
+        "Quick Access Tools, MCP Servers, Terminal and Settings icons now use the exact SVG artwork from the sidebar.",
+        "The supported-AI list expands in normal page flow, keeping Task checkpoints & workflows and following content from overlapping.",
+        "The browser bar now reads the desktop\u2019s confirmed Studio connection status instead of ignoring it.",
+        "A missed process scan or a disconnected browser tab no longer clears a verified Studio MCP connection. Unknown probe timeouts retain the last confirmed result; explicit connection failures still disable the agent."
+      ],
+      "notes": [
+        "Native launch routing and provider coverage are checked without opening live AI sites.",
+        "Reload the extension after the desktop update and refresh open AI tabs.",
+        "Connection regressions cover confirmed-editor/missed-process cases, explicit disconnections and timed-out probes. The tester\u2019s actual machine was not available for direct reproduction."
+      ]
+    },
     {
       "version": "1.19.25",
       "title": "Reliable updater restarts and clear Notion settings",
@@ -713,24 +737,6 @@
       ],
       "fixed": [
         "Start Agent is temporarily disabled while the engine change is saving or the selected browser chat still reports a different engine, preventing a start on the previous engine."
-      ]
-    },
-    {
-      "version": "1.18.88",
-      "title": "Automatic template references",
-      "summary": "Import Roblox place/model files and let PlazCode find relevant reference systems automatically before a task\u2019s first tool call.",
-      "added": [
-        "Templates tab in the desktop app and a Template library inside browser Tasks. Import .rbxl, .rbxlx, .rbxm and .rbxmx files up to 32 MB, add a systems description, browse/read scripts and remove saved references.",
-        "Automatic matching uses cached script paths, identifiers and template descriptions. Up to three bounded excerpts are supplied before the first agent tool executes; no explicit \u201creference this template\u201d request is required.",
-        "Read-only plazcode_templates tools support explicit matching, script lists and paged source reading. Duplicate script paths have separate IDs.",
-        "Open in Studio explicitly opens the retained original through the Windows Roblox file association; select the desired Studio session in PlazCode afterwards."
-      ],
-      "improved": [
-        "Template code is reference data, not executable instructions. Existing project conventions take priority. Matching is a relevance hint rather than guaranteed semantic understanding.",
-        "Template files/indexes persist in your private app data, survive updates and are excluded from distribution ZIPs. Source indexes and excerpts have explicit size limits to avoid flooding long chats."
-      ],
-      "fixed": [
-        "Malformed, unsupported and source-free files report clear import errors. Missing scripts in copied/decompiled games are not fabricated or recovered. Binary and XML imports preserve the original file bytes."
       ]
     }
   ]
