@@ -1,9 +1,9 @@
 from pathlib import Path
 import json,zipfile,hashlib,io,plistlib,struct,urllib.request,tarfile
-repo=Path.cwd();version='1.19.25';root=repo/'build/PlazCode'
+repo=Path.cwd();version='1.19.26';root=repo/'build/PlazCode'
 notes=json.loads((root/'release-notes.json').read_text());entry=notes[0];assert entry['version']==version
 intro='PlazCode '+version+' — '+entry['title']+'\n\n'+entry['summary']+'\n\n'+'\n'.join('- '+x for key in ['added','improved','fixed'] for x in entry[key])+'\n\n'
-validation='PlazCode 1.19.25 validation\nNative Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows resource checks load the embedded PlazCode icon at nine sizes and verify the updater tray icon without locking the asset. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. The real Windows updater relaunch function is checked against the compiled desktop for version/pid readiness, visible foreground startup and minimized background startup without taking focus. Full live supported-AI conversations, Roblox Studio insertion, real-user installation and macOS GUI relaunch are not exercised.\n\n'
+validation='PlazCode 1.19.26 validation\nNative Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows resource checks load the embedded PlazCode icon at nine sizes and verify the updater tray icon without locking the asset. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. The real Windows updater relaunch function is checked against the compiled desktop for version/pid readiness, visible foreground startup and minimized background startup without taking focus. Full live supported-AI conversations, Roblox Studio insertion, real-user installation and macOS GUI relaunch are not exercised.\n\n'
 for name in ['README.md','UPDATE.txt','MAINTENANCE.md']:
  (repo/name).write_text(intro+(repo/name).read_text());(root/name).write_bytes((repo/name).read_bytes())
 (repo/'VALIDATION.txt').write_text(validation+(repo/'VALIDATION.txt').read_text());(root/'VALIDATION.txt').write_bytes((repo/'VALIDATION.txt').read_bytes())
@@ -29,7 +29,7 @@ with zipfile.ZipFile(repo/'artifacts/native-macOS/PlazCode-app.zip') as app:
 p=root/'macos/Info.plist';data=plistlib.loads(p.read_bytes());data['CFBundleShortVersionString']=data['CFBundleVersion']=version;p.write_bytes(plistlib.dumps(data))
 source={f'PlazCode/{p.relative_to(root)}':p.read_bytes() for p in root.rglob('*') if p.is_file() and not any(x in p.relative_to(root).parts for x in ['target','.git','node_modules','__pycache__','PlazCode.app','visual-checks'])}
 source['PlazCode/PlazCode.exe']=(repo/'artifacts/native-Windows/PlazCode.exe').read_bytes()
-original=repo/'PlazCode-1.19.24.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='60b30578e43b2ff5910978b77bec3071b7b0af5f90cea716ab8b20ac29d076dd'
+original=repo/'PlazCode-1.19.25.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='bde05b569581ff214ea2d944000633debde08347de8036551a4723a36e73c35a'
 metadata=[]
 for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-macOS-{version}.zip')]:
  output=repo/name;remaining=dict(source)
@@ -58,7 +58,7 @@ for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-
   assert z.getinfo('PlazCode/PlazCode.app/Contents/MacOS/PlazCode').external_attr>>16&0o111
   with zipfile.ZipFile(original) as old:
    for path in old.namelist():
-    if '/providers/' in path and not path.endswith('/providers/notion.js'):assert old.read(path)==z.read(path)
+    if '/providers/' in path:assert old.read(path)==z.read(path)
  raw=output.read_bytes();assert len(raw)<=64*1024*1024
  metadata.append({'file':name,'platform':platform,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
 feeds={x['platform']:{'version':version,'desktop_version':version,'url':f"https://raw.githubusercontent.com/stoveez/PlazCode/main/{x['file']}",'sha256':x['sha256'],'release_notes':notes} for x in metadata}
@@ -71,5 +71,5 @@ for feed in feeds.values():
 description='**PlazCode '+version+': '+entry['title']+'**\n\n- '+entry['summary']+'\n'
 for key,title in [('added','New additions'),('improved','Improvements'),('fixed','Bug fixes')]:
  description+='\n***'+title+'***\n\n'+('\n'.join('- '+x for x in entry[key]) or '- None.')+'\n'
-(repo/'release-description-1.19.25.txt').write_text(description)
+(repo/'release-description-1.19.26.txt').write_text(description)
 print(json.dumps(metadata,indent=2))

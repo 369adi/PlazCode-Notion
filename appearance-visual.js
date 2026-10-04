@@ -2,7 +2,7 @@ const fs=require('fs');const {chromium}=require('playwright');
 (async()=>{
  const original=fs.readFileSync('agent/src/desktop.html','utf8');
  const themeScript='function Byid(id){return document.getElementById(id)};'+original.slice(original.indexOf('  var Desktopthemes ='),original.indexOf('  function Saveappearance()'));
- const html=original.replaceAll('__PLAZCODE_VERSION__','1.19.25').replace(/<script>[\s\S]*?<\/script>/g,'');
+ const html=original.replaceAll('__PLAZCODE_VERSION__','1.19.26').replace(/<script>[\s\S]*?<\/script>/g,'');
  const browser=await chromium.launch({headless:true});const page=await browser.newPage();
  await page.setContent(html);
  await page.addScriptTag({content:themeScript});
@@ -17,6 +17,22 @@ const fs=require('fs');const {chromium}=require('playwright');
    if(overflow)throw Error(`${name} overflows at ${width}`);
   }
  }
+ for(const width of [1440,1024,760]) {
+  await page.setViewportSize({width,height:1100});
+  for(const theme of ['default','ocean','orchid']) {
+   await page.evaluate(theme=>{Applyappearance({theme});document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-home'));document.getElementById('homeSupportedAis').open=true;document.getElementById('content').scrollTop=0;},theme);
+   await page.locator('#homeSupportedAis').scrollIntoViewIfNeeded();
+   const failure=await page.evaluate(()=>{
+    const card=document.getElementById('homeSupportedAis'),rect=card.getBoundingClientRect(),buttons=[...card.querySelectorAll('.supported-ai-link')].map(n=>n.getBoundingClientRect()),tasks=document.getElementById('homeTasks').getBoundingClientRect();
+    if(buttons.length!==14||tasks.top<rect.bottom+8)return 'Card order/spacing';
+    if(buttons.some(b=>b.left<rect.left||b.right>rect.right||b.width<100))return 'Button width';
+    for(let i=0;i<buttons.length;i++)for(let j=i+1;j<buttons.length;j++){const a=buttons[i],b=buttons[j];if(a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top)return 'Buttons overlap';}
+    const content=document.getElementById('content');return content.scrollWidth>content.clientWidth+1?'Horizontal overflow':null;
+   });if(failure)throw Error('Supported AI layout '+theme+' '+width+': '+failure);
+   await page.screenshot({animations:'disabled',path:`visual-checks/supported-ais-${theme}-${width}.png`});
+  }
+ }
+ await page.evaluate(()=>{document.getElementById('homeSupportedAis').open=false;document.getElementById('content').scrollTop=0;});
  await page.setViewportSize({width:1440,height:960});
  for(const theme of ['ocean','copper','aurora','orchid','solar']){
   await page.evaluate(theme=>{Applyappearance({theme});document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-home'));},theme);

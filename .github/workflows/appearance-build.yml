@@ -56,6 +56,7 @@ jobs:
           node test-desktop-regression.js
           node test-theme-sync.js
           node test-package-version-display.js
+          PLAZCODE_TEST_STUDIO_STATUS=1 node test-page-startup.js
           node ../../appearance-visual.js
       - uses: actions/upload-artifact@v4
         if: always()
@@ -81,8 +82,8 @@ jobs:
       - name: Fetch verified prior release for macOS bundle resources
         if: runner.os == 'macOS'
         run: |
-          curl --fail --location --retry 3 https://raw.githubusercontent.com/stoveez/PlazCode/87ad07b154fd473c5c4064cb1a7413d8fc268314/PlazCode-1.19.24.zip -o PlazCode-1.19.24.zip
-          echo '60b30578e43b2ff5910978b77bec3071b7b0af5f90cea716ab8b20ac29d076dd  PlazCode-1.19.24.zip' | shasum -a 256 --check
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/stoveez/PlazCode/83d3eb0b2482d300ca3645e8d04484934ef08e76/PlazCode-1.19.25.zip -o PlazCode-1.19.25.zip
+          echo 'bde05b569581ff214ea2d944000633debde08347de8036551a4723a36e73c35a  PlazCode-1.19.25.zip' | shasum -a 256 --check
       - name: Native regression tests
         working-directory: build/PlazCode/agent
         run: cargo test --locked
@@ -176,18 +177,18 @@ jobs:
           unzip -q appearance-source.zip -d build
       - name: Create and validate both platform downloads
         run: |
-          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.24', 'Main release changed; manual rebase required'"
+          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.25', 'Main release changed; manual rebase required'"
           python package-appearance.py
-          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.25.zip').read_bytes(),'1.19.25','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.25.zip').read_bytes(),'1.19.25','macos')"
+          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.26.zip').read_bytes(),'1.19.26','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.26.zip').read_bytes(),'1.19.26','macos')"
       - name: Commit release files and publish verified GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name 'PlazCode release automation'
           git config user.email 'actions@users.noreply.github.com'
-          git rm PlazCode-1.19.24.zip PlazCode-macOS-1.19.24.zip
-          git add publish_release.py Update-PlazCode.ps1 PlazCode-1.19.25.zip PlazCode-macOS-1.19.25.zip latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.25.txt
-          git commit -m 'Release PlazCode 1.19.25: reliable updater restarts and clear Notion settings'
+          git rm PlazCode-1.19.25.zip PlazCode-macOS-1.19.25.zip
+          git add publish_release.py Update-PlazCode.ps1 PlazCode-1.19.26.zip PlazCode-macOS-1.19.26.zip latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.26.txt
+          git commit -m 'Release PlazCode 1.19.26: supported AI shortcuts and reliable Studio status'
           git push origin HEAD:main
           export GITHUB_SHA=$(git rev-parse HEAD)
           python publish_release.py
