@@ -40,6 +40,7 @@ jobs:
         with:
           node-version: '24'
       - uses: browser-actions/setup-firefox@v1
+        id: firefox
       - name: Install verified official geckodriver
         run: |
           curl --fail --location --retry 3 https://github.com/mozilla/geckodriver/releases/download/v0.37.1/geckodriver-v0.37.1-linux64.tar.gz -o /tmp/geckodriver.tar.gz
@@ -48,9 +49,11 @@ jobs:
           tar -xzf /tmp/geckodriver.tar.gz -C /tmp/plazcode-geckodriver
       - run: npm install --prefix /tmp/plazcode-firefox-tests selenium-webdriver
       - name: Real Firefox extension and native bridge checks
+        timeout-minutes: 3
         working-directory: build/PlazCode
         env:
           NODE_PATH: /tmp/plazcode-firefox-tests/node_modules
+          PLAZCODE_TEST_FIREFOX: ${{ steps.firefox.outputs.firefox-path }}
           PLAZCODE_TEST_GECKODRIVER: /tmp/plazcode-geckodriver/geckodriver
           PLAZCODE_TEST_NATIVE: ${{ github.workspace }}/build/PlazCode/agent/target/debug/PlazCode
         run: node firefox-runtime-check.js
