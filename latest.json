@@ -1,9 +1,31 @@
 {
-  "version": "1.19.31",
-  "desktop_version": "1.19.31",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.31.zip",
-  "sha256": "a0df56a566f40a227701dc247308a77a36b2478f0ee0d550cad0fc7f4ffdfd78",
+  "version": "1.19.32",
+  "desktop_version": "1.19.32",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.32.zip",
+  "sha256": "003dd626ede1424aa035ef0c5efa92410cb5aa8e29f41bd8532f02bf15b4eb21",
   "release_notes": [
+    {
+      "version": "1.19.32",
+      "title": "Clarify unclear tasks and fix Blender command results",
+      "summary": "Add an AI clarification panel with scoped options and explicit answers, and correct Blender command result handling.",
+      "added": [
+        "A clarification panel displays the active AI name followed by is asking you\u2026, with 2\u20133 options, the scope of each, a recommended approach and 1\u20133 clarifying questions.",
+        "Answers support selecting an option, adding details or proposing a different approach. Submitted answers return to the same AI session."
+      ],
+      "improved": [
+        "Supported AI sessions assess the request before acting and use plazcode_clarify when unclear choices would materially change the scope. Clear tasks can proceed without unnecessary questions.",
+        "The agent waits quietly for an explicit response, without reminders, default selections or automatic timeouts. Waiting pauses the task time budget and does not consume a command.",
+        "The panel uses the current PlazCode theme, responsive spacing, keyboard focus controls and reduced-motion support.",
+        "Blender scene checks use an 8-second command limit. Timeout messages distinguish process/tool discovery from actual addon responses and explain checking or updating the addon without automatically replaying edits."
+      ],
+      "fixed": [
+        "Stop or a chat/engine change cancels an unanswered clarification without sending an answer or running the pending work.",
+        "Clarification inputs stay isolated from native AI composer searches and render AI text safely.",
+        "Ordinary Blender commands no longer read unrelated mesh files after receiving a result. Named operations parse the current Python output directly and never substitute an older status file.",
+        "Mesh exports read only the mesh file identified by the current response. Concurrent Blender commands return a clear busy message instead of silently waiting in a queue.",
+        "Blender transport failures clear extension readiness, and completed commands clear their fallback timers."
+      ]
+    },
     {
       "version": "1.19.31",
       "title": "Faster Studio detection and reliable Notion send confirmation",
@@ -723,38 +745,12 @@
         "Verify the live engine before correcting an inaccurate offline response; a connected bridge alone does not imply Studio is connected.",
         "Desktop, browser-bar and supported native AI Stop controls share a stop latch. Immediate cancellation is scoped to the active checkpoint and owned command/helper processes; external tools may not honor interruption. Safe Stop waits for the current tool step. Neither mode guarantees rollback."
       ]
-    },
-    {
-      "version": "1.18.96",
-      "title": "Faster automatic release checks",
-      "summary": "Automatic checks reuse HTTP connections and stop waiting after eight seconds when the release feed stalls.",
-      "added": [],
-      "improved": [
-        "Keep the update HTTP connection pool alive between checks to avoid repeated connection setup. Automatic checks remain quiet and retry in the background."
-      ],
-      "fixed": [
-        "A stalled automatic feed request no longer holds the checker for up to 30 seconds; it has a eight-second timeout. Manual checks retain 30 seconds and downloads retain their existing timeout."
-      ]
-    },
-    {
-      "version": "1.18.95",
-      "title": "Separate app and browser extension folders",
-      "summary": "The main installation folder is PlazCode. Only its browser extension subfolder is named PlazCode-Extension.",
-      "added": [],
-      "improved": [
-        "Fresh downloads place the desktop executable, launcher and updater in PlazCode, with Chrome files in PlazCode/PlazCode-Extension.",
-        "Version detection and the installer support both nested and older flat extension layouts. Older installers receive a compatibility ZIP."
-      ],
-      "fixed": [
-        "Corrected the previous release, which renamed the entire installation folder instead of only the Chrome extension folder.",
-        "Removed Tasks from the browser bar; task checkpoints and workflows remain available in the desktop app. Their disclosure header shows a hand cursor on hover. The Templates subtitle is vertically centered beside its title."
-      ]
     }
   ],
   "platforms": {
     "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.31.zip",
-      "sha256": "271b0255ae9c0d1d76d58ca89932594741f5ea9ae0d758a123c891629e2de4da"
+      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.32.zip",
+      "sha256": "53da91b4d57eac71bd41ad94aa8513ff4c079527c50dc6ff1b4e7741c3a122d7"
     }
   }
 }
