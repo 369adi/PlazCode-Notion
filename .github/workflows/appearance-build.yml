@@ -121,6 +121,10 @@ jobs:
           lipo -create target/x86_64-apple-darwin/release/PlazCode target/aarch64-apple-darwin/release/PlazCode -output target/release/PlazCode
           lipo -info target/release/PlazCode
           python ../build-macos-bundle.py
+      - name: Real Windows desktop updater relaunch
+        if: runner.os == 'Windows'
+        working-directory: build/PlazCode
+        run: python test-update-relaunch.py
       - name: Windows bundled Engram integration
         if: runner.os == 'Windows'
         working-directory: build/PlazCode
@@ -150,7 +154,6 @@ jobs:
           name: native-${{ runner.os }}
           path: build/PlazCode/agent/target/release/PlazCode*
   package-and-publish:
-    if: ${{ false }}
     needs: [visual, native, memory-and-templates]
     runs-on: ubuntu-latest
     permissions:
@@ -184,7 +187,7 @@ jobs:
           git config user.email 'actions@users.noreply.github.com'
           git rm PlazCode-1.19.24.zip PlazCode-macOS-1.19.24.zip
           git add publish_release.py Update-PlazCode.ps1 PlazCode-1.19.25.zip PlazCode-macOS-1.19.25.zip latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.25.txt
-          git commit -m 'Release PlazCode 1.19.25: keep Notion settings clear of the floating bar'
+          git commit -m 'Release PlazCode 1.19.25: reliable updater restarts and clear Notion settings'
           git push origin HEAD:main
           export GITHUB_SHA=$(git rev-parse HEAD)
           python publish_release.py
