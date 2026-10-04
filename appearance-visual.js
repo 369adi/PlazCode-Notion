@@ -176,6 +176,9 @@ const fs=require('fs');const {chromium}=require('playwright');
   const failure=await page.evaluate(()=>{
    const root=ClarificationShadow,panel=root.querySelector('.panel');
    if(panel.scrollWidth>panel.clientWidth+1)return 'Clarification panel overflows';
+   const buttons=[...root.querySelectorAll('.actions button')].map(node=>node.getBoundingClientRect());
+   if(buttons.some(rect=>rect.top<0||rect.bottom>innerHeight))return 'Answer/cancel controls are offscreen';
+   if(buttons.length!==2||buttons[1].left-buttons[0].right<10)return 'Clarification actions touch or overlap';
    if(root.querySelectorAll('.option').length!==3||root.querySelector('input:checked'))return 'Options missing or automatically selected';
    if(root.querySelector('h2').textContent!=='Claude is asking you…')return 'Provider heading mismatch';
    const rows=[...root.querySelectorAll('.option')].map(node=>node.getBoundingClientRect());
