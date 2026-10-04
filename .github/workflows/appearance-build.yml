@@ -150,6 +150,7 @@ jobs:
           name: native-${{ runner.os }}
           path: build/PlazCode/agent/target/release/PlazCode*
   package-and-publish:
+    if: ${{ false }}
     needs: [visual, native, memory-and-templates]
     runs-on: ubuntu-latest
     permissions:
