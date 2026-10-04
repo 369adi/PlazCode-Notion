@@ -47,9 +47,9 @@ const fs=require('fs');const {chromium}=require('playwright');
   for(const theme of ['default','ocean','orchid'])for(const name of ['models','ui','toolkit']){
    await page.evaluate(({theme,name})=>{Applyappearance({theme});document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-'+name));document.querySelectorAll('.navbtn[data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===name));document.getElementById('content').scrollTop=0;},{theme,name});
    const errors=await page.evaluate(name=>{
-    const root=document.getElementById('page-'+name),buttons=[...root.querySelectorAll('button')].map(n=>n.getBoundingClientRect()).filter(r=>r.width>1&&r.height>1),content=document.getElementById('content');
+    const root=document.getElementById('page-'+name),buttons=[...root.querySelectorAll('button')].filter(n=>n.checkVisibility()).map(n=>Object.assign(n.getBoundingClientRect().toJSON(),{label:n.textContent})).filter(r=>r.width>1&&r.height>1),content=document.getElementById('content');
     if(content.scrollWidth>content.clientWidth+1)return 'Horizontal overflow';
-    for(let i=0;i<buttons.length;i++)for(let j=i+1;j<buttons.length;j++){const a=buttons[i],b=buttons[j];if(Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1)return 'Button overlap';}
+    for(let i=0;i<buttons.length;i++)for(let j=i+1;j<buttons.length;j++){const a=buttons[i],b=buttons[j];if(Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1)return 'Button overlap: '+a.label+' / '+b.label;}
     const nav=document.querySelector('.nav'),status=document.querySelector('.side-status'),n=nav.getBoundingClientRect(),s=status.getBoundingClientRect();if(s.width>0&&n.bottom>s.top+1)return 'Sidebar overlap';return null;
    },name);if(errors)throw Error(name+' '+width+' '+theme+' '+errors);
    await page.screenshot({animations:'disabled',path:`visual-checks/${name}-${theme}-${width}.png`});
@@ -90,7 +90,7 @@ const fs=require('fs');const {chromium}=require('playwright');
   for(const theme of ['default','ocean','orchid']) {
    await page.evaluate(theme=>{Applyappearance({theme});document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-models'));document.getElementById('content').scrollTop=0;},theme);
    await page.screenshot({animations:'disabled',path:`visual-checks/guided-creator-${theme}-${width}.png`});
-   const overlap=await page.evaluate(()=>{const nodes=[...document.querySelectorAll('.pc-create-editor button')];return nodes.some((n,i)=>i>0 && n.getBoundingClientRect().top<nodes[i-1].getBoundingClientRect().bottom+5) && innerWidth>1000;});if(overlap)throw Error('Creator buttons overlap or lack spacing');
+   const overlap=await page.evaluate(()=>{const nodes=[...document.querySelectorAll('.page.active .pc-create-editor button')].filter(n=>n.checkVisibility());return nodes.some((n,i)=>i>0 && n.getBoundingClientRect().top<nodes[i-1].getBoundingClientRect().bottom+5) && innerWidth>1000;});if(overlap)throw Error('Creator buttons overlap or lack spacing');
    const overflow=await page.evaluate(()=>{const n=document.getElementById('content');return n.scrollWidth>n.clientWidth+1});if(overflow)throw Error('Guided creator horizontal overflow');
    await page.evaluate(()=>{document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-settings'));document.querySelector('.settings-guide').open=true;document.getElementById('content').scrollTop=0;});
    await page.screenshot({animations:'disabled',path:`visual-checks/settings-guide-${theme}-${width}.png`});
