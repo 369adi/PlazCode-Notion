@@ -1,9 +1,27 @@
 {
-  "version": "1.19.32",
-  "desktop_version": "1.19.32",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.32.zip",
-  "sha256": "53da91b4d57eac71bd41ad94aa8513ff4c079527c50dc6ff1b4e7741c3a122d7",
+  "version": "1.19.33",
+  "desktop_version": "1.19.33",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.33.zip",
+  "sha256": "5869943889ae9e473c0f29a816f2943143a55d0bd2c0d55b24406001a7b29ba5",
   "release_notes": [
+    {
+      "version": "1.19.33",
+      "title": "Firefox installation and authenticated bridge support",
+      "summary": "Add a Firefox extension package and correct Firefox background startup and desktop pairing.",
+      "added": [
+        "A dedicated PlazCode-Extension-Firefox folder in both desktop downloads and a standalone PlazCode-Firefox-1.19.33.zip with manifest.json at its root.",
+        "Firefox installation instructions explain selecting manifest.json or the Firefox ZIP in about:debugging, reloading after updates and the unsigned temporary-install limitation."
+      ],
+      "improved": [
+        "Firefox uses the same provider adapters, tools, bar, creators and settings as the Chromium extension, with a Firefox background script and stable addon identity.",
+        "Firefox requests use the installation-specific extension UUID for automatic pairing, while authenticated desktop HTTP and WebSocket routes recognize valid moz-extension origins.",
+        "Startup prompt limits reserve space for clarification instructions and memory on providers with smaller prompt limits."
+      ],
+      "fixed": [
+        "The Chrome-only background service-worker manifest no longer prevents the Firefox package from starting its bridge controller.",
+        "Firefox automatic pairing no longer fails because its addon ID differs from Chrome extension IDs. Invalid, mismatched and webpage origins remain rejected."
+      ]
+    },
     {
       "version": "1.19.32",
       "title": "Clarify unclear tasks and fix Blender command results",
@@ -724,38 +742,6 @@
       ],
       "fixed": [
         "Keep the browser stop latch while an abandoned tool remains active and block tool dispatch until it settles. New task startup remains guarded."
-      ]
-    },
-    {
-      "version": "1.18.97",
-      "title": "Tray access, shared stop modes and cleaner work sessions",
-      "summary": "Reopen the desktop app from its Windows tray icon, choose Immediate or Safe Stop, send media from desktop, and keep task activity together.",
-      "added": [
-        "Windows tray icon with Open and Quit actions; registration failures keep the app accessible in the taskbar.",
-        "Shared Immediate Stop / Safe Stop settings. Immediate is the default.",
-        "Desktop image/video sender with caption, native upload when supported, sampled-frame fallback and optional installed FFmpeg conversion."
-      ],
-      "improved": [
-        "Co-work treats unfinished requests as active goals and allows independent work to interleave at safe message boundaries. The browser still executes one command per reply.",
-        "Work groups stay expanded during work and collapse after completion, including new messages and ChatGPT action controls.",
-        "Media uploads retain filenames and MIME types, use bounded decoding, and avoid automatic resend after uncertain delivery."
-      ],
-      "fixed": [
-        "Removed empty no-tools-used filler from work summaries.",
-        "Verify the live engine before correcting an inaccurate offline response; a connected bridge alone does not imply Studio is connected.",
-        "Desktop, browser-bar and supported native AI Stop controls share a stop latch. Immediate cancellation is scoped to the active checkpoint and owned command/helper processes; external tools may not honor interruption. Safe Stop waits for the current tool step. Neither mode guarantees rollback."
-      ]
-    },
-    {
-      "version": "1.18.96",
-      "title": "Faster automatic release checks",
-      "summary": "Automatic checks reuse HTTP connections and stop waiting after eight seconds when the release feed stalls.",
-      "added": [],
-      "improved": [
-        "Keep the update HTTP connection pool alive between checks to avoid repeated connection setup. Automatic checks remain quiet and retry in the background."
-      ],
-      "fixed": [
-        "A stalled automatic feed request no longer holds the checker for up to 30 seconds; it has a eight-second timeout. Manual checks retain 30 seconds and downloads retain their existing timeout."
       ]
     }
   ]

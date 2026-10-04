@@ -1,3 +1,15 @@
+PlazCode 1.19.33 — Firefox installation and authenticated bridge support
+
+Add a Firefox extension package and correct Firefox background startup and desktop pairing.
+
+- A dedicated PlazCode-Extension-Firefox folder in both desktop downloads and a standalone PlazCode-Firefox-1.19.33.zip with manifest.json at its root.
+- Firefox installation instructions explain selecting manifest.json or the Firefox ZIP in about:debugging, reloading after updates and the unsigned temporary-install limitation.
+- Firefox uses the same provider adapters, tools, bar, creators and settings as the Chromium extension, with a Firefox background script and stable addon identity.
+- Firefox requests use the installation-specific extension UUID for automatic pairing, while authenticated desktop HTTP and WebSocket routes recognize valid moz-extension origins.
+- Startup prompt limits reserve space for clarification instructions and memory on providers with smaller prompt limits.
+- The Chrome-only background service-worker manifest no longer prevents the Firefox package from starting its bridge controller.
+- Firefox automatic pairing no longer fails because its addon ID differs from Chrome extension IDs. Invalid, mismatched and webpage origins remain rejected.
+
 PlazCode 1.19.32 — Clarify unclear tasks and fix Blender command results
 
 Add an AI clarification panel with scoped options and explicit answers, and correct Blender command result handling.

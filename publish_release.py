@@ -22,7 +22,7 @@ def notes(feed):
     lines=['**PlazCode '+version+': '+entry['title']+'**','','- '+entry['summary'],'']
     for key,title in [('added','New additions'),('improved','Improvements'),('fixed','Bug fixes')]:
         if entry.get(key):lines+=['***'+title+'***','']+['- '+x for x in entry[key]]+['']
-    lines+=['## Update','','- Desktop launch automatically checks and updates to the newest release when outdated. Manual update: choose **Updates → Update now**.\n- Windows: run **Update-PlazCode.bat** for a manual update. macOS: launch **PlazCode.app** from the extracted folder; use **MacOS_Setup.command** for setup.','- Reload the extension in **chrome://extensions** and refresh open AI tabs.','- Windows: download **PlazCode-'+version+'.zip**. macOS: download **PlazCode-macOS-'+version+'.zip**. The normal ZIP retains Mac compatibility for older installed updaters.','- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
+    lines+=['## Update','','- Desktop launch automatically checks and updates to the newest release when outdated. Manual update: choose **Updates → Update now**.\n- Windows: run **Update-PlazCode.bat** for a manual update. macOS: launch **PlazCode.app** from the extracted folder; use **MacOS_Setup.command** for setup.','- Chromium: reload at chrome://extensions, edge://extensions or brave://extensions and refresh AI tabs. Firefox: open about:debugging, Load Temporary Add-on and select manifest.json inside PlazCode-Extension-Firefox or the standalone Firefox ZIP. Unsigned temporary addons are removed when Firefox restarts; permanent installation needs Mozilla signing.','- Windows: download **PlazCode-'+version+'.zip**. macOS: download **PlazCode-macOS-'+version+'.zip**. The normal ZIP retains Mac compatibility for older installed updaters.','- Firefox: download **PlazCode-Firefox-'+version+'.zip** or use **PlazCode-Extension-Firefox** inside either desktop package. Requires Firefox 140 or newer.', '- Existing settings, memory and enabled MCP servers keep their data locations.','','See VALIDATION.txt inside the ZIP for checks and live-test limitations.']
     return 'PlazCode '+version+': '+entry['title'],'\n'.join(lines)+'\n'
 
 def validate_archive(data,version,platform="windows"):
@@ -64,11 +64,11 @@ def main():
         if hashlib.sha256(data).hexdigest()!=expected_hash:raise ValueError('Update SHA-256 mismatch')
         validate_archive(data,version,platform);pathlib.Path(name).write_bytes(data);assets.append(name)
     pathlib.Path('release-notes.md').write_text(body)
-    for name in ['PlazCode-source-'+version+'.zip','PlazCode-'+version+'.sigstore.json']:
+    for name in ['PlazCode-source-'+version+'.zip','PlazCode-Firefox-'+version+'.zip','PlazCode-'+version+'.sigstore.json']:
         data=fetch(root+name);content=json.loads(gh('api','repos/'+repo+'/contents/'+name+'?ref='+commit))
         if hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()!=content['sha']:raise ValueError('Source/provenance repository hash mismatch')
         pathlib.Path(name).write_bytes(data);assets.append(name)
-    for name in assets[:3]:gh('attestation','verify',name,'--repo',repo)
+    for name in assets[:4]:gh('attestation','verify',name,'--repo',repo)
     if not existing:gh('release','create',tag,'--repo',repo,'--target',commit,'--draft','--title',title,'--notes-file','release-notes.md')
     gh('release','upload',tag,*assets,'--repo',repo,'--clobber')
     current=json.loads(gh('api','repos/'+repo+'/contents/latest.json?ref=main'))
