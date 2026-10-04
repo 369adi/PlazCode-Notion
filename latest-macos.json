@@ -1,9 +1,34 @@
 {
-  "version": "1.19.23",
-  "desktop_version": "1.19.23",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.23.zip",
-  "sha256": "4582e97ddc638222c23c2a91c9a26bd059650d0353868cf6901eeb616e9706fe",
+  "version": "1.19.24",
+  "desktop_version": "1.19.24",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.24.zip",
+  "sha256": "28d7a6d201ec3ed05fcd01a76b49c82899e6b0d2c5ee021aa09158efecacfa92",
   "release_notes": [
+    {
+      "version": "1.19.24",
+      "title": "Clear execution settings, guided creators and readable chat activity",
+      "summary": "Make execution controls and the model/UI creator easier to use, preserve AI explanations and clean up crowded or unstyled controls.",
+      "added": [
+        "Beginner-friendly execution help explains engines, command/time limits, visual review, stop modes, permissions, continuation exports and resuming paused tasks.",
+        "An Engram guide explains project notes, searching, fact IDs, topic keys and the difference between memory, saved logs and continuation files.",
+        "Creators now follow Describe \u2192 Review preview \u2192 Insert in Studio, with labeled inputs, simpler edit buttons, an AI readiness explanation and optional file/feedback controls grouped separately."
+      ],
+      "improved": [
+        "Desktop and extension numeric/select controls use themed backgrounds, clear borders, focus states and consistent spacing. Saved-chat controls and creator edit actions have explicit gaps.",
+        "Changes to execution limits sync into open browser chats; 0 remains unlimited and applies to the next run or resumed allowance.",
+        "Command cards keep readable spacing and left-aligned labels. Collapsing activity no longer hides assistant explanations or original user requests."
+      ],
+      "fixed": [
+        "Desktop refresh no longer resets command/time values while a field is focused or its change is being saved. Empty or invalid numeric changes are not saved as limits.",
+        "Ordinary assistant prose followed by a tool result is no longer replaced by a tool-only chip.",
+        "DeepSeek no longer interprets \u201cStopped\u201d inside generated code or prose as a site stop notice; message IDs take priority over recycled virtual-list keys.",
+        "An unfinished DeepSeek command block no longer masks every following paragraph."
+      ],
+      "notes": [
+        "Live supported-AI conversations and Roblox Studio insertion were not exercised; provider behavior is covered with DOM and parser regressions.",
+        "Reload the extension after the desktop update and refresh supported AI tabs."
+      ]
+    },
     {
       "version": "1.19.23",
       "title": "Correct Chrome extension version labels",
@@ -718,36 +743,6 @@
         "Removed broad process-name cleanup that could kill another launching PlazCode instance. Recovery only targets a PlazCode process holding a required port.",
         "Port ownership uses exact endpoint matching, avoiding matches such as port 30000 when checking 3000.",
         "Startup errors now identify the actual blocked port and, when available, its owning process instead of the generic bridge-bind dialog. Legacy listener failures are logged."
-      ]
-    },
-    {
-      "version": "1.18.85",
-      "title": "Wait for app shutdown before updating",
-      "summary": "The updater waits for PlazCode to exit and release its executable before installing.",
-      "added": [],
-      "improved": [
-        "The updater checks both app executable paths, waits for stopped processes to exit, and briefly retries file-lock checks. Only processes from the selected installation are stopped; Roblox Studio is left running."
-      ],
-      "fixed": [
-        "Update installation no longer starts copying immediately after Stop-Process. If the executable remains locked, it aborts before copying any update files and retains recovery files."
-      ]
-    },
-    {
-      "version": "1.18.84",
-      "title": "Clickable palettes & friendly readiness",
-      "summary": "Select desktop themes directly from their color swatches, and keep Notion startup acknowledgements readable.",
-      "added": [
-        "Desktop startup instructions accept up to 25,000 characters, with an input counter and explicit save validation."
-      ],
-      "improved": [
-        "All six desktop color swatches are clickable, keyboard accessible, show the selected theme and use the same saved appearance settings as the dropdown. Glow and gradient preferences are preserved.",
-        "Chat export retains messages captured while scrolling during the current page session. Idle Notion exports briefly load older history and restore the previous scroll position. Exports report their captured message count and remaining scope limitations.",
-        "Download export is styled as a theme-colored button in desktop and browser memory settings."
-      ],
-      "fixed": [
-        "All startup instruction variants explicitly request \u201cPlazCode is ready.\u201d instead of a generic readiness sentence.",
-        "If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to \u201cPlazCode is ready.\u201d without resending startup or modifying Notion-owned DOM.",
-        "DeepSeek rich-text composers remain discoverable while input-locked, and agent writes temporarily enable editing then restore the lock. Explicit Send labels take precedence over stop-icon guesses."
       ]
     }
   ]

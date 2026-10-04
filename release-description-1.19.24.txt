@@ -1,0 +1,22 @@
+**PlazCode 1.19.24: Clear execution settings, guided creators and readable chat activity**
+
+- Make execution controls and the model/UI creator easier to use, preserve AI explanations and clean up crowded or unstyled controls.
+
+***New additions***
+
+- Beginner-friendly execution help explains engines, command/time limits, visual review, stop modes, permissions, continuation exports and resuming paused tasks.
+- An Engram guide explains project notes, searching, fact IDs, topic keys and the difference between memory, saved logs and continuation files.
+- Creators now follow Describe → Review preview → Insert in Studio, with labeled inputs, simpler edit buttons, an AI readiness explanation and optional file/feedback controls grouped separately.
+
+***Improvements***
+
+- Desktop and extension numeric/select controls use themed backgrounds, clear borders, focus states and consistent spacing. Saved-chat controls and creator edit actions have explicit gaps.
+- Changes to execution limits sync into open browser chats; 0 remains unlimited and applies to the next run or resumed allowance.
+- Command cards keep readable spacing and left-aligned labels. Collapsing activity no longer hides assistant explanations or original user requests.
+
+***Bug fixes***
+
+- Desktop refresh no longer resets command/time values while a field is focused or its change is being saved. Empty or invalid numeric changes are not saved as limits.
+- Ordinary assistant prose followed by a tool result is no longer replaced by a tool-only chip.
+- DeepSeek no longer interprets “Stopped” inside generated code or prose as a site stop notice; message IDs take priority over recycled virtual-list keys.
+- An unfinished DeepSeek command block no longer masks every following paragraph.
