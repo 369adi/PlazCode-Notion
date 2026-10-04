@@ -1,9 +1,31 @@
 {
-  "version": "1.19.24",
-  "desktop_version": "1.19.24",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.24.zip",
-  "sha256": "60b30578e43b2ff5910978b77bec3071b7b0af5f90cea716ab8b20ac29d076dd",
+  "version": "1.19.25",
+  "desktop_version": "1.19.25",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.25.zip",
+  "sha256": "bde05b569581ff214ea2d944000633debde08347de8036551a4723a36e73c35a",
   "release_notes": [
+    {
+      "version": "1.19.25",
+      "title": "Reliable updater restarts and clear Notion settings",
+      "summary": "Confirm the updated desktop has loaded, keep background restarts accessible and hide the floating bar over Notion settings.",
+      "added": [
+        "Regression checks cover Notion settings, nested model controls, closing panels and hidden settings.",
+        "Automatic updates wait for a versioned desktop-ready confirmation and retry once if the first launch exits."
+      ],
+      "improved": [
+        "Settings visibility is detected even when the underlying Notion AI chat route stays unchanged. Normal AI chat and PlazCode settings remain usable.",
+        "Windows update installation skips identical files; background restarts remain minimized in the taskbar or Dock without taking focus."
+      ],
+      "fixed": [
+        "The floating bar no longer covers Notion settings actions or the Restrict models from Notion Agent dialog.",
+        "Update completion is no longer reported merely because a process launched. A desktop startup failure preserves the installed update and reports startup diagnostics.",
+        "Update helpers run from temporary copies so replacing the installed macOS script cannot interrupt its own execution."
+      ],
+      "notes": [
+        "Notion visibility is covered with DOM regressions; a live signed-in Notion session was not exercised.",
+        "Reload the extension and refresh Notion after updating."
+      ]
+    },
     {
       "version": "1.19.24",
       "title": "Clear execution settings, guided creators and readable chat activity",
@@ -710,31 +732,12 @@
       "fixed": [
         "Malformed, unsupported and source-free files report clear import errors. Missing scripts in copied/decompiled games are not fabricated or recovered. Binary and XML imports preserve the original file bytes."
       ]
-    },
-    {
-      "version": "1.18.87",
-      "title": "Task checkpoints, project memory & reliable tools",
-      "summary": "Review and recover agent tasks, keep project facts separate, and reduce repeated tool errors and long-chat overhead.",
-      "added": [
-        "Tasks panel in the desktop Home page and browser bar: bounded task history, file before/after previews, conflict-checked Revert and resume in the original chat.",
-        "AgentScript file checkpoints persist across app restarts. Studio Revert is offered only when exact undo records are confirmed in the current bridge/Studio session. Unsupported operations disable whole-task automatic restore.",
-        "Protected paths with explicit task approval; project memory scopes shared by named projects; reusable built-in and custom workflows."
-      ],
-      "improved": [
-        "Long-chat activity retains at most 60 groups, builds collapsed details only when expanded, ignores its own UI mutations and caches unchanged export text. Retention overflow produces an explicit export error.",
-        "Automatic release checks run on launch and every minute; returning to an AI tab or desktop window triggers a throttled check. Update labels refresh without pressing Check now. Network/cache delays can still apply."
-      ],
-      "fixed": [
-        "Tool preflight checks JSON argument shapes against available schemas, detects incomplete Luau strings/delimiters and preserves datamodel defaults. Three consecutive malformed replies or execution failures pause the agent.",
-        "Studio mutation commands are not blindly replayed after a dropped helper connection; uncertain results require inspecting Studio before retrying.",
-        "Unchanged memory and release snapshots no longer generate repeated storage broadcasts. Workflow delivery acknowledgements are deduplicated."
-      ]
     }
   ],
   "platforms": {
     "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.24.zip",
-      "sha256": "28d7a6d201ec3ed05fcd01a76b49c82899e6b0d2c5ee021aa09158efecacfa92"
+      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.25.zip",
+      "sha256": "fc0566b1363365edf23da27141433414912d40dbca367a9716349b70274eef35"
     }
   }
 }

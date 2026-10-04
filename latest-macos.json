@@ -1,9 +1,31 @@
 {
-  "version": "1.19.24",
-  "desktop_version": "1.19.24",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.24.zip",
-  "sha256": "28d7a6d201ec3ed05fcd01a76b49c82899e6b0d2c5ee021aa09158efecacfa92",
+  "version": "1.19.25",
+  "desktop_version": "1.19.25",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.25.zip",
+  "sha256": "fc0566b1363365edf23da27141433414912d40dbca367a9716349b70274eef35",
   "release_notes": [
+    {
+      "version": "1.19.25",
+      "title": "Reliable updater restarts and clear Notion settings",
+      "summary": "Confirm the updated desktop has loaded, keep background restarts accessible and hide the floating bar over Notion settings.",
+      "added": [
+        "Regression checks cover Notion settings, nested model controls, closing panels and hidden settings.",
+        "Automatic updates wait for a versioned desktop-ready confirmation and retry once if the first launch exits."
+      ],
+      "improved": [
+        "Settings visibility is detected even when the underlying Notion AI chat route stays unchanged. Normal AI chat and PlazCode settings remain usable.",
+        "Windows update installation skips identical files; background restarts remain minimized in the taskbar or Dock without taking focus."
+      ],
+      "fixed": [
+        "The floating bar no longer covers Notion settings actions or the Restrict models from Notion Agent dialog.",
+        "Update completion is no longer reported merely because a process launched. A desktop startup failure preserves the installed update and reports startup diagnostics.",
+        "Update helpers run from temporary copies so replacing the installed macOS script cannot interrupt its own execution."
+      ],
+      "notes": [
+        "Notion visibility is covered with DOM regressions; a live signed-in Notion session was not exercised.",
+        "Reload the extension and refresh Notion after updating."
+      ]
+    },
     {
       "version": "1.19.24",
       "title": "Clear execution settings, guided creators and readable chat activity",
@@ -709,40 +731,6 @@
       ],
       "fixed": [
         "Malformed, unsupported and source-free files report clear import errors. Missing scripts in copied/decompiled games are not fabricated or recovered. Binary and XML imports preserve the original file bytes."
-      ]
-    },
-    {
-      "version": "1.18.87",
-      "title": "Task checkpoints, project memory & reliable tools",
-      "summary": "Review and recover agent tasks, keep project facts separate, and reduce repeated tool errors and long-chat overhead.",
-      "added": [
-        "Tasks panel in the desktop Home page and browser bar: bounded task history, file before/after previews, conflict-checked Revert and resume in the original chat.",
-        "AgentScript file checkpoints persist across app restarts. Studio Revert is offered only when exact undo records are confirmed in the current bridge/Studio session. Unsupported operations disable whole-task automatic restore.",
-        "Protected paths with explicit task approval; project memory scopes shared by named projects; reusable built-in and custom workflows."
-      ],
-      "improved": [
-        "Long-chat activity retains at most 60 groups, builds collapsed details only when expanded, ignores its own UI mutations and caches unchanged export text. Retention overflow produces an explicit export error.",
-        "Automatic release checks run on launch and every minute; returning to an AI tab or desktop window triggers a throttled check. Update labels refresh without pressing Check now. Network/cache delays can still apply."
-      ],
-      "fixed": [
-        "Tool preflight checks JSON argument shapes against available schemas, detects incomplete Luau strings/delimiters and preserves datamodel defaults. Three consecutive malformed replies or execution failures pause the agent.",
-        "Studio mutation commands are not blindly replayed after a dropped helper connection; uncertain results require inspecting Studio before retrying.",
-        "Unchanged memory and release snapshots no longer generate repeated storage broadcasts. Workflow delivery acknowledgements are deduplicated."
-      ]
-    },
-    {
-      "version": "1.18.86",
-      "title": "Reliable bridge port startup",
-      "summary": "Agent launch reserves every bridge endpoint before reporting ready and serializes overlapping launches.",
-      "added": [],
-      "improved": [
-        "Windows startup is serialized across PlazCode launches; an existing instance of the same version is focused, and older versions are replaced.",
-        "All three required bridge listeners are bound before background services start. Port release is checked with bounded retries instead of fixed delays."
-      ],
-      "fixed": [
-        "Removed broad process-name cleanup that could kill another launching PlazCode instance. Recovery only targets a PlazCode process holding a required port.",
-        "Port ownership uses exact endpoint matching, avoiding matches such as port 30000 when checking 3000.",
-        "Startup errors now identify the actual blocked port and, when available, its owning process instead of the generic bridge-bind dialog. Legacy listener failures are logged."
       ]
     }
   ]

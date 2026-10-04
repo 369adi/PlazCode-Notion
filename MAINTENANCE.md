@@ -1,3 +1,15 @@
+PlazCode 1.19.25 — Reliable updater restarts and clear Notion settings
+
+Confirm the updated desktop has loaded, keep background restarts accessible and hide the floating bar over Notion settings.
+
+- Regression checks cover Notion settings, nested model controls, closing panels and hidden settings.
+- Automatic updates wait for a versioned desktop-ready confirmation and retry once if the first launch exits.
+- Settings visibility is detected even when the underlying Notion AI chat route stays unchanged. Normal AI chat and PlazCode settings remain usable.
+- Windows update installation skips identical files; background restarts remain minimized in the taskbar or Dock without taking focus.
+- The floating bar no longer covers Notion settings actions or the Restrict models from Notion Agent dialog.
+- Update completion is no longer reported merely because a process launched. A desktop startup failure preserves the installed update and reports startup diagnostics.
+- Update helpers run from temporary copies so replacing the installed macOS script cannot interrupt its own execution.
+
 PlazCode 1.19.24 — Clear execution settings, guided creators and readable chat activity
 
 Make execution controls and the model/UI creator easier to use, preserve AI explanations and clean up crowded or unstyled controls.

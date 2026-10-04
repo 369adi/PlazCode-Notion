@@ -1,14 +1,39 @@
 # PlazCode updater, Windows PowerShell 5.1. Accepts an optional local release ZIP.
-param([string]$ZipPath, [string]$ExpectedSha256, [string]$ExpectedVersion, [switch]$ShowProgress, [switch]$BackgroundUpdate, [string]$Theme="default", [string]$Glow="subtle", [switch]$NoGradients)
+param([string]$InstallRoot, [string]$ZipPath, [string]$ExpectedSha256, [string]$ExpectedVersion, [switch]$ShowProgress, [switch]$BackgroundUpdate, [string]$Theme="default", [string]$Glow="subtle", [switch]$NoGradients)
 $ErrorActionPreference = 'Stop'
-$install = $PSScriptRoot
+$install = if ($InstallRoot) { [IO.Path]::GetFullPath($InstallRoot) } else { $PSScriptRoot }
 $stage = Join-Path ([IO.Path]::GetTempPath()) ('PlazCode-update-' + [guid]::NewGuid())
 $backup = Join-Path $stage 'backup'
 $written = New-Object 'System.Collections.Generic.List[string]'
 $stopped = $false
+$installed = $false
 $uiReady = $false
 function Set-UpdaterProgress([int]$Percent, [string]$Title, [string]$Detail) {
     if ($uiReady) { [PlazCode.UpdateProgress]::Set($Percent, $Title, $Detail) }
+}
+function Start-UpdatedPlazCode([string]$Version) {
+    $ready = Join-Path $stage 'desktop-ready.json'
+    for ($attempt = 1; $attempt -le 2; $attempt++) {
+        Remove-Item -LiteralPath $ready -Force -ErrorAction SilentlyContinue
+        $arguments = @('--update-ready-file', ('"' + $ready + '"'))
+        if ($BackgroundUpdate) { $arguments += '--background' }
+        $process = Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -ArgumentList $arguments -WorkingDirectory $install -PassThru
+        $deadline = [DateTime]::UtcNow.AddSeconds(25)
+        do {
+            if (Test-Path -LiteralPath $ready) {
+                try {
+                    $result = Get-Content -LiteralPath $ready -Raw | ConvertFrom-Json
+                    if ($result.desktop_ready -and $result.version -eq $Version -and $result.pid -eq $process.Id) { return }
+                } catch { }
+            }
+            $process.Refresh()
+            if ($process.HasExited) { break }
+            Start-Sleep -Milliseconds 200
+        } while ([DateTime]::UtcNow -lt $deadline)
+        if (!$process.HasExited) { throw 'The updated process is running, but its desktop did not confirm loading. See logs/agent.log for startup details.' }
+        Set-UpdaterProgress 98 'Retrying PlazCode startup' 'The first launch exited before the desktop loaded. Retrying automatically.'
+    }
+    throw 'The updated desktop exited before loading after two launch attempts. See logs/agent.log for startup details.'
 }
 function Get-ExtensionRoot([string]$Root) {
     $nested = Join-Path $Root 'PlazCode-Extension'
@@ -110,6 +135,15 @@ try {
         $relative = $_.FullName.Substring($package.Length + 1)
         $_.Name -notin $preservedNames -and $relative -notmatch $preservedFolders -and !($splitInstall -and $packageExtension -ne $package -and $relative -match $legacyExtensionFiles)
     })
+    # Compare before shutdown so unchanged runtimes/source files need no backup
+    # or rewrite, shortening the interval while the desktop is closed.
+    $files = @($files | Where-Object {
+        $relative = $_.FullName.Substring($package.Length + 1)
+        $old = Join-Path $install $relative
+        !(Test-Path -LiteralPath $old -PathType Leaf) -or
+            (Get-Item -LiteralPath $old).Length -ne $_.Length -or
+            (Get-FileHash -LiteralPath $old -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+    })
     Set-UpdaterProgress 45 'Saving recovery copies' 'Backing up installed files. Your preferences and templates are preserved.'
     $backedUp = 0
     # Back up overwritten files before stopping the app or modifying the installation.
@@ -164,14 +198,15 @@ try {
         $copied++
         Set-UpdaterProgress (65 + [int](30 * $copied / [Math]::Max(1, $files.Count))) 'Installing update' ("Replacing files: $copied of $($files.Count).")
     }
-    Set-UpdaterProgress 98 'Relaunching PlazCode' 'Opening the updated desktop app.'
-    if ($BackgroundUpdate) { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -ArgumentList '--background' -WorkingDirectory $install }
-    else { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -WorkingDirectory $install }
+    $installed = $true
+    Set-UpdaterProgress 98 'Relaunching PlazCode' 'Waiting for the updated desktop to finish loading.'
+    Start-UpdatedPlazCode ([string]$next)
     Set-UpdaterProgress 100 'Update complete' 'Reload the extension and refresh your open AI chat tabs.'
     Write-Host "Updated $current -> $next. Reload the extension, then refresh open AI chat tabs." -ForegroundColor Green
 } catch {
-    Set-UpdaterProgress -1 'Restoring installation' 'The update failed. Restoring recovery copies before reporting the error.'
-    foreach ($relative in $written) {
+    if ($installed) { Set-UpdaterProgress -1 'Desktop restart needs attention' 'The update is installed, but startup did not confirm readiness. See logs/agent.log.' }
+    else { Set-UpdaterProgress -1 'Restoring installation' 'The update failed. Restoring recovery copies before reporting the error.' }
+    if (!$installed) { foreach ($relative in $written) {
         $target = Join-Path $install $relative
         $saved = Join-Path $backup $relative
         try {
@@ -179,7 +214,8 @@ try {
             else { Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
         } catch { Write-Host "Could not restore $relative. Backup retained at $backup" -ForegroundColor Red }
     }
-    if ($stopped) { if ($BackgroundUpdate) { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -ArgumentList '--background' -WorkingDirectory $install -ErrorAction SilentlyContinue } else { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -WorkingDirectory $install -ErrorAction SilentlyContinue } }
+    }
+    if ($stopped -and !$installed) { if ($BackgroundUpdate) { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -ArgumentList '--background' -WorkingDirectory $install -ErrorAction SilentlyContinue } else { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -WorkingDirectory $install -ErrorAction SilentlyContinue } }
     if ($ShowProgress -and !$BackgroundUpdate) { [Windows.Forms.MessageBox]::Show(('Update failed: ' + $_.Exception.Message + [Environment]::NewLine + 'Recovery files: ' + $stage), 'PlazCode updater') | Out-Null }
     if ($uiReady -and $BackgroundUpdate) { [PlazCode.UpdateProgress]::NotifyFailure(); Start-Sleep -Seconds 3 }
     Write-Host ('Update failed: ' + $_.Exception.Message) -ForegroundColor Red
