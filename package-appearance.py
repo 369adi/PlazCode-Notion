@@ -1,9 +1,9 @@
 from pathlib import Path
-import json,zipfile,hashlib,io,plistlib,struct,urllib.request,tarfile
-repo=Path.cwd();version='1.19.29';root=repo/'build/PlazCode'
+import json,zipfile,hashlib,io,plistlib,struct,urllib.request,tarfile,subprocess,shutil
+repo=Path.cwd();version='1.19.30';root=repo/'build/PlazCode'
 notes=json.loads((root/'release-notes.json').read_text());entry=notes[0];assert entry['version']==version
 intro='PlazCode '+version+' — '+entry['title']+'\n\n'+entry['summary']+'\n\n'+'\n'.join('- '+x for key in ['added','improved','fixed'] for x in entry[key])+'\n\n'
-validation='PlazCode 1.19.29 validation\nSupported-AI icons use supplied/reused offline artwork, consistent frames and unchanged links. Native Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows resource checks load the embedded PlazCode icon at nine sizes and verify the updater tray icon without locking the asset. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. The real Windows updater relaunch function is checked against the compiled desktop for version/pid readiness, visible foreground startup and minimized background startup without taking focus. Native Blender addon-protocol fixtures cover authentication, fragmented replies, closed and silent endpoints, wrong protocols, no automatic replay and recovery. Chromium-style extension identity and concurrent socket tests cover pairing and browser isolation. Full live supported-AI conversations, real Blender, actual Edge/Brave UI sessions, Roblox Studio insertion, real-user installation and macOS GUI relaunch are not exercised.\n\n'
+validation='PlazCode 1.19.30 validation\nSupported-AI icons use supplied/reused offline artwork, consistent frames and unchanged links. Native Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows resource checks load the embedded PlazCode icon at nine sizes and verify the updater tray icon without locking the asset. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. The real Windows updater relaunch function is checked against the compiled desktop for version/pid readiness, visible foreground startup and minimized background startup without taking focus. Native Blender addon-protocol fixtures cover authentication, fragmented replies, closed and silent endpoints, wrong protocols, no automatic replay and recovery. Chromium-style extension identity and concurrent socket tests cover pairing and browser isolation. Full live supported-AI conversations, real Blender, actual Edge/Brave UI sessions, Roblox Studio insertion, real-user installation and macOS GUI relaunch are not exercised.\n\n'
 for name in ['README.md','UPDATE.txt','MAINTENANCE.md']:
  (repo/name).write_text(intro+(repo/name).read_text());(root/name).write_bytes((repo/name).read_bytes())
 (repo/'VALIDATION.txt').write_text(validation+(repo/'VALIDATION.txt').read_text());(root/'VALIDATION.txt').write_bytes((repo/'VALIDATION.txt').read_bytes())
@@ -29,7 +29,32 @@ with zipfile.ZipFile(repo/'artifacts/native-macOS/PlazCode-app.zip') as app:
 p=root/'macos/Info.plist';data=plistlib.loads(p.read_bytes());data['CFBundleShortVersionString']=data['CFBundleVersion']=version;p.write_bytes(plistlib.dumps(data))
 source={f'PlazCode/{p.relative_to(root)}':p.read_bytes() for p in root.rglob('*') if p.is_file() and not any(x in p.relative_to(root).parts for x in ['target','.git','node_modules','__pycache__','PlazCode.app','visual-checks'])}
 source['PlazCode/PlazCode.exe']=(repo/'artifacts/native-Windows/PlazCode.exe').read_bytes()
-original=repo/'PlazCode-1.19.28.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='79f4a5061fb30c8ab8bf52289eb477795756cbe218a383dccce3e5740393ad92'
+original=repo/'PlazCode-1.19.29.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='1d9dc8564ec7c4a499a63b7d7afc115133e17dcc2dd0648dd6c2d5d1fd41e61e'
+with zipfile.ZipFile(original) as old:
+ for path in source:
+  if '/providers/' in path and path in old.namelist():assert source[path]==old.read(path), 'Provider behavior source changed'
+source_name=f'PlazCode-source-{version}.zip'
+with zipfile.ZipFile(repo/source_name,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+ for path,data in source.items():
+  if path.endswith(('.exe','.dll','.pdb')) or '/runtime/engram/engram-' in path:continue
+  z.writestr(path,data)
+ for name in ['package-appearance.py','publisher-appearance.py','.github/workflows/appearance-build.yml','appearance-visual.js','test-javascript.py']:
+  p=repo/name
+  if not p.exists():
+   with urllib.request.urlopen(f'https://raw.githubusercontent.com/{__import__("os").environ["GITHUB_REPOSITORY"]}/{__import__("os").environ["GITHUB_SHA"]}/{name}',timeout=30) as response: data=response.read()
+  else:data=p.read_bytes()
+  z.writestr('PlazCode/release-tools/'+name,data)
+subprocess.run(['node',str(root/'release-tools/minify.mjs'),str(root)],check=True)
+for path in list(source):
+ p=root/path.removeprefix('PlazCode/')
+ if p.is_file() and p.suffix=='.js':source[path]=p.read_bytes()
+source['PlazCode/production-build.json']=(root/'production-build.json').read_bytes()
+# Run pure behavioral tests against the actual generated modules.
+for name in ['test-version.js','test-cowork.js','test-page-startup.js']:
+ subprocess.run(['node',name],cwd=root,check=True)
+def development(path):
+ relative=path.removeprefix('PlazCode/');parts=Path(relative).parts
+ return any(p in ['.git','.github','node_modules','__pycache__','release-tools'] for p in parts) or any(p.startswith('test-') for p in parts) or relative.startswith('agent/src/') or relative in ['agent/Cargo.toml','agent/Cargo.lock','agent/build.rs','build-macos-bundle.py','package_release.py','design-baseline.html'] or Path(path).suffix in ['.map','.pdb']
 metadata=[]
 for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-macOS-{version}.zip')]:
  output=repo/name;remaining=dict(source)
@@ -37,12 +62,14 @@ for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-
   seen=set()
   for info in old.infolist():
    path=info.filename
+   if development(path):remaining.pop(path,None);continue
    if path.startswith('PlazCode/PlazCode.app/'):continue
    if platform=='macos' and Path(path).suffix.lower() in ['.exe','.dll','.bat','.cmd','.ps1']:continue
    data=remaining.pop(path,old.read(info))
    if path=='PlazCode/update-source.json' and platform=='macos':data=json.dumps({'feedUrl':'https://raw.githubusercontent.com/stoveez/PlazCode/main/latest-macos.json'},indent=2).encode()
    new.writestr(info,data);seen.add(path)
   for path,data in remaining.items():
+   if development(path):continue
    if path in seen or path.startswith('PlazCode/PlazCode.app/'):continue
    if platform=='macos' and Path(path).suffix.lower() in ['.exe','.dll','.bat','.cmd','.ps1']:continue
    info=zipfile.ZipInfo(path);info.compress_type=zipfile.ZIP_DEFLATED;info.external_attr=(0o100755 if Path(path).suffix=='.command' or '/runtime/engram/engram-' in path else 0o100644)<<16;new.writestr(info,data)
@@ -56,20 +83,24 @@ for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-
   assert ('PlazCode/runtime/engram/engram-windows-amd64.exe' in z.namelist())==(platform=='windows')
   for arch in ['amd64','arm64']:assert z.getinfo(f'PlazCode/PlazCode.app/Contents/Resources/engram/engram-darwin-{arch}').external_attr>>16&0o111
   assert z.getinfo('PlazCode/PlazCode.app/Contents/MacOS/PlazCode').external_attr>>16&0o111
-  with zipfile.ZipFile(original) as old:
-   for path in old.namelist():
-    if '/providers/' in path and True:assert old.read(path)==z.read(path)
+  assert not any(development(path) for path in z.namelist()), 'Development artifacts in production ZIP'
+  for base in ['PlazCode/','PlazCode/PlazCode-Extension/']:
+   manifest=json.loads(z.read(base+'manifest.json'))
+   required=[manifest['background']['service_worker'],manifest['action']['default_popup']]
+   for content in manifest['content_scripts']:required+=content.get('js',[])+content.get('css',[])
+   for path in required:assert base+path in z.namelist(),('Missing production asset',base+path)
  raw=output.read_bytes();assert len(raw)<=64*1024*1024
- metadata.append({'file':name,'platform':platform,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+metadata.append({'file':name,'platform':platform,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+raw=(repo/source_name).read_bytes();source_metadata={'file':source_name,'platform':'source','bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
 feeds={x['platform']:{'version':version,'desktop_version':version,'url':f"https://raw.githubusercontent.com/stoveez/PlazCode/main/{x['file']}",'sha256':x['sha256'],'release_notes':notes} for x in metadata}
 feeds['windows']['platforms']={'macos':{k:feeds['macos'][k] for k in ['url','sha256']}}
 for feed in feeds.values():
  while len((json.dumps(feed,indent=2)+'\n').encode())>60000 and len(feed['release_notes'])>1:feed['release_notes']=feed['release_notes'][:-1]
  assert len((json.dumps(feed,indent=2)+'\n').encode())<=65536
 (repo/'latest.json').write_text(json.dumps(feeds['windows'],indent=2)+'\n');(repo/'latest-macos.json').write_text(json.dumps(feeds['macos'],indent=2)+'\n')
-(repo/'SHA256SUMS.txt').write_text(''.join(f"{x['sha256']}  {x['file']}\n" for x in metadata));(repo/'release-metadata.json').write_text(json.dumps(metadata,indent=2)+'\n')
+(repo/'SHA256SUMS.txt').write_text(''.join(f"{x['sha256']}  {x['file']}\n" for x in metadata+[source_metadata]));(repo/'release-metadata.json').write_text(json.dumps(metadata+[source_metadata],indent=2)+'\n')
 description='**PlazCode '+version+': '+entry['title']+'**\n\n- '+entry['summary']+'\n'
 for key,title in [('added','New additions'),('improved','Improvements'),('fixed','Bug fixes')]:
  description+='\n***'+title+'***\n\n'+('\n'.join('- '+x for x in entry[key]) or '- None.')+'\n'
-(repo/'release-description-1.19.29.txt').write_text(description)
+(repo/'release-description-1.19.30.txt').write_text(description)
 print(json.dumps(metadata,indent=2))

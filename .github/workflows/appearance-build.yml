@@ -82,8 +82,8 @@ jobs:
       - name: Fetch verified prior release for macOS bundle resources
         if: runner.os == 'macOS'
         run: |
-          curl --fail --location --retry 3 https://raw.githubusercontent.com/stoveez/PlazCode/f956f119e532f66488aaa7774388552eae96f2f5/PlazCode-1.19.28.zip -o PlazCode-1.19.28.zip
-          echo '79f4a5061fb30c8ab8bf52289eb477795756cbe218a383dccce3e5740393ad92  PlazCode-1.19.28.zip' | shasum -a 256 --check
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/stoveez/PlazCode/b78732758268a427dbc96b746b922e5a8b8ac979/PlazCode-1.19.29.zip -o PlazCode-1.19.29.zip
+          echo '1d9dc8564ec7c4a499a63b7d7afc115133e17dcc2dd0648dd6c2d5d1fd41e61e  PlazCode-1.19.29.zip' | shasum -a 256 --check
       - name: Native regression tests
         working-directory: build/PlazCode/agent
         run: cargo test --locked
@@ -160,6 +160,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -176,20 +178,40 @@ jobs:
           gh api "repos/$GITHUB_REPOSITORY/contents/package-appearance.py?ref=$GITHUB_SHA" --jq .content | base64 --decode > package-appearance.py
           gh api "repos/$GITHUB_REPOSITORY/contents/publisher-appearance.py?ref=$GITHUB_SHA" --jq .content | base64 --decode > publisher-appearance.py
           unzip -q appearance-source.zip -d build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --prefix build/PlazCode/release-tools terser@5.44.0 acorn@8.15.0
       - name: Create and validate both platform downloads
         run: |
-          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.28', 'Main release changed; manual rebase required'"
+          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.29', 'Main release changed; manual rebase required'"
           python package-appearance.py
-          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.29.zip').read_bytes(),'1.19.29','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.29.zip').read_bytes(),'1.19.29','macos')"
+          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.30.zip').read_bytes(),'1.19.30','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.30.zip').read_bytes(),'1.19.30','macos')"
+      - uses: actions/attest@v4
+        id: provenance
+        with:
+          subject-path: |
+            PlazCode-1.19.30.zip
+            PlazCode-macOS-1.19.30.zip
+            PlazCode-source-1.19.30.zip
+            latest.json
+            latest-macos.json
+      - name: Verify build provenance before publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
+        run: |
+          cp "$BUNDLE_PATH" PlazCode-1.19.30.sigstore.json
+          for file in PlazCode-1.19.30.zip PlazCode-macOS-1.19.30.zip PlazCode-source-1.19.30.zip latest.json latest-macos.json; do gh attestation verify "$file" --repo "$GITHUB_REPOSITORY"; done
       - name: Commit release files and publish verified GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name 'PlazCode release automation'
           git config user.email 'actions@users.noreply.github.com'
-          git rm PlazCode-1.19.28.zip PlazCode-macOS-1.19.28.zip
-          git add publish_release.py Update-PlazCode.ps1 PlazCode-1.19.29.zip PlazCode-macOS-1.19.29.zip latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.29.txt
-          git commit -m 'Release PlazCode 1.19.29: supported-AI logo artwork'
+          git rm PlazCode-1.19.29.zip PlazCode-macOS-1.19.29.zip
+          git add publish_release.py Update-PlazCode.ps1 PlazCode-1.19.30.zip PlazCode-macOS-1.19.30.zip PlazCode-source-1.19.30.zip PlazCode-1.19.30.sigstore.json latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.30.txt
+          git commit -m 'Release PlazCode 1.19.30: supported-AI logo artwork'
           git push origin HEAD:main
           export GITHUB_SHA=$(git rev-parse HEAD)
           python publish_release.py

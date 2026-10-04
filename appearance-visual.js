@@ -2,7 +2,7 @@ const fs=require('fs');const {chromium}=require('playwright');
 (async()=>{
  const original=fs.readFileSync('agent/src/desktop.html','utf8');
  const themeScript='function Byid(id){return document.getElementById(id)};'+original.slice(original.indexOf('  var Desktopthemes ='),original.indexOf('  function Saveappearance()'));
- const html=original.replaceAll('__PLAZCODE_VERSION__','1.19.29').replace(/<script>[\s\S]*?<\/script>/g,'');
+ const html=original.replaceAll('__PLAZCODE_VERSION__','1.19.30').replace(/<script>[\s\S]*?<\/script>/g,'');
  const mcpScript='var State={servers:[{id:"blender",alive:true,tools:30}],mcp_alive:true};var PendingMcp={};function Escape(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll(String.fromCharCode(34),"&quot;")};function Toarray(n){return [...n]};function Refresh(){return Promise.resolve()};function Showerror(e){throw e};function Api(path){return Promise.resolve(path==="/api/mcp/catalog"?{servers:[{id:"blender",name:"Blender",enabled:true,command:"uvx",args:["blender-mcp"],description:"Install and enable the Blender MCP addon inside Blender. Keep Blender open, press N, open MCP for Blender, and click Start MCP Server. Enabling here starts the MCP process only; Test Blender connection checks the actual scene response."}]}:{ok:false,error:"Blender did not answer get_scene_info within 8 seconds. Keep Blender open and responsive, close blocking dialogs, then stop and start the MCP server in Blender."})};'+original.slice(original.indexOf('  var Blendercheck ='),original.indexOf('  function Renderlogs()'));
  const browser=await chromium.launch({headless:true});const page=await browser.newPage();
  await page.setContent(html);
@@ -105,5 +105,27 @@ const fs=require('fs');const {chromium}=require('playwright');
  const cards=await browser.newPage({viewport:{width:720,height:580}});await cards.setContent('<html><body style="margin:24px;background:#11151c;color:#e7edf6"><div id="rs-menu"><div class="rs-prompt-field"><label>Commands per run</label><input type="number" value="0"><select><option>Saved chat</option></select><button>Save continuation file</button><button>Resume paused task</button></div></div><p>This explanation should remain visible after a tool result.</p><div class="rs-chip"><div class="rs-chip-head"><span class="rs-chip-ic">✓</span><span class="rs-chip-tx">execute_luau</span><span class="rs-chip-dt">complete</span></div></div><div class="rs-chip"><div class="rs-chip-head"><span class="rs-chip-ic">✓</span><span class="rs-chip-tx">execute_luau · result</span></div></div></body></html>');await cards.addStyleTag({content:fs.readFileSync('overlay.css','utf8')});await cards.addStyleTag({content:'#rs-menu{position:static!important;opacity:1!important;transform:none!important;filter:none!important;visibility:visible!important;inset:auto!important;width:100%!important;max-width:none!important;margin:0 0 24px!important}'});await cards.screenshot({path:'visual-checks/extension-controls-command-spacing.png'});const geometry=await cards.locator('.rs-chip').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().toJSON()));if(geometry[1].top<geometry[0].bottom+8)throw Error('Command cards overlap');await cards.close();
  await page.emulateMedia({reducedMotion:'reduce'});
  const motion=await page.locator('.page.active').evaluate(n=>getComputedStyle(n).animationName);if(motion!=='none')throw Error('Reduced motion was ignored');
- await browser.close();console.log('Visual checks: three widths, four pages, five new palettes, reduced motion passed.');
+ const barSource=fs.readFileSync('core/main.js','utf8');
+ const barHtml=barSource.slice(barSource.indexOf('<div id="rs-bar">'),barSource.indexOf('<div id="rs-cowork-panel"')).replace(/\$\{BRAND_NAME\}/g,'PlazCode').replace(/\$\{EXT_VERSION\}/g,'1.19.29');
+ const sample=await browser.newPage();
+ await sample.setContent('<style>body{background:#11151c;margin:20px}.host{max-width:740px;margin:auto}.site-turn{margin:0;text-align:right}p{color:#eee}</style><main class="host"><article class="site-turn"><div class="rs-chip err"><div class="rs-chip-head"><span class="rs-chip-tx">execute_luau · ERROR: '+('Long error text ').repeat(30)+'</span><span class="rs-chip-dt">failed</span></div></div></article><article class="site-turn rs-hidden"><div class="rs-chip result"><div class="rs-chip-head"><span class="rs-chip-tx">execute_luau · result</span></div></div></article><article class="site-turn rs-hidden"><div class="rs-chip err"><div class="rs-chip-head"><span class="rs-chip-tx">result · '+('Wrapped error ').repeat(15)+'</span></div></div></article><p>Connecting a few dots</p><section class="rs-cowork-receipt"><strong>Co-work follow-up · Sent to AI</strong><div>Keep this exact follow-up visible</div></section></main><div id="rs-root">'+barHtml+'</div>');
+ await sample.addStyleTag({content:fs.readFileSync('overlay.css','utf8')});
+ await sample.addScriptTag({content:fs.readFileSync('core/version.js','utf8')+'\nwindow.VersionUI=PlazCodeVersion;'});
+ await sample.evaluate(()=>{const bar=document.getElementById('rs-bar');bar.style.position='relative';bar.style.width='100%';});
+ for(const width of [1440,760,390]){
+  await sample.setViewportSize({width,height:1000});
+  for(const engine of ['Chrome/140','Chrome/140 Edg/140','Brave']){
+   await sample.evaluate(async engine=>{await VersionUI.detectBrowser(engine==='Brave'?{userAgentData:{brands:[{brand:'Brave'}]}}:{userAgent:engine});VersionUI.render(document.getElementById('rs-bar-version'),'1.19.29',{latest:'1.19.30',checked_at:Date.now()});},engine);
+   const error=await sample.evaluate(()=>{
+    const chips=[...document.querySelectorAll('.rs-chip')].map(n=>n.getBoundingClientRect());
+    for(let i=1;i<chips.length;i++)if(chips[i].top-chips[i-1].bottom<9)return 'Result cards touch/overlap';
+    const bar=document.getElementById('rs-bar');if(bar.scrollWidth>bar.clientWidth+1)return 'Outdated bar overflows';
+    const buttons=[...bar.querySelectorAll('button')].filter(n=>n.checkVisibility()).map(n=>n.getBoundingClientRect());
+    for(let i=0;i<buttons.length;i++)for(let j=i+1;j<buttons.length;j++){const a=buttons[i],b=buttons[j];if(Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1)return 'Bar buttons overlap';}
+    return null;
+   });if(error)throw Error(width+' '+engine+': '+error);
+   await sample.screenshot({path:'visual-checks/chat-spacing-'+width+'-'+(engine.includes('Edg')?'edge':engine==='Brave'?'brave':'chrome')+'.png'});
+  }
+ }
+ await sample.close();await browser.close();console.log('Desktop and chat visual checks passed, including long errors and Chrome/Edge/Brave update instructions at mobile widths.');
 })().catch(e=>{console.error(e);process.exit(1)});

@@ -64,6 +64,11 @@ def main():
         if hashlib.sha256(data).hexdigest()!=expected_hash:raise ValueError('Update SHA-256 mismatch')
         validate_archive(data,version,platform);pathlib.Path(name).write_bytes(data);assets.append(name)
     pathlib.Path('release-notes.md').write_text(body)
+    for name in ['PlazCode-source-'+version+'.zip','PlazCode-'+version+'.sigstore.json']:
+        data=fetch(root+name);content=json.loads(gh('api','repos/'+repo+'/contents/'+name+'?ref='+commit))
+        if hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()!=content['sha']:raise ValueError('Source/provenance repository hash mismatch')
+        pathlib.Path(name).write_bytes(data);assets.append(name)
+    for name in assets[:3]:gh('attestation','verify',name,'--repo',repo)
     if not existing:gh('release','create',tag,'--repo',repo,'--target',commit,'--draft','--title',title,'--notes-file','release-notes.md')
     gh('release','upload',tag,*assets,'--repo',repo,'--clobber')
     current=json.loads(gh('api','repos/'+repo+'/contents/latest.json?ref=main'))
