@@ -1,5 +1,22 @@
 [
   {
+    "version": "1.19.22",
+    "title": "Reliable PlazCode application and background tray icons",
+    "summary": "Complete the Windows application icon fix and correct the updater notification icon copy.",
+    "added": [],
+    "improved": [
+      "Retains the embedded PlazCode application icon introduced in 1.19.21, with nine sizes from 16 to 256 pixels.",
+      "Windows icon checks now inspect the updater tray icon pixels and verify that the installed icon file can be replaced during updates."
+    ],
+    "fixed": [
+      "The updater now copies a fully loaded native icon, preventing corrupted tray pixels after its icon input stream closes."
+    ],
+    "notes": [
+      "File Explorer, the application window and the running application tray retain the branded PlazCode icon.",
+      "Existing updater theme and background activation behavior remain included."
+    ]
+  },
+  {
     "version": "1.19.21",
     "title": "Branded Windows application and tray icons",
     "summary": "Add the missing PlazCode application icon to the Windows executable and background tray.",

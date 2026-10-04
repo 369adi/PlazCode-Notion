@@ -1,9 +1,26 @@
 {
-  "version": "1.19.21",
-  "desktop_version": "1.19.21",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.21.zip",
-  "sha256": "e7dd252661f2391a5850ec46ef28ced835cd687df4805de28891f78c742cacb7",
+  "version": "1.19.22",
+  "desktop_version": "1.19.22",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.22.zip",
+  "sha256": "4191e56f04217076dd20b9e33c9c4a8654ce09bf5938d10de2a02c46229ca88b",
   "release_notes": [
+    {
+      "version": "1.19.22",
+      "title": "Reliable PlazCode application and background tray icons",
+      "summary": "Complete the Windows application icon fix and correct the updater notification icon copy.",
+      "added": [],
+      "improved": [
+        "Retains the embedded PlazCode application icon introduced in 1.19.21, with nine sizes from 16 to 256 pixels.",
+        "Windows icon checks now inspect the updater tray icon pixels and verify that the installed icon file can be replaced during updates."
+      ],
+      "fixed": [
+        "The updater now copies a fully loaded native icon, preventing corrupted tray pixels after its icon input stream closes."
+      ],
+      "notes": [
+        "File Explorer, the application window and the running application tray retain the branded PlazCode icon.",
+        "Existing updater theme and background activation behavior remain included."
+      ]
+    },
     {
       "version": "1.19.21",
       "title": "Branded Windows application and tray icons",
