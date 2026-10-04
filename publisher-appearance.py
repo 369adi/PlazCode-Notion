@@ -28,8 +28,10 @@ def notes(feed):
 def validate_archive(data,version,platform="windows"):
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         if archive.testzip() is not None:raise ValueError('ZIP checksum failure')
-        manifest=json.loads(archive.read('PlazCode/PlazCode-Extension/manifest.json'))
-        if tuple(map(int,manifest['version'].split('.')))!=tuple(map(int,version.split('.'))):raise ValueError('ZIP version does not match feed')
+        for path in ['PlazCode/manifest.json','PlazCode/PlazCode-Extension/manifest.json']:
+            manifest=json.loads(archive.read(path))
+            if manifest['version']!=version:raise ValueError('ZIP version does not match feed: '+path)
+            if manifest.get('version_name',manifest['version'])!=manifest['version']:raise ValueError('Extension display version contradicts release version: '+path)
         if platform=='windows' and 'PlazCode/PlazCode.exe' not in archive.namelist():raise ValueError('Windows desktop executable missing')
         if platform=='macos' and 'PlazCode/PlazCode.exe' in archive.namelist():raise ValueError('Mac download must not contain the Windows executable')
         import plistlib, struct
