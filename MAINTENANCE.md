@@ -1,3 +1,11 @@
+PlazCode 1.19.20 — Clear Settings icon at sidebar size
+
+Correct the distorted Settings wrench and gear while retaining the 1.19.19 navigation and updater improvements.
+
+- Redrawn wrench, handle opening and gear geometry follow the supplied reference with a thinner outline and clear spacing.
+- Settings keeps consistent stroke proportions in selected and unselected states, including shared themes and display scaling.
+- Removed the mismatched gear transform and crowded strokes that made Settings look distorted at normal sidebar size.
+
 PlazCode 1.19.19 — Updated navigation icons and theme-aware background updates
 
 Refresh Home, Templates and Settings icons and keep automatic updates from interrupting the foreground app.

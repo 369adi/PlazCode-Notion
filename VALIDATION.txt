@@ -1,3 +1,6 @@
+PlazCode 1.19.20 validation
+Native Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. Full live supported-AI conversations, Roblox Studio insertion and real-user foreground installation/relaunch are not exercised.
+
 PlazCode 1.19.19 validation
 Native Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. Full live supported-AI conversations, Roblox Studio insertion and real-user foreground installation/relaunch are not exercised.
 

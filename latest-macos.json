@@ -1,9 +1,26 @@
 {
-  "version": "1.19.19",
-  "desktop_version": "1.19.19",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.19.zip",
-  "sha256": "fe6cb72ce700c7606981049fecd49c37f7842d98cde7899904dfdabc87300c1c",
+  "version": "1.19.20",
+  "desktop_version": "1.19.20",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.20.zip",
+  "sha256": "b1c963044c22a9409367f572f4b73a70f438e56b76c8fd4af615134e927be525",
   "release_notes": [
+    {
+      "version": "1.19.20",
+      "title": "Clear Settings icon at sidebar size",
+      "summary": "Correct the distorted Settings wrench and gear while retaining the 1.19.19 navigation and updater improvements.",
+      "added": [],
+      "improved": [
+        "Redrawn wrench, handle opening and gear geometry follow the supplied reference with a thinner outline and clear spacing.",
+        "Settings keeps consistent stroke proportions in selected and unselected states, including shared themes and display scaling."
+      ],
+      "fixed": [
+        "Removed the mismatched gear transform and crowded strokes that made Settings look distorted at normal sidebar size."
+      ],
+      "notes": [
+        "Visual hotfix; existing Settings navigation and controls are unchanged.",
+        "The 1.19.19 themed background updater and other navigation icons remain included."
+      ]
+    },
     {
       "version": "1.19.19",
       "title": "Updated navigation icons and theme-aware background updates",
