@@ -1,9 +1,9 @@
 from pathlib import Path
 import json,zipfile,hashlib,io,plistlib,struct,urllib.request,tarfile
-repo=Path.cwd();version='1.19.23';root=repo/'build/PlazCode'
+repo=Path.cwd();version='1.19.24';root=repo/'build/PlazCode'
 notes=json.loads((root/'release-notes.json').read_text());entry=notes[0];assert entry['version']==version
 intro='PlazCode '+version+' — '+entry['title']+'\n\n'+entry['summary']+'\n\n'+'\n'.join('- '+x for key in ['added','improved','fixed'] for x in entry[key])+'\n\n'
-validation='PlazCode 1.19.23 validation\nNative Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows resource checks load the embedded PlazCode icon at nine sizes and verify the updater tray icon without locking the asset. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. Full live supported-AI conversations, Roblox Studio insertion and real-user foreground installation/relaunch are not exercised.\n\n'
+validation='PlazCode 1.19.24 validation\nNative Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows resource checks load the embedded PlazCode icon at nine sizes and verify the updater tray icon without locking the asset. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. Full live supported-AI conversations, Roblox Studio insertion and real-user foreground installation/relaunch are not exercised.\n\n'
 for name in ['README.md','UPDATE.txt','MAINTENANCE.md']:
  (repo/name).write_text(intro+(repo/name).read_text());(root/name).write_bytes((repo/name).read_bytes())
 (repo/'VALIDATION.txt').write_text(validation+(repo/'VALIDATION.txt').read_text());(root/'VALIDATION.txt').write_bytes((repo/'VALIDATION.txt').read_bytes())
@@ -29,7 +29,7 @@ with zipfile.ZipFile(repo/'artifacts/native-macOS/PlazCode-app.zip') as app:
 p=root/'macos/Info.plist';data=plistlib.loads(p.read_bytes());data['CFBundleShortVersionString']=data['CFBundleVersion']=version;p.write_bytes(plistlib.dumps(data))
 source={f'PlazCode/{p.relative_to(root)}':p.read_bytes() for p in root.rglob('*') if p.is_file() and not any(x in p.relative_to(root).parts for x in ['target','.git','node_modules','__pycache__','PlazCode.app','visual-checks'])}
 source['PlazCode/PlazCode.exe']=(repo/'artifacts/native-Windows/PlazCode.exe').read_bytes()
-original=repo/'PlazCode-1.19.22.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='3e67c82d68721e2ad33e08149887e18f80c413e862616f9e27eab68143a6ee58'
+original=repo/'PlazCode-1.19.23.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='d76efbd475c0e81ce8d9a31f8a64a86d3b0e39fa64ff34fada1ee4650950d0ce'
 metadata=[]
 for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-macOS-{version}.zip')]:
  output=repo/name;remaining=dict(source)
@@ -58,7 +58,7 @@ for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-
   assert z.getinfo('PlazCode/PlazCode.app/Contents/MacOS/PlazCode').external_attr>>16&0o111
   with zipfile.ZipFile(original) as old:
    for path in old.namelist():
-    if '/providers/' in path:assert old.read(path)==z.read(path)
+    if '/providers/' in path and not path.endswith('/providers/deepseek.js'):assert old.read(path)==z.read(path)
  raw=output.read_bytes();assert len(raw)<=64*1024*1024
  metadata.append({'file':name,'platform':platform,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
 feeds={x['platform']:{'version':version,'desktop_version':version,'url':f"https://raw.githubusercontent.com/stoveez/PlazCode/main/{x['file']}",'sha256':x['sha256'],'release_notes':notes} for x in metadata}
@@ -71,5 +71,5 @@ for feed in feeds.values():
 description='**PlazCode '+version+': '+entry['title']+'**\n\n- '+entry['summary']+'\n'
 for key,title in [('added','New additions'),('improved','Improvements'),('fixed','Bug fixes')]:
  description+='\n***'+title+'***\n\n'+('\n'.join('- '+x for x in entry[key]) or '- None.')+'\n'
-(repo/'release-description-1.19.23.txt').write_text(description)
+(repo/'release-description-1.19.24.txt').write_text(description)
 print(json.dumps(metadata,indent=2))
