@@ -1,9 +1,9 @@
 from pathlib import Path
 import json,zipfile,hashlib,io,plistlib,struct,urllib.request,tarfile
-repo=Path.cwd();version='1.19.20';root=repo/'build/PlazCode'
+repo=Path.cwd();version='1.19.21';root=repo/'build/PlazCode'
 notes=json.loads((root/'release-notes.json').read_text());entry=notes[0];assert entry['version']==version
 intro='PlazCode '+version+' — '+entry['title']+'\n\n'+entry['summary']+'\n\n'+'\n'.join('- '+x for key in ['added','improved','fixed'] for x in entry[key])+'\n\n'
-validation='PlazCode 1.19.20 validation\nNative Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. Full live supported-AI conversations, Roblox Studio insertion and real-user foreground installation/relaunch are not exercised.\n\n'
+validation='PlazCode 1.19.21 validation\nNative Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows resource checks load the embedded PlazCode icon at nine sizes and verify the updater tray icon without locking the asset. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. Full live supported-AI conversations, Roblox Studio insertion and real-user foreground installation/relaunch are not exercised.\n\n'
 for name in ['README.md','UPDATE.txt','MAINTENANCE.md']:
  (repo/name).write_text(intro+(repo/name).read_text());(root/name).write_bytes((repo/name).read_bytes())
 (repo/'VALIDATION.txt').write_text(validation+(repo/'VALIDATION.txt').read_text());(root/'VALIDATION.txt').write_bytes((repo/'VALIDATION.txt').read_bytes())
@@ -29,7 +29,7 @@ with zipfile.ZipFile(repo/'artifacts/native-macOS/PlazCode-app.zip') as app:
 p=root/'macos/Info.plist';data=plistlib.loads(p.read_bytes());data['CFBundleShortVersionString']=data['CFBundleVersion']=version;p.write_bytes(plistlib.dumps(data))
 source={f'PlazCode/{p.relative_to(root)}':p.read_bytes() for p in root.rglob('*') if p.is_file() and not any(x in p.relative_to(root).parts for x in ['target','.git','node_modules','__pycache__','PlazCode.app','visual-checks'])}
 source['PlazCode/PlazCode.exe']=(repo/'artifacts/native-Windows/PlazCode.exe').read_bytes()
-original=repo/'PlazCode-1.19.19.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='4a2d70fee4b8e2a725ae2cb337afbd7029493c7e9081b5f01de3953bc63c387c'
+original=repo/'PlazCode-1.19.20.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='42bd8ff95abae59fba49013abf86af0169b1bdc7309d96d63105fc3cc068515c'
 metadata=[]
 for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-macOS-{version}.zip')]:
  output=repo/name;remaining=dict(source)
@@ -70,5 +70,5 @@ for feed in feeds.values():
 description='**PlazCode '+version+': '+entry['title']+'**\n\n- '+entry['summary']+'\n'
 for key,title in [('added','New additions'),('improved','Improvements'),('fixed','Bug fixes')]:
  description+='\n***'+title+'***\n\n'+('\n'.join('- '+x for x in entry[key]) or '- None.')+'\n'
-(repo/'release-description-1.19.20.txt').write_text(description)
+(repo/'release-description-1.19.21.txt').write_text(description)
 print(json.dumps(metadata,indent=2))
