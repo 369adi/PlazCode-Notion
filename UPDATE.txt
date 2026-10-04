@@ -1,3 +1,23 @@
+PlazCode 1.19.30 — Safer release packages and visible Co-Work follow-ups
+
+Add verified production packages, persistent follow-up visibility and clearer browser update instructions.
+
+- GitHub build provenance attestations for release downloads, with a separate editable GPL source archive.
+- Co-Work follow-ups remain visible in the conversation with queued, sending, sent and unconfirmed states.
+- An independent Co-Work composer accepts follow-ups during internal tool feedback writes and retains drafts separately for each chat and engine.
+- Production JavaScript removes comments and whitespace while preserving names, execution order and parsed structure.
+- Official automatic updates cross-check package checksums against published GitHub release metadata. If that API is rate-limited, downloads use the fixed official asset URL and retain checksum and version verification.
+- Official update feeds select the running operating system, including macOS installations made from the combined ZIP.
+- Outdated bar messages explain updating the desktop first and reloading the extension at chrome://extensions, edge://extensions or brave://extensions. Other browsers show Outdated.
+- GitHub API rate limits no longer prevent otherwise valid official automatic updates or Windows manual updates.
+- Error and result cards reserve consistent internal spacing across AI-site wrappers and wrap long labels without overlap.
+- Notion command cards retain completed or failed status after stale page updates and response remounts.
+- Localized Notion AI composers, including German Frag Notion-KI, anchor the bar to the composer instead of leaving it detached.
+- Browser error diagnostics preserve readable details and exclude unrelated site errors from extension error reporting.
+- Co-Work follow-ups remain visible after the queue hands them to the AI, including follow-ups attached to tool results.
+- The Follow up composer placeholder appears only while the AI is working and restores each site's original placeholder when the task finishes.
+- Execution settings separate limits, visual review, help text and continuation buttons into clearly spaced rows.
+
 PlazCode 1.19.29 — Recognizable AI icons in the supported-AI dropdown
 
 Replace supported-AI letter badges with recognizable logo artwork while preserving existing links, layout and behavior.

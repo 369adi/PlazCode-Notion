@@ -1,9 +1,35 @@
 {
-  "version": "1.19.29",
-  "desktop_version": "1.19.29",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.29.zip",
-  "sha256": "1d9dc8564ec7c4a499a63b7d7afc115133e17dcc2dd0648dd6c2d5d1fd41e61e",
+  "version": "1.19.30",
+  "desktop_version": "1.19.30",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.30.zip",
+  "sha256": "7d1590bf06a48e5d43ac5edd3c7bace8be3232d9a4eaae4fd4d000785acc46bc",
   "release_notes": [
+    {
+      "version": "1.19.30",
+      "title": "Safer release packages and visible Co-Work follow-ups",
+      "summary": "Add verified production packages, persistent follow-up visibility and clearer browser update instructions.",
+      "added": [
+        "GitHub build provenance attestations for release downloads, with a separate editable GPL source archive.",
+        "Co-Work follow-ups remain visible in the conversation with queued, sending, sent and unconfirmed states.",
+        "An independent Co-Work composer accepts follow-ups during internal tool feedback writes and retains drafts separately for each chat and engine."
+      ],
+      "improved": [
+        "Production JavaScript removes comments and whitespace while preserving names, execution order and parsed structure.",
+        "Official automatic updates cross-check package checksums against published GitHub release metadata. If that API is rate-limited, downloads use the fixed official asset URL and retain checksum and version verification.",
+        "Official update feeds select the running operating system, including macOS installations made from the combined ZIP.",
+        "Outdated bar messages explain updating the desktop first and reloading the extension at chrome://extensions, edge://extensions or brave://extensions. Other browsers show Outdated."
+      ],
+      "fixed": [
+        "GitHub API rate limits no longer prevent otherwise valid official automatic updates or Windows manual updates.",
+        "Error and result cards reserve consistent internal spacing across AI-site wrappers and wrap long labels without overlap.",
+        "Notion command cards retain completed or failed status after stale page updates and response remounts.",
+        "Localized Notion AI composers, including German Frag Notion-KI, anchor the bar to the composer instead of leaving it detached.",
+        "Browser error diagnostics preserve readable details and exclude unrelated site errors from extension error reporting.",
+        "Co-Work follow-ups remain visible after the queue hands them to the AI, including follow-ups attached to tool results.",
+        "The Follow up composer placeholder appears only while the AI is working and restores each site's original placeholder when the task finishes.",
+        "Execution settings separate limits, visual review, help text and continuation buttons into clearly spaced rows."
+      ]
+    },
     {
       "version": "1.19.29",
       "title": "Recognizable AI icons in the supported-AI dropdown",
@@ -718,42 +744,12 @@
         "The internal get_studio_state connection probe now receives studio_id when required. Missing IDs no longer prevent automatic Studio connection after the new MCP update.",
         "Studio auto-connect attempts have an eight-second bound and retry in the background; local bridge endpoints are bound before the desktop opens. Timed-out discovery never dispatches the requested Studio command."
       ]
-    },
-    {
-      "version": "1.18.93",
-      "title": "Shared themes, larger memory and quieter updates",
-      "summary": "Desktop themes sync to the browser bar and panels, saved memory supports 150K characters, and automatic update checks stay quiet. Notion tool-result delivery has bounded retries and literal code paste.",
-      "added": [
-        "Desktop palette, glow and gradient settings sync through shared preferences to the browser bar, menus, controls and activity panels. Selections persist across restarts and updates; legacy browser themes map back to desktop palettes. Existing unsynced appearance is migrated without forcing a reset.",
-        "Saved memory supports 150,000 characters total, with a capacity display, larger note fields and transactional storage limits. Long notes have previews and paged AI reads instead of being omitted or flooding startup prompts. Memory-only backups can load saved notes without sending an old conversation to the AI."
-      ],
-      "improved": [
-        "Updated the DeepSeek shortcut description; its Open in browser action is unchanged.",
-        "Release checks run every two seconds, and desktop/browser status reads every second. The default GitHub cache key uses two-second buckets; network and publication delays still apply. This is polling, not guaranteed instant push."
-      ],
-      "fixed": [
-        "Automatic checks do not show Checking for updates\u2026 or disable the manual check/install buttons. Manual requests wait for an ongoing background read instead of racing it.",
-        "Notion tool results paste as literal HTML code instead of Markdown-like rich text. Failed writes have wall-clock retry limits, preventing hundreds of timer-throttled chunk attempts. A failed draft is cleared only when it still matches the locked composer content captured by that send attempt."
-      ]
-    },
-    {
-      "version": "1.18.92",
-      "title": "Tasks close button and live Co-work follow-ups",
-      "summary": "Close Tasks reliably and send follow-ups during agent work without waiting for the entire task to finish.",
-      "added": [],
-      "improved": [
-        "Co-work delivers new requests alongside the next tool result or continuation, preserving the current task and the order of follow-ups. Streaming responses and running commands are not interrupted.",
-        "Follow-up status confirms receipt and explains delivery at the next safe message boundary. Unconfirmed sends remain paused for review rather than being blindly retried."
-      ],
-      "fixed": [
-        "Tasks has a dedicated sticky header and accessible close button, separated from content, with explicit button type and click handling."
-      ]
     }
   ],
   "platforms": {
     "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.29.zip",
-      "sha256": "5d80bf737d4a3028b2b676e4ed296455acd25b9959df8ce14d5926d0f6c5645e"
+      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.30.zip",
+      "sha256": "8ca7b6b032a0b51c2c1563d4ea2bcb029550d619206233207a88a8e2c30afec3"
     }
   }
 }

@@ -64,6 +64,7 @@ try {
     $source = Get-Content (Join-Path $install 'update-source.json') -Raw | ConvertFrom-Json
     if ($source.feedUrl -eq 'https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/latest.json') { $source.feedUrl='https://raw.githubusercontent.com/stoveez/PlazCode/main/latest.json' }
     if ($source.feedUrl -eq 'https://raw.githubusercontent.com/stoveez/PlazCodeneww/main/latest-macos.json') { $source.feedUrl='https://raw.githubusercontent.com/stoveez/PlazCode/main/latest-macos.json' }
+    if ($source.feedUrl -eq 'https://raw.githubusercontent.com/stoveez/PlazCode/main/latest-macos.json') { $source.feedUrl='https://raw.githubusercontent.com/stoveez/PlazCode/main/latest.json' }
     if (!$source.feedUrl) { $source.feedUrl = "https://raw.githubusercontent.com/stoveez/PlazCode/main/latest.json" }
     New-Item $stage -ItemType Directory | Out-Null
     if (!$ZipPath -and $source.feedUrl) {
@@ -76,6 +77,27 @@ try {
         $latest = [version]$release.version
         if ($latest -le $current) { Write-Host "Already up to date ($current)."; exit 0 }
         if ($release.url -notmatch '^https://' -or $release.sha256 -notmatch '^[a-fA-F0-9]{64}$') { throw 'Invalid release feed: expected version, HTTPS url and SHA256.' }
+        if ($source.feedUrl -eq 'https://raw.githubusercontent.com/stoveez/PlazCode/main/latest.json') {
+            $name = 'PlazCode-' + $release.version + '.zip'
+            $assetUrl = 'https://github.com/stoveez/PlazCode/releases/download/v' + $release.version + '/' + $name
+            $rawPattern = '^https://raw\.githubusercontent\.com/stoveez/PlazCode/(main|[a-fA-F0-9]{40})/' + [regex]::Escape($name) + '$'
+            if ($release.url -ne $assetUrl -and $release.url -notmatch $rawPattern) { throw 'Official update URL does not identify the expected release package.' }
+            $rateLimited = $false
+            try {
+                $official = Invoke-RestMethod -Uri ('https://api.github.com/repos/stoveez/PlazCode/releases/tags/v' + $release.version) -Headers @{ 'User-Agent' = 'PlazCode-Updater'; 'Cache-Control' = 'no-cache' } -TimeoutSec 15
+            } catch {
+                $statusCode = 0
+                try { $statusCode = [int]$_.Exception.Response.StatusCode } catch {}
+                $rateLimited = $statusCode -eq 429 -or ($statusCode -eq 403 -and ($_.ErrorDetails.Message -match 'rate limit' -or $_.Exception.Response.Headers['X-RateLimit-Remaining'] -eq '0'))
+                if (!$rateLimited) { throw }
+            }
+            if ($rateLimited) {
+                $release.url = $assetUrl
+            } else {
+                $asset = @($official.assets | Where-Object { $_.name -eq $name })
+                if ($official.tag_name -ne ('v' + $release.version) -or $official.draft -or $official.prerelease -or $asset.Count -ne 1 -or $asset[0].state -ne 'uploaded' -or $asset[0].browser_download_url -ne $assetUrl -or $asset[0].digest -ne ('sha256:' + $release.sha256)) { throw 'Update checksum could not be confirmed against the published official GitHub release. No installed files were changed.' }
+            }
+        }
         $ZipPath = Join-Path $stage 'release.zip'
         Set-UpdaterProgress -1 'Downloading update' 'Downloading the release package. This step depends on your connection.'
         Write-Host "Downloading $latest..."
