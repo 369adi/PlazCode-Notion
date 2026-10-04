@@ -102,4 +102,4 @@ const fs=require('fs');const {chromium}=require('playwright');
  await page.emulateMedia({reducedMotion:'reduce'});
  const motion=await page.locator('.page.active').evaluate(n=>getComputedStyle(n).animationName);if(motion!=='none')throw Error('Reduced motion was ignored');
  await browser.close();console.log('Visual checks: three widths, four pages, five new palettes, reduced motion passed.');
-})().catch(e=>{console.error(e);process.exitCode=1});
+})().catch(e=>{console.error(e);process.exit(1)});
