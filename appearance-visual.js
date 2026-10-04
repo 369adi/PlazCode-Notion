@@ -2,15 +2,24 @@ const fs=require('fs');const {chromium}=require('playwright');
 (async()=>{
  const original=fs.readFileSync('agent/src/desktop.html','utf8');
  const themeScript='function Byid(id){return document.getElementById(id)};'+original.slice(original.indexOf('  var Desktopthemes ='),original.indexOf('  function Saveappearance()'));
- const html=original.replaceAll('__PLAZCODE_VERSION__','1.19.26').replace(/<script>[\s\S]*?<\/script>/g,'');
+ const html=original.replaceAll('__PLAZCODE_VERSION__','1.19.27').replace(/<script>[\s\S]*?<\/script>/g,'');
  const browser=await chromium.launch({headless:true});const page=await browser.newPage();
  await page.setContent(html);
  await page.addScriptTag({content:themeScript});
- await page.evaluate(()=>Applyappearance({theme:'default'}));
+ await page.evaluate(()=>Applyappearance({theme:'default'})); await page.addScriptTag({content:['core/headless-builder.js','core/creator.js','core/creator-ui.js'].map(file=>fs.readFileSync(file,'utf8')).join('\n')+'\nwindow.CreatorUI=PlazCodeCreatorUI;'});
+ await page.evaluate(async()=>{
+  const api=async()=>({ok:true,records:[],feedback:[],text:'Action complete'}),send=async()=>({ok:true}),control=()=>({canTaskSend:true,engine:'roblox'});
+  window.ModelWorkspace=CreatorUI.mount(document.getElementById('modelWorkspace'),api,send,send,send,control,{mode:'model'});
+  window.UiWorkspace=CreatorUI.mount(document.getElementById('uiWorkspace'),api,send,send,send,control,{mode:'ui'});
+  window.KitWorkspace=PlazCodeToolkitUI.mount(document.getElementById('toolkitWorkspace'),api,send,()=>({roblox_connected:true,browser_agent:control()}),()=>{});
+  window.NoticeWorkspace=PlazCodeNotifications.mount(document.getElementById('notificationCenter'),{getItem:()=>null,setItem:()=>{}});
+  await Promise.all([ModelWorkspace.refresh(),UiWorkspace.refresh(),KitWorkspace.refresh()]);
+ });
+
  fs.mkdirSync('visual-checks',{recursive:true});
  for(const width of [1440,1024,760]){
   await page.setViewportSize({width,height:960});
-  for(const name of ['home','settings','tools','creators']){
+  for(const name of ['home','settings','tools','models','ui','toolkit']){
    await page.evaluate(name=>{document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-'+name));document.querySelectorAll('.navbtn[data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===name));},name);
    await page.screenshot({animations:"disabled",path:`visual-checks/${name}-${width}.png`});
    const overflow=await page.evaluate(()=>{const n=document.getElementById('content');return n.scrollWidth>n.clientWidth+1});
@@ -33,6 +42,22 @@ const fs=require('fs');const {chromium}=require('playwright');
   }
  }
  await page.evaluate(()=>{document.getElementById('homeSupportedAis').open=false;document.getElementById('content').scrollTop=0;});
+ for(const width of [1440,1024,760]){
+  await page.setViewportSize({width,height:800});
+  for(const theme of ['default','ocean','orchid'])for(const name of ['models','ui','toolkit']){
+   await page.evaluate(({theme,name})=>{Applyappearance({theme});document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-'+name));document.querySelectorAll('.navbtn[data-page]').forEach(n=>n.classList.toggle('active',n.dataset.page===name));document.getElementById('content').scrollTop=0;},{theme,name});
+   const errors=await page.evaluate(name=>{
+    const root=document.getElementById('page-'+name),buttons=[...root.querySelectorAll('button')].map(n=>n.getBoundingClientRect()).filter(r=>r.width>1&&r.height>1),content=document.getElementById('content');
+    if(content.scrollWidth>content.clientWidth+1)return 'Horizontal overflow';
+    for(let i=0;i<buttons.length;i++)for(let j=i+1;j<buttons.length;j++){const a=buttons[i],b=buttons[j];if(Math.min(a.right,b.right)-Math.max(a.left,b.left)>1&&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>1)return 'Button overlap';}
+    const nav=document.querySelector('.nav'),status=document.querySelector('.side-status'),n=nav.getBoundingClientRect(),s=status.getBoundingClientRect();if(s.width>0&&n.bottom>s.top+1)return 'Sidebar overlap';return null;
+   },name);if(errors)throw Error(name+' '+width+' '+theme+' '+errors);
+   await page.screenshot({animations:'disabled',path:`visual-checks/${name}-${theme}-${width}.png`});
+  }
+  await page.evaluate(()=>{NoticeWorkspace.add('Roblox Studio connected','Studio tools are ready for the open place.','success','connected');NoticeWorkspace.add('Toolkit action complete','The last requested action completed.','success','toolkit');NoticeWorkspace.setOpen(true);});
+  const bounds=await page.locator('.pc-notice-panel').boundingBox();if(bounds.x<0||bounds.x+bounds.width>width+1||bounds.y+bounds.height>800)throw Error('Notification panel overflow');
+  await page.screenshot({animations:'disabled',path:`visual-checks/notifications-${width}.png`});await page.evaluate(()=>NoticeWorkspace.setOpen(false));
+ }
  await page.setViewportSize({width:1440,height:960});
  for(const theme of ['ocean','copper','aurora','orchid','solar']){
   await page.evaluate(theme=>{Applyappearance({theme});document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-home'));},theme);
@@ -58,12 +83,12 @@ const fs=require('fs');const {chromium}=require('playwright');
 
  await page.evaluate(()=>document.querySelectorAll(".navbtn svg").forEach(n=>{n.style.width="";n.style.height="";}));
  await page.setViewportSize({width:1440,height:1100});
- await page.addScriptTag({content:['core/headless-builder.js','core/creator.js','core/creator-ui.js'].map(file=>fs.readFileSync(file,'utf8')).join('\n')+'\nwindow.CreatorUI=PlazCodeCreatorUI;'});
- await page.evaluate(async()=>{window.CreatorWorkspace=CreatorUI.mount(document.getElementById('creatorWorkspace'),async()=>({ok:true,records:[],feedback:[]}),async()=>({ok:true}),async()=>({ok:true}),async()=>({ok:true}),()=>({canTaskSend:false}));await CreatorWorkspace.refresh();});
+
+ await page.evaluate(async()=>{window.CreatorWorkspace=window.ModelWorkspace;await CreatorWorkspace.refresh();});
  for(const width of [1440,1024,760]) {
   await page.setViewportSize({width,height:1100});
   for(const theme of ['default','ocean','orchid']) {
-   await page.evaluate(theme=>{Applyappearance({theme});document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-creators'));document.getElementById('content').scrollTop=0;},theme);
+   await page.evaluate(theme=>{Applyappearance({theme});document.querySelectorAll('.page').forEach(n=>n.classList.toggle('active',n.id==='page-models'));document.getElementById('content').scrollTop=0;},theme);
    await page.screenshot({animations:'disabled',path:`visual-checks/guided-creator-${theme}-${width}.png`});
    const overlap=await page.evaluate(()=>{const nodes=[...document.querySelectorAll('.pc-create-editor button')];return nodes.some((n,i)=>i>0 && n.getBoundingClientRect().top<nodes[i-1].getBoundingClientRect().bottom+5) && innerWidth>1000;});if(overlap)throw Error('Creator buttons overlap or lack spacing');
    const overflow=await page.evaluate(()=>{const n=document.getElementById('content');return n.scrollWidth>n.clientWidth+1});if(overflow)throw Error('Guided creator horizontal overflow');
