@@ -2,7 +2,7 @@ const fs=require('fs');const {chromium}=require('playwright');
 (async()=>{
  const original=fs.readFileSync('agent/src/desktop.html','utf8');
  const themeScript='function Byid(id){return document.getElementById(id)};'+original.slice(original.indexOf('  var Desktopthemes ='),original.indexOf('  function Saveappearance()'));
- const html=original.replaceAll('__PLAZCODE_VERSION__','1.19.31').replace(/<script>[\s\S]*?<\/script>/g,'');
+ const html=original.replaceAll('__PLAZCODE_VERSION__','1.19.32').replace(/<script>[\s\S]*?<\/script>/g,'');
  const mcpScript='var State={servers:[{id:"blender",alive:true,tools:30}],mcp_alive:true};var PendingMcp={};function Escape(s){return String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll(String.fromCharCode(34),"&quot;")};function Toarray(n){return [...n]};function Refresh(){return Promise.resolve()};function Showerror(e){throw e};function Api(path){return Promise.resolve(path==="/api/mcp/catalog"?{servers:[{id:"blender",name:"Blender",enabled:true,command:"uvx",args:["blender-mcp"],description:"Install and enable the Blender MCP addon inside Blender. Keep Blender open, press N, open MCP for Blender, and click Start MCP Server. Enabling here starts the MCP process only; Test Blender connection checks the actual scene response."}]}:{ok:false,error:"Blender did not answer get_scene_info within 8 seconds. Keep Blender open and responsive, close blocking dialogs, then stop and start the MCP server in Blender."})};'+original.slice(original.indexOf('  var Blendercheck ='),original.indexOf('  function Renderlogs()'));
  const browser=await chromium.launch({headless:true});const page=await browser.newPage();
  await page.setContent(html);
@@ -106,7 +106,7 @@ const fs=require('fs');const {chromium}=require('playwright');
  await page.emulateMedia({reducedMotion:'reduce'});
  const motion=await page.locator('.page.active').evaluate(n=>getComputedStyle(n).animationName);if(motion!=='none')throw Error('Reduced motion was ignored');
  const barSource=fs.readFileSync('core/main.js','utf8');
- const barHtml=barSource.slice(barSource.indexOf('<div id="rs-bar">'),barSource.indexOf('<div id="rs-cowork-panel"')).replace(/\$\{BRAND_NAME\}/g,'PlazCode').replace(/\$\{EXT_VERSION\}/g,'1.19.30');
+ const barHtml=barSource.slice(barSource.indexOf('<div id="rs-bar">'),barSource.indexOf('<div id="rs-cowork-panel"')).replace(/\$\{BRAND_NAME\}/g,'PlazCode').replace(/\$\{EXT_VERSION\}/g,'1.19.31');
  const sample=await browser.newPage();
  await sample.setContent('<style>body{background:#11151c;margin:20px}.host{max-width:740px;margin:auto}.site-turn{margin:0;text-align:right}p{color:#eee}</style><main class="host"><article class="site-turn"><div class="rs-chip err"><div class="rs-chip-head"><span class="rs-chip-tx">execute_luau · ERROR: '+('Long error text ').repeat(30)+'</span><span class="rs-chip-dt">failed</span></div></div></article><article class="site-turn rs-hidden"><div class="rs-chip result"><div class="rs-chip-head"><span class="rs-chip-tx">execute_luau · result</span></div></div></article><article class="site-turn rs-hidden"><div class="rs-chip err"><div class="rs-chip-head"><span class="rs-chip-tx">result · '+('Wrapped error ').repeat(15)+'</span></div></div></article><p>Connecting a few dots</p><section class="rs-cowork-receipt"><strong>Co-work follow-up · Sent to AI</strong><div>Keep this exact follow-up visible</div></section></main><div id="rs-root">'+barHtml+'</div>');
  await sample.addStyleTag({content:fs.readFileSync('overlay.css','utf8')});
@@ -115,7 +115,7 @@ const fs=require('fs');const {chromium}=require('playwright');
  for(const width of [1440,760,390]){
   await sample.setViewportSize({width,height:1000});
   for(const engine of ['Chrome/140','Chrome/140 Edg/140','Brave']){
-   await sample.evaluate(async engine=>{await VersionUI.detectBrowser(engine==='Brave'?{userAgentData:{brands:[{brand:'Brave'}]}}:{userAgent:engine});VersionUI.render(document.getElementById('rs-bar-version'),'1.19.30',{latest:'1.19.31',checked_at:Date.now()});},engine);
+   await sample.evaluate(async engine=>{await VersionUI.detectBrowser(engine==='Brave'?{userAgentData:{brands:[{brand:'Brave'}]}}:{userAgent:engine});VersionUI.render(document.getElementById('rs-bar-version'),'1.19.31',{latest:'1.19.32',checked_at:Date.now()});},engine);
    const error=await sample.evaluate(()=>{
     const chips=[...document.querySelectorAll('.rs-chip')].map(n=>n.getBoundingClientRect());
     for(let i=1;i<chips.length;i++)if(chips[i].top-chips[i-1].bottom<9)return 'Result cards touch/overlap';
@@ -159,5 +159,31 @@ const fs=require('fs');const {chromium}=require('playwright');
   });if(error)throw Error(width+': '+error);
   await sample.screenshot({path:'visual-checks/notion-tool-spacing-'+width+'.png'});
  }
- await sample.close();await browser.close();console.log('Desktop and chat visual checks passed, including long errors, browser update instructions, execution settings and Notion command spacing.');
+ await sample.close();
+ await page.addScriptTag({path:'core/clarification.js'});
+ await page.evaluate(()=>{
+  const original=Element.prototype.attachShadow;Element.prototype.attachShadow=function(options){const root=original.call(this,options);if(this.id==='rs-clarification-host')window.ClarificationShadow=root;return root;};
+  window.ClarificationPanel=PlazCodeClarification.create({document,context:()=> 'visual-chat|roblox',provider:()=> 'Claude',mount:()=>document.body});
+ });
+ for(const width of [320,390,760,1440])for(const theme of ['default','ocean','orchid']){
+  await page.setViewportSize({width,height:900});
+  await page.evaluate(theme=>{
+   Applyappearance({theme});
+   document.documentElement.style.setProperty('--pc-accent',Desktopthemes[theme].accent);
+   document.documentElement.style.setProperty('--pc-bg',Desktopthemes[theme].bg);
+   ClarificationPanel.request({question:'Which scope should the interface update cover?',options:[{id:'focused',label:'Improve the current screen',scope:'Keep existing functionality and refine the layout, spacing, typography and interaction on the current screen.'},{id:'complete',label:'Update all existing screens',scope:'Extend the same visual improvements across the app while preserving every existing control and workflow.'},{id:'prototype',label:'Review a design first',scope:'Create a visual preview before changing the current interface.'}],recommended_id:'focused',recommendation:'Start with a focused improvement so the existing design and functionality stay easy to review.',questions:['Which screen should be updated first?','Which parts of the current design should stay?']}).catch(()=>{});
+  },theme);
+  const failure=await page.evaluate(()=>{
+   const root=ClarificationShadow,panel=root.querySelector('.panel');
+   if(panel.scrollWidth>panel.clientWidth+1)return 'Clarification panel overflows';
+   if(root.querySelectorAll('.option').length!==3||root.querySelector('input:checked'))return 'Options missing or automatically selected';
+   if(root.querySelector('h2').textContent!=='Claude is asking you…')return 'Provider heading mismatch';
+   const rows=[...root.querySelectorAll('.option')].map(node=>node.getBoundingClientRect());
+   for(let index=1;index<rows.length;index++)if(rows[index].top-rows[index-1].bottom<10)return 'Scope options touch or overlap';
+   return null;
+  });if(failure)throw Error(width+' '+theme+': '+failure);
+  await page.screenshot({animations:'disabled',path:'visual-checks/clarification-'+theme+'-'+width+'.png'});
+  await page.evaluate(()=>ClarificationPanel.cancel());
+ }
+ await browser.close();console.log('Desktop, chat and clarification panel visual checks passed.');
 })().catch(e=>{console.error(e);process.exit(1)});

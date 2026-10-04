@@ -7,3 +7,4 @@ for name in sorted(glob.glob('test-*.js')):
  if result.returncode:print(result.stdout,result.stderr);sys.exit(result.returncode)
 
 
+

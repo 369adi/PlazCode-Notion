@@ -1,9 +1,9 @@
 from pathlib import Path
 import json,zipfile,hashlib,io,plistlib,struct,urllib.request,tarfile,subprocess,shutil
-repo=Path.cwd();version='1.19.31';root=repo/'build/PlazCode'
+repo=Path.cwd();version='1.19.32';root=repo/'build/PlazCode'
 notes=json.loads((root/'release-notes.json').read_text());entry=notes[0];assert entry['version']==version
 intro='PlazCode '+version+' — '+entry['title']+'\n\n'+entry['summary']+'\n\n'+'\n'.join('- '+x for key in ['added','improved','fixed'] for x in entry[key])+'\n\n'
-validation='PlazCode 1.19.31 validation\nVerified Studio status is pushed to concurrent subscribers without locking active tools. Notion send tests cover reused/replaced transcript rows, acknowledgements after four seconds, old identical messages, unrelated rows and composer-only clearing. Uncertain commits are never repeated. Native Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows resource checks load the embedded PlazCode icon at nine sizes and verify the updater tray icon without locking the asset. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. The real Windows updater relaunch function is checked against the compiled desktop for version/pid readiness, visible foreground startup and minimized background startup without taking focus. Native Blender addon-protocol fixtures cover authentication, fragmented replies, closed and silent endpoints, wrong protocols, no automatic replay and recovery. Chromium-style extension identity and concurrent socket tests cover pairing and browser isolation. Full live supported-AI conversations, real Blender, actual Edge/Brave UI sessions, Roblox Studio insertion, real-user installation and macOS GUI relaunch are not exercised.\n\n'
+validation='PlazCode 1.19.32 validation\nBlender response-path tests cover current nested Python receipts, no unrelated disk reads, no stale status substitution, current export mesh files, fail-fast concurrency, cleared readiness after transport failure and no automatic replay. Structured clarification tests cover options, scope, recommendations, explicit answers, indefinite quiet waiting, paused budgets, cancellation and safe isolated inputs. Clarification panels are visually checked at four widths in three themes. Verified Studio status remains covered by regression checks. Notion send tests cover reused/replaced transcript rows, acknowledgements after four seconds, old identical messages, unrelated rows and composer-only clearing. Uncertain commits are never repeated. Native Windows, macOS and Linux tests, existing JavaScript regressions and hosted Chromium desktop layout/theme checks must pass. Windows resource checks load the embedded PlazCode icon at nine sizes and verify the updater tray icon without locking the asset. Windows Forms checks compile the real updater, verify all theme palettes, minimized non-activating background progress and capture foreground animation screenshots. Native automatic-update tests verify downloaded release hashes and background/theme handoff. The real Windows updater relaunch function is checked against the compiled desktop for version/pid readiness, visible foreground startup and minimized background startup without taking focus. Native Blender addon-protocol fixtures cover authentication, fragmented replies, closed and silent endpoints, wrong protocols, no automatic replay and recovery. Chromium-style extension identity and concurrent socket tests cover pairing and browser isolation. Full live supported-AI conversations, real Blender, actual Edge/Brave UI sessions, Roblox Studio insertion, real-user installation and macOS GUI relaunch are not exercised.\n\n'
 for name in ['README.md','UPDATE.txt','MAINTENANCE.md']:
  (repo/name).write_text(intro+(repo/name).read_text());(root/name).write_bytes((repo/name).read_bytes())
 (repo/'VALIDATION.txt').write_text(validation+(repo/'VALIDATION.txt').read_text());(root/'VALIDATION.txt').write_bytes((repo/'VALIDATION.txt').read_bytes())
@@ -29,12 +29,12 @@ with zipfile.ZipFile(repo/'artifacts/native-macOS/PlazCode-app.zip') as app:
 p=root/'macos/Info.plist';data=plistlib.loads(p.read_bytes());data['CFBundleShortVersionString']=data['CFBundleVersion']=version;p.write_bytes(plistlib.dumps(data))
 source={f'PlazCode/{p.relative_to(root)}':p.read_bytes() for p in root.rglob('*') if p.is_file() and not any(x in p.relative_to(root).parts for x in ['target','.git','node_modules','__pycache__','PlazCode.app','visual-checks'])}
 source['PlazCode/PlazCode.exe']=(repo/'artifacts/native-Windows/PlazCode.exe').read_bytes()
-original=repo/'PlazCode-1.19.30.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='7d1590bf06a48e5d43ac5edd3c7bace8be3232d9a4eaae4fd4d000785acc46bc'
-with urllib.request.urlopen('https://raw.githubusercontent.com/stoveez/PlazCode/a976561c975f301d9153b553407126dfe46c63f2/PlazCode-source-1.19.30.zip', timeout=60) as response: baseline_source=response.read(8*1024*1024)
-assert hashlib.sha256(baseline_source).hexdigest()=='df9fddb927422a37280e8ed5a1761137a7ea476109ddf596ebf14fcbb8b265cd'
+original=repo/'PlazCode-1.19.31.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='a0df56a566f40a227701dc247308a77a36b2478f0ee0d550cad0fc7f4ffdfd78'
+with urllib.request.urlopen('https://raw.githubusercontent.com/stoveez/PlazCode/7ed8dedcab3183b5c0d7f83bae1709e0f64436f3/PlazCode-source-1.19.31.zip', timeout=60) as response: baseline_source=response.read(8*1024*1024)
+assert hashlib.sha256(baseline_source).hexdigest()=='7a7dbf76f3b801cdf7a0589c04ee32c9381ddbbf8ee825fdcfd07ff148a3ff00'
 with zipfile.ZipFile(io.BytesIO(baseline_source)) as old:
  for path in source:
-  if '/providers/' in path and not path.endswith('/providers/notion.js') and path in old.namelist():assert source[path]==old.read(path), 'Unrelated provider behavior source changed'
+  if '/providers/' in path and path in old.namelist():assert source[path]==old.read(path), 'Unrelated provider behavior source changed'
 source_name=f'PlazCode-source-{version}.zip'
 with zipfile.ZipFile(repo/source_name,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
  for path,data in source.items():
@@ -52,7 +52,7 @@ for path in list(source):
  if p.is_file() and p.suffix=='.js':source[path]=p.read_bytes()
 source['PlazCode/production-build.json']=(root/'production-build.json').read_bytes()
 # Run pure behavioral tests against the actual generated modules.
-for name in ['test-version.js','test-cowork.js','test-page-startup.js','test-cowork-injection-composer.js','test-cowork-notion-plain-text.js','test-notion-tool-status.js','test-notion-localized-composer.js','test-notion-send-receipts.js','test-studio-status.js']:
+for name in ['test-version.js','test-cowork.js','test-page-startup.js','test-cowork-injection-composer.js','test-cowork-notion-plain-text.js','test-notion-tool-status.js','test-notion-localized-composer.js','test-notion-send-receipts.js','test-studio-status.js','test-clarification.js','test-blender-command-results.js']:
  subprocess.run(['node',name],cwd=root,check=True)
 def development(path):
  relative=path.removeprefix('PlazCode/');parts=Path(relative).parts
@@ -104,5 +104,5 @@ for feed in feeds.values():
 description='**PlazCode '+version+': '+entry['title']+'**\n\n- '+entry['summary']+'\n'
 for key,title in [('added','New additions'),('improved','Improvements'),('fixed','Bug fixes')]:
  description+='\n***'+title+'***\n\n'+('\n'.join('- '+x for x in entry[key]) or '- None.')+'\n'
-(repo/'release-description-1.19.31.txt').write_text(description)
+(repo/'release-description-1.19.32.txt').write_text(description)
 print(json.dumps(metadata,indent=2))
