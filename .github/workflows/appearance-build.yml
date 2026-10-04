@@ -181,8 +181,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: npm install --prefix build/PlazCode/release-tools terser@5.44.0 acorn@8.15.0
+      - run: npm install --prefix build/PlazCode/release-tools terser@5.44.0 acorn@8.15.0 jsdom@26
       - name: Create and validate both platform downloads
+        env:
+          NODE_PATH: ${{ github.workspace }}/build/PlazCode/release-tools/node_modules
         run: |
           python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.29', 'Main release changed; manual rebase required'"
           python package-appearance.py

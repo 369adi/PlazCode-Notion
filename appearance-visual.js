@@ -132,7 +132,7 @@ const fs=require('fs');const {chromium}=require('playwright');
  const settingsHtml=barSource.slice(settingsStart,settingsEnd).replace(/\$\{reliabilitySettings\.rsToolBudget\}/g,'0').replace(/\$\{reliabilitySettings\.rsTaskMinutes\}/g,'30').replace(/\$\{reliabilitySettings\.rsVisualCheck\?'checked':''\}/g,'checked');
  await sample.setContent('<div id="rs-menu"><section class="rs-menu-sec">'+settingsHtml+'</section></div>');
  await sample.addStyleTag({content:fs.readFileSync('overlay.css','utf8')});
- await sample.evaluate(()=>{const menu=document.getElementById('rs-menu');menu.style.cssText='position:relative;inset:auto;width:100%;max-height:none;box-sizing:border-box';document.body.style.cssText='margin:16px;background:#111923;color:#edf3ff';});
+ await sample.evaluate(()=>{const menu=document.getElementById('rs-menu');menu.style.cssText='position:relative;inset:auto;width:100%;max-height:none;box-sizing:border-box;filter:none;opacity:1;transform:none;visibility:visible';document.body.style.cssText='margin:16px;background:#111923;color:#edf3ff';});
  for(const width of [390,760]){
   await sample.setViewportSize({width,height:1100});
   const error=await sample.evaluate(()=>{
