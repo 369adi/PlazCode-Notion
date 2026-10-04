@@ -1,9 +1,26 @@
 {
-  "version": "1.19.28",
-  "desktop_version": "1.19.28",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.28.zip",
-  "sha256": "63cf7b8315aa3e7778d9b75ca132f263e6a4cb7baa958318f34a43275690cdf1",
+  "version": "1.19.29",
+  "desktop_version": "1.19.29",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.29.zip",
+  "sha256": "5d80bf737d4a3028b2b676e4ed296455acd25b9959df8ce14d5926d0f6c5645e",
   "release_notes": [
+    {
+      "version": "1.19.29",
+      "title": "Recognizable AI icons in the supported-AI dropdown",
+      "summary": "Replace supported-AI letter badges with recognizable logo artwork while preserving existing links, layout and behavior.",
+      "added": [
+        "Add supplied icons for Gemini, Kimi, Z.ai / GLM, Qwen, Arena, FreeBuff, OxAlpha, Notion AI and Ollama."
+      ],
+      "improved": [
+        "Reuse the existing ChatGPT, Claude and DeepSeek logos in the full supported-AI list.",
+        "Keep a consistent icon frame with preserved proportions, theme-aware styling and offline artwork.",
+        "Keep Crax and Use.ai letter badges unchanged."
+      ],
+      "fixed": [
+        "Remove the baked-in checkerboard behind the supplied Arena logo.",
+        "Trim empty artwork margins visually so logos remain legible without stretching or overlapping labels."
+      ]
+    },
     {
       "version": "1.19.28",
       "title": "Reliable Blender checks, tab-local engines and update recovery",
@@ -730,26 +747,6 @@
       ],
       "fixed": [
         "Tasks has a dedicated sticky header and accessible close button, separated from content, with explicit button type and click handling."
-      ]
-    },
-    {
-      "version": "1.18.91",
-      "title": "Desktop work details and responsive status",
-      "summary": "Expanded desktop work details now show AI replies and commands, with cleaner Home spacing, accurate icons and faster automatic update detection.",
-      "added": [
-        "Desktop Working/Worked details show AI replies, command text and results from the selected browser chat, loaded only while the panel is open."
-      ],
-      "improved": [
-        "Automatic release checks run every five seconds, with desktop/browser status propagation every two seconds. The default GitHub feed uses a five-second cache key; network/cache delays can still apply. Checks do not overlap.",
-        "DeepSeek and Claude shortcuts use vector logos from the supplied references. Tools uses the supplied icon, and Settings has a symmetric centered gear.",
-        "Templates now use Choose a Roblox file and Add template, with short numbered directions. Advanced script search is optional and collapsed.",
-        "Desktop template imports support Roblox files up to 128 MB using direct binary uploads, avoiding base64 copies. Browser imports remain limited to 32 MB; script-index bounds still apply.",
-        "Memory transfer separates Save to a file from Load into another chat, explains saved notes versus messages, and uses clear create/download/load buttons."
-      ],
-      "fixed": [
-        "Task checkpoints & workflows has a clear gap below the Home cards; the Working panel also has consistent spacing.",
-        "Expanded work details preserve unchanged content and scrolling across refreshes, collapse once on completion and remain reopenable. Retention is bounded; oversized/older omitted details receive an explicit notice.",
-        "The updater swirl rotates normally and uses a slower continuous rotation when reduced motion is enabled, instead of freezing."
       ]
     }
   ]

@@ -1,3 +1,14 @@
+PlazCode 1.19.29 — Recognizable AI icons in the supported-AI dropdown
+
+Replace supported-AI letter badges with recognizable logo artwork while preserving existing links, layout and behavior.
+
+- Add supplied icons for Gemini, Kimi, Z.ai / GLM, Qwen, Arena, FreeBuff, OxAlpha, Notion AI and Ollama.
+- Reuse the existing ChatGPT, Claude and DeepSeek logos in the full supported-AI list.
+- Keep a consistent icon frame with preserved proportions, theme-aware styling and offline artwork.
+- Keep Crax and Use.ai letter badges unchanged.
+- Remove the baked-in checkerboard behind the supplied Arena logo.
+- Trim empty artwork margins visually so logos remain legible without stretching or overlapping labels.
+
 PlazCode 1.19.28 — Reliable Blender checks, tab-local engines and update recovery
 
 Verify actual Blender responses, isolate script modes per AI tab, recover missing update helpers and improve Notion/Claude command presentation.

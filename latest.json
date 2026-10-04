@@ -1,9 +1,26 @@
 {
-  "version": "1.19.28",
-  "desktop_version": "1.19.28",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.28.zip",
-  "sha256": "79f4a5061fb30c8ab8bf52289eb477795756cbe218a383dccce3e5740393ad92",
+  "version": "1.19.29",
+  "desktop_version": "1.19.29",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.29.zip",
+  "sha256": "1d9dc8564ec7c4a499a63b7d7afc115133e17dcc2dd0648dd6c2d5d1fd41e61e",
   "release_notes": [
+    {
+      "version": "1.19.29",
+      "title": "Recognizable AI icons in the supported-AI dropdown",
+      "summary": "Replace supported-AI letter badges with recognizable logo artwork while preserving existing links, layout and behavior.",
+      "added": [
+        "Add supplied icons for Gemini, Kimi, Z.ai / GLM, Qwen, Arena, FreeBuff, OxAlpha, Notion AI and Ollama."
+      ],
+      "improved": [
+        "Reuse the existing ChatGPT, Claude and DeepSeek logos in the full supported-AI list.",
+        "Keep a consistent icon frame with preserved proportions, theme-aware styling and offline artwork.",
+        "Keep Crax and Use.ai letter badges unchanged."
+      ],
+      "fixed": [
+        "Remove the baked-in checkerboard behind the supplied Arena logo.",
+        "Trim empty artwork margins visually so logos remain legible without stretching or overlapping labels."
+      ]
+    },
     {
       "version": "1.19.28",
       "title": "Reliable Blender checks, tab-local engines and update recovery",
@@ -735,8 +752,8 @@
   ],
   "platforms": {
     "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.28.zip",
-      "sha256": "63cf7b8315aa3e7778d9b75ca132f263e6a4cb7baa958318f34a43275690cdf1"
+      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.29.zip",
+      "sha256": "5d80bf737d4a3028b2b676e4ed296455acd25b9959df8ce14d5926d0f6c5645e"
     }
   }
 }
