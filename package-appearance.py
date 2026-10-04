@@ -90,7 +90,7 @@ for platform,name in [('windows',f'PlazCode-{version}.zip'),('macos',f'PlazCode-
    for content in manifest['content_scripts']:required+=content.get('js',[])+content.get('css',[])
    for path in required:assert base+path in z.namelist(),('Missing production asset',base+path)
  raw=output.read_bytes();assert len(raw)<=64*1024*1024
-metadata.append({'file':name,'platform':platform,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
+ metadata.append({'file':name,'platform':platform,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()})
 raw=(repo/source_name).read_bytes();source_metadata={'file':source_name,'platform':'source','bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
 feeds={x['platform']:{'version':version,'desktop_version':version,'url':f"https://raw.githubusercontent.com/stoveez/PlazCode/main/{x['file']}",'sha256':x['sha256'],'release_notes':notes} for x in metadata}
 feeds['windows']['platforms']={'macos':{k:feeds['macos'][k] for k in ['url','sha256']}}
