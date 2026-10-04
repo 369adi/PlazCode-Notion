@@ -1,5 +1,22 @@
 [
   {
+    "version": "1.19.23",
+    "title": "Correct Chrome extension version labels",
+    "summary": "Fix Chrome showing extension version 1.19.16 despite newer extension files being installed.",
+    "added": [
+      "Release validation checks both extension manifests for contradictory displayed and actual versions."
+    ],
+    "improved": [
+      "Chrome uses the actual manifest version as the extension display version, removing the separately maintained version label."
+    ],
+    "fixed": [
+      "Removed the stale version_name value of 1.19.16 from both extension manifests."
+    ],
+    "notes": [
+      "Reload the installed extension in chrome://extensions after the app update, then refresh supported AI tabs."
+    ]
+  },
+  {
     "version": "1.19.22",
     "title": "Reliable PlazCode application and background tray icons",
     "summary": "Complete the Windows application icon fix and correct the updater notification icon copy.",

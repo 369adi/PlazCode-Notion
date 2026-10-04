@@ -1,9 +1,26 @@
 {
-  "version": "1.19.22",
-  "desktop_version": "1.19.22",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.22.zip",
-  "sha256": "4191e56f04217076dd20b9e33c9c4a8654ce09bf5938d10de2a02c46229ca88b",
+  "version": "1.19.23",
+  "desktop_version": "1.19.23",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.23.zip",
+  "sha256": "4582e97ddc638222c23c2a91c9a26bd059650d0353868cf6901eeb616e9706fe",
   "release_notes": [
+    {
+      "version": "1.19.23",
+      "title": "Correct Chrome extension version labels",
+      "summary": "Fix Chrome showing extension version 1.19.16 despite newer extension files being installed.",
+      "added": [
+        "Release validation checks both extension manifests for contradictory displayed and actual versions."
+      ],
+      "improved": [
+        "Chrome uses the actual manifest version as the extension display version, removing the separately maintained version label."
+      ],
+      "fixed": [
+        "Removed the stale version_name value of 1.19.16 from both extension manifests."
+      ],
+      "notes": [
+        "Reload the installed extension in chrome://extensions after the app update, then refresh supported AI tabs."
+      ]
+    },
     {
       "version": "1.19.22",
       "title": "Reliable PlazCode application and background tray icons",
@@ -732,16 +749,6 @@
         "If Notion still returns the legacy PLAZCODE_READY token from earlier chat context, its visible acknowledgement is normalized to \u201cPlazCode is ready.\u201d without resending startup or modifying Notion-owned DOM.",
         "DeepSeek rich-text composers remain discoverable while input-locked, and agent writes temporarily enable editing then restore the lock. Explicit Send labels take precedence over stop-icon guesses."
       ]
-    },
-    {
-      "version": "1.18.83",
-      "title": "Clearer update indicators",
-      "summary": "Outdated version badges now explicitly say that a new update is available.",
-      "added": [],
-      "improved": [
-        "Desktop, browser bar and popup version badges show \u201c(Outdated - New update available)\u201d when a newer published version is detected. Red highlighting and existing current/unavailable states are preserved."
-      ],
-      "fixed": []
     }
   ]
 }

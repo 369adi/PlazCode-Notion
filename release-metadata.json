@@ -1,14 +1,14 @@
 [
   {
-    "file": "PlazCode-1.19.22.zip",
+    "file": "PlazCode-1.19.23.zip",
     "platform": "windows",
-    "bytes": 36108281,
-    "sha256": "3e67c82d68721e2ad33e08149887e18f80c413e862616f9e27eab68143a6ee58"
+    "bytes": 36111558,
+    "sha256": "d76efbd475c0e81ce8d9a31f8a64a86d3b0e39fa64ff34fada1ee4650950d0ce"
   },
   {
-    "file": "PlazCode-macOS-1.19.22.zip",
+    "file": "PlazCode-macOS-1.19.23.zip",
     "platform": "macos",
-    "bytes": 24458945,
-    "sha256": "4191e56f04217076dd20b9e33c9c4a8654ce09bf5938d10de2a02c46229ca88b"
+    "bytes": 24462050,
+    "sha256": "4582e97ddc638222c23c2a91c9a26bd059650d0353868cf6901eeb616e9706fe"
   }
 ]

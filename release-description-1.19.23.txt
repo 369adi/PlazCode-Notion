@@ -1,0 +1,15 @@
+**PlazCode 1.19.23: Correct Chrome extension version labels**
+
+- Fix Chrome showing extension version 1.19.16 despite newer extension files being installed.
+
+***New additions***
+
+- Release validation checks both extension manifests for contradictory displayed and actual versions.
+
+***Improvements***
+
+- Chrome uses the actual manifest version as the extension display version, removing the separately maintained version label.
+
+***Bug fixes***
+
+- Removed the stale version_name value of 1.19.16 from both extension manifests.

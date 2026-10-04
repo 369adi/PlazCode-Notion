@@ -1,3 +1,11 @@
+PlazCode 1.19.23 — Correct Chrome extension version labels
+
+Fix Chrome showing extension version 1.19.16 despite newer extension files being installed.
+
+- Release validation checks both extension manifests for contradictory displayed and actual versions.
+- Chrome uses the actual manifest version as the extension display version, removing the separately maintained version label.
+- Removed the stale version_name value of 1.19.16 from both extension manifests.
+
 PlazCode 1.19.22 — Reliable PlazCode application and background tray icons
 
 Complete the Windows application icon fix and correct the updater notification icon copy.
