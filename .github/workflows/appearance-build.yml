@@ -40,12 +40,18 @@ jobs:
         with:
           node-version: '24'
       - uses: browser-actions/setup-firefox@v1
-      - uses: browser-actions/setup-geckodriver@v1
+      - name: Install verified official geckodriver
+        run: |
+          curl --fail --location --retry 3 https://github.com/mozilla/geckodriver/releases/download/v0.37.1/geckodriver-v0.37.1-linux64.tar.gz -o /tmp/geckodriver.tar.gz
+          echo 'e815130ea95983e162ae91843b48d3a3ce991735635fce83a647afde21e09f7e  /tmp/geckodriver.tar.gz' | sha256sum --check
+          mkdir -p /tmp/plazcode-geckodriver
+          tar -xzf /tmp/geckodriver.tar.gz -C /tmp/plazcode-geckodriver
       - run: npm install --prefix /tmp/plazcode-firefox-tests selenium-webdriver
       - name: Real Firefox extension and native bridge checks
         working-directory: build/PlazCode
         env:
           NODE_PATH: /tmp/plazcode-firefox-tests/node_modules
+          PLAZCODE_TEST_GECKODRIVER: /tmp/plazcode-geckodriver/geckodriver
           PLAZCODE_TEST_NATIVE: ${{ github.workspace }}/build/PlazCode/agent/target/debug/PlazCode
         run: node firefox-runtime-check.js
   visual:
