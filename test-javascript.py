@@ -5,3 +5,4 @@ for name in sorted(glob.glob('test-*.js')):
  result=subprocess.run(['node',name],capture_output=True,text=True)
  print(name, 'PASS' if result.returncode==0 else 'FAIL',flush=True)
  if result.returncode:print(result.stdout,result.stderr);sys.exit(result.returncode)
+
