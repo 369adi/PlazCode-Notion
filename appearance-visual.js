@@ -127,5 +127,37 @@ const fs=require('fs');const {chromium}=require('playwright');
    await sample.screenshot({path:'visual-checks/chat-spacing-'+width+'-'+(engine.includes('Edg')?'edge':engine==='Brave'?'brave':'chrome')+'.png'});
   }
  }
- await sample.close();await browser.close();console.log('Desktop and chat visual checks passed, including long errors and Chrome/Edge/Brave update instructions at mobile widths.');
+ const settingsStart=barSource.indexOf('<div class="rs-prompt-field rs-execution-settings"');
+ const settingsEnd=barSource.indexOf('<div class="rs-prompt-field"><label for="rs-stop-mode">',settingsStart);
+ const settingsHtml=barSource.slice(settingsStart,settingsEnd).replace(/\$\{reliabilitySettings\.rsToolBudget\}/g,'0').replace(/\$\{reliabilitySettings\.rsTaskMinutes\}/g,'30').replace(/\$\{reliabilitySettings\.rsVisualCheck\?'checked':''\}/g,'checked');
+ await sample.setContent('<div id="rs-menu"><section class="rs-menu-sec">'+settingsHtml+'</section></div>');
+ await sample.addStyleTag({content:fs.readFileSync('overlay.css','utf8')});
+ await sample.evaluate(()=>{const menu=document.getElementById('rs-menu');menu.style.cssText='position:relative;inset:auto;width:100%;max-height:none;box-sizing:border-box';document.body.style.cssText='margin:16px;background:#111923;color:#edf3ff';});
+ for(const width of [390,760]){
+  await sample.setViewportSize({width,height:1100});
+  const error=await sample.evaluate(()=>{
+   const root=document.querySelector('.rs-execution-settings');if(!root)return 'Execution group missing';
+   const children=[...root.children].map(n=>n.getBoundingClientRect());
+   for(let i=1;i<children.length;i++)if(children[i].top-children[i-1].bottom<10)return 'Execution rows touch';
+   for(const row of root.querySelectorAll('.rs-execution-limit')){const a=row.querySelector('label').getBoundingClientRect(),b=row.querySelector('input').getBoundingClientRect();if(b.left-a.right<10)return 'Number label overlaps input';}
+   const buttons=[...root.querySelectorAll('button')].map(n=>n.getBoundingClientRect());const a=buttons[0],b=buttons[1];if(a.bottom>b.top&&b.left-a.right<9)return 'Continuation buttons overlap';
+   return root.scrollWidth>root.clientWidth+1?'Execution settings overflow':null;
+  });if(error)throw Error(width+': '+error);
+  await sample.screenshot({path:'visual-checks/execution-bar-settings-'+width+'.png'});
+ }
+ await sample.setContent('<style>body{background:#111923;color:#edf3ff;margin:20px}main{max-width:700px;margin:auto}pre{margin:0}</style><div id="rs-root"></div><main><article data-agent-service-scroll-anchor="one"><pre data-block-id="one">{"command":"execute_luau"}</pre></article><article data-agent-service-scroll-anchor="two"><pre data-block-id="two">{"command":"execute_luau"}</pre></article></main>');
+ await sample.addScriptTag({content:fs.readFileSync('providers/notion.js','utf8')+';window.NotionCards=RSProvider;'});
+ await sample.evaluate(()=>{const rows=document.querySelectorAll('article');NotionCards.renderImmutableChip(rows[0],{label:'execute_luau',phase:'done',detail:'Finished successfully',owned:true});NotionCards.renderImmutableChip(rows[1],{label:'execute_luau',phase:'run',detail:'Running in Studio',owned:true});});
+ for(const width of [390,760]){
+  await sample.setViewportSize({width,height:600});
+  const error=await sample.evaluate(()=>{
+   const nodes=[...document.querySelectorAll('pre')],a=nodes[0].getBoundingClientRect(),b=nodes[1].getBoundingClientRect();
+   const upper=getComputedStyle(nodes[0]),lower=getComputedStyle(nodes[1]);
+   if(b.top-a.bottom+parseFloat(upper.paddingBottom)+parseFloat(lower.paddingTop)<15)return 'Notion pseudo cards touch';
+   if(!getComputedStyle(nodes[0],'::before').content.includes('Finished successfully'))return 'Notion final status missing';
+   return document.documentElement.scrollWidth>innerWidth?'Notion cards overflow':null;
+  });if(error)throw Error(width+': '+error);
+  await sample.screenshot({path:'visual-checks/notion-tool-spacing-'+width+'.png'});
+ }
+ await sample.close();await browser.close();console.log('Desktop and chat visual checks passed, including long errors, browser update instructions, execution settings and Notion command spacing.');
 })().catch(e=>{console.error(e);process.exit(1)});

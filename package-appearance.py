@@ -32,7 +32,7 @@ source['PlazCode/PlazCode.exe']=(repo/'artifacts/native-Windows/PlazCode.exe').r
 original=repo/'PlazCode-1.19.29.zip';assert hashlib.sha256(original.read_bytes()).hexdigest()=='1d9dc8564ec7c4a499a63b7d7afc115133e17dcc2dd0648dd6c2d5d1fd41e61e'
 with zipfile.ZipFile(original) as old:
  for path in source:
-  if '/providers/' in path and path in old.namelist():assert source[path]==old.read(path), 'Provider behavior source changed'
+  if '/providers/' in path and not path.endswith('/providers/notion.js') and path in old.namelist():assert source[path]==old.read(path), 'Unrelated provider behavior source changed'
 source_name=f'PlazCode-source-{version}.zip'
 with zipfile.ZipFile(repo/source_name,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
  for path,data in source.items():
