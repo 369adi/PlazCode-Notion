@@ -1,3 +1,16 @@
+PlazCode 1.19.31 — Faster Studio detection and reliable Notion send confirmation
+
+Push verified Studio connection changes to the bar and recognize Notion messages in virtualized or slow-loading chats.
+
+- A checking connection state distinguishes the initial Studio handshake from a confirmed disconnected editor.
+- Verified Studio connection changes reach connected extension instances immediately without waiting for the heartbeat.
+- Studio process detection checks once per second using process names; disconnected editors retry once per second while connected checks retain their existing interval.
+- Notion waits up to 15 seconds for message confirmation, including foreground chats.
+- Notion Co-Work follow-ups use normal plain-text messages instead of appearing as red code; long follow-up files are described as requests rather than startup protocol.
+- Notion messages are confirmed when the transcript replaces or reuses user rows without increasing the visible message count.
+- Old identical messages, unrelated new rows and an emptied composer alone do not confirm a send; uncertain sends remain single attempts.
+- Studio status preserves the difference between a running Studio process and a verified MCP connection.
+
 PlazCode 1.19.30 — Safer release packages and visible Co-Work follow-ups
 
 Add verified production packages, persistent follow-up visibility and clearer browser update instructions.

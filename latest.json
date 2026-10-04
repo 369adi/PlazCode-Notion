@@ -1,9 +1,28 @@
 {
-  "version": "1.19.30",
-  "desktop_version": "1.19.30",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.30.zip",
-  "sha256": "7d1590bf06a48e5d43ac5edd3c7bace8be3232d9a4eaae4fd4d000785acc46bc",
+  "version": "1.19.31",
+  "desktop_version": "1.19.31",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.31.zip",
+  "sha256": "a0df56a566f40a227701dc247308a77a36b2478f0ee0d550cad0fc7f4ffdfd78",
   "release_notes": [
+    {
+      "version": "1.19.31",
+      "title": "Faster Studio detection and reliable Notion send confirmation",
+      "summary": "Push verified Studio connection changes to the bar and recognize Notion messages in virtualized or slow-loading chats.",
+      "added": [
+        "A checking connection state distinguishes the initial Studio handshake from a confirmed disconnected editor."
+      ],
+      "improved": [
+        "Verified Studio connection changes reach connected extension instances immediately without waiting for the heartbeat.",
+        "Studio process detection checks once per second using process names; disconnected editors retry once per second while connected checks retain their existing interval.",
+        "Notion waits up to 15 seconds for message confirmation, including foreground chats."
+      ],
+      "fixed": [
+        "Notion Co-Work follow-ups use normal plain-text messages instead of appearing as red code; long follow-up files are described as requests rather than startup protocol.",
+        "Notion messages are confirmed when the transcript replaces or reuses user rows without increasing the visible message count.",
+        "Old identical messages, unrelated new rows and an emptied composer alone do not confirm a send; uncertain sends remain single attempts.",
+        "Studio status preserves the difference between a running Studio process and a verified MCP connection."
+      ]
+    },
     {
       "version": "1.19.30",
       "title": "Safer release packages and visible Co-Work follow-ups",
@@ -730,26 +749,12 @@
         "Corrected the previous release, which renamed the entire installation folder instead of only the Chrome extension folder.",
         "Removed Tasks from the browser bar; task checkpoints and workflows remain available in the desktop app. Their disclosure header shows a hand cursor on hover. The Templates subtitle is vertically centered beside its title."
       ]
-    },
-    {
-      "version": "1.18.94",
-      "title": "Studio MCP compatibility and clearer extension folder",
-      "summary": "PlazCode discovers Studio IDs for the updated Roblox MCP tools, while keeping local bridge startup independent of Studio readiness. Fresh-install ZIPs use PlazCode-Extension.",
-      "added": [],
-      "improved": [
-        "Automatically supply studio_id for targeted Studio tools when one instance is connected. Cache discovery briefly, preserve explicit caller IDs, and require a deliberate selection when multiple instances are open. Older schemas are forwarded unchanged.",
-        "Fresh installations extract into PlazCode-Extension. Update packages preserve the layout older updaters accept, and the updated installer accepts either single-root layout without changing the installed folder."
-      ],
-      "fixed": [
-        "The internal get_studio_state connection probe now receives studio_id when required. Missing IDs no longer prevent automatic Studio connection after the new MCP update.",
-        "Studio auto-connect attempts have an eight-second bound and retry in the background; local bridge endpoints are bound before the desktop opens. Timed-out discovery never dispatches the requested Studio command."
-      ]
     }
   ],
   "platforms": {
     "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.30.zip",
-      "sha256": "8ca7b6b032a0b51c2c1563d4ea2bcb029550d619206233207a88a8e2c30afec3"
+      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.31.zip",
+      "sha256": "271b0255ae9c0d1d76d58ca89932594741f5ea9ae0d758a123c891629e2de4da"
     }
   }
 }
