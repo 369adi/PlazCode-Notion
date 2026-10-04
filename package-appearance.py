@@ -52,7 +52,7 @@ for path in list(source):
  if p.is_file() and p.suffix=='.js':source[path]=p.read_bytes()
 source['PlazCode/production-build.json']=(root/'production-build.json').read_bytes()
 # Run pure behavioral tests against the actual generated modules.
-for name in ['test-version.js','test-cowork.js','test-page-startup.js','test-cowork-injection-composer.js','test-notion-tool-status.js','test-notion-localized-composer.js','test-notion-send-receipts.js','test-studio-status.js']:
+for name in ['test-version.js','test-cowork.js','test-page-startup.js','test-cowork-injection-composer.js','test-cowork-notion-plain-text.js','test-notion-tool-status.js','test-notion-localized-composer.js','test-notion-send-receipts.js','test-studio-status.js']:
  subprocess.run(['node',name],cwd=root,check=True)
 def development(path):
  relative=path.removeprefix('PlazCode/');parts=Path(relative).parts
