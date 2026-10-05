@@ -1,3 +1,22 @@
+PlazCode 1.19.36 — Faster ChatGPT startup and reliable unattended runs
+
+Start ChatGPT sessions faster, keep long unattended runs going in background or sleeping browser tabs, and make Windows auto-updates recover from a locked PlazCode.exe without restart loops.
+
+- Unattended-run protection. While an agent run is active, PlazCode keeps its tab from being discarded by Edge sleeping tabs or Chrome Memory Saver, keeps the run's timers on schedule in hidden or covered tabs, and tells the desktop app that work is in progress so an automatic update waits until the run finishes.
+- Update failure record. A failed Windows update is written to logs/update-failure.json with its version, attempt count and message.
+- ChatGPT startup and each tool step finish sooner. PlazCode recognizes ChatGPT's finished-turn controls instead of waiting out fixed idle timers, which removes up to about 4 seconds from the startup handshake.
+- Windows updates rename a locked PlazCode.exe or other locked file aside and install the new copy instead of failing, then delete the renamed files on the next start.
+- Desktop downloads allow up to 30 minutes and fail only after 60 seconds without progress, so slow connections finish instead of timing out at 3 minutes.
+- After a failed automatic update, PlazCode waits 10 minutes before trying again, doubling up to 6 hours. A newer version or a manual update starts immediately.
+- Notion waits up to 60 seconds for its AI editor to load, which covers slow Microsoft Edge cold starts.
+- Tool-call parsing accepts commands written with params before the command name, trailing commas and no-break spaces between JSON tokens.
+- Fixed a restart loop where a failed Windows update relaunched PlazCode, which updated again immediately and closed the app about every minute.
+- Fixed a tool command running twice. When the desktop app restarted or updated while a command was running, the browser extension resent it after reconnecting; it now reports the uncertain result and asks the model to check the current state first.
+- Fixed tool timeouts asking the model to retry blindly. Timed-out commands may still finish in Studio, so the model is told to check the result before running them again.
+- Fixed automatic updates being postponed indefinitely while the browser extension was open, and being able to restart the bridge during a long model reply.
+- Fixed leftover download folders from interrupted desktop updates never being removed.
+- Fixed a failed download turning off automatic installs until PlazCode was restarted.
+
 PlazCode 1.19.35 — Reliable Notion file uploads and faster Windows updates
 
 Retry stalled Notion protocol file uploads automatically so long tasks keep running, and make Windows updates download faster and wait longer for PlazCode.exe to close.
@@ -27,7 +46,7 @@ PlazCode 1.19.33 — Firefox installation and authenticated bridge support
 
 Add a Firefox extension package and correct Firefox background startup and desktop pairing.
 
-- A dedicated PlazCode-Extension-Firefox folder in both desktop downloads and a standalone PlazCode-Firefox-1.19.35.zip with manifest.json at its root.
+- A dedicated PlazCode-Extension-Firefox folder in both desktop downloads and a standalone PlazCode-Firefox-1.19.36.zip with manifest.json at its root.
 - Firefox installation instructions explain selecting manifest.json or the Firefox ZIP in about:debugging, reloading after updates and the unsigned temporary-install limitation.
 - Firefox uses the same provider adapters, tools, bar, creators and settings as the Chromium extension, with a Firefox background script and stable addon identity.
 - Firefox requests use the installation-specific extension UUID for automatic pairing, while authenticated desktop HTTP and WebSocket routes recognize valid moz-extension origins.

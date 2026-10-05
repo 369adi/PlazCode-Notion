@@ -14,6 +14,57 @@ $uiReady = $false
 function Set-UpdaterProgress([int]$Percent, [string]$Title, [string]$Detail) {
     if ($uiReady) { [PlazCode.UpdateProgress]::Set($Percent, $Title, $Detail) }
 }
+# Windows lets a running or scanned executable be renamed even when it cannot be
+# overwritten. Renaming the locked file aside frees its path for the new copy;
+# the aside copy is deleted on the next update or desktop start.
+$movedAside = New-Object 'System.Collections.Generic.List[string]'
+$asideList = Join-Path $install 'logs/update-moved-aside.txt'
+function Move-LockedAside([string]$Path) {
+    if (!(Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    $aside = $Path + '.plazcode-old-' + ([guid]::NewGuid().ToString('N').Substring(0, 8))
+    try { [IO.File]::Move($Path, $aside) } catch { return $false }
+    $movedAside.Add($aside)
+    try {
+        New-Item (Split-Path $asideList) -ItemType Directory -Force | Out-Null
+        Add-Content -LiteralPath $asideList -Value $aside -Encoding UTF8
+    } catch { }
+    return $true
+}
+function Remove-MovedAside {
+    if (!(Test-Path -LiteralPath $asideList)) { return }
+    $remaining = @()
+    foreach ($line in @(Get-Content -LiteralPath $asideList -ErrorAction SilentlyContinue)) {
+        $path = ([string]$line).Trim()
+        if (!$path -or $path -notmatch '\.plazcode-old-[0-9a-f]{8}$') { continue }
+        try { if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force -ErrorAction Stop } }
+        catch { $remaining += $path }
+    }
+    if ($remaining.Count) { Set-Content -LiteralPath $asideList -Value $remaining -Encoding UTF8 }
+    else { Remove-Item -LiteralPath $asideList -Force -ErrorAction SilentlyContinue }
+}
+# Antivirus, OneDrive and indexers briefly open new or changed files. Retry a
+# locked copy, then rename the locked target aside, before failing the update.
+function Copy-UpdateFile([string]$Source, [string]$Target) {
+    for ($attempt = 1; $attempt -le 6; $attempt++) {
+        try { Copy-Item -LiteralPath $Source -Destination $Target -Force -ErrorAction Stop; return }
+        catch {
+            if ($attempt -eq 6) { throw ('Could not replace ' + $Target + ': ' + $_.Exception.Message) }
+            if ($attempt -ge 3) { Move-LockedAside $Target | Out-Null }
+            Start-Sleep -Milliseconds (300 * $attempt)
+        }
+    }
+}
+$failureRecord = Join-Path $install 'logs/update-failure.json'
+function Write-UpdateFailure([string]$Version, [string]$Message, [bool]$Installed) {
+    try {
+        $count = 1
+        if (Test-Path -LiteralPath $failureRecord) {
+            try { $previous = Get-Content -LiteralPath $failureRecord -Raw | ConvertFrom-Json; if ($previous.version -eq $Version) { $count = [int]$previous.count + 1 } } catch { }
+        }
+        New-Item (Split-Path $failureRecord) -ItemType Directory -Force | Out-Null
+        @{ version = $Version; count = $count; at = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds(); message = $Message; installed = $Installed } | ConvertTo-Json -Compress | Set-Content -LiteralPath $failureRecord -Encoding UTF8
+    } catch { }
+}
 function Start-UpdatedPlazCode([string]$Version) {
     $ready = Join-Path $stage 'desktop-ready.json'
     for ($attempt = 1; $attempt -le 2; $attempt++) {
@@ -46,6 +97,7 @@ function Get-ExtensionRoot([string]$Root) {
 $extensionRoot = Get-ExtensionRoot $install
 $splitInstall = $extensionRoot -ne $install -and !(Test-Path -LiteralPath (Join-Path $install 'manifest.json'))
 try {
+    Remove-MovedAside
     if ($ShowProgress) {
         try {
             Add-Type -AssemblyName System.Windows.Forms
@@ -186,7 +238,8 @@ try {
     Set-UpdaterProgress 60 'Closing PlazCode' 'Waiting for this installation to release its files. Roblox Studio stays open.'
     # Stop only agent processes belonging to this installation. Leave Studio running.
     $agentPaths = @('PlazCode.exe','plazcode-agent.exe') | ForEach-Object { [IO.Path]::GetFullPath((Join-Path $install $_)) }
-    $deadline = [DateTime]::UtcNow.AddSeconds(60)
+    $lockStarted = [DateTime]::UtcNow
+    $deadline = $lockStarted.AddSeconds(60)
     do {
         # Process.Path works for our same-user app even if CIM omits ExecutablePath.
         $agents = @(Get-Process -Name 'PlazCode','plazcode-agent' -ErrorAction SilentlyContinue | Where-Object {
@@ -207,6 +260,20 @@ try {
             catch [IO.IOException] { $locked = $true }
             finally { if ($handle) { $handle.Dispose() } }
         }
+        if ($locked -and [DateTime]::UtcNow -ge $lockStarted.AddSeconds(10)) {
+            # Every visible process of this installation was stopped. A remaining
+            # lock belongs to a scanner or an elevated copy; free the path by
+            # renaming. An elevated old copy is replaced by the relaunch, which
+            # asks the running older version to shut down.
+            $locked = $false
+            foreach ($path in $agentPaths) {
+                if (!(Test-Path -LiteralPath $path)) { continue }
+                $handle = $null
+                try { $handle = [IO.File]::Open($path, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None) }
+                catch [IO.IOException] { if (!(Move-LockedAside $path)) { $locked = $true } }
+                finally { if ($handle) { $handle.Dispose() } }
+            }
+        }
         if (!$locked) { break }
         if ([DateTime]::UtcNow -ge $deadline) { throw 'PlazCode.exe is still locked. Close other PlazCode windows (including any started as administrator), wait for antivirus scans to finish or restart Windows, then retry. No update files were copied.' }
         if ($ShowProgress) { Set-UpdaterProgress 60 'Waiting for PlazCode to close' 'Finishing process shutdown before replacing files.' }
@@ -219,16 +286,19 @@ try {
         $target = Join-Path $install $relative
         $written.Add($relative)
         New-Item (Split-Path $target) -ItemType Directory -Force | Out-Null
-        Copy-Item -LiteralPath $file.FullName -Destination $target -Force
+        Copy-UpdateFile $file.FullName $target
         $copied++
         Set-UpdaterProgress (65 + [int](30 * $copied / [Math]::Max(1, $files.Count))) 'Installing update' ("Replacing files: $copied of $($files.Count).")
     }
     $installed = $true
     Set-UpdaterProgress 98 'Relaunching PlazCode' 'Waiting for the updated desktop to finish loading.'
     Start-UpdatedPlazCode ([string]$next)
+    Remove-Item -LiteralPath $failureRecord -Force -ErrorAction SilentlyContinue
     Set-UpdaterProgress 100 'Update complete' 'Reload the extension and refresh your open AI chat tabs.'
     Write-Host "Updated $current -> $next. Reload the extension, then refresh open AI chat tabs." -ForegroundColor Green
 } catch {
+    $failedVersion = if ($ExpectedVersion) { [string]$ExpectedVersion } elseif ($latest) { [string]$latest } else { '' }
+    Write-UpdateFailure $failedVersion ([string]$_.Exception.Message) $installed
     if ($installed) { Set-UpdaterProgress -1 'Desktop restart needs attention' 'The update is installed, but startup did not confirm readiness. See logs/agent.log.' }
     else { Set-UpdaterProgress -1 'Restoring installation' 'The update failed. Restoring recovery copies before reporting the error.' }
     if (!$installed) { foreach ($relative in $written) {
@@ -238,6 +308,12 @@ try {
             if (Test-Path -LiteralPath $saved) { Copy-Item -LiteralPath $saved -Destination $target -Force }
             else { Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
         } catch { Write-Host "Could not restore $relative. Backup retained at $backup" -ForegroundColor Red }
+    }
+    # A file renamed aside whose replacement was never written goes back in place.
+    foreach ($aside in $movedAside) {
+        $original = $aside -replace '\.plazcode-old-[0-9a-f]{8}$', ''
+        try { if (!(Test-Path -LiteralPath $original) -and (Test-Path -LiteralPath $aside)) { [IO.File]::Move($aside, $original) } }
+        catch { Write-Host "Could not restore $original from $aside" -ForegroundColor Red }
     }
     }
     if ($stopped -and !$installed) { if ($BackgroundUpdate) { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -ArgumentList $(if ($RestoreWindow) { @('--background','--restore-window') } else { '--background' }) -WorkingDirectory $install -ErrorAction SilentlyContinue } else { Start-Process -FilePath (Join-Path $install 'PlazCode.exe') -WorkingDirectory $install -ErrorAction SilentlyContinue } }

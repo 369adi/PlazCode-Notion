@@ -1,9 +1,34 @@
 {
-  "version": "1.19.35",
-  "desktop_version": "1.19.35",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.35.zip",
-  "sha256": "0b897b1a4a49b8d36c6417bda43a81b5aee3548352892717d485b06086f97d8e",
+  "version": "1.19.36",
+  "desktop_version": "1.19.36",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-1.19.36.zip",
+  "sha256": "942a295ad8000b560675ef19027ee905f80f29cf65300d65163f672fd26f3ea8",
   "release_notes": [
+    {
+      "version": "1.19.36",
+      "title": "Faster ChatGPT startup and reliable unattended runs",
+      "summary": "Start ChatGPT sessions faster, keep long unattended runs going in background or sleeping browser tabs, and make Windows auto-updates recover from a locked PlazCode.exe without restart loops.",
+      "added": [
+        "Unattended-run protection. While an agent run is active, PlazCode keeps its tab from being discarded by Edge sleeping tabs or Chrome Memory Saver, keeps the run's timers on schedule in hidden or covered tabs, and tells the desktop app that work is in progress so an automatic update waits until the run finishes.",
+        "Update failure record. A failed Windows update is written to logs/update-failure.json with its version, attempt count and message."
+      ],
+      "improved": [
+        "ChatGPT startup and each tool step finish sooner. PlazCode recognizes ChatGPT's finished-turn controls instead of waiting out fixed idle timers, which removes up to about 4 seconds from the startup handshake.",
+        "Windows updates rename a locked PlazCode.exe or other locked file aside and install the new copy instead of failing, then delete the renamed files on the next start.",
+        "Desktop downloads allow up to 30 minutes and fail only after 60 seconds without progress, so slow connections finish instead of timing out at 3 minutes.",
+        "After a failed automatic update, PlazCode waits 10 minutes before trying again, doubling up to 6 hours. A newer version or a manual update starts immediately.",
+        "Notion waits up to 60 seconds for its AI editor to load, which covers slow Microsoft Edge cold starts.",
+        "Tool-call parsing accepts commands written with params before the command name, trailing commas and no-break spaces between JSON tokens."
+      ],
+      "fixed": [
+        "Fixed a restart loop where a failed Windows update relaunched PlazCode, which updated again immediately and closed the app about every minute.",
+        "Fixed a tool command running twice. When the desktop app restarted or updated while a command was running, the browser extension resent it after reconnecting; it now reports the uncertain result and asks the model to check the current state first.",
+        "Fixed tool timeouts asking the model to retry blindly. Timed-out commands may still finish in Studio, so the model is told to check the result before running them again.",
+        "Fixed automatic updates being postponed indefinitely while the browser extension was open, and being able to restart the bridge during a long model reply.",
+        "Fixed leftover download folders from interrupted desktop updates never being removed.",
+        "Fixed a failed download turning off automatic installs until PlazCode was restarted."
+      ]
+    },
     {
       "version": "1.19.35",
       "title": "Reliable Notion file uploads and faster Windows updates",
@@ -699,45 +724,12 @@
         "Notion no longer uses bulk execCommand or direct React-owned DOM replacement as the large-send fallback. Short native edits rely on Chromium input events instead of duplicate synthetic model events.",
         "Notion input cover targets only the editable, preventing a growing ancestor from becoming the click-blocking mask. Start on a populated AI landing first opens a fresh chat."
       ]
-    },
-    {
-      "version": "1.18.102",
-      "title": "Responsive updates, unlocked Stop and native Notion drafts",
-      "summary": "Read release metadata from the current published commit, release the composer on Stop, keep PlazCode work folding off ChatGPT, and use controlled editor events for Notion startup.",
-      "added": [],
-      "improved": [
-        "The default GitHub updater checks the current repository revision every two seconds and fetches metadata by immutable commit. Unchanged metadata is reused; quiet automatic checks and the eight-second request budget remain. Custom feeds retain their configured path. Network delays and browser suspension still apply; this is not guaranteed instant push.",
-        "Notion large startup drafts use one complete native beforeinput/insertText/input write instead of chunked clipboard pastes. Editable/readonly attributes are temporarily restored during the write, focus is acquired after unlocking, and the complete draft must survive two renders before Send.",
-        "Co-work tracks placeholder nodes introduced by composer remounts, and ChatGPT Work literal placeholder labels display Follow up without changing user text or replacing the native input."
-      ],
-      "fixed": [
-        "Stop releases the composer immediately and prevents late work from restoring the Agent is working cover until a new user action resumes work. Tool cancellation and Safe/Immediate semantics remain unchanged.",
-        "PlazCode Working/Worked transcript summaries and bar disclosure are disabled on ChatGPT. Activity records remain available to desktop; other providers retain their collapsible groups.",
-        "Default update checks avoid the cached mutable branch feed when current revision discovery succeeds. Older cached metadata cannot replace a newer known release."
-      ]
-    },
-    {
-      "version": "1.18.101",
-      "title": "Notion literal startup and smoother engine switching",
-      "summary": "Prevent repeated clearing/refilling after a rejected large Notion prompt and distinguish an intentional engine reconnection from a bridge failure.",
-      "added": [],
-      "improved": [
-        "All Notion literal pastes, including startup chunks, use escaped code HTML to avoid rich-text Markdown conversion. Complete normalized text must be retained before Send; sampled near-match acceptance is removed.",
-        "The browser bar shows Switching while AgentScript/RobloxScript reconnects, disables Start, ignores old-engine status and restores actual health on completion or after an eight-second bound."
-      ],
-      "fixed": [
-        "A rejected retained large paste no longer falls into repeated tiny inserts and full rewrites. One initial empty hydration rejection may retry; partial failures stop without sending.",
-        "Intentional engine reconnection does not flash a bridge-down banner. A genuine failure remains visible after the transition timeout."
-      ],
-      "validation": [
-        "Rich-text importer fixtures retain 33k+ prompts with Markdown, paths and Unicode; corruption and Stop abort. Shared startup, native Co-work and Stop checks pass. Notion remains experimental: live-site startup needs confirmation."
-      ]
     }
   ],
   "platforms": {
     "macos": {
-      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.35.zip",
-      "sha256": "f8a746d3475673a55e2a7292d95679f99cf6af9add3f065166a3bee888fa5177"
+      "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.36.zip",
+      "sha256": "ab1d5319252c1442345872577af3bb0db2a633dfc190f98e96d107d244b85d46"
     }
   }
 }
