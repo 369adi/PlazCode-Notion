@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PlazCode Notion – Verbindung</title>
+  <style>
+    :root{color-scheme:dark;font:15px/1.5 system-ui,sans-serif;background:#101914;color:#ecf2e9}body{max-width:660px;margin:40px auto;padding:0 22px}h1{font-size:26px}label{display:block;margin:20px 0 6px;font-weight:650}input,textarea{box-sizing:border-box;width:100%;padding:12px;border:1px solid #46594d;border-radius:8px;background:#18241d;color:inherit;font:inherit}textarea{min-height:140px;resize:vertical}button{margin-top:22px;padding:11px 18px;border:0;border-radius:7px;background:#b5f178;color:#132014;font-weight:700;cursor:pointer}.hint{color:#aebcaf}.warn{padding:13px;border:1px solid #6f5c35;border-radius:8px;background:#282419}
+  </style>
+</head>
+<body>
+  <h1>Verbindung zu PlazCode Notion</h1>
+  <p class="hint">Die Erweiterung verbindet die PlazCode-Tools mit den Chat-Tabs, die du freigibst. Über „Direkt starten“ kann ein KI-Chat außerdem als Roblox-Agent arbeiten – jede Änderung braucht deine Freigabe.</p>
+  <label for="url">Lokale WebSocket-Adresse</label>
+  <input id="url" value="ws://127.0.0.1:8787/extension/ws" autocomplete="url">
+  <label for="token">Erweiterungs-Token</label>
+  <input id="token" type="password" autocomplete="off" spellcheck="false">
+  <p class="hint">Den Token findest du in PlazCode Notion auf der Seite <b>Notion AI</b> → Karte „Web-Agenten &amp; Sicherheit“ → „Erweiterungs-Token“ → Kopieren.</p>
+  <p class="warn">Der Token erlaubt der Erweiterung, Chats zu steuern und im Direkt-Modus Studio-Tools weiterzuleiten. Halte ihn privat. Nachrichten laufen über dein bereits angemeldetes Konto auf der jeweiligen Seite.</p>
+  <label><input id="notion" type="checkbox" style="width:auto"> Notion AI als Web-Agent erlauben (experimentell)</label>
+  <label for="instructions">Eigene Anweisungen für Direkt-Aufgaben und Notion</label>
+  <textarea id="instructions" maxlength="8000" placeholder="z. B. Antworte auf Deutsch, trenne Fakten von Vermutungen und frage vor jeder nicht umkehrbaren Aktion."></textarea>
+  <p class="hint">Diese Anweisungen werden an den Anfang von Aufgaben für freigegebene Tabs gesetzt. Sie erlauben dem Modell nicht, frei auf Seiten herumzuklicken.</p>
+  <button id="save">Speichern und verbinden</button>
+  <p id="status" role="status" class="hint"></p>
+  <script src="options.js"></script>
+</body>
+</html>

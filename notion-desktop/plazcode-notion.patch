@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..128de8c 100644
+index 07dc4c0..7429724 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -298,7 +298,7 @@ index 07dc4c0..128de8c 100644
            <div class="stat" data-tone="amber"><div class="stat-head"><span id="studioDot" class="dot"></span>Roblox Studio</div><div id="studioVal" class="stat-val">Offline</div><div class="stat-sub">Primary Studio MCP</div></div>
            <div class="stat" data-tone="blue"><div class="stat-head"><span class="dot on" style="background:var(--blue)"></span>Tools</div><div id="toolCount" class="stat-val">0</div><div class="stat-sub">Live tool catalog</div></div>
            <div class="stat" data-tone="purple"><div class="stat-head"><span class="dot on" style="background:var(--purple)"></span>Workspace</div><div id="workspaceVal" class="stat-val">Off</div><div id="workspaceSub" class="stat-sub">AgentScript files</div></div>
-@@ -366,6 +468,44 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -366,6 +468,53 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
            <div class="panel"><div class="panel-head recent-head"><div class="panel-title">Recent activity</div><button class="clearbtn" id="clearHome">Clear</button></div><div id="recent" class="activity"></div></div>
          </div>
        </section>
@@ -315,6 +315,15 @@ index 07dc4c0..128de8c 100644
 +          <div class="nrow"><span class="nlabel">URL mit Schlüssel</span><span id="nKeyUrl" class="nvalue">–</span><button class="softbtn" data-ncopy="key_url">Kopieren</button></div>
 +          <p class="nhint">Die „URL mit Schlüssel“ enthält den Token und funktioniert auch ohne Bearer-Feld. Behandle sie wie ein Passwort.</p>
 +          <div class="nrow" style="margin-top:12px"><button class="softbtn" id="nRestart">Tunnel neu starten</button><button class="softbtn" id="nRefreshTools">Tools aktualisieren</button><button class="dangerbtn" id="nNewToken" style="padding:6px 12px">Token erneuern</button><span id="nMsg" class="nhint"></span></div>
++        </div>
++        <div class="settingcard notion-card">
++          <h3>Web-Agenten &amp; Sicherheit</h3>
++          <p>Die Browser-Erweiterung <b>PlazCode Notion Web Agents</b> verbindet ChatGPT, Claude, Gemini &amp; Co. mit PlazCode (Tools <code>web_sites</code>, <code>web_agents</code>, <code>web_chat</code>) und erlaubt einen Direkt-Agenten mit Freigabe-Panel.</p>
++          <div class="nrow"><span class="nlabel">Erweiterung</span><span id="nWebConn" class="nbadge">…</span><span id="nDirect" class="nhint"></span></div>
++          <div class="nrow"><span class="nlabel">WebSocket-URL</span><span id="nWsUrl" class="nvalue">–</span><button class="softbtn" data-ncopy="web_ws_url">Kopieren</button></div>
++          <div class="nrow"><span class="nlabel">Erweiterungs-Token</span><span id="nWebToken" class="nvalue">–</span><button class="softbtn" data-ncopy="web_token">Kopieren</button><button class="dangerbtn" id="nNewWebToken" style="padding:6px 12px">Erneuern</button></div>
++          <div class="nrow"><span class="nlabel">Sicherheitsmodus</span><label style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" id="nSafeShell"> Shell nur mit erlaubten Einzelbefehlen, Registry/unsicherer Browser-Code gesperrt</label></div>
++          <p class="nhint">Erweiterung installieren: chrome://extensions → Entwicklermodus → „Entpackte Erweiterung laden“ → Ordner <code>%LOCALAPPDATA%\PlazCodeNotion\extension</code> (bzw. <code>notion-desktop/extension</code> im GitHub-Repo). In den Optionen URL und Token von hier eintragen.</p>
 +        </div>
 +        <div class="settingcard notion-card">
 +          <h3>In Notion einrichten</h3>
@@ -343,7 +352,7 @@ index 07dc4c0..128de8c 100644
        <section class="page" id="page-tools">
          <div class="page-head"><div><div class="page-title">Tools</div><div class="page-sub">Every currently usable PlazCode tool, grouped by live source.</div></div></div>
          <div class="toolbar"><input id="toolSearch" class="search" placeholder="Search tools or sources..."><div id="toolFilters" class="filters"></div></div>
-@@ -1206,5 +1346,86 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1355,93 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -386,6 +395,11 @@ index 07dc4c0..128de8c 100644
 +    if ($("nToken")) $("nToken").textContent = Mask(S.token);
 +    if ($("nKeyUrl")) $("nKeyUrl").textContent = S.key_url ? (ShowToken ? S.key_url : S.key_url.replace(S.token, Mask(S.token))) : "–";
 +    if ($("nLocal")) $("nLocal").textContent = S.local_url || "–";
++    Badge($("nWebConn"), S.web_connected ? "online" : "offline", "");
++    if ($("nWsUrl")) $("nWsUrl").textContent = S.web_ws_url || "–";
++    if ($("nWebToken")) $("nWebToken").textContent = ShowToken ? (S.web_token || "–") : Mask(S.web_token);
++    var DA = S.direct_agent || {}; if ($("nDirect")) $("nDirect").textContent = DA.active ? ("Direkt-Agent aktiv: " + (DA.provider || "?") + " · " + (DA.tool_calls || 0) + " Aufrufe") : "Kein Direkt-Agent aktiv";
++    var SS = $("nSafeShell"); if (SS) SS.checked = !!S.safe_shell;
 +    if ($("nRequests")) $("nRequests").textContent = S.requests ? (S.requests + " Anfragen" + (S.last_request ? " · zuletzt " + S.last_request.time + " (" + S.last_request.what + ")" : "")) : "Noch keine Anfrage von Notion";
 +    var D = $("nDomain"); if (D && document.activeElement !== D) D.value = S.domain || "";
 +    var P = $("nNgrokPath"); if (P && document.activeElement !== P) P.value = S.ngrok_path || "";
@@ -415,6 +429,8 @@ index 07dc4c0..128de8c 100644
 +    On("nRestart", function () { Act("restart_ngrok"); });
 +    On("nRefreshTools", function () { Act("refresh_tools"); });
 +    On("nNewToken", function () { if (confirm("Neuen Token erstellen? Die bestehende Verbindung in Notion muss danach mit dem neuen Token aktualisiert werden.")) Act("regenerate_token"); });
++    On("nNewWebToken", function () { if (confirm("Neuen Erweiterungs-Token erstellen? Die Browser-Erweiterung muss danach den neuen Token bekommen.")) Act("regenerate_web_token"); });
++    var SSC = $("nSafeShell"); if (SSC) SSC.onchange = function () { Act("toggle_safe_shell", SSC.checked); };
 +    On("nSaveDomain", function () { Act("set_domain", $("nDomain").value); });
 +    On("nSavePath", function () { Act("set_ngrok_path", $("nNgrokPath").value); });
 +    var C = $("nEnabled"); if (C) C.onchange = function () { Act("toggle_ngrok", C.checked); };
@@ -460,20 +476,23 @@ index 04ebefa..1f582f6 100644
                  _ if body.starts_with("toolkit-store:") => toolkit_store_url(body).map(UiEvent::OpenExternal),
                  _ => supported_ai_url(body).map(|url|UiEvent::OpenExternal(url.to_owned())).or_else(|| body.strip_prefix("js-error:").map(|message| UiEvent::JsError(message.to_string()))),
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..d2f7c16 100644
+index 77cc050..d3f458b 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,9 @@ mod media;
+@@ -81,6 +81,12 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
 +mod notion_mcp;
 +mod notion_skills;
 +mod notion_cowork;
++mod notion_roblox_plus;
++mod notion_web_agents;
++mod notion_safety;
  
  #[cfg(windows)]
  mod win_msg {
-@@ -831,6 +834,8 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +837,8 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -482,7 +501,7 @@ index 77cc050..d2f7c16 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -881,6 +886,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -881,6 +889,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
      let addon_state = state.clone();
      tokio::spawn(async move {
          let (tools, servers) = addon_state.addons.lock().await.list_tools().await;
@@ -490,7 +509,7 @@ index 77cc050..d2f7c16 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -937,6 +943,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -937,6 +946,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
      updater::start_checker();
@@ -498,7 +517,7 @@ index 77cc050..d2f7c16 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +955,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +958,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -506,7 +525,7 @@ index 77cc050..d2f7c16 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +985,8 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +988,8 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -515,7 +534,7 @@ index 77cc050..d2f7c16 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1460,6 +1470,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1473,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -523,7 +542,7 @@ index 77cc050..d2f7c16 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1542,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1545,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -535,637 +554,10 @@ diff --git a/agent/src/mcp_addons.rs b/agent/src/mcp_addons.rs
 index 1a68aee..b88f112 100644
 --- a/agent/src/mcp_addons.rs
 +++ b/agent/src/mcp_addons.rs
-@@ -1,581 +1,643 @@
--use serde::{Deserialize, Serialize};
--use std::collections::{BTreeMap, HashMap};
--use std::path::PathBuf;
--use std::process::Stdio;
--use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
--use tokio::process::{Child, ChildStdin, ChildStdout, Command};
--
--#[cfg(windows)]
--use std::os::windows::process::CommandExt;
--
--#[cfg(windows)]
--const CREATE_NO_WINDOW: u32 = 0x0800_0000;
--
--#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
--pub struct ServerSpec {
--    pub command: String,
--    #[serde(default)]
--    pub args: Vec<String>,
--    #[serde(default)]
--    pub env: HashMap<String, String>,
--}
--
--#[derive(Clone, Debug, Serialize, Deserialize, Default)]
--pub struct McpConfig {
--    #[serde(rename = "mcpServers", default)]
--    pub servers: BTreeMap<String, ServerSpec>,
--}
--
--#[derive(Clone, Debug)]
--pub struct CatalogEntry {
--    pub id: &'static str,
--    pub name: &'static str,
--    pub description: &'static str,
--    pub command: &'static str,
--    pub args: &'static [&'static str],
--}
--
--#[derive(Clone, Debug, Serialize)]
--pub struct ServerSummary {
--    pub id: String,
--    pub name: String,
--    pub alive: bool,
--    pub tools: usize,
--    #[serde(skip_serializing_if = "Option::is_none")]
--    pub error: Option<String>,
--}
--
--pub fn catalog() -> Vec<CatalogEntry> {
--    vec![
--        CatalogEntry {
--            id: "blender",
--            name: "Blender",
--            description: "Install and enable the Blender MCP addon inside Blender first. Keep Blender open, press N in the 3D viewport, open Blender MCP / MCP for Blender, and click Start MCP Server (default port 9876). Enable here starts the MCP process only; Test Blender connection checks the actual scene response.",
--            command: "uvx",
--            args: &["blender-mcp"],
--        },
--        CatalogEntry {
--            id: "context7",
--            name: "Context7",
--            description: "Library and framework documentation lookup.",
--            command: "npx",
--            args: &["-y", "@upstash/context7-mcp"],
--        },
--        CatalogEntry {
--            id: "fetch",
--            name: "Fetch",
--            description: "Fetch and read web resources through an MCP server.",
--            command: "uvx",
--            args: &["mcp-server-fetch"],
--        },
--        CatalogEntry {
--            id: "git",
--            name: "Git",
--            description: "Local Git repository inspection and operations.",
--            command: "uvx",
--            args: &["mcp-server-git"],
--        },
--        CatalogEntry {
--            id: "memory",
--            name: "Memory",
--            description: "Local graph-style memory tools for agent sessions.",
--            command: "npx",
--            args: &["-y", "@modelcontextprotocol/server-memory"],
--        },
--        CatalogEntry {
--            id: "thinking",
--            name: "Sequential Thinking",
--            description: "Structured step-by-step reasoning utilities.",
--            command: "npx",
--            args: &["-y", "@modelcontextprotocol/server-sequential-thinking"],
--        },
--    ]
--}
--
--pub fn config_path() -> PathBuf {
--    #[cfg(target_os = "macos")]
--    { return crate::platform::configuration_root().join("config.json"); }
--    #[cfg(not(target_os = "macos"))]
--    std::env::current_exe()
--        .ok()
--        .and_then(|p| p.parent().map(|d| d.join("config.json")))
--        .unwrap_or_else(|| PathBuf::from("config.json"))
--}
--
--pub fn read_config() -> McpConfig {
--    let path = config_path();
--    let mut cfg = std::fs::read_to_string(path)
--        .ok()
--        .and_then(|raw| serde_json::from_str::<McpConfig>(&raw).ok())
--        .unwrap_or_default();
--    cfg.servers.entry("roblox".to_string()).or_insert_with(|| ServerSpec {
--        command: "launch_studio_mcp.py".to_string(),
--        args: Vec::new(),
--        env: HashMap::new(),
--    });
--    cfg
--}
--
--pub fn write_config(cfg: &McpConfig) -> anyhow::Result<()> {
--    let path = config_path();
--    if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
--    let tmp = path.with_extension("json.tmp");
--    std::fs::write(&tmp, serde_json::to_vec_pretty(cfg)?)?;
--    if path.exists() {
--        std::fs::remove_file(&path)?;
--    }
--    std::fs::rename(tmp, path)?;
--    Ok(())
--}
--
--pub fn is_enabled(id: &str) -> bool {
--    read_config().servers.contains_key(id)
--}
--
--pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
--    let entry = catalog().into_iter().find(|e| e.id == id)
--        .ok_or_else(|| anyhow::anyhow!("unknown catalog server '{id}'"))?;
--    let mut cfg = read_config();
--    if enabled {
--        cfg.servers.insert(id.to_string(), ServerSpec {
--            command: entry.command.to_string(),
--            args: entry.args.iter().map(|v| (*v).to_string()).collect(),
--            env: HashMap::new(),
--        });
--    } else {
--        cfg.servers.remove(id);
--    }
--    write_config(&cfg)
--}
--
--pub fn add_server(id: &str, spec: ServerSpec) -> anyhow::Result<()> {
--    let id = id.trim();
--    anyhow::ensure!(!id.is_empty(), "server id is required");
--    anyhow::ensure!(id != "roblox", "the Roblox server cannot be replaced");
--    anyhow::ensure!(!spec.command.trim().is_empty(), "server command is required");
--    let mut cfg = read_config();
--    cfg.servers.insert(id.to_string(), spec);
--    write_config(&cfg)
--}
--
--pub fn remove_server(id: &str) -> anyhow::Result<()> {
--    let id = id.trim();
--    anyhow::ensure!(id != "roblox", "the Roblox server cannot be removed");
--    let mut cfg = read_config();
--    anyhow::ensure!(cfg.servers.remove(id).is_some(), "server '{id}' is not configured");
--    write_config(&cfg)
--}
--
--pub(crate) struct AddonRuntime {
--    id: String,
--    spec: ServerSpec,
--    child: Option<Child>,
--    stdin: Option<ChildStdin>,
--    stdout: Option<Lines<BufReader<ChildStdout>>>,
--    next_id: u64,
--    tools: Vec<serde_json::Value>,
--    last_error: Option<String>,
--    stderr: std::sync::Arc<std::sync::Mutex<std::collections::VecDeque<String>>>,
--    stderr_task: Option<tokio::task::JoinHandle<()>>,
--    initialized: bool,
--}
--
--impl AddonRuntime {
--    pub(crate) fn new(id: String, spec: ServerSpec) -> Self {
--        Self {
--            id,
--            spec,
--            child: None,
--            stdin: None,
--            stdout: None,
--            next_id: 1,
--            tools: Vec::new(),
--            last_error: None,
--            stderr: Default::default(),
--            stderr_task: None,
--            initialized: false,
--        }
--    }
--
--    fn same_spec(&self, spec: &ServerSpec) -> bool {
--        &self.spec == spec
--    }
--
--    fn child_alive(&mut self) -> bool {
--        match self.child.as_mut() {
--            Some(child) => matches!(child.try_wait(), Ok(None)),
--            None => false,
--        }
--    }
--
--    pub(crate) async fn reset(&mut self) {
--        if let Some(child) = self.child.as_mut() {
--            #[cfg(windows)]
--            if let Some(pid) = child.id() {
--                let _ = std::process::Command::new("taskkill")
--                    .args(["/F", "/T", "/PID", &pid.to_string()])
--                    .creation_flags(CREATE_NO_WINDOW)
--                    .output();
--            }
--            let _ = child.kill().await;
--        }
--        if let Some(task) = self.stderr_task.take() { task.abort(); }
--        self.stderr.lock().unwrap_or_else(|error| error.into_inner()).clear();
--        self.initialized = false;
--        self.child = None;
--        self.stdin = None;
--        self.stdout = None;
--        self.tools.clear();
--        self.next_id = 1;
--    }
--
--    fn command(&self) -> anyhow::Result<Command> {
--        #[cfg(windows)]
--        {
--            let low = self.spec.command.to_ascii_lowercase();
--            let app = config_path().parent().unwrap_or_else(|| std::path::Path::new(".")).to_path_buf();
--            if low == "npx" || low == "uvx" {
--                let cache = std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
--                    .map(|base| base.join("PlazCode").join("runtimes"));
--                let mut roots = vec![app.join("runtimes").join("node"), app.join("runtimes").join("uv")];
--                if let Some(cache) = cache {
--                    roots.push(cache.join(if low == "npx" { "node-22.22.0" } else { "uv-0.12.21" }));
--                }
--                if let Some(profile) = std::env::var_os("USERPROFILE") {
--                    let profile = PathBuf::from(profile);
--                    roots.push(profile.join(".local").join("bin"));
--                    roots.push(profile.join(".cargo").join("bin"));
--                    let node_root = profile.join("PlazCodeWorkspace").join("node");
--                    if let Ok(entries) = std::fs::read_dir(node_root) {
--                        roots.extend(entries.flatten().map(|entry| entry.path()));
--                    }
--                }
--                if let Some(programs) = std::env::var_os("ProgramFiles") {
--                    roots.push(PathBuf::from(programs).join("nodejs"));
--                }
--                if let Some(path) = self.spec.env.get("PATH").map(std::ffi::OsString::from).or_else(|| std::env::var_os("PATH")) {
--                    roots.extend(std::env::split_paths(&path));
--                }
--                for root in roots {
--                    let binary = root.join(if low == "npx" { "node.exe" } else { "uvx.exe" });
--                    let cli = root.join("node_modules").join("npm").join("bin").join("npx-cli.js");
--                    if !binary.is_file() || (low == "npx" && !cli.is_file()) { continue; }
--                    let mut cmd = Command::new(binary);
--                    if low == "npx" { cmd.arg(cli); }
--                    cmd.args(&self.spec.args).envs(&self.spec.env);
--                    let mut paths = vec![root];
--                    if let Some(path) = self.spec.env.get("PATH").map(std::ffi::OsString::from).or_else(|| std::env::var_os("PATH")) {
--                        paths.extend(std::env::split_paths(&path));
--                    }
--                    cmd.env("PATH", std::env::join_paths(paths)?);
--                    cmd.current_dir(&app).creation_flags(CREATE_NO_WINDOW);
--                    return Ok(cmd);
--                }
--                anyhow::bail!("[{}] {} runtime unavailable; first-use setup requires internet access.", self.id, low);
--            }
--            if low.ends_with(".cmd") || low.ends_with(".bat") {
--                let mut cmd = Command::new("cmd");
--                cmd.arg("/D").arg("/C").arg(&self.spec.command).args(&self.spec.args);
--                cmd.envs(&self.spec.env);
--                cmd.creation_flags(CREATE_NO_WINDOW);
--                return Ok(cmd);
--            }
--        }
--        let mut cmd = Command::new(&self.spec.command);
--        cmd.args(&self.spec.args).envs(&self.spec.env);
--        #[cfg(windows)]
--        cmd.creation_flags(CREATE_NO_WINDOW);
--        Ok(cmd)
--    }
--
--    async fn ensure(&mut self) -> anyhow::Result<()> {
--        if self.initialized && self.child_alive() && self.stdin.is_some() && self.stdout.is_some() {
--            return Ok(());
--        }
--        self.reset().await;
--        let command = self.command();
--        #[cfg(windows)]
--        let command = match command {
--            Err(error) if matches!(self.spec.command.to_ascii_lowercase().as_str(), "npx" | "uvx") => {
--                let app = config_path().parent().unwrap_or_else(|| std::path::Path::new(".")).to_path_buf();
--                let script = app.join("Setup-Mcp-Runtime.ps1");
--                anyhow::ensure!(script.is_file(), "[{}] Runtime setup script missing: {} ({error})", self.id, script.display());
--                tracing::info!("[{}] Preparing {} runtime for first use; download is cached for later launches", self.id, self.spec.command);
--                let mut setup = Command::new("powershell.exe");
--                setup.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
--                    .arg(script).arg("-Runtime").arg(self.spec.command.to_ascii_lowercase())
--                    .creation_flags(CREATE_NO_WINDOW).kill_on_drop(true);
--                let output = tokio::time::timeout(std::time::Duration::from_secs(300), setup.output()).await
--                    .map_err(|_| anyhow::anyhow!("[{}] Runtime setup timed out; check internet access and retry", self.id))??;
--                anyhow::ensure!(output.status.success(), "[{}] Runtime setup failed: {}", self.id,
--                    String::from_utf8_lossy(&output.stderr).chars().take(4000).collect::<String>());
--                tracing::info!("[{}] Runtime setup completed", self.id);
--                self.command()
--            }
--            other => other,
--        };
--        let mut cmd = command?;
--        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
--        let mut child = cmd.spawn().map_err(|e| anyhow::anyhow!("[{}] could not start '{}': {e}", self.id, self.spec.command))?;
--        if let Some(stderr) = child.stderr.take() {
--            let tail = self.stderr.clone();
--            self.stderr_task = Some(tokio::spawn(async move {
--                let mut lines = BufReader::new(stderr).lines();
--                while let Ok(Some(line)) = lines.next_line().await {
--                    let mut tail = tail.lock().unwrap_or_else(|error| error.into_inner());
--                    if tail.len() == 12 { tail.pop_front(); }
--                    tail.push_back(line.chars().take(1000).collect());
--                }
--            }));
--        }
--        self.stdin = child.stdin.take();
--        self.stdout = child.stdout.take().map(|s| BufReader::new(s).lines());
--        self.child = Some(child);
--        self.request("initialize", serde_json::json!({
--            "protocolVersion": "2025-06-18",
--            "capabilities": {},
--            "clientInfo": {"name": "PlazCode", "version": env!("CARGO_PKG_VERSION")}
--        })).await?;
--        self.notify("notifications/initialized", serde_json::json!({})).await?;
--        self.initialized = true;
--        self.last_error = None;
--        Ok(())
--    }
--
--    async fn notify(&mut self, method: &str, params: serde_json::Value) -> anyhow::Result<()> {
--        let line = serde_json::json!({"jsonrpc":"2.0","method":method,"params":params}).to_string() + "\n";
--        self.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("MCP stdin unavailable"))?.write_all(line.as_bytes()).await?;
--        self.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("MCP stdin unavailable"))?.flush().await?;
--        Ok(())
--    }
--
--    async fn request(&mut self, method: &str, params: serde_json::Value) -> anyhow::Result<serde_json::Value> {
--        let request_id = self.next_id;
--        self.next_id += 1;
--        let line = serde_json::json!({"jsonrpc":"2.0","id":request_id,"method":method,"params":params}).to_string() + "\n";
--        let stdin = self.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("MCP stdin unavailable"))?;
--        stdin.write_all(line.as_bytes()).await?;
--        stdin.flush().await?;
--        let stdout = self.stdout.as_mut().ok_or_else(|| anyhow::anyhow!("MCP stdout unavailable"))?;
--        let seconds = if self.id == "blender" && method != "tools/call" { 20 } else if self.id == "blender" && params["name"] == "get_scene_info" { 20 } else { 120 };
--        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(seconds);
--        loop {
--            let line = tokio::time::timeout_at(deadline, stdout.next_line()).await
--                .map_err(|_| anyhow::anyhow!("[{}] MCP request timed out: {method}", self.id))??
--                .ok_or_else(|| anyhow::anyhow!("[{}] MCP server exited while handling {method}: {}", self.id,
--                    self.stderr.lock().unwrap_or_else(|error| error.into_inner()).iter().cloned().collect::<Vec<_>>().join(" | ")))?;
--            let Ok(message) = serde_json::from_str::<serde_json::Value>(&line) else { continue; };
--            if message.get("id").and_then(|v| v.as_u64()) != Some(request_id) {
--                continue;
--            }
--            if let Some(error) = message.get("error") {
--                anyhow::bail!("[{}] {method} failed: {error}", self.id);
--            }
--            return message.get("result").cloned().ok_or_else(|| anyhow::anyhow!("[{}] {method} returned no result", self.id));
--        }
--    }
--
--    async fn list_tools(&mut self) -> anyhow::Result<Vec<serde_json::Value>> {
--        self.ensure().await?;
--        let result = self.request("tools/list", serde_json::json!({})).await?;
--        self.tools = result.get("tools").and_then(|v| v.as_array()).cloned().unwrap_or_default();
--        Ok(self.tools.clone())
--    }
--
--    pub(crate) async fn call_tool(&mut self, name: &str, args: serde_json::Value) -> anyhow::Result<(String, Vec<serde_json::Value>)> {
--        self.ensure().await?;
--        let result = self.request("tools/call", serde_json::json!({"name":name,"arguments":args})).await?;
--        let is_error = result.get("isError").and_then(|v| v.as_bool()).unwrap_or(false);
--        let mut texts = Vec::new();
--        let mut images = Vec::new();
--        if let Some(items) = result.get("content").and_then(|v| v.as_array()) {
--            for item in items {
--                if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
--                    texts.push(text.to_string());
--                }
--                if item.get("type").and_then(|v| v.as_str()) == Some("image") {
--                    if let Some(data) = item.get("data").and_then(|v| v.as_str()) {
--                        images.push(serde_json::json!({
--                            "mimeType": item.get("mimeType").and_then(|v| v.as_str()).unwrap_or("image/png"),
--                            "data": data
--                        }));
--                    }
--                }
--            }
--        }
--        let text = texts.join("\n");
--        if is_error {
--            anyhow::bail!("{}", if text.is_empty() { result.to_string() } else { text });
--        }
--        Ok((text, images))
--    }
--}
--
--pub struct AddonManager {
--    runtimes: HashMap<String, AddonRuntime>,
--}
--
--impl AddonManager {
--    pub fn new() -> Self {
--        Self { runtimes: HashMap::new() }
--    }
--
--    async fn sync_config(&mut self) {
--        let cfg = read_config();
--        let wanted: HashMap<String, ServerSpec> = cfg.servers.into_iter()
--            .filter(|(id, _)| id != "roblox")
--            .collect();
--
--        let stale: Vec<String> = self.runtimes.keys()
--            .filter(|id| !wanted.contains_key(*id))
--            .cloned()
--            .collect();
--        for id in stale {
--            if let Some(mut runtime) = self.runtimes.remove(&id) {
--                runtime.reset().await;
--            }
--        }
--
--        for (id, spec) in wanted {
--            let replace = self.runtimes.get(&id).map(|r| !r.same_spec(&spec)).unwrap_or(true);
--            if replace {
--                if let Some(mut old) = self.runtimes.remove(&id) {
--                    old.reset().await;
--                }
--                self.runtimes.insert(id.clone(), AddonRuntime::new(id, spec));
--            }
--        }
--    }
--
--    pub async fn reset_tool(&mut self, advertised: &str) {
--        if let Some((id,_))=advertised.split_once("__") { if let Some(runtime)=self.runtimes.get_mut(id) { runtime.reset().await; } }
--    }
--    pub async fn reset_all(&mut self) {
--        for runtime in self.runtimes.values_mut() {
--            runtime.reset().await;
--        }
--        self.runtimes.clear();
--    }
--
--    pub async fn list_tools(&mut self) -> (Vec<serde_json::Value>, Vec<ServerSummary>) {
--        self.sync_config().await;
--        let mut tools = Vec::new();
--        let mut summaries = Vec::new();
--        let ids: Vec<String> = self.runtimes.keys().cloned().collect();
--        for id in ids {
--            let Some(runtime) = self.runtimes.get_mut(&id) else { continue; };
--            match runtime.list_tools().await {
--                Ok(server_tools) => {
--                    for mut tool in server_tools {
--                        let Some(real) = tool.get("name").and_then(|v| v.as_str()).map(str::to_string) else { continue; };
--                        tool["name"] = serde_json::Value::String(format!("{id}__{real}"));
--                        if let Some(desc) = tool.get("description").and_then(|v| v.as_str()).map(str::to_string) {
--                            tool["description"] = serde_json::Value::String(format!("[{id}] {desc}"));
--                        }
--                        tool["server"] = serde_json::Value::String(id.clone());
--                        tools.push(tool);
--                    }
--                    summaries.push(ServerSummary {
--                        id: id.clone(),
--                        name: id.clone(),
--                        alive: true,
--                        tools: runtime.tools.len(),
--                        error: None,
--                    });
--                }
--                Err(error) => {
--                    runtime.last_error = Some(error.to_string());
--                    summaries.push(ServerSummary {
--                        id: id.clone(),
--                        name: id.clone(),
--                        alive: false,
--                        tools: 0,
--                        error: runtime.last_error.clone(),
--                    });
--                }
--            }
--        }
--        summaries.sort_by(|a, b| a.id.cmp(&b.id));
--        (tools, summaries)
--    }
--
--    pub async fn call_tool(&mut self, advertised: &str, args: serde_json::Value) -> anyhow::Result<(String, Vec<serde_json::Value>)> {
--        self.sync_config().await;
--        let (id, real) = advertised.split_once("__")
--            .ok_or_else(|| anyhow::anyhow!("invalid add-on tool name '{advertised}'"))?;
--        let runtime = self.runtimes.get_mut(id)
--            .ok_or_else(|| anyhow::anyhow!("MCP server '{id}' is not configured"))?;
--        if id == "blender" && real == "get_scene_info" {
--            let value=crate::blender::command("get_scene_info",serde_json::json!({}),std::time::Duration::from_secs(8)).await?;
--            return Ok((value["result"].to_string(),Vec::new()));
--        }
--        let result = runtime.call_tool(real, args).await;
--        if result.as_ref().err().is_some_and(|error| error.to_string().contains("timed out")) {runtime.reset().await;}
--        result
--    }
--}
--
--#[cfg(test)]
--mod tests {
--    use super::*;
--    use std::io::{BufRead, Write};
--
--    #[test]
--    #[ignore]
--    fn stdio_fixture() {
--        let mut initialized = false;
--        for line in std::io::stdin().lock().lines() {
--            let line = line.unwrap();
--            let Ok(message) = serde_json::from_str::<serde_json::Value>(&line) else { continue; };
--            let method = message["method"].as_str().unwrap_or("");
--            if method == "notifications/initialized" { initialized = true; continue; }
--            let result = match method {
--                "initialize" if std::env::var("PLAZCODE_TEST_REJECT").is_ok() => {
--                    println!("{}", serde_json::json!({"jsonrpc":"2.0","id":message["id"],"error":{"code":-32603,"message":"fixture initialization rejected"}}));
--                    std::io::stdout().flush().unwrap();
--                    continue;
--                }
--                "initialize" => serde_json::json!({"protocolVersion":"2025-06-18","capabilities":{"tools":{}}}),
--                "tools/list" if initialized => serde_json::json!({"tools":[{"name":"echo","inputSchema":{"type":"object"}}]}),
--                "tools/call" if initialized => serde_json::json!({"content":[{"type":"text","text":message["params"]["arguments"]["text"]}]}),
--                _ => panic!("request before initialized notification"),
--            };
--            println!("{}", serde_json::json!({"jsonrpc":"2.0","id":message["id"],"result":result}));
--            std::io::stdout().flush().unwrap();
--        }
--    }
--
--    fn fixture(reject: bool) -> AddonRuntime {
--        let mut env = HashMap::new();
--        if reject { env.insert("PLAZCODE_TEST_REJECT".into(), "1".into()); }
--        AddonRuntime::new("fixture".into(), ServerSpec {
--            command: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
--            args: vec!["--ignored".into(), "--exact".into(), "mcp_addons::tests::stdio_fixture".into(), "--nocapture".into()],
--            env,
--        })
--    }
--
--    #[tokio::test]
--    async fn stdio_handshake_and_tool_call() {
--        let mut runtime = fixture(false);
--        let tools = runtime.list_tools().await.unwrap();
--        assert_eq!(tools[0]["name"], "echo");
--        let pid = runtime.child.as_ref().unwrap().id();
--        let (text, images) = runtime.call_tool("echo", serde_json::json!({"text":"hello"})).await.unwrap();
--        assert_eq!(text, "hello");
--        assert!(images.is_empty());
--        assert_eq!(pid, runtime.child.as_ref().unwrap().id());
--        runtime.reset().await;
--        assert!(!runtime.initialized);
--        assert!(!runtime.child_alive());
--    }
--
--    #[tokio::test]
--    async fn failed_initialize_is_never_reused_as_ready() {
--        let mut runtime = fixture(true);
--        assert!(runtime.list_tools().await.unwrap_err().to_string().contains("fixture initialization rejected"));
--        assert!(!runtime.initialized);
--        assert!(runtime.list_tools().await.unwrap_err().to_string().contains("fixture initialization rejected"));
--        runtime.reset().await;
--    }
--}
-+use serde::{Deserialize, Serialize};
-+use std::collections::{BTreeMap, HashMap};
-+use std::path::PathBuf;
-+use std::process::Stdio;
-+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
-+use tokio::process::{Child, ChildStdin, ChildStdout, Command};
-+
-+#[cfg(windows)]
-+use std::os::windows::process::CommandExt;
-+
-+#[cfg(windows)]
-+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-+
-+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-+pub struct ServerSpec {
-+    pub command: String,
-+    #[serde(default)]
-+    pub args: Vec<String>,
-+    #[serde(default)]
-+    pub env: HashMap<String, String>,
-+}
-+
-+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-+pub struct McpConfig {
-+    #[serde(rename = "mcpServers", default)]
-+    pub servers: BTreeMap<String, ServerSpec>,
-+}
-+
-+#[derive(Clone, Debug)]
-+pub struct CatalogEntry {
-+    pub id: &'static str,
-+    pub name: &'static str,
-+    pub description: &'static str,
-+    pub command: &'static str,
-+    pub args: &'static [&'static str],
-+}
-+
-+#[derive(Clone, Debug, Serialize)]
-+pub struct ServerSummary {
-+    pub id: String,
-+    pub name: String,
-+    pub alive: bool,
-+    pub tools: usize,
-+    #[serde(skip_serializing_if = "Option::is_none")]
-+    pub error: Option<String>,
-+}
-+
-+pub fn catalog() -> Vec<CatalogEntry> {
-+    vec![
+@@ -47,6 +47,34 @@ pub struct ServerSummary {
+ 
+ pub fn catalog() -> Vec<CatalogEntry> {
+     vec![
 +        CatalogEntry {
 +            id: "pc",
 +            name: "PC (Windows-MCP)",
@@ -1194,96 +586,13 @@ index 1a68aee..b88f112 100644
 +            command: "npx",
 +            args: &["-y", "@modelcontextprotocol/server-github"],
 +        },
-+        CatalogEntry {
-+            id: "blender",
-+            name: "Blender",
-+            description: "Install and enable the Blender MCP addon inside Blender first. Keep Blender open, press N in the 3D viewport, open Blender MCP / MCP for Blender, and click Start MCP Server (default port 9876). Enable here starts the MCP process only; Test Blender connection checks the actual scene response.",
-+            command: "uvx",
-+            args: &["blender-mcp"],
-+        },
-+        CatalogEntry {
-+            id: "context7",
-+            name: "Context7",
-+            description: "Library and framework documentation lookup.",
-+            command: "npx",
-+            args: &["-y", "@upstash/context7-mcp"],
-+        },
-+        CatalogEntry {
-+            id: "fetch",
-+            name: "Fetch",
-+            description: "Fetch and read web resources through an MCP server.",
-+            command: "uvx",
-+            args: &["mcp-server-fetch"],
-+        },
-+        CatalogEntry {
-+            id: "git",
-+            name: "Git",
-+            description: "Local Git repository inspection and operations.",
-+            command: "uvx",
-+            args: &["mcp-server-git"],
-+        },
-+        CatalogEntry {
-+            id: "memory",
-+            name: "Memory",
-+            description: "Local graph-style memory tools for agent sessions.",
-+            command: "npx",
-+            args: &["-y", "@modelcontextprotocol/server-memory"],
-+        },
-+        CatalogEntry {
-+            id: "thinking",
-+            name: "Sequential Thinking",
-+            description: "Structured step-by-step reasoning utilities.",
-+            command: "npx",
-+            args: &["-y", "@modelcontextprotocol/server-sequential-thinking"],
-+        },
-+    ]
-+}
-+
-+pub fn config_path() -> PathBuf {
-+    #[cfg(target_os = "macos")]
-+    { return crate::platform::configuration_root().join("config.json"); }
-+    #[cfg(not(target_os = "macos"))]
-+    std::env::current_exe()
-+        .ok()
-+        .and_then(|p| p.parent().map(|d| d.join("config.json")))
-+        .unwrap_or_else(|| PathBuf::from("config.json"))
-+}
-+
-+pub fn read_config() -> McpConfig {
-+    let path = config_path();
-+    let mut cfg = std::fs::read_to_string(path)
-+        .ok()
-+        .and_then(|raw| serde_json::from_str::<McpConfig>(&raw).ok())
-+        .unwrap_or_default();
-+    cfg.servers.entry("roblox".to_string()).or_insert_with(|| ServerSpec {
-+        command: "launch_studio_mcp.py".to_string(),
-+        args: Vec::new(),
-+        env: HashMap::new(),
-+    });
-+    cfg
-+}
-+
-+pub fn write_config(cfg: &McpConfig) -> anyhow::Result<()> {
-+    let path = config_path();
-+    if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
-+    let tmp = path.with_extension("json.tmp");
-+    std::fs::write(&tmp, serde_json::to_vec_pretty(cfg)?)?;
-+    if path.exists() {
-+        std::fs::remove_file(&path)?;
-+    }
-+    std::fs::rename(tmp, path)?;
-+    Ok(())
-+}
-+
-+pub fn is_enabled(id: &str) -> bool {
-+    read_config().servers.contains_key(id)
-+}
-+
-+pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
-+    let entry = catalog().into_iter().find(|e| e.id == id)
-+        .ok_or_else(|| anyhow::anyhow!("unknown catalog server '{id}'"))?;
-+    let mut cfg = read_config();
-+    if enabled {
+         CatalogEntry {
+             id: "blender",
+             name: "Blender",
+@@ -137,9 +165,22 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+         .ok_or_else(|| anyhow::anyhow!("unknown catalog server '{id}'"))?;
+     let mut cfg = read_config();
+     if enabled {
 +        let mut args: Vec<String> = entry.args.iter().map(|v| (*v).to_string()).collect();
 +        if id == "browser" {
 +            if let Some(browser) = find_browser() { args.push("--executable-path".into()); args.push(browser); }
@@ -1297,17 +606,17 @@ index 1a68aee..b88f112 100644
 +            std::fs::create_dir_all(&dir)?;
 +            args.push(dir.to_string_lossy().to_string());
 +        }
-+        cfg.servers.insert(id.to_string(), ServerSpec {
-+            command: entry.command.to_string(),
+         cfg.servers.insert(id.to_string(), ServerSpec {
+             command: entry.command.to_string(),
+-            args: entry.args.iter().map(|v| (*v).to_string()).collect(),
 +            args,
-+            env: HashMap::new(),
-+        });
-+    } else {
-+        cfg.servers.remove(id);
-+    }
-+    write_config(&cfg)
-+}
-+
+             env: HashMap::new(),
+         });
+     } else {
+@@ -148,6 +189,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+     write_config(&cfg)
+ }
+ 
 +/// Shared folder for the "Local files" add-on (PLAZCODE_SHARED_DIR or %USERPROFILE%\PlazCode-Shared).
 +pub fn shared_dir() -> PathBuf {
 +    if let Some(dir) = std::env::var_os("PLAZCODE_SHARED_DIR").filter(|v| !v.is_empty()) { return PathBuf::from(dir); }
@@ -1326,446 +635,25 @@ index 1a68aee..b88f112 100644
 +    candidates.into_iter().find(|p| p.is_file()).map(|p| p.to_string_lossy().to_string())
 +}
 +
-+pub fn add_server(id: &str, spec: ServerSpec) -> anyhow::Result<()> {
-+    let id = id.trim();
-+    anyhow::ensure!(!id.is_empty(), "server id is required");
-+    anyhow::ensure!(id != "roblox", "the Roblox server cannot be replaced");
-+    anyhow::ensure!(!spec.command.trim().is_empty(), "server command is required");
-+    let mut cfg = read_config();
-+    cfg.servers.insert(id.to_string(), spec);
-+    write_config(&cfg)
-+}
-+
-+pub fn remove_server(id: &str) -> anyhow::Result<()> {
-+    let id = id.trim();
-+    anyhow::ensure!(id != "roblox", "the Roblox server cannot be removed");
-+    let mut cfg = read_config();
-+    anyhow::ensure!(cfg.servers.remove(id).is_some(), "server '{id}' is not configured");
-+    write_config(&cfg)
-+}
-+
-+pub(crate) struct AddonRuntime {
-+    id: String,
-+    spec: ServerSpec,
-+    child: Option<Child>,
-+    stdin: Option<ChildStdin>,
-+    stdout: Option<Lines<BufReader<ChildStdout>>>,
-+    next_id: u64,
-+    tools: Vec<serde_json::Value>,
-+    last_error: Option<String>,
-+    stderr: std::sync::Arc<std::sync::Mutex<std::collections::VecDeque<String>>>,
-+    stderr_task: Option<tokio::task::JoinHandle<()>>,
-+    initialized: bool,
-+}
-+
-+impl AddonRuntime {
-+    pub(crate) fn new(id: String, spec: ServerSpec) -> Self {
-+        Self {
-+            id,
-+            spec,
-+            child: None,
-+            stdin: None,
-+            stdout: None,
-+            next_id: 1,
-+            tools: Vec::new(),
-+            last_error: None,
-+            stderr: Default::default(),
-+            stderr_task: None,
-+            initialized: false,
-+        }
-+    }
-+
-+    fn same_spec(&self, spec: &ServerSpec) -> bool {
-+        &self.spec == spec
-+    }
-+
-+    fn child_alive(&mut self) -> bool {
-+        match self.child.as_mut() {
-+            Some(child) => matches!(child.try_wait(), Ok(None)),
-+            None => false,
-+        }
-+    }
-+
-+    pub(crate) async fn reset(&mut self) {
-+        if let Some(child) = self.child.as_mut() {
-+            #[cfg(windows)]
-+            if let Some(pid) = child.id() {
-+                let _ = std::process::Command::new("taskkill")
-+                    .args(["/F", "/T", "/PID", &pid.to_string()])
-+                    .creation_flags(CREATE_NO_WINDOW)
-+                    .output();
-+            }
-+            let _ = child.kill().await;
-+        }
-+        if let Some(task) = self.stderr_task.take() { task.abort(); }
-+        self.stderr.lock().unwrap_or_else(|error| error.into_inner()).clear();
-+        self.initialized = false;
-+        self.child = None;
-+        self.stdin = None;
-+        self.stdout = None;
-+        self.tools.clear();
-+        self.next_id = 1;
-+    }
-+
-+    fn command(&self) -> anyhow::Result<Command> {
-+        #[cfg(windows)]
-+        {
-+            let low = self.spec.command.to_ascii_lowercase();
-+            let app = config_path().parent().unwrap_or_else(|| std::path::Path::new(".")).to_path_buf();
-+            if low == "npx" || low == "uvx" {
-+                let cache = std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
-+                    .map(|base| base.join("PlazCode").join("runtimes"));
-+                let mut roots = vec![app.join("runtimes").join("node"), app.join("runtimes").join("uv")];
-+                if let Some(cache) = cache {
-+                    roots.push(cache.join(if low == "npx" { "node-22.22.0" } else { "uv-0.12.21" }));
-+                }
-+                if let Some(profile) = std::env::var_os("USERPROFILE") {
-+                    let profile = PathBuf::from(profile);
-+                    roots.push(profile.join(".local").join("bin"));
-+                    roots.push(profile.join(".cargo").join("bin"));
-+                    let node_root = profile.join("PlazCodeWorkspace").join("node");
-+                    if let Ok(entries) = std::fs::read_dir(node_root) {
-+                        roots.extend(entries.flatten().map(|entry| entry.path()));
-+                    }
-+                }
-+                if let Some(programs) = std::env::var_os("ProgramFiles") {
-+                    roots.push(PathBuf::from(programs).join("nodejs"));
-+                }
-+                if let Some(path) = self.spec.env.get("PATH").map(std::ffi::OsString::from).or_else(|| std::env::var_os("PATH")) {
-+                    roots.extend(std::env::split_paths(&path));
-+                }
-+                for root in roots {
-+                    let binary = root.join(if low == "npx" { "node.exe" } else { "uvx.exe" });
-+                    let cli = root.join("node_modules").join("npm").join("bin").join("npx-cli.js");
-+                    if !binary.is_file() || (low == "npx" && !cli.is_file()) { continue; }
-+                    let mut cmd = Command::new(binary);
-+                    if low == "npx" { cmd.arg(cli); }
-+                    cmd.args(&self.spec.args).envs(&self.spec.env);
-+                    let mut paths = vec![root];
-+                    if let Some(path) = self.spec.env.get("PATH").map(std::ffi::OsString::from).or_else(|| std::env::var_os("PATH")) {
-+                        paths.extend(std::env::split_paths(&path));
-+                    }
-+                    cmd.env("PATH", std::env::join_paths(paths)?);
-+                    cmd.current_dir(&app).creation_flags(CREATE_NO_WINDOW);
+ pub fn add_server(id: &str, spec: ServerSpec) -> anyhow::Result<()> {
+     let id = id.trim();
+     anyhow::ensure!(!id.is_empty(), "server id is required");
+@@ -269,6 +328,9 @@ impl AddonRuntime {
+                     }
+                     cmd.env("PATH", std::env::join_paths(paths)?);
+                     cmd.current_dir(&app).creation_flags(CREATE_NO_WINDOW);
 +                    if self.id == "files" {
 +                        if let Some(dir) = self.spec.args.last().map(PathBuf::from).filter(|p| p.is_dir()) { cmd.current_dir(dir); }
 +                    }
-+                    return Ok(cmd);
-+                }
-+                anyhow::bail!("[{}] {} runtime unavailable; first-use setup requires internet access.", self.id, low);
-+            }
-+            if low.ends_with(".cmd") || low.ends_with(".bat") {
-+                let mut cmd = Command::new("cmd");
-+                cmd.arg("/D").arg("/C").arg(&self.spec.command).args(&self.spec.args);
-+                cmd.envs(&self.spec.env);
-+                cmd.creation_flags(CREATE_NO_WINDOW);
-+                return Ok(cmd);
-+            }
-+        }
-+        let mut cmd = Command::new(&self.spec.command);
-+        cmd.args(&self.spec.args).envs(&self.spec.env);
-+        #[cfg(windows)]
-+        cmd.creation_flags(CREATE_NO_WINDOW);
-+        Ok(cmd)
-+    }
-+
-+    async fn ensure(&mut self) -> anyhow::Result<()> {
-+        if self.initialized && self.child_alive() && self.stdin.is_some() && self.stdout.is_some() {
-+            return Ok(());
-+        }
-+        self.reset().await;
-+        let command = self.command();
-+        #[cfg(windows)]
-+        let command = match command {
-+            Err(error) if matches!(self.spec.command.to_ascii_lowercase().as_str(), "npx" | "uvx") => {
-+                let app = config_path().parent().unwrap_or_else(|| std::path::Path::new(".")).to_path_buf();
-+                let script = app.join("Setup-Mcp-Runtime.ps1");
-+                anyhow::ensure!(script.is_file(), "[{}] Runtime setup script missing: {} ({error})", self.id, script.display());
-+                tracing::info!("[{}] Preparing {} runtime for first use; download is cached for later launches", self.id, self.spec.command);
-+                let mut setup = Command::new("powershell.exe");
-+                setup.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
-+                    .arg(script).arg("-Runtime").arg(self.spec.command.to_ascii_lowercase())
-+                    .creation_flags(CREATE_NO_WINDOW).kill_on_drop(true);
-+                let output = tokio::time::timeout(std::time::Duration::from_secs(300), setup.output()).await
-+                    .map_err(|_| anyhow::anyhow!("[{}] Runtime setup timed out; check internet access and retry", self.id))??;
-+                anyhow::ensure!(output.status.success(), "[{}] Runtime setup failed: {}", self.id,
-+                    String::from_utf8_lossy(&output.stderr).chars().take(4000).collect::<String>());
-+                tracing::info!("[{}] Runtime setup completed", self.id);
-+                self.command()
-+            }
-+            other => other,
-+        };
-+        let mut cmd = command?;
-+        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
-+        let mut child = cmd.spawn().map_err(|e| anyhow::anyhow!("[{}] could not start '{}': {e}", self.id, self.spec.command))?;
-+        if let Some(stderr) = child.stderr.take() {
-+            let tail = self.stderr.clone();
-+            self.stderr_task = Some(tokio::spawn(async move {
-+                let mut lines = BufReader::new(stderr).lines();
-+                while let Ok(Some(line)) = lines.next_line().await {
-+                    let mut tail = tail.lock().unwrap_or_else(|error| error.into_inner());
-+                    if tail.len() == 12 { tail.pop_front(); }
-+                    tail.push_back(line.chars().take(1000).collect());
-+                }
-+            }));
-+        }
-+        self.stdin = child.stdin.take();
-+        self.stdout = child.stdout.take().map(|s| BufReader::new(s).lines());
-+        self.child = Some(child);
-+        self.request("initialize", serde_json::json!({
-+            "protocolVersion": "2025-06-18",
-+            "capabilities": {},
-+            "clientInfo": {"name": "PlazCode", "version": env!("CARGO_PKG_VERSION")}
-+        })).await?;
-+        self.notify("notifications/initialized", serde_json::json!({})).await?;
-+        self.initialized = true;
-+        self.last_error = None;
-+        Ok(())
-+    }
-+
-+    async fn notify(&mut self, method: &str, params: serde_json::Value) -> anyhow::Result<()> {
-+        let line = serde_json::json!({"jsonrpc":"2.0","method":method,"params":params}).to_string() + "\n";
-+        self.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("MCP stdin unavailable"))?.write_all(line.as_bytes()).await?;
-+        self.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("MCP stdin unavailable"))?.flush().await?;
-+        Ok(())
-+    }
-+
-+    async fn request(&mut self, method: &str, params: serde_json::Value) -> anyhow::Result<serde_json::Value> {
-+        let request_id = self.next_id;
-+        self.next_id += 1;
-+        let line = serde_json::json!({"jsonrpc":"2.0","id":request_id,"method":method,"params":params}).to_string() + "\n";
-+        let stdin = self.stdin.as_mut().ok_or_else(|| anyhow::anyhow!("MCP stdin unavailable"))?;
-+        stdin.write_all(line.as_bytes()).await?;
-+        stdin.flush().await?;
-+        let stdout = self.stdout.as_mut().ok_or_else(|| anyhow::anyhow!("MCP stdout unavailable"))?;
-+        let seconds = if self.id == "blender" && method != "tools/call" { 20 } else if self.id == "blender" && params["name"] == "get_scene_info" { 20 } else { 120 };
-+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(seconds);
-+        loop {
-+            let line = tokio::time::timeout_at(deadline, stdout.next_line()).await
-+                .map_err(|_| anyhow::anyhow!("[{}] MCP request timed out: {method}", self.id))??
-+                .ok_or_else(|| anyhow::anyhow!("[{}] MCP server exited while handling {method}: {}", self.id,
-+                    self.stderr.lock().unwrap_or_else(|error| error.into_inner()).iter().cloned().collect::<Vec<_>>().join(" | ")))?;
-+            let Ok(message) = serde_json::from_str::<serde_json::Value>(&line) else { continue; };
-+            if message.get("id").and_then(|v| v.as_u64()) != Some(request_id) {
-+                continue;
-+            }
-+            if let Some(error) = message.get("error") {
-+                anyhow::bail!("[{}] {method} failed: {error}", self.id);
-+            }
-+            return message.get("result").cloned().ok_or_else(|| anyhow::anyhow!("[{}] {method} returned no result", self.id));
-+        }
-+    }
-+
-+    async fn list_tools(&mut self) -> anyhow::Result<Vec<serde_json::Value>> {
-+        self.ensure().await?;
-+        let result = self.request("tools/list", serde_json::json!({})).await?;
-+        self.tools = result.get("tools").and_then(|v| v.as_array()).cloned().unwrap_or_default();
-+        Ok(self.tools.clone())
-+    }
-+
-+    pub(crate) async fn call_tool(&mut self, name: &str, args: serde_json::Value) -> anyhow::Result<(String, Vec<serde_json::Value>)> {
-+        self.ensure().await?;
-+        let result = self.request("tools/call", serde_json::json!({"name":name,"arguments":args})).await?;
-+        let is_error = result.get("isError").and_then(|v| v.as_bool()).unwrap_or(false);
-+        let mut texts = Vec::new();
-+        let mut images = Vec::new();
-+        if let Some(items) = result.get("content").and_then(|v| v.as_array()) {
-+            for item in items {
-+                if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
-+                    texts.push(text.to_string());
-+                }
-+                if item.get("type").and_then(|v| v.as_str()) == Some("image") {
-+                    if let Some(data) = item.get("data").and_then(|v| v.as_str()) {
-+                        images.push(serde_json::json!({
-+                            "mimeType": item.get("mimeType").and_then(|v| v.as_str()).unwrap_or("image/png"),
-+                            "data": data
-+                        }));
-+                    }
-+                }
-+            }
-+        }
-+        let text = texts.join("\n");
-+        if is_error {
-+            anyhow::bail!("{}", if text.is_empty() { result.to_string() } else { text });
-+        }
-+        Ok((text, images))
-+    }
-+}
-+
-+pub struct AddonManager {
-+    runtimes: HashMap<String, AddonRuntime>,
-+}
-+
-+impl AddonManager {
-+    pub fn new() -> Self {
-+        Self { runtimes: HashMap::new() }
-+    }
-+
-+    async fn sync_config(&mut self) {
-+        let cfg = read_config();
-+        let wanted: HashMap<String, ServerSpec> = cfg.servers.into_iter()
-+            .filter(|(id, _)| id != "roblox")
-+            .collect();
-+
-+        let stale: Vec<String> = self.runtimes.keys()
-+            .filter(|id| !wanted.contains_key(*id))
-+            .cloned()
-+            .collect();
-+        for id in stale {
-+            if let Some(mut runtime) = self.runtimes.remove(&id) {
-+                runtime.reset().await;
-+            }
-+        }
-+
-+        for (id, spec) in wanted {
-+            let replace = self.runtimes.get(&id).map(|r| !r.same_spec(&spec)).unwrap_or(true);
-+            if replace {
-+                if let Some(mut old) = self.runtimes.remove(&id) {
-+                    old.reset().await;
-+                }
-+                self.runtimes.insert(id.clone(), AddonRuntime::new(id, spec));
-+            }
-+        }
-+    }
-+
-+    pub async fn reset_tool(&mut self, advertised: &str) {
-+        if let Some((id,_))=advertised.split_once("__") { if let Some(runtime)=self.runtimes.get_mut(id) { runtime.reset().await; } }
-+    }
-+    pub async fn reset_all(&mut self) {
-+        for runtime in self.runtimes.values_mut() {
-+            runtime.reset().await;
-+        }
-+        self.runtimes.clear();
-+    }
-+
-+    pub async fn list_tools(&mut self) -> (Vec<serde_json::Value>, Vec<ServerSummary>) {
-+        self.sync_config().await;
-+        let mut tools = Vec::new();
-+        let mut summaries = Vec::new();
-+        let ids: Vec<String> = self.runtimes.keys().cloned().collect();
-+        for id in ids {
-+            let Some(runtime) = self.runtimes.get_mut(&id) else { continue; };
-+            match runtime.list_tools().await {
-+                Ok(server_tools) => {
-+                    for mut tool in server_tools {
-+                        let Some(real) = tool.get("name").and_then(|v| v.as_str()).map(str::to_string) else { continue; };
-+                        tool["name"] = serde_json::Value::String(format!("{id}__{real}"));
-+                        if let Some(desc) = tool.get("description").and_then(|v| v.as_str()).map(str::to_string) {
-+                            tool["description"] = serde_json::Value::String(format!("[{id}] {desc}"));
-+                        }
-+                        tool["server"] = serde_json::Value::String(id.clone());
-+                        tools.push(tool);
-+                    }
-+                    summaries.push(ServerSummary {
-+                        id: id.clone(),
-+                        name: id.clone(),
-+                        alive: true,
-+                        tools: runtime.tools.len(),
-+                        error: None,
-+                    });
-+                }
-+                Err(error) => {
-+                    runtime.last_error = Some(error.to_string());
-+                    summaries.push(ServerSummary {
-+                        id: id.clone(),
-+                        name: id.clone(),
-+                        alive: false,
-+                        tools: 0,
-+                        error: runtime.last_error.clone(),
-+                    });
-+                }
-+            }
-+        }
-+        summaries.sort_by(|a, b| a.id.cmp(&b.id));
-+        (tools, summaries)
-+    }
-+
-+    pub async fn call_tool(&mut self, advertised: &str, args: serde_json::Value) -> anyhow::Result<(String, Vec<serde_json::Value>)> {
-+        self.sync_config().await;
-+        let (id, real) = advertised.split_once("__")
-+            .ok_or_else(|| anyhow::anyhow!("invalid add-on tool name '{advertised}'"))?;
-+        let runtime = self.runtimes.get_mut(id)
-+            .ok_or_else(|| anyhow::anyhow!("MCP server '{id}' is not configured"))?;
-+        if id == "blender" && real == "get_scene_info" {
-+            let value=crate::blender::command("get_scene_info",serde_json::json!({}),std::time::Duration::from_secs(8)).await?;
-+            return Ok((value["result"].to_string(),Vec::new()));
-+        }
-+        let result = runtime.call_tool(real, args).await;
-+        if result.as_ref().err().is_some_and(|error| error.to_string().contains("timed out")) {runtime.reset().await;}
-+        result
-+    }
-+}
-+
-+#[cfg(test)]
-+mod tests {
-+    use super::*;
-+    use std::io::{BufRead, Write};
-+
-+    #[test]
-+    #[ignore]
-+    fn stdio_fixture() {
-+        let mut initialized = false;
-+        for line in std::io::stdin().lock().lines() {
-+            let line = line.unwrap();
-+            let Ok(message) = serde_json::from_str::<serde_json::Value>(&line) else { continue; };
-+            let method = message["method"].as_str().unwrap_or("");
-+            if method == "notifications/initialized" { initialized = true; continue; }
-+            let result = match method {
-+                "initialize" if std::env::var("PLAZCODE_TEST_REJECT").is_ok() => {
-+                    println!("{}", serde_json::json!({"jsonrpc":"2.0","id":message["id"],"error":{"code":-32603,"message":"fixture initialization rejected"}}));
-+                    std::io::stdout().flush().unwrap();
-+                    continue;
-+                }
-+                "initialize" => serde_json::json!({"protocolVersion":"2025-06-18","capabilities":{"tools":{}}}),
-+                "tools/list" if initialized => serde_json::json!({"tools":[{"name":"echo","inputSchema":{"type":"object"}}]}),
-+                "tools/call" if initialized => serde_json::json!({"content":[{"type":"text","text":message["params"]["arguments"]["text"]}]}),
-+                _ => panic!("request before initialized notification"),
-+            };
-+            println!("{}", serde_json::json!({"jsonrpc":"2.0","id":message["id"],"result":result}));
-+            std::io::stdout().flush().unwrap();
-+        }
-+    }
-+
-+    fn fixture(reject: bool) -> AddonRuntime {
-+        let mut env = HashMap::new();
-+        if reject { env.insert("PLAZCODE_TEST_REJECT".into(), "1".into()); }
-+        AddonRuntime::new("fixture".into(), ServerSpec {
-+            command: std::env::current_exe().unwrap().to_string_lossy().into_owned(),
-+            args: vec!["--ignored".into(), "--exact".into(), "mcp_addons::tests::stdio_fixture".into(), "--nocapture".into()],
-+            env,
-+        })
-+    }
-+
-+    #[tokio::test]
-+    async fn stdio_handshake_and_tool_call() {
-+        let mut runtime = fixture(false);
-+        let tools = runtime.list_tools().await.unwrap();
-+        assert_eq!(tools[0]["name"], "echo");
-+        let pid = runtime.child.as_ref().unwrap().id();
-+        let (text, images) = runtime.call_tool("echo", serde_json::json!({"text":"hello"})).await.unwrap();
-+        assert_eq!(text, "hello");
-+        assert!(images.is_empty());
-+        assert_eq!(pid, runtime.child.as_ref().unwrap().id());
-+        runtime.reset().await;
-+        assert!(!runtime.initialized);
-+        assert!(!runtime.child_alive());
-+    }
-+
-+    #[tokio::test]
-+    async fn failed_initialize_is_never_reused_as_ready() {
-+        let mut runtime = fixture(true);
-+        assert!(runtime.list_tools().await.unwrap_err().to_string().contains("fixture initialization rejected"));
-+        assert!(!runtime.initialized);
-+        assert!(runtime.list_tools().await.unwrap_err().to_string().contains("fixture initialization rejected"));
-+        runtime.reset().await;
-+    }
-+}
+                     return Ok(cmd);
+                 }
+                 anyhow::bail!("[{}] {} runtime unavailable; first-use setup requires internet access.", self.id, low);
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..6dfdb42
+index 0000000..cf1d165
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,801 @@
+@@ -0,0 +1,813 @@
 +//! PlazCode Notion (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same PlazCode Notion
 +//! server work on one project at the same time through a shared board.
@@ -2039,6 +927,18 @@ index 0000000..6dfdb42
 +
 +fn deps_done(p: &Project, t: &Task) -> bool {
 +    t.depends_on.iter().all(|d| p.tasks.iter().any(|x| x.id == *d && x.status == "done") && chain_done(p, *d))
++}
++
++/// Besitzer eines aktiven Co-Work-Datei-Locks (fremder, lebender Agent) - fuer safe_write_file.
++pub fn lock_owner(path: &str, agent: &str) -> Option<String> {
++    let key = norm_path(path);
++    let board = lock_board();
++    for p in board.projects.values() {
++        if let Some(l) = p.locks.get(&key) {
++            if l.owner != agent && alive(p, &l.owner) { return Some(l.owner.clone()); }
++        }
++    }
++    None
 +}
 +
 +fn files_free(p: &Project, t: &Task, agent: &str) -> bool {
@@ -2569,10 +1469,10 @@ index 0000000..6dfdb42
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..14686d1
+index 0000000..4da56f0
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,610 @@
+@@ -0,0 +1,661 @@
 +//! PlazCode Notion (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -2603,11 +1503,15 @@ index 0000000..14686d1
 +    pub port: u16,
 +    pub ngrok_enabled: bool,
 +    pub ngrok_path: String,
++    /// Token fuer die PlazCode-Browser-Erweiterung (Web-Agenten + Direkt-Modus).
++    pub web_token: String,
++    /// Sicherheitsmodus fuer pc_PowerShell & Co. (nur in der App umschaltbar).
++    pub safe_shell: bool,
 +}
 +
 +impl Default for NotionSettings {
 +    fn default() -> Self {
-+        Self { token: String::new(), domain: String::new(), port: 8787, ngrok_enabled: true, ngrok_path: String::new() }
++        Self { token: String::new(), domain: String::new(), port: 8787, ngrok_enabled: true, ngrok_path: String::new(), web_token: String::new(), safe_shell: false }
 +    }
 +}
 +
@@ -2667,6 +1571,7 @@ index 0000000..14686d1
 +    let path = settings_path();
 +    if let Some(mut s) = std::fs::read_to_string(&path).ok().and_then(|raw| serde_json::from_str::<NotionSettings>(raw.trim_start_matches('\u{feff}')).ok()) {
 +        if s.token.len() < 16 { s.token = random_token(); let _ = save_settings(&s); }
++        if s.web_token.len() < 16 { s.web_token = random_token(); let _ = save_settings(&s); }
 +        if s.port == 0 { s.port = 8787; }
 +        return s;
 +    }
@@ -2680,6 +1585,7 @@ index 0000000..14686d1
 +        if let Some(p) = old["bridgePort"].as_u64() { if p > 0 && p < 65536 { s.port = p as u16; } }
 +    }
 +    if s.token.is_empty() { s.token = random_token(); }
++    s.web_token = random_token();
 +    let _ = save_settings(&s);
 +    s
 +}
@@ -2692,6 +1598,8 @@ index 0000000..14686d1
 +}
 +
 +fn settings() -> NotionSettings { lock(&SHARED.settings).clone() }
++pub(crate) fn web_token() -> String { lock(&SHARED.settings).web_token.clone() }
++pub(crate) fn safe_shell_enabled() -> bool { lock(&SHARED.settings).safe_shell }
 +fn set_listener(state: &str, err: &str) { *lock(&SHARED.listener) = (state.into(), err.into()); }
 +fn set_ngrok(state: &str, err: &str) { *lock(&SHARED.ngrok) = (state.into(), err.into()); }
 +
@@ -2768,7 +1676,10 @@ index 0000000..14686d1
 +        ExposedTool { exposed: "plazcode_skill".into(), internal: String::new(), schema: crate::notion_skills::skill_tool() },
 +        ExposedTool { exposed: "plazcode_restart_server".into(), internal: String::new(), schema: crate::notion_skills::restart_tool() },
 +    ];
-+    for schema in crate::notion_cowork::tools() {
++    for schema in crate::notion_cowork::tools().into_iter()
++        .chain(crate::notion_roblox_plus::tools())
++        .chain(crate::notion_web_agents::tools())
++        .chain(crate::notion_safety::tools()) {
 +        let exposed = schema["name"].as_str().unwrap_or("").to_string();
 +        out.push(ExposedTool { exposed, internal: String::new(), schema });
 +    }
@@ -2783,6 +1694,7 @@ index 0000000..14686d1
 +                    schema["name"] = Value::String(exposed.clone());
 +                    let desc = tool["description"].as_str().unwrap_or("").to_string();
 +                    schema["description"] = Value::String(format!("[Roblox Studio] {desc}"));
++                    if name == "execute_luau" { crate::notion_roblox_plus::extend_execute_luau_schema(&mut schema); }
 +                    out.push(ExposedTool { exposed, internal: name.to_string(), schema });
 +                }
 +            }
@@ -2821,6 +1733,9 @@ index 0000000..14686d1
 +        "tunnel": {"state": ngrok.0, "error": ngrok.1},
 +        "tools": lock(&SHARED.tools).0.len(),
 +        "cowork_projects": crate::notion_cowork::status(),
++        "web_extension_connected": crate::notion_web_agents::extension_connected(),
++        "direct_agent": crate::notion_web_agents::direct_session_info(),
++        "safe_shell": safe_shell_enabled(),
 +    })).unwrap_or_default()
 +}
 +
@@ -2829,6 +1744,18 @@ index 0000000..14686d1
 +    let args = params.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
 +    *lock(&SHARED.last_request) = Some((chrono::Local::now(), name.clone()));
 +    if let Some(out) = crate::notion_cowork::call(&name, &args).await {
++        return out;
++    }
++    if let Some(msg) = crate::notion_safety::guard_tool(&name, &args) {
++        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
++    }
++    if let Some(out) = crate::notion_safety::call(&name, &args) {
++        return out;
++    }
++    if let Some(out) = crate::notion_web_agents::call(&name, &args).await {
++        return out;
++    }
++    if let Some(out) = crate::notion_roblox_plus::call(state, &name, &args).await {
 +        return out;
 +    }
 +    if name == "plazcode_status" {
@@ -2859,10 +1786,24 @@ index 0000000..14686d1
 +        return json!({"isError": true, "content": [{"type": "text", "text": format!("Unbekanntes Tool '{name}'. Ist der zugehörige Server aktiv? Nutze plazcode_status.")}]});
 +    };
 +    tracing::info!("[notion] tools/call {name}");
++    let is_studio = name.starts_with("roblox_") && !route.internal.contains("__");
++    let mut snapshot = None;
++    if is_studio && crate::notion_roblox_plus::is_guarded(&route.internal) {
++        if let Err(e) = crate::notion_web_agents::notion_write_allowed() {
++            return json!({"isError": true, "content": [{"type": "text", "text": e}]});
++        }
++        snapshot = crate::notion_roblox_plus::before_native_write(state, &route.internal, &args).await;
++    }
++    let record_args = args.clone();
 +    match crate::roblox_tool(state, &route.internal, args).await {
 +        Ok(out) => {
++            if is_studio && crate::notion_roblox_plus::is_guarded(&route.internal) {
++                crate::notion_roblox_plus::record_event(state, "change", &route.internal, &record_args, "", snapshot.as_deref()).await;
++            }
 +            let mut content = Vec::new();
-+            if !out.text.is_empty() || out.images.is_empty() { content.push(json!({"type": "text", "text": out.text})); }
++            let mut text = out.text;
++            if let Some(id) = &snapshot { text.push_str(&format!("\n[PlazCode] Snapshot vorher angelegt: {id} (rueckgaengig: roblox_studio action=restore_snapshot)")); }
++            if !text.is_empty() || out.images.is_empty() { content.push(json!({"type": "text", "text": text})); }
 +            for img in out.images {
 +                content.push(json!({"type": "image", "data": img["data"].clone(), "mimeType": img["mimeType"].as_str().unwrap_or("image/png")}));
 +            }
@@ -2905,7 +1846,7 @@ index 0000000..14686d1
 +                "protocolVersion": version,
 +                "capabilities": {"tools": {"listChanged": false}},
 +                "serverInfo": {"name": "PlazCode Notion", "version": env!("CARGO_PKG_VERSION")},
-+                "instructions": crate::notion_skills::INSTRUCTIONS
++                "instructions": format!("{}\n\n{}", crate::notion_skills::INSTRUCTIONS, crate::notion_roblox_plus::INSTRUCTIONS_EXTRA)
 +            }))
 +        }
 +        "ping" => Ok(json!({})),
@@ -2973,7 +1914,10 @@ index 0000000..14686d1
 +    };
 +    set_listener("online", "");
 +    tracing::info!("[notion] MCP-Endpunkt bereit: http://{addr}/mcp");
-+    let app = Router::new().fallback(mcp_endpoint)
++    let app = Router::new()
++        .route("/extension/ws", axum::routing::get(crate::notion_web_agents::ws_handler))
++        .route("/direct-agent/:op", axum::routing::post(crate::notion_web_agents::direct_handler))
++        .fallback(mcp_endpoint)
 +        .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024))
 +        .with_state(state);
 +    if let Err(e) = axum::serve(listener, app).await {
@@ -3133,6 +2077,11 @@ index 0000000..14686d1
 +        "port": s.port,
 +        "ngrok_enabled": s.ngrok_enabled,
 +        "ngrok_path": s.ngrok_path,
++        "web_token": s.web_token,
++        "web_ws_url": format!("ws://127.0.0.1:{}/extension/ws", s.port),
++        "web_connected": crate::notion_web_agents::extension_connected(),
++        "direct_agent": crate::notion_web_agents::direct_session_info(),
++        "safe_shell": s.safe_shell,
 +        "listener": {"state": listener.0, "error": listener.1},
 +        "ngrok": {"state": ngrok.0, "error": ngrok.1},
 +        "tools": tools,
@@ -3157,6 +2106,8 @@ index 0000000..14686d1
 +            "set_ngrok_path" => { s.ngrok_path = req.value.as_str().unwrap_or("").trim().trim_matches('"').to_string(); save_settings(&s)?; SHARED.restart.notify_one(); Ok("ngrok-Pfad gespeichert.") }
 +            "toggle_ngrok" => { s.ngrok_enabled = req.value.as_bool().unwrap_or(!s.ngrok_enabled); save_settings(&s)?; SHARED.restart.notify_one(); Ok("Tunnel-Einstellung gespeichert.") }
 +            "restart_ngrok" => { SHARED.restart.notify_one(); Ok("Tunnel wird neu gestartet.") }
++            "regenerate_web_token" => { s.web_token = random_token(); save_settings(&s)?; Ok("Neuer Erweiterungs-Token erstellt. Trage ihn in den Optionen der Browser-Erweiterung ein.") }
++            "toggle_safe_shell" => { s.safe_shell = req.value.as_bool().unwrap_or(!s.safe_shell); save_settings(&s)?; Ok(if s.safe_shell { "Sicherheitsmodus an: Shell nur mit erlaubten Einzelbefehlen." } else { "Sicherheitsmodus aus." }) }
 +            "refresh_tools" => Ok("Tools werden aktualisiert."),
 +            other => anyhow::bail!("Unbekannte Aktion: {other}"),
 +        }
@@ -3181,6 +2132,1237 @@ index 0000000..14686d1
 +        assert_eq!(clean_domain("https://Veal-Zipping-Ascent.ngrok-free.dev/mcp"), "veal-zipping-ascent.ngrok-free.dev");
 +        assert_eq!(sanitize("pc_App Tool"), "pc_App_Tool");
 +        assert!(sanitize(&"x".repeat(80)).len() <= 64);
++    }
++}
+diff --git a/agent/src/notion_roblox_plus.rs b/agent/src/notion_roblox_plus.rs
+new file mode 100644
+index 0000000..2c5fa35
+--- /dev/null
++++ b/agent/src/notion_roblox_plus.rs
+@@ -0,0 +1,992 @@
++//! PlazCode Notion 1.0.8: Roblox-Funktionen aus Secretscript (Notion Bridge) portiert.
++//!
++//! * `roblox_studio` - 23 High-Level-Aktionen (bauen, lesen, patchen, loeschen ...)
++//!   mit automatischen Snapshots vor jeder Aenderung (ServerStorage/__BrickwireSnapshots)
++//! * `roblox_workflow` - Playbooks fuer Build, Scripting, UI, VFX, Gameplay, Debug
++//! * `roblox_project_memory` - dauerhafte Notizen pro Place
++//! * BW-Helfer: `roblox_execute_luau` laedt `roblox_helpers.luau` automatisch, wenn der
++//!   Code `BW.` benutzt, und kann vorher Snapshots anlegen.
++
++use once_cell::sync::Lazy;
++use regex::Regex;
++use serde_json::{json, Map, Value};
++use std::{path::PathBuf, sync::Mutex, time::Duration};
++
++const OPEN: &str = "BWJSON<<";
++const CLOSE: &str = ">>BWJSON";
++const MAX_RESULT: usize = 20_000;
++pub const HELPERS: &str = include_str!("roblox_helpers.luau");
++
++pub const STUDIO_ACTIONS: &[&str] = &[
++    "status", "project_info", "get_game_tree", "read_instance", "create_instance", "create_part",
++    "create_instance_tree", "create_model", "create_ui", "create_vfx", "modify_instance",
++    "delete_instance", "clone_instance", "create_script", "read_script", "set_script_source",
++    "patch_script", "search_scripts", "delete_script", "take_snapshot", "list_snapshots",
++    "restore_snapshot", "get_errors",
++];
++pub const STUDIO_READS: &[&str] = &["status", "project_info", "get_game_tree", "read_instance", "read_script", "search_scripts", "list_snapshots", "get_errors"];
++
++pub const INSTRUCTIONS_EXTRA: &str = "Neu in 1.0.8 (aus Secretscript):\n\
++- roblox_studio(action, arguments): sichere High-Level-Aktionen (project_info, get_game_tree, read_instance, read_script, search_scripts, create_part/model/ui/vfx/script/instance_tree, modify_instance, clone_instance, patch_script, set_script_source, delete_*, get_errors). Jede Aenderung legt automatisch einen Snapshot an; rueckgaengig mit action=restore_snapshot.\n\
++- roblox_execute_luau laedt die BW-Helfer automatisch, sobald der Code BW.* nutzt (BW.model, BW.ui, BW.particles, BW.patch, BW.weldAll, BW.leaderstats, BW.logs ...). Optional snapshot_paths.\n\
++- roblox_workflow(category) liefert Playbooks; roblox_project_memory merkt sich wichtige Scripts/GUIs/Systeme pro Place.\n\
++- web_agents/web_sites/web_chat steuern freigegebene KI-Chat-Tabs (ChatGPT, Claude, Gemini, DeepSeek ...) ueber die PlazCode-Browser-Erweiterung.\n\
++- safe_read_file/safe_write_file: Dateien im Shared-Ordner mit SHA-256-Schutz (zuerst lesen, dann mit expected_sha256 schreiben).";
++
++static GUARDED: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)(create|edit|modify|delete|remove|insert|upload|generate|set_|update|clone|multi_edit|execute_luau|start_stop_play|user_keyboard_input|user_mouse_input)").unwrap());
++static BW_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bBW\s*[.:]").unwrap());
++static GETSERVICE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"^game\s*:\s*GetService\s*\(\s*['"]([^'"]+)['"]\s*\)"#).unwrap());
++static CLASS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z][A-Za-z0-9]*$").unwrap());
++static TARGET_VALUE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(?:game[.:]|Workspace[.\[])\S+").unwrap());
++static TARGET_KEY: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)path|script|target|instance").unwrap());
++
++static PROJECT: Lazy<Mutex<Option<Value>>> = Lazy::new(|| Mutex::new(None));
++static OP_LOCK: Lazy<tokio::sync::Mutex<()>> = Lazy::new(|| tokio::sync::Mutex::new(()));
++static MEMORY_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
++
++fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> { m.lock().unwrap_or_else(|e| e.into_inner()) }
++
++pub fn is_guarded(name: &str) -> bool { GUARDED.is_match(name) }
++
++// ---------------------------------------------------------------- Luau-Prelude
++
++const PRELUDE: &str = r##"local HttpService = game:GetService("HttpService")
++local ChangeHistoryService = game:GetService("ChangeHistoryService")
++local function bw_resolve(segs)
++	local cur = game
++	for i = 2, #segs do
++		local name = segs[i]
++		local nxt = cur:FindFirstChild(name)
++		if not nxt and cur == game then local ok, svc = pcall(function() return game:GetService(name) end); if ok then nxt = svc end end
++		if not nxt then return nil, "not found: " .. tostring(name) end
++		cur = nxt
++	end
++	return cur
++end
++local function bw_must(segs)
++	local inst, err = bw_resolve(segs)
++	if not inst then error(err, 0) end
++	return inst
++end
++local function bw_path(inst)
++	local parts, cur = {}, inst
++	while cur and cur ~= game do
++		table.insert(parts, 1, cur.Name)
++		cur = cur.Parent
++	end
++	return "game." .. table.concat(parts, ".")
++end
++local function bw_decode(v)
++	if type(v) ~= "table" or v["$type"] == nil then return v end
++	local kind, a = v["$type"], v.value
++	if kind == "Vector3" then return Vector3.new(a[1],a[2],a[3])
++	elseif kind == "Vector2" then return Vector2.new(a[1],a[2])
++	elseif kind == "Color3" then if type(a) == "string" then return Color3.fromHex(a) end; return Color3.fromRGB(a[1],a[2],a[3])
++	elseif kind == "UDim2" then return UDim2.new(a[1],a[2],a[3],a[4])
++	elseif kind == "UDim" then return UDim.new(a[1],a[2])
++	elseif kind == "CFrame" then return CFrame.new(table.unpack(a))
++	elseif kind == "Enum" then return Enum[v.enum][a]
++	elseif kind == "BrickColor" then return BrickColor.new(a)
++	elseif kind == "NumberRange" then return NumberRange.new(a[1],a[2] or a[1])
++	elseif kind == "Ref" then return bw_must(v.segs) end
++	error("unsupported typed value " .. tostring(kind), 0)
++end
++local function bw_enc(v)
++	local kind = typeof(v)
++	if kind == "Vector3" then return { ["$type"]="Vector3", value={v.X,v.Y,v.Z} }
++	elseif kind == "Vector2" then return { ["$type"]="Vector2", value={v.X,v.Y} }
++	elseif kind == "Color3" then return { ["$type"]="Color3", value={math.floor(v.R*255+0.5),math.floor(v.G*255+0.5),math.floor(v.B*255+0.5)} }
++	elseif kind == "UDim2" then return { ["$type"]="UDim2", value={v.X.Scale,v.X.Offset,v.Y.Scale,v.Y.Offset} }
++	elseif kind == "EnumItem" then return { ["$type"]="Enum", enum=tostring(v.EnumType), value=v.Name }
++	elseif kind == "Instance" then return { ["$type"]="Ref", path=bw_path(v) }
++	elseif kind == "BrickColor" then return { ["$type"]="BrickColor", value=v.Name }
++	elseif kind == "number" and (v ~= v or v == math.huge or v == -math.huge) then return tostring(v) end
++	return v
++end
++local function bw_coerce(inst, prop, raw)
++	local v = bw_decode(raw)
++	local ok, current = pcall(function() return inst[prop] end)
++	if ok and type(v) == "table" and typeof(v) == "table" then
++		local t = typeof(current)
++		if t == "Vector3" then return Vector3.new(v[1],v[2],v[3])
++		elseif t == "Vector2" then return Vector2.new(v[1],v[2])
++		elseif t == "Color3" then return Color3.fromRGB(v[1],v[2],v[3])
++		elseif t == "UDim2" then return UDim2.new(v[1],v[2],v[3],v[4])
++		elseif t == "CFrame" then return CFrame.new(table.unpack(v)) end
++	elseif ok and type(v) == "string" and typeof(current) == "Color3" and string.sub(v,1,1) == "#" then
++		return Color3.fromHex(v)
++	elseif ok and type(v) == "string" and typeof(current) == "BrickColor" then
++		return BrickColor.new(v)
++	end
++	return v
++end
++local function bw_apply(inst, props)
++	local errors = {}
++	for prop, raw in pairs(props or {}) do
++		if prop ~= "Parent" and prop ~= "ClassName" then
++			local ok, err = pcall(function() inst[prop] = bw_coerce(inst, prop, raw) end)
++			if not ok then table.insert(errors, {property=prop,error=tostring(err)}) end
++		end
++	end
++	return errors
++end
++local function bw_create_tree(node, parent, created, errors)
++	local inst = Instance.new(node.className)
++	if node.name ~= nil then inst.Name = node.name end
++	for _, err in ipairs(bw_apply(inst, node.properties)) do err.path = node.name or node.className; table.insert(errors, err) end
++	for k, v in pairs(node.attributes or {}) do local ok, err = pcall(function() inst:SetAttribute(k,bw_decode(v)) end); if not ok then table.insert(errors,{attribute=k,error=tostring(err)}) end end
++	if node.source ~= nil and inst:IsA("LuaSourceContainer") then inst.Source = node.source end
++	for _, child in ipairs(node.children or {}) do bw_create_tree(child, inst, created, errors) end
++	inst.Parent = parent
++	table.insert(created, bw_path(inst))
++	return inst
++end
++"##;
++
++// ---------------------------------------------------------------- Luau-Bodies
++
++const SNAP_BODY: &str = r##"local ss = game:GetService("ServerStorage")
++local store = ss:FindFirstChild("__BrickwireSnapshots")
++if not store then store = Instance.new("Folder"); store.Name = "__BrickwireSnapshots"; store.Parent = ss end
++local snap = Instance.new("Folder"); snap.Name = ARGS.id; snap:SetAttribute("Label", ARGS.label); snap:SetAttribute("CreatedAt", os.time())
++local entries = {}
++for i, segs in ipairs(ARGS.segsList) do
++	local inst = bw_resolve(segs)
++	local entry = {index=i, path=ARGS.paths[i], segs=segs, absent=inst == nil, saved=false}
++	if inst then
++		entry.parentSegs = {}; for j=1,#segs-1 do table.insert(entry.parentSegs,segs[j]) end
++		entry.name = inst.Name
++		local ok, clone = pcall(function() return inst:Clone() end)
++		if ok and clone then
++			clone.Name = tostring(i); clone:SetAttribute("BW_OriginalName", inst.Name)
++			for _, d in ipairs(clone:GetDescendants()) do if d:IsA("BaseScript") then d:SetAttribute("BW_WasDisabled",d.Disabled); d.Disabled=true end end
++			if clone:IsA("BaseScript") then clone:SetAttribute("BW_WasDisabled",clone.Disabled); clone.Disabled=true end
++			clone.Parent=snap; entry.saved=true
++		else entry.reason="not archivable" end
++	end
++	table.insert(entries,entry)
++end
++snap:SetAttribute("Entries",HttpService:JSONEncode(entries)); snap.Parent=store
++return {snapshotId=ARGS.id, label=ARGS.label, entries=entries}"##;
++
++const LOGS_BODY: &str = r##"local history=game:GetService("LogService"):GetLogHistory(); local out={}
++for i=#history,1,-1 do local e=history[i]; local n=e.messageType and e.messageType.Name or "MessageOutput"; if n=="MessageError" or n=="MessageWarning" then table.insert(out,1,"["..n.."] "..e.message); if #out>=ARGS.limit then break end end end
++return {lines=out,count=#out}"##;
++
++const LIST_SNAP_BODY: &str = r##"local store=game:GetService("ServerStorage"):FindFirstChild("__BrickwireSnapshots"); local out={}
++if store then for _,s in ipairs(store:GetChildren()) do local ok,e=pcall(function() return HttpService:JSONDecode(s:GetAttribute("Entries") or "[]") end); table.insert(out,{id=s.Name,label=s:GetAttribute("Label"),createdAt=s:GetAttribute("CreatedAt"),entries=if ok then e else {}}) end end
++return {snapshots=out}"##;
++
++const RESTORE_BODY: &str = r##"local store=game:GetService("ServerStorage"):FindFirstChild("__BrickwireSnapshots"); local snap=store and store:FindFirstChild(ARGS.id); if not snap then error("snapshot not found",0) end
++local entries=HttpService:JSONDecode(snap:GetAttribute("Entries") or "[]"); local restored,removed,failed={},{},{}
++for _,e in ipairs(entries) do local current=bw_resolve(e.segs)
++	if e.absent then if current then current:Destroy(); table.insert(removed,e.path) end
++	elseif e.saved then local saved=snap:FindFirstChild(tostring(e.index)); local parent=bw_resolve(e.parentSegs)
++		if not saved or not parent then table.insert(failed,e.path) else
++			if current then current:Destroy() end
++			local c=saved:Clone(); c.Name=saved:GetAttribute("BW_OriginalName") or c.Name; c:SetAttribute("BW_OriginalName",nil)
++			local all=c:GetDescendants(); table.insert(all,c); for _,d in ipairs(all) do if d:IsA("BaseScript") then local was=d:GetAttribute("BW_WasDisabled"); if was~=nil then d.Disabled=was; d:SetAttribute("BW_WasDisabled",nil) end end end
++			c.Parent=parent; table.insert(restored,e.path)
++		end
++	end
++end
++return {snapshotId=ARGS.id,restored=restored,removed=removed,failed=failed}"##;
++
++const PROJECT_BODY: &str = r##"local names={"Workspace","ReplicatedStorage","ReplicatedFirst","ServerScriptService","ServerStorage","StarterGui","StarterPack","StarterPlayer","Lighting","SoundService","Teams"}
++local out={placeName=game.Name,placeId=game.PlaceId,gameId=game.GameId,creatorId=game.CreatorId,services={},scripts={},guis={},remotes=0,scriptCount=0}
++for _,name in ipairs(names) do local ok,svc=pcall(function() return game:GetService(name) end); if ok then out.services[name]={children=#svc:GetChildren(),descendants=#svc:GetDescendants()}; for _,d in ipairs(svc:GetDescendants()) do if d:IsA("LuaSourceContainer") then out.scriptCount+=1; if #out.scripts<ARGS.maxScripts then table.insert(out.scripts,{path=bw_path(d),class=d.ClassName}) end end end end end
++for _,g in ipairs(game:GetService("StarterGui"):GetChildren()) do table.insert(out.guis,{path=bw_path(g),class=g.ClassName,descendants=#g:GetDescendants()}) end
++for _,d in ipairs(game:GetService("ReplicatedStorage"):GetDescendants()) do if d:IsA("RemoteEvent") or d:IsA("RemoteFunction") or d:IsA("UnreliableRemoteEvent") then out.remotes+=1 end end
++return out"##;
++
++const TREE_BODY: &str = r##"local root=bw_must(ARGS.segs); local count=0
++local function walk(inst,depth) count+=1; local kids=inst:GetChildren(); local node={name=inst.Name,class=inst.ClassName,childCount=#kids}
++	if depth<ARGS.depth and #kids>0 then node.children={}; for _,c in ipairs(kids) do if count>=ARGS.maxNodes then node.truncated=true; break end; table.insert(node.children,walk(c,depth+1)) end end
++	return node
++end
++local tree=walk(root,0); return {path=bw_path(root),nodes=count,truncated=count>=ARGS.maxNodes,tree=tree}"##;
++
++const READ_INSTANCE_BODY: &str = r##"local inst=bw_must(ARGS.segs); local props=ARGS.properties; local explicit=props~=nil
++if not props then props={"Name","ClassName"}; local more={}; if inst:IsA("BasePart") then more={"Size","Position","Color","Material","Anchored","CanCollide","Transparency"} elseif inst:IsA("LuaSourceContainer") then more={"Source"}; if inst:IsA("BaseScript") then table.insert(more,"Disabled") end elseif inst:IsA("GuiObject") then more={"Size","Position","Visible","BackgroundColor3","Text"} elseif inst:IsA("LayerCollector") then more={"Enabled","ResetOnSpawn"} end; for _,p in ipairs(more) do table.insert(props,p) end end
++local out={path=bw_path(inst),className=inst.ClassName,properties={},attributes={},children={}}
++for _,p in ipairs(props) do local ok,v=pcall(function() return inst[p] end); if ok then if p=="Source" and type(v)=="string" and #v>20000 then v=string.sub(v,1,20000).."\n-- truncated; use read_script" end; out.properties[p]=bw_enc(v) elseif explicit then out.properties[p]="<error: "..tostring(v)..">" end end
++for k,v in pairs(inst:GetAttributes()) do out.attributes[k]=bw_enc(v) end
++for i,c in ipairs(inst:GetChildren()) do if i>200 then break end; table.insert(out.children,c.Name.." ("..c.ClassName..")") end
++return out"##;
++
++const READ_SCRIPT_BODY: &str = r##"local s=bw_must(ARGS.segs); if not s:IsA("LuaSourceContainer") then error("not a script",0) end
++local lines=string.split(s.Source,"\n"); local first=math.max(1,ARGS.fromLine); local last=math.min(#lines,ARGS.toLine>0 and ARGS.toLine or #lines); local out,size,truncated={},0,false
++for i=first,last do local line=string.format("%4d| %s",i,lines[i]); if size+#line>ARGS.maxChars then truncated=true; break end; table.insert(out,line); size+=#line+1 end
++return {path=bw_path(s),className=s.ClassName,lineCount=#lines,fromLine=first,toLine=last,source=table.concat(out,"\n"),truncated=truncated}"##;
++
++const SEARCH_BODY: &str = r##"local hits,total={},0
++for _,d in ipairs(game:GetDescendants()) do if d:IsA("LuaSourceContainer") then local ok,src=pcall(function() return d.Source end); if ok then for i,line in ipairs(string.split(src,"\n")) do if string.find(line,ARGS.text,1,true) then total+=1; if #hits<ARGS.limit then table.insert(hits,{path=bw_path(d),line=i,text=string.sub(line,1,240)}) end end end end end end
++return {total=total,hits=hits}"##;
++
++const CREATE_BODY: &str = r##"local parent=bw_must(ARGS.parentSegs); local tree=ARGS.tree
++if tree.name then local old=parent:FindFirstChild(tree.name); if old then if ARGS.replace then old:Destroy() else error("already exists: "..old:GetFullName().." - choose another name or pass replaceExisting",0) end end end
++local created,errors={},{}; local root=bw_create_tree(tree,parent,created,errors); return {path=bw_path(root),className=root.ClassName,created=created,propertyErrors=errors}"##;
++
++const MODIFY_BODY: &str = r##"local inst=bw_must(ARGS.segs); local before,after={},{}
++for prop,_ in pairs(ARGS.properties) do local ok,v=pcall(function() return inst[prop] end); before[prop]=if ok then bw_enc(v) else nil end
++local errors=bw_apply(inst,ARGS.properties); for k,v in pairs(ARGS.attributes) do local ok,e=pcall(function() inst:SetAttribute(k,bw_decode(v)) end); if not ok then table.insert(errors,{attribute=k,error=tostring(e)}) end end
++if ARGS.name~=nil then inst.Name=ARGS.name end
++for prop,_ in pairs(ARGS.properties) do local ok,v=pcall(function() return inst[prop] end); after[prop]=if ok then bw_enc(v) else nil end end
++return {path=bw_path(inst),before=before,after=after,errors=errors}"##;
++
++const DELETE_SCRIPT_BODY: &str = r##"local s=bw_must(ARGS.segs); if not s:IsA("LuaSourceContainer") then error("target is not a script",0) end; local p=bw_path(s); s:Destroy(); return {deleted=p}"##;
++const DELETE_BODY: &str = r##"local inst=bw_must(ARGS.segs); if inst.Parent==game then error("refusing to delete a service",0) end; local result={deleted=bw_path(inst),className=inst.ClassName,descendants=#inst:GetDescendants()}; inst:Destroy(); return result"##;
++const CLONE_BODY: &str = r##"local src=bw_must(ARGS.segs); local parent=if ARGS.parentSegs then bw_must(ARGS.parentSegs) else src.Parent; local clone=src:Clone(); if not clone then error("instance is not Archivable",0) end; if ARGS.name then clone.Name=ARGS.name end; clone.Parent=parent; return {path=bw_path(clone),className=clone.ClassName}"##;
++const SET_SOURCE_BODY: &str = r##"local s=bw_must(ARGS.segs); if not s:IsA("LuaSourceContainer") then error("target is not a script",0) end; local old=#s.Source; s.Source=ARGS.source; return {path=bw_path(s),oldLength=old,newLength=#s.Source}"##;
++const PATCH_BODY: &str = r##"local s=bw_must(ARGS.segs); if not s:IsA("LuaSourceContainer") then error("target is not a script",0) end; local src=s.Source; local out,count,pos={},0,1
++while true do local first,last=string.find(src,ARGS.find,pos,true); if not first or (ARGS.maxCount>0 and count>=ARGS.maxCount) then break end; table.insert(out,string.sub(src,pos,first-1)); table.insert(out,ARGS.replace); pos=last+1; count+=1 end
++if count==0 then error("patch text not found",0) end; table.insert(out,string.sub(src,pos)); s.Source=table.concat(out); return {path=bw_path(s),replacements=count}"##;
++
++const WORKFLOWS: &[(&str, &str)] = &[
++    ("general", "Zuerst den Place inspizieren (roblox_studio project_info / get_game_tree), einen kurzen Plan nennen, in kleinen Schritten arbeiten und jede Aenderung mit einem separaten Lesezugriff pruefen, bevor du fertig meldest."),
++    ("build", "In einem benannten Model bauen; Teile standardmaessig verankern, Koordinaten von einem Ursprung aus berechnen und Anzahl der Teile, Abmessungen und Bodenhoehe pruefen. create_model/create_part nutzen; BW.model, BW.part und BW.weldAll helfen bei Luau."),
++    ("scripting", "Script vor jeder Aenderung lesen (read_script). Server in ServerScriptService, Client in StarterPlayerScripts/StarterGui, geteilter Code in ReplicatedStorage. RemoteEvent-Daten serverseitig validieren und Aenderungen testen. Kleine Aenderungen mit patch_script statt das ganze Script zu ersetzen."),
++    ("ui", "ScreenGuis in StarterGui platzieren, Groessen bevorzugt in Scale, die Hierarchie pruefen und Server-Aktionen hinter validierten RemoteEvents halten. create_ui oder BW.screen/BW.ui verwenden."),
++    ("vfx", "Emitter und Lichter an Parts oder Attachments haengen. Rate und Lebensdauer der Partikel begrenzen und die erzeugten Instanzen pruefen. create_vfx oder BW.particles/BW.light nutzen."),
++    ("gameplay", "Server-Scripts, Remotes und UI planen; Waehrung, Schaden, Stats und Runden bleiben unter Server-Autoritaet; testen (start_stop_play) und Fehler pruefen (get_errors). BW.leaderstats und BW.killPart helfen."),
++    ("debug", "Output-Fehler lesen (roblox_studio get_errors), das Script um die gemeldete Zeile inspizieren und Referenzen suchen (search_scripts). Minimal korrigieren, erneut testen und bestaetigen, dass der Fehler weg ist. Bei Problemen: list_snapshots + restore_snapshot."),
++];
++
++// ---------------------------------------------------------------- Helfer
++
++fn short(t: &str, n: usize) -> String {
++    if t.chars().count() <= n { return t.to_string(); }
++    let mut s: String = t.chars().take(n).collect();
++    s.push_str("...[gekuerzt]");
++    s
++}
++
++fn num(a: &Value, k: &str, def: i64) -> i64 {
++    a.get(k).and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f as i64)).or_else(|| v.as_str().and_then(|s| s.trim().parse().ok()))).unwrap_or(def)
++}
++
++fn sval(a: &Value, k: &str) -> Option<String> {
++    match a.get(k) {
++        Some(Value::String(s)) => Some(s.clone()),
++        Some(Value::Number(n)) => Some(n.to_string()),
++        Some(Value::Bool(b)) => Some(b.to_string()),
++        _ => None,
++    }
++}
++
++fn has(a: &Value, k: &str) -> bool { a.get(k).map(|v| !v.is_null()).unwrap_or(false) }
++
++fn required(a: &Value, names: &[&str]) -> Result<(), String> {
++    let missing: Vec<&str> = names.iter().copied().filter(|n| !has(a, n)).collect();
++    if missing.is_empty() { Ok(()) } else { Err(format!("Fehlende Argumente: {}", missing.join(", "))) }
++}
++
++fn hex(n: usize) -> String {
++    let mut b = vec![0u8; n];
++    let _ = getrandom::getrandom(&mut b);
++    b.iter().map(|x| format!("{x:02x}")).collect()
++}
++
++fn now_iso() -> String { chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string() }
++
++fn data_dir() -> PathBuf {
++    std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
++        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
++        .unwrap_or_else(|| PathBuf::from("."))
++        .join("PlazCodeNotion")
++}
++
++fn luau_str(s: &str) -> String {
++    let mut out = String::with_capacity(s.len() + 2);
++    out.push('"');
++    for c in s.chars() {
++        match c {
++            '\\' => out.push_str("\\\\"),
++            '"' => out.push_str("\\\""),
++            '\n' => out.push_str("\\n"),
++            '\r' => out.push_str("\\r"),
++            '\t' => out.push_str("\\t"),
++            c if (c as u32) < 32 || c as u32 == 127 => out.push_str(&format!("\\{:03}", c as u32)),
++            c => out.push(c),
++        }
++    }
++    out.push('"');
++    out
++}
++
++fn to_luau(v: &Value, depth: usize) -> Result<String, String> {
++    if depth > 40 { return Err("Roblox-Argumente sind zu tief verschachtelt".into()); }
++    Ok(match v {
++        Value::Null => "nil".into(),
++        Value::Bool(b) => b.to_string(),
++        Value::Number(n) => {
++            if let Some(f) = n.as_f64() { if !f.is_finite() { return Err("Roblox-Argumente duerfen keine unendlichen Zahlen enthalten".into()); } }
++            n.to_string()
++        }
++        Value::String(s) => luau_str(s),
++        Value::Array(a) => {
++            let items = a.iter().map(|x| to_luau(x, depth + 1)).collect::<Result<Vec<_>, _>>()?;
++            format!("{{{}}}", items.join(","))
++        }
++        Value::Object(m) => {
++            let mut items = Vec::with_capacity(m.len());
++            for (k, x) in m { items.push(format!("[{}]={}", luau_str(k), to_luau(x, depth + 1)?)); }
++            format!("{{{}}}", items.join(","))
++        }
++    })
++}
++
++pub fn path_segments(path: &str) -> Result<Vec<String>, String> {
++    let mut p = path.trim().to_string();
++    if p.is_empty() { return Err("path muss ein nicht-leerer Roblox-Instanzpfad sein".into()); }
++    if let Some(c) = GETSERVICE.captures(&p) {
++        let end = c.get(0).map(|m| m.end()).unwrap_or(0);
++        p = format!("game.{}{}", &c[1], &p[end..]);
++    }
++    let chars: Vec<char> = p.chars().collect();
++    let (mut parts, mut cur, mut i) = (Vec::<String>::new(), String::new(), 0usize);
++    while i < chars.len() {
++        let ch = chars[i];
++        if ch == '.' {
++            if !cur.is_empty() { parts.push(std::mem::take(&mut cur)); }
++            i += 1;
++        } else if ch == '[' {
++            if !cur.is_empty() { parts.push(std::mem::take(&mut cur)); }
++            if i + 1 >= chars.len() || !(chars[i + 1] == '"' || chars[i + 1] == '\'') {
++                return Err(format!("Ungueltiger Klammer-Pfad bei {:?}", chars[i..].iter().take(12).collect::<String>()));
++            }
++            let q = chars[i + 1];
++            let mut j = i + 2;
++            let mut s = String::new();
++            while j < chars.len() {
++                if chars[j] == '\\' && j + 1 < chars.len() { s.push(chars[j + 1]); j += 2; }
++                else if chars[j] == q { break; }
++                else { s.push(chars[j]); j += 1; }
++            }
++            if j + 1 >= chars.len() || chars[j + 1] != ']' { return Err("Nicht abgeschlossener Klammer-Pfad".into()); }
++            parts.push(s);
++            i = j + 2;
++        } else {
++            cur.push(ch);
++            i += 1;
++        }
++    }
++    if !cur.is_empty() { parts.push(cur); }
++    if parts.is_empty() { return Err("path muss eine Roblox-Instanz benennen".into()); }
++    if parts[0] != "game" { parts.insert(0, "game".into()); }
++    if parts.iter().any(|x| x.is_empty()) { return Err("path enthaelt ein leeres Segment".into()); }
++    Ok(parts)
++}
++
++fn prep_value(v: &Value) -> Result<Value, String> {
++    match v {
++        Value::Array(a) => Ok(Value::Array(a.iter().map(prep_value).collect::<Result<Vec<_>, _>>()?)),
++        Value::Object(m) => {
++            if m.get("$type").and_then(|t| t.as_str()) == Some("Ref") {
++                if let Some(p) = m.get("path").and_then(|p| p.as_str()) {
++                    return Ok(json!({"$type": "Ref", "segs": path_segments(p)?}));
++                }
++            }
++            let mut o = Map::new();
++            for (k, x) in m { o.insert(k.clone(), prep_value(x)?); }
++            Ok(Value::Object(o))
++        }
++        _ => Ok(v.clone()),
++    }
++}
++
++fn prep_node(node: &Value, depth: usize, count: &mut usize) -> Result<Value, String> {
++    if depth > 25 { return Err("Instanz-Baum ist zu tief (maximal 25 Ebenen)".into()); }
++    *count += 1;
++    if *count > 500 { return Err("Instanz-Baum ist zu gross (maximal 500 Instanzen)".into()); }
++    let Some(m) = node.as_object() else { return Err("jeder Baum-Knoten muss ein Objekt sein".into()); };
++    let cls = m.get("className").and_then(|c| c.as_str()).unwrap_or("");
++    if !CLASS_RE.is_match(cls) { return Err("jeder Baum-Knoten braucht einen gueltigen className".into()); }
++    let mut out = Map::new();
++    out.insert("className".into(), Value::String(cls.into()));
++    for k in ["name", "source"] {
++        if let Some(v) = m.get(k) {
++            if v.is_null() { continue; }
++            if !v.is_string() { return Err(format!("tree {k} muss Text sein")); }
++            out.insert(k.into(), v.clone());
++        }
++    }
++    for k in ["properties", "attributes"] {
++        if let Some(v) = m.get(k) {
++            if v.is_null() { continue; }
++            if !v.is_object() { return Err(format!("tree {k} muss ein Objekt sein")); }
++            out.insert(k.into(), prep_value(v)?);
++        }
++    }
++    let kids = match m.get("children") {
++        None | Some(Value::Null) => Vec::new(),
++        Some(Value::Array(a)) => a.clone(),
++        _ => return Err("tree children muss eine Liste sein".into()),
++    };
++    let mut c = Vec::with_capacity(kids.len());
++    for k in &kids { c.push(prep_node(k, depth + 1, count)?); }
++    out.insert("children".into(), Value::Array(c));
++    Ok(Value::Object(out))
++}
++
++fn wrapped(args: &Value, body: &str) -> Result<String, String> {
++    let a = to_luau(args, 0)?;
++    if a.len() > 2_000_000 { return Err("Roblox-Argumente ueberschreiten 2 MB".into()); }
++    Ok(format!(
++        "-- Roblox Studio MCP composite\nlocal ARGS = {a}\n{prelude}\nlocal __ok, __res = pcall(function()\n{body}\nend)\nlocal __out = if __ok then {{ok=true,result=__res}} else {{ok=false,error=tostring(__res)}}\nlocal __json = HttpService:JSONEncode(__out)\nlocal __s = \"{open}\" .. __json .. \"{close}\"\npcall(function() ChangeHistoryService:SetWaypoint(\"Roblox MCP change\") end)\nprint(__s)\nreturn __s",
++        a = a, prelude = PRELUDE, body = body, open = OPEN, close = CLOSE
++    ))
++}
++
++// ---------------------------------------------------------------- Studio-Aufrufe
++
++async fn native(state: &crate::AppState, name: &str, args: Value, timeout: u64) -> Result<String, String> {
++    match tokio::time::timeout(Duration::from_secs(timeout.max(3) + 5), crate::roblox_tool(state, name, args)).await {
++        Err(_) => Err(format!("Roblox Studio hat bei '{name}' nicht rechtzeitig geantwortet.")),
++        Ok(Err(e)) => Err(format!("{e:#}")),
++        Ok(Ok(out)) => Ok(out.text),
++    }
++}
++
++async fn luau_schema(state: &crate::AppState) -> (String, bool) {
++    let tool = {
++        let mcp = state.roblox_mcp.lock().await;
++        mcp.tools.iter().find(|t| t["name"] == "execute_luau").cloned()
++    };
++    let Some(tool) = tool else { return ("code".into(), false); };
++    let props = tool["inputSchema"]["properties"].as_object().cloned().unwrap_or_default();
++    let key = ["code", "source", "luau", "script", "command"].iter().find(|k| props.contains_key(**k)).map(|k| k.to_string())
++        .or_else(|| props.iter().find(|(k, v)| v["type"] == "string" && !k.to_ascii_lowercase().contains("studio_id") && !k.to_ascii_lowercase().contains("datamodel")).map(|(k, _)| k.clone()))
++        .unwrap_or_else(|| "code".into());
++    (key, props.contains_key("datamodel_type"))
++}
++
++async fn exec_luau(state: &crate::AppState, code: String, timeout: u64, datamodel: &str) -> Result<String, String> {
++    if code.trim().is_empty() { return Err("Luau-Code darf nicht leer sein".into()); }
++    if code.len() > 1_500_000 { return Err("Luau-Code ueberschreitet 1,5 MB".into()); }
++    let (key, has_dm) = luau_schema(state).await;
++    let mut args = Map::new();
++    args.insert(key, Value::String(code));
++    if has_dm { args.insert("datamodel_type".into(), Value::String(datamodel.into())); }
++    native(state, "execute_luau", Value::Object(args), timeout).await
++}
++
++fn parse_payload(raw: &str) -> Option<Value> {
++    if let Ok(v) = serde_json::from_str::<Value>(raw) { return Some(v); }
++    // Manche Studio-Versionen liefern die Ausgabe als JSON-String mit Escapes.
++    let unescaped: String = serde_json::from_str::<String>(&format!("\"{raw}\"")).ok()?;
++    serde_json::from_str::<Value>(&unescaped).ok()
++}
++
++async fn composite(state: &crate::AppState, body: &str, args: Value, timeout: u64) -> Result<Value, String> {
++    let code = wrapped(&args, body)?;
++    let text = exec_luau(state, code, timeout, "Edit").await?;
++    let (Some(s), Some(e)) = (text.rfind(OPEN), text.rfind(CLOSE)) else {
++        return Err(format!("Studio hat kein Ergebnis geliefert (Ausgabe: {})", short(&text, 600)));
++    };
++    if e < s { return Err(format!("Studio hat kein Ergebnis geliefert (Ausgabe: {})", short(&text, 600))); }
++    let payload = parse_payload(&text[s + OPEN.len()..e]).ok_or_else(|| "Studio hat fehlerhaftes JSON geliefert".to_string())?;
++    if payload["ok"] != Value::Bool(true) {
++        return Err(payload["error"].as_str().unwrap_or("Roblox-Aktion fehlgeschlagen").to_string());
++    }
++    let result = payload.get("result").cloned().unwrap_or(Value::Null);
++    if result.get("placeName").is_some() { *lock(&PROJECT) = Some(result.clone()); }
++    Ok(result)
++}
++
++// ---------------------------------------------------------------- Snapshots
++
++pub async fn take_snapshot(state: &crate::AppState, paths: &[String], label: &str) -> Result<Value, String> {
++    let id = format!("snap_{}_{}", chrono::Local::now().format("%Y%m%d_%H%M%S"), hex(3));
++    let paths: Vec<String> = paths.iter().take(50).cloned().collect();
++    let segs = paths.iter().map(|p| path_segments(p).map(|s| json!(s))).collect::<Result<Vec<_>, _>>()?;
++    let label: String = label.chars().take(120).collect();
++    composite(state, SNAP_BODY, json!({"id": id, "label": label, "paths": paths, "segsList": segs}), 30).await
++}
++
++fn snapshot_targets(action: &str, a: &Value) -> Vec<String> {
++    let path = sval(a, "path");
++    match action {
++        "modify_instance" | "delete_instance" | "delete_script" | "set_script_source" | "patch_script" => path.into_iter().collect(),
++        "create_script" | "create_part" | "create_instance" | "create_instance_tree" | "create_model" | "create_ui" | "create_vfx" => {
++            let default_parent = match action { "create_part" | "create_model" => "game.Workspace", "create_ui" => "game.StarterGui", _ => "" };
++            let parent = sval(a, "parent").unwrap_or_else(|| default_parent.to_string());
++            let node = if has(a, "tree") { &a["tree"] } else { a };
++            match (node.get("name").and_then(|n| n.as_str()), parent.is_empty()) {
++                (Some(name), false) => vec![format!("{}.{}", parent.trim_end_matches('.'), name)],
++                _ => Vec::new(),
++            }
++        }
++        "clone_instance" => match (sval(a, "name"), sval(a, "parent")) {
++            (Some(n), Some(p)) => vec![format!("{}.{}", p.trim_end_matches('.'), n)],
++            _ => Vec::new(),
++        },
++        _ => Vec::new(),
++    }
++}
++
++async fn ensure_snapshot(state: &crate::AppState, action: &str, a: &Value) -> Result<Option<String>, String> {
++    let targets = snapshot_targets(action, a);
++    if targets.is_empty() { return Ok(None); }
++    let snap = take_snapshot(state, &targets, &format!("auto before {action}")).await?;
++    Ok(snap["snapshotId"].as_str().map(String::from))
++}
++
++/// Zielpfade in Argumenten nativer Studio-Tools (fuer automatische Snapshots).
++pub fn native_snapshot_targets(args: &Value) -> Vec<String> {
++    fn visit(v: &Value, key: &str, out: &mut Vec<String>) {
++        match v {
++            Value::Object(m) => for (k, x) in m { visit(x, k, out); },
++            Value::Array(a) => for x in a { visit(x, key, out); },
++            Value::String(s) => if TARGET_KEY.is_match(key) && TARGET_VALUE.is_match(s) { out.push(s.clone()); },
++            _ => {}
++        }
++    }
++    let mut out = Vec::new();
++    visit(args, "", &mut out);
++    if out.is_empty() {
++        if let (Some(p), Some(n)) = (sval(args, "parent"), sval(args, "name")) {
++            if TARGET_VALUE.is_match(&p) { out.push(format!("{}.{}", p.trim_end_matches('.'), n)); }
++        }
++    }
++    let mut seen = std::collections::HashSet::new();
++    out.retain(|x| seen.insert(x.clone()));
++    out.truncate(50);
++    out
++}
++
++/// Vor einem schreibenden nativen Studio-Tool automatisch einen Snapshot anlegen.
++pub async fn before_native_write(state: &crate::AppState, internal: &str, args: &Value) -> Option<String> {
++    if internal == "execute_luau" || !is_guarded(internal) { return None; }
++    let targets = native_snapshot_targets(args);
++    if targets.is_empty() { return None; }
++    match take_snapshot(state, &targets, &format!("auto before {internal}")).await {
++        Ok(v) => v["snapshotId"].as_str().map(String::from),
++        Err(e) => { tracing::warn!("[notion] Snapshot vor {internal} fehlgeschlagen: {e}"); None }
++    }
++}
++
++// ---------------------------------------------------------------- Projekt-Gedaechtnis
++
++fn memory_file() -> PathBuf { data_dir().join("roblox-project-memory.json") }
++
++fn load_db() -> Map<String, Value> {
++    std::fs::read_to_string(memory_file()).ok()
++        .and_then(|raw| serde_json::from_str::<Value>(raw.trim_start_matches('\u{feff}')).ok())
++        .and_then(|v| v.as_object().cloned())
++        .unwrap_or_default()
++}
++
++fn save_db(db: &Map<String, Value>) {
++    let file = memory_file();
++    if let Some(p) = file.parent() { let _ = std::fs::create_dir_all(p); }
++    let tmp = file.with_extension("tmp");
++    if let Ok(data) = serde_json::to_vec_pretty(db) {
++        if std::fs::write(&tmp, data).is_ok() { let _ = std::fs::rename(&tmp, &file); }
++    }
++}
++
++async fn current_project(state: &crate::AppState) -> Result<Value, String> {
++    if let Some(p) = lock(&PROJECT).clone() { return Ok(p); }
++    composite(state, PROJECT_BODY, json!({"maxScripts": 300}), 30).await
++}
++
++fn project_key(project: &Value) -> (String, String, Value) {
++    let name = project["placeName"].as_str().unwrap_or("Untitled place").to_string();
++    let place_id = project.get("placeId").cloned().unwrap_or(Value::Null);
++    let id_text = match &place_id { Value::Number(n) => n.to_string(), Value::String(s) => s.clone(), _ => String::new() };
++    let key = if id_text.is_empty() || id_text == "0" {
++        name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' }).take(60).collect()
++    } else { id_text };
++    (key, name, place_id)
++}
++
++fn with_memory<R>(project: &Value, f: impl FnOnce(&mut Map<String, Value>) -> R) -> R {
++    let _g = lock(&MEMORY_LOCK);
++    let (key, name, place_id) = project_key(project);
++    let mut db = load_db();
++    let entry = db.entry(key).or_insert_with(|| json!({}));
++    if !entry.is_object() { *entry = json!({}); }
++    let mem = entry.as_object_mut().expect("object");
++    for (field, def) in [
++        ("place", json!({})), ("scan", Value::Null), ("notes", json!([])), ("importantScripts", json!([])), ("importantGuis", json!([])),
++        ("systems", json!([])), ("dependencies", json!([])), ("preferences", json!([])), ("changes", json!([])), ("errors", json!([])), ("snapshots", json!([])),
++    ] {
++        mem.entry(field.to_string()).or_insert(def);
++    }
++    mem.insert("placeName".into(), Value::String(name));
++    mem.insert("placeId".into(), place_id);
++    let r = f(mem);
++    save_db(&db);
++    r
++}
++
++fn push_capped(mem: &mut Map<String, Value>, field: &str, item: Value, cap: usize) {
++    let list = mem.entry(field.to_string()).or_insert_with(|| json!([]));
++    if !list.is_array() { *list = json!([]); }
++    let arr = list.as_array_mut().expect("array");
++    arr.push(item);
++    if arr.len() > cap { let drop = arr.len() - cap; arr.drain(..drop); }
++}
++
++fn save_scan(project: &Value) {
++    with_memory(project, |mem| {
++        let mut place = Map::new();
++        for k in ["placeName", "placeId", "gameId", "creatorId", "services", "remotes"] { place.insert(k.into(), project.get(k).cloned().unwrap_or(Value::Null)); }
++        mem.insert("place".into(), Value::Object(place));
++        mem.insert("scan".into(), json!({"at": now_iso(), "scripts": project["scripts"].clone(), "scriptCount": project["scriptCount"].clone(), "guis": project["guis"].clone(), "remotes": project["remotes"].clone()}));
++    });
++}
++
++/// Aenderung oder Fehler im Projekt-Gedaechtnis vermerken (best effort).
++pub async fn record_event(state: &crate::AppState, kind: &str, tool: &str, args: &Value, message: &str, snapshot_id: Option<&str>) {
++    let Ok(project) = current_project(state).await else { return; };
++    let target = sval(args, "path").or_else(|| sval(args, "name")).or_else(|| sval(args, "snapshotId")).unwrap_or_default();
++    let summary: String = (if !message.is_empty() { message.to_string() } else if !target.is_empty() { target } else { tool.to_string() }).chars().take(300).collect();
++    let at = now_iso();
++    with_memory(&project, |mem| {
++        if kind == "change" {
++            push_capped(mem, "changes", json!({"at": at, "tool": tool, "summary": summary}), 300);
++            if let Some(id) = snapshot_id { push_capped(mem, "snapshots", json!({"id": id, "tool": tool, "at": at}), 60); }
++        } else {
++            let msg: String = message.chars().take(400).collect();
++            push_capped(mem, "errors", json!({"at": at, "tool": tool, "summary": summary, "message": msg}), 150);
++        }
++    });
++}
++
++async fn project_memory(state: &crate::AppState, args: &Value) -> Result<Value, String> {
++    let action = args["action"].as_str().unwrap_or("get");
++    let project = current_project(state).await?;
++    match action {
++        "get" => {}
++        "note" => {
++            let category = args["category"].as_str().unwrap_or("note");
++            let field = match category {
++                "note" => "notes", "important_script" => "importantScripts", "important_gui" => "importantGuis",
++                "system" => "systems", "dependency" => "dependencies", "preference" => "preferences",
++                _ => return Err("category muss note, important_script, important_gui, system, dependency oder preference sein".into()),
++            };
++            let text = args["text"].as_str().unwrap_or("").to_string();
++            if text.trim().is_empty() { return Err("text darf nicht leer sein".into()); }
++            let path: String = args["path"].as_str().unwrap_or("").chars().take(500).collect();
++            let entry = json!({"text": text.chars().take(2000).collect::<String>(), "path": path, "updatedAt": now_iso()});
++            with_memory(&project, |mem| {
++                let list = mem.entry(field.to_string()).or_insert_with(|| json!([]));
++                if !list.is_array() { *list = json!([]); }
++                let arr = list.as_array_mut().expect("array");
++                if let Some(existing) = arr.iter_mut().find(|i| !path.is_empty() && i["path"] == Value::String(path.clone())) { *existing = entry; } else { arr.push(entry); }
++                if arr.len() > 200 { let d = arr.len() - 200; arr.drain(..d); }
++            });
++        }
++        _ => return Err("action muss get oder note sein".into()),
++    }
++    let mem = with_memory(&project, |mem| Value::Object(mem.clone()));
++    Ok(json!({"project": project["placeName"].clone(), "memory": mem}))
++}
++
++// ---------------------------------------------------------------- roblox_studio
++
++pub async fn run_action(state: &crate::AppState, action: &str, a: &Value, timeout: u64) -> Result<Value, String> {
++    let empty = json!({});
++    let a = if a.is_object() { a } else { &empty };
++    let timeout = timeout.clamp(3, 180);
++    if action == "status" {
++        let studios = native(state, "list_roblox_studios", json!({}), 10).await;
++        let st = native(state, "get_studio_state", json!({}), 10).await;
++        return Ok(match (studios, st) {
++            (Ok(s), Ok(t)) => json!({"connected": true, "studios": s, "studio_state": t}),
++            (s, t) => json!({"connected": state.roblox_editor_connected.load(std::sync::atomic::Ordering::Relaxed), "studios": s.unwrap_or_else(|e| e), "studio_state": t.unwrap_or_else(|e| e),
++                "setup": "Place in Roblox Studio oeffnen und Studio mit PlazCode verbinden."}),
++        });
++    }
++    let _g = OP_LOCK.lock().await;
++    match action {
++        "get_errors" => {
++            let limit = num(a, "limit", 50).clamp(1, 200);
++            match native(state, "get_console_output", json!({}), timeout).await {
++                Ok(text) => {
++                    let re = Regex::new(r"(?i)error|exception|stack begin|traceback|attempt to|expected|failed|warn").unwrap();
++                    let lines: Vec<&str> = text.lines().filter(|l| re.is_match(l)).collect();
++                    let start = lines.len().saturating_sub(limit as usize);
++                    Ok(json!({"errorCount": lines.len(), "lines": lines[start..]}))
++                }
++                Err(_) => composite(state, LOGS_BODY, json!({"limit": limit}), timeout).await,
++            }
++        }
++        "list_snapshots" => composite(state, LIST_SNAP_BODY, json!({}), timeout).await,
++        "restore_snapshot" => {
++            required(a, &["snapshotId"])?;
++            composite(state, RESTORE_BODY, json!({"id": sval(a, "snapshotId").unwrap_or_default()}), timeout).await
++        }
++        "take_snapshot" => {
++            let paths: Vec<String> = a["paths"].as_array().map(|v| v.iter().filter_map(|p| p.as_str().map(String::from)).collect()).unwrap_or_default();
++            if paths.is_empty() { return Err("paths muss eine nicht-leere Liste sein".into()); }
++            if paths.len() > 50 { return Err("maximal 50 Instanzen pro Snapshot".into()); }
++            for p in &paths { if path_segments(p)?.len() < 3 { return Err("Snapshots muessen eine Instanz unterhalb eines Services treffen, nicht game oder einen Service".into()); } }
++            take_snapshot(state, &paths, &sval(a, "label").unwrap_or_else(|| "manual snapshot".into())).await
++        }
++        "project_info" => {
++            let r = composite(state, PROJECT_BODY, json!({"maxScripts": num(a, "maxScripts", 300).clamp(0, 2000)}), timeout).await?;
++            save_scan(&r);
++            Ok(r)
++        }
++        "get_game_tree" => {
++            let path = sval(a, "path").unwrap_or_else(|| "game.Workspace".into());
++            composite(state, TREE_BODY, json!({"segs": path_segments(&path)?, "depth": num(a, "depth", 2).clamp(0, 6), "maxNodes": num(a, "maxNodes", 300).clamp(1, 1500)}), timeout).await
++        }
++        "read_instance" => {
++            required(a, &["path"])?;
++            let props = match a.get("properties") {
++                None | Some(Value::Null) => Value::Null,
++                Some(Value::Array(p)) if p.len() <= 100 => Value::Array(p.clone()),
++                _ => return Err("properties muss eine Liste mit hoechstens 100 Namen sein".into()),
++            };
++            composite(state, READ_INSTANCE_BODY, json!({"segs": path_segments(&sval(a, "path").unwrap_or_default())?, "properties": props}), timeout).await
++        }
++        "read_script" => {
++            required(a, &["path"])?;
++            composite(state, READ_SCRIPT_BODY, json!({
++                "segs": path_segments(&sval(a, "path").unwrap_or_default())?,
++                "fromLine": num(a, "fromLine", 1).max(1), "toLine": num(a, "toLine", 0).max(0),
++                "maxChars": num(a, "maxChars", MAX_RESULT as i64).clamp(1000, MAX_RESULT as i64)
++            }), timeout).await
++        }
++        "search_scripts" => {
++            let text = a["text"].as_str().unwrap_or("");
++            if text.is_empty() { return Err("text muss ein nicht-leerer String sein".into()); }
++            composite(state, SEARCH_BODY, json!({"text": text, "limit": num(a, "limit", 40).clamp(1, 200)}), timeout).await
++        }
++        "create_instance" | "create_part" | "create_instance_tree" | "create_model" | "create_ui" | "create_vfx" | "create_script" => {
++            match action {
++                "create_instance_tree" | "create_vfx" => required(a, &["parent", "tree"])?,
++                "create_model" | "create_ui" => required(a, &["tree"])?,
++                "create_script" => required(a, &["parent", "name", "source"])?,
++                "create_part" => required(a, &["name"])?,
++                _ => required(a, &["parent", "className"])?,
++            }
++            let (node, parent) = match action {
++                "create_part" => {
++                    let shape = sval(a, "shape").unwrap_or_else(|| "Block".into());
++                    if !["Block", "Ball", "Cylinder", "Wedge", "CornerWedge"].contains(&shape.as_str()) { return Err("shape muss Block, Ball, Cylinder, Wedge oder CornerWedge sein".into()); }
++                    let cls = match shape.as_str() { "Wedge" => "WedgePart", "CornerWedge" => "CornerWedgePart", _ => "Part" };
++                    let mut props = a["properties"].as_object().cloned().unwrap_or_default();
++                    props.insert("Anchored".into(), a.get("anchored").cloned().filter(|v| !v.is_null()).unwrap_or(Value::Bool(true)));
++                    if has(a, "size") { props.insert("Size".into(), json!({"$type": "Vector3", "value": a["size"]})); }
++                    if has(a, "position") { props.insert("Position".into(), json!({"$type": "Vector3", "value": a["position"]})); }
++                    if has(a, "color") { props.insert("Color".into(), json!({"$type": "Color3", "value": a["color"]})); }
++                    if has(a, "material") { props.insert("Material".into(), json!({"$type": "Enum", "enum": "Material", "value": a["material"]})); }
++                    if cls == "Part" && shape != "Block" { props.insert("Shape".into(), json!({"$type": "Enum", "enum": "PartType", "value": shape})); }
++                    (json!({"className": cls, "name": sval(a, "name"), "properties": Value::Object(props)}), sval(a, "parent").unwrap_or_else(|| "game.Workspace".into()))
++                }
++                "create_script" => {
++                    let cls = sval(a, "className").unwrap_or_else(|| "Script".into());
++                    if !["Script", "LocalScript", "ModuleScript"].contains(&cls.as_str()) { return Err("className muss Script, LocalScript oder ModuleScript sein".into()); }
++                    (json!({"className": cls, "name": sval(a, "name"), "source": sval(a, "source")}), sval(a, "parent").unwrap_or_default())
++                }
++                "create_instance" => {
++                    let mut n = Map::new();
++                    for k in ["className", "name", "properties", "attributes"] { if has(a, k) { n.insert(k.into(), a[k].clone()); } }
++                    (Value::Object(n), sval(a, "parent").unwrap_or_default())
++                }
++                _ => {
++                    let def = match action { "create_model" => "game.Workspace", "create_ui" => "game.StarterGui", _ => "" };
++                    (a["tree"].clone(), sval(a, "parent").unwrap_or_else(|| def.to_string()))
++                }
++            };
++            let mut count = 0usize;
++            let node = prep_node(&node, 0, &mut count)?;
++            let cls = node["className"].as_str().unwrap_or("");
++            const UI_ROOTS: &[&str] = &["ScreenGui", "SurfaceGui", "BillboardGui", "Frame", "ScrollingFrame", "TextLabel", "TextButton", "TextBox", "ImageLabel", "ImageButton", "CanvasGroup", "ViewportFrame", "VideoFrame"];
++            const VFX_ROOTS: &[&str] = &["ParticleEmitter", "Beam", "Trail", "Attachment", "PointLight", "SpotLight", "SurfaceLight", "Fire", "Smoke", "Sparkles", "Highlight", "Explosion", "Folder", "Part", "MeshPart"];
++            if action == "create_model" && cls != "Model" { return Err("create_model: Wurzel muss ein Model sein".into()); }
++            if action == "create_ui" && !UI_ROOTS.contains(&cls) { return Err("create_ui: Wurzel muss eine GUI-Klasse sein".into()); }
++            if action == "create_vfx" && !VFX_ROOTS.contains(&cls) { return Err("create_vfx: Wurzel-Klasse ist keine erlaubte VFX/Part-Klasse".into()); }
++            let snap_args = json!({"tree": node.clone(), "parent": parent.clone(), "name": node.get("name").cloned().unwrap_or(Value::Null)});
++            let snapshot = ensure_snapshot(state, action, &snap_args).await?;
++            let args = json!({"parentSegs": path_segments(&parent)?, "tree": node, "replace": a["replaceExisting"].as_bool().unwrap_or(false), "label": action});
++            let result = composite(state, CREATE_BODY, args, timeout).await?;
++            Ok(json!({"snapshotId": snapshot, "result": result}))
++        }
++        "modify_instance" => {
++            required(a, &["path"])?;
++            let props = a.get("properties").cloned().filter(|v| !v.is_null()).unwrap_or_else(|| json!({}));
++            let attrs = a.get("attributes").cloned().filter(|v| !v.is_null()).unwrap_or_else(|| json!({}));
++            if !props.is_object() || !attrs.is_object() { return Err("properties und attributes muessen Objekte sein".into()); }
++            let snapshot = ensure_snapshot(state, action, a).await?;
++            let result = composite(state, MODIFY_BODY, json!({"segs": path_segments(&sval(a, "path").unwrap_or_default())?, "properties": prep_value(&props)?, "attributes": prep_value(&attrs)?, "name": a.get("name").cloned().unwrap_or(Value::Null)}), timeout).await?;
++            Ok(json!({"snapshotId": snapshot, "result": result}))
++        }
++        "delete_instance" | "delete_script" => {
++            required(a, &["path"])?;
++            let segs = path_segments(&sval(a, "path").unwrap_or_default())?;
++            if segs.len() < 3 { return Err("game oder ein Service wird nicht geloescht".into()); }
++            let snapshot = ensure_snapshot(state, action, a).await?;
++            let body = if action == "delete_script" { DELETE_SCRIPT_BODY } else { DELETE_BODY };
++            let result = composite(state, body, json!({"segs": segs}), timeout).await?;
++            Ok(json!({"snapshotId": snapshot, "result": result}))
++        }
++        "clone_instance" => {
++            required(a, &["path"])?;
++            let snapshot = ensure_snapshot(state, action, a).await?;
++            let parent_segs = match sval(a, "parent") { Some(p) if !p.is_empty() => json!(path_segments(&p)?), _ => Value::Null };
++            let result = composite(state, CLONE_BODY, json!({"segs": path_segments(&sval(a, "path").unwrap_or_default())?, "parentSegs": parent_segs, "name": a.get("name").cloned().unwrap_or(Value::Null)}), timeout).await?;
++            Ok(json!({"snapshotId": snapshot, "result": result}))
++        }
++        "set_script_source" => {
++            required(a, &["path", "source"])?;
++            let snapshot = ensure_snapshot(state, action, a).await?;
++            let result = composite(state, SET_SOURCE_BODY, json!({"segs": path_segments(&sval(a, "path").unwrap_or_default())?, "source": sval(a, "source").unwrap_or_default()}), timeout).await?;
++            Ok(json!({"snapshotId": snapshot, "result": result}))
++        }
++        "patch_script" => {
++            required(a, &["path", "find", "replace"])?;
++            let find = a["find"].as_str().unwrap_or("");
++            if find.is_empty() { return Err("find muss ein nicht-leerer String sein".into()); }
++            let snapshot = ensure_snapshot(state, action, a).await?;
++            let result = composite(state, PATCH_BODY, json!({"segs": path_segments(&sval(a, "path").unwrap_or_default())?, "find": find, "replace": sval(a, "replace").unwrap_or_default(), "maxCount": num(a, "maxCount", 0).max(0)}), timeout).await?;
++            Ok(json!({"snapshotId": snapshot, "result": result}))
++        }
++        other => Err(format!("Unbekannte roblox_studio-Aktion '{other}'. Erlaubt: {}", STUDIO_ACTIONS.join(", "))),
++    }
++}
++
++/// `roblox_execute_luau` mit BW-Helfern und optionalen Snapshots.
++pub async fn execute_luau(state: &crate::AppState, args: &Value) -> Result<Value, String> {
++    let code = args["code"].as_str().or_else(|| args["source"].as_str()).unwrap_or("").to_string();
++    let use_helpers = args["use_helpers"].as_bool().unwrap_or(true);
++    let datamodel = args["datamodel_type"].as_str().unwrap_or("Edit").to_string();
++    let timeout = num(args, "timeout_seconds", 20).clamp(3, 180) as u64;
++    let mut snapshot = None;
++    if let Some(list) = args.get("snapshot_paths").and_then(|v| v.as_array()) {
++        if list.len() > 50 { return Err("snapshot_paths: hoechstens 50 Pfade".into()); }
++        let paths: Vec<String> = list.iter().filter_map(|p| p.as_str().map(String::from)).collect();
++        if !paths.is_empty() { snapshot = take_snapshot(state, &paths, "before raw Luau").await?["snapshotId"].as_str().map(String::from); }
++    }
++    let uses_bw = use_helpers && BW_RE.is_match(&code);
++    let full = if uses_bw { format!("{HELPERS}\n{code}") } else { code };
++    match exec_luau(state, full, timeout, &datamodel).await {
++        Ok(text) => Ok(json!({"text": short(&text, MAX_RESULT), "helpers_loaded": uses_bw, "snapshotId": snapshot})),
++        Err(e) if uses_bw => {
++            let offset = HELPERS.matches('\n').count() + 1;
++            let re = Regex::new(r#"(\]|\.luau|"|'|\w):(\d+):"#).unwrap();
++            Err(re.replace_all(&e, |c: &regex::Captures| {
++                let line: usize = c[2].parse().unwrap_or(0);
++                if line > offset { format!("{}{}:", &c[1], line - offset) } else { format!("{}BW-helper:", &c[1]) }
++            }).to_string())
++        }
++        Err(e) => Err(e),
++    }
++}
++
++// ---------------------------------------------------------------- MCP-Tools
++
++pub fn tools() -> Vec<Value> {
++    vec![
++        json!({"name": "roblox_studio", "description": "[Roblox Studio+] Sichere High-Level-Aktionen: Projektueberblick, Baum, Eigenschaften, Scripts lesen/suchen; Parts/Models/UI/VFX/Scripts bauen; aendern, klonen, loeschen, patchen; Output-Fehler. Jede Aenderung legt vorher automatisch einen Snapshot an (restore_snapshot macht sie rueckgaengig). Beispiel: {\"action\":\"get_game_tree\",\"arguments\":{\"path\":\"game.Workspace\",\"depth\":2}}",
++            "inputSchema": {"type": "object", "required": ["action"], "properties": {
++                "action": {"type": "string", "enum": STUDIO_ACTIONS},
++                "arguments": {"type": "object", "description": "Aktionsspezifisch, z. B. path, parent, name, tree{className,name,properties,children}, properties, source, find/replace, paths, snapshotId. Typisierte Werte: {\"$type\":\"Vector3\",\"value\":[x,y,z]}, Color3 [r,g,b] oder \"#hex\", UDim2, Enum{enum,value}, Ref{path}."},
++                "timeout_seconds": {"type": "integer", "minimum": 3, "maximum": 180}
++            }},
++            "annotations": {"destructiveHint": true}}),
++        json!({"name": "roblox_workflow", "description": "[Roblox Studio+] Playbook fuer eine Aufgabenart (general, build, scripting, ui, vfx, gameplay, debug oder all) inkl. BW-Helfer-Uebersicht.",
++            "inputSchema": {"type": "object", "properties": {"category": {"type": "string", "enum": ["general", "build", "scripting", "ui", "vfx", "gameplay", "debug", "all"]}}},
++            "annotations": {"readOnlyHint": true}}),
++        json!({"name": "roblox_project_memory", "description": "[Roblox Studio+] Dauerhaftes Gedaechtnis pro Place: get (Inventar, Notizen, letzte Aenderungen, Fehler, Snapshots) oder note (category: note, important_script, important_gui, system, dependency, preference; text; optional path).",
++            "inputSchema": {"type": "object", "required": ["action"], "properties": {
++                "action": {"type": "string", "enum": ["get", "note"]},
++                "category": {"type": "string", "enum": ["note", "important_script", "important_gui", "system", "dependency", "preference"]},
++                "text": {"type": "string"}, "path": {"type": "string"}
++            }}}),
++    ]
++}
++
++fn workflow_text(category: &str) -> String {
++    let helpers = "BW-Helfer (in roblox_execute_luau automatisch geladen): BW.find/get/exists, BW.new/part/folder/model, BW.set, BW.weldAll, BW.tree/report/check, BW.script/source/patch/scan, BW.remote, BW.screen/ui, BW.particles/light, BW.leaderstats, BW.killPart, BW.logs.";
++    if category == "all" {
++        let mut s: Vec<String> = WORKFLOWS.iter().map(|(k, v)| format!("## {k}\n{v}")).collect();
++        s.push(helpers.into());
++        return s.join("\n\n");
++    }
++    let text = WORKFLOWS.iter().find(|(k, _)| *k == category).map(|(_, v)| *v).unwrap_or(WORKFLOWS[0].1);
++    format!("{}\n\n{text}\n\n{helpers}", WORKFLOWS[0].1)
++}
++
++fn ok_text(v: Value) -> Value {
++    let text = match v { Value::String(s) => s, other => serde_json::to_string_pretty(&other).unwrap_or_default() };
++    json!({"content": [{"type": "text", "text": short(&text, 60_000)}]})
++}
++fn err_text(e: String) -> Value { json!({"isError": true, "content": [{"type": "text", "text": e}]}) }
++
++/// Behandelt die neuen Roblox-Tools; `None` = nicht zustaendig.
++pub async fn call(state: &crate::AppState, name: &str, args: &Value) -> Option<Value> {
++    match name {
++        "roblox_workflow" => Some(ok_text(Value::String(workflow_text(args["category"].as_str().unwrap_or("general"))))),
++        "roblox_project_memory" => Some(match project_memory(state, args).await { Ok(v) => ok_text(v), Err(e) => err_text(e) }),
++        "roblox_studio" => {
++            let action = args["action"].as_str().unwrap_or("").to_string();
++            let nested = args.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
++            let write = !STUDIO_READS.contains(&action.as_str());
++            if write { if let Err(e) = crate::notion_web_agents::notion_write_allowed() { return Some(err_text(e)); } }
++            let timeout = num(args, "timeout_seconds", 30) as u64;
++            Some(match run_action(state, &action, &nested, timeout).await {
++                Ok(v) => {
++                    if write && STUDIO_ACTIONS.contains(&action.as_str()) {
++                        let snap = v["snapshotId"].as_str().map(String::from);
++                        record_event(state, "change", &action, &nested, "", snap.as_deref()).await;
++                    }
++                    ok_text(v)
++                }
++                Err(e) => {
++                    record_event(state, "error", &action, &nested, &e, None).await;
++                    err_text(e)
++                }
++            })
++        }
++        "roblox_execute_luau" => {
++            if let Err(e) = crate::notion_web_agents::notion_write_allowed() { return Some(err_text(e)); }
++            Some(match execute_luau(state, args).await {
++                Ok(v) => {
++                    let paths = args["snapshot_paths"].as_array().map(|l| l.iter().filter_map(|p| p.as_str()).collect::<Vec<_>>().join(",")).unwrap_or_default();
++                    record_event(state, "change", "execute_luau", &json!({"path": paths}), "Luau ausgefuehrt (Quelltext nicht gespeichert)", v["snapshotId"].as_str()).await;
++                    ok_text(v)
++                }
++                Err(e) => err_text(e),
++            })
++        }
++        _ => None,
++    }
++}
++
++/// Ergaenzt das Schema des nativen execute_luau um die neuen Optionen.
++pub fn extend_execute_luau_schema(schema: &mut Value) {
++    if let Some(props) = schema.pointer_mut("/inputSchema/properties").and_then(|p| p.as_object_mut()) {
++        props.insert("use_helpers".into(), json!({"type": "boolean", "description": "BW-Helferbibliothek automatisch laden, wenn der Code BW.* nutzt (Standard true)."}));
++        props.insert("snapshot_paths".into(), json!({"type": "array", "items": {"type": "string"}, "description": "Optionale Instanzpfade (max. 50), die vorher als Snapshot gesichert werden."}));
++        props.insert("timeout_seconds".into(), json!({"type": "integer", "minimum": 3, "maximum": 180}));
++    }
++    if let Some(d) = schema["description"].as_str() {
++        schema["description"] = Value::String(format!("{d} | PlazCode: BW-Helfer werden automatisch geladen; snapshot_paths sichert Instanzen vorher."));
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn paths_and_luau() {
++        assert_eq!(path_segments("Workspace.Map").unwrap(), vec!["game", "Workspace", "Map"]);
++        assert_eq!(path_segments("game:GetService(\"ReplicatedStorage\").Remotes").unwrap(), vec!["game", "ReplicatedStorage", "Remotes"]);
++        assert_eq!(path_segments("game.Workspace[\"My Part\"]").unwrap(), vec!["game", "Workspace", "My Part"]);
++        assert!(path_segments("").is_err());
++        assert_eq!(luau_str("a\"b\n"), "\"a\\\"b\\n\"");
++        assert_eq!(to_luau(&json!({"x": [1, true, null]}), 0).unwrap(), "{[\"x\"]={1,true,nil}}");
++        let mut c = 0;
++        assert!(prep_node(&json!({"className": "Model", "name": "M", "children": [{"className": "Part"}]}), 0, &mut c).is_ok());
++        assert!(prep_node(&json!({"className": "bad name"}), 0, &mut 0).is_err());
++        assert_eq!(snapshot_targets("create_part", &json!({"tree": {"name": "P"}, "parent": "game.Workspace"})), vec!["game.Workspace.P"]);
++        assert_eq!(native_snapshot_targets(&json!({"instance_path": "game.Workspace.A", "x": "game.B"})), vec!["game.Workspace.A"]);
++        assert!(wrapped(&json!({}), "return 1").unwrap().contains("BWJSON<<"));
++    }
++}
+diff --git a/agent/src/notion_safety.rs b/agent/src/notion_safety.rs
+new file mode 100644
+index 0000000..e6265a0
+--- /dev/null
++++ b/agent/src/notion_safety.rs
+@@ -0,0 +1,227 @@
++//! PlazCode Notion 1.0.8: Sicherheitsfunktionen aus Secretscript.
++//!
++//! * `safe_read_file` / `safe_write_file` / `safe_search_files`: Dateien im Shared-Ordner
++//!   mit SHA-256-Versionsschutz. Ueberschreiben nur, wenn sich die Datei seit dem Lesen
++//!   nicht geaendert hat (wichtig bei Co-Work mit mehreren Chats). Geheimnis-Dateien
++//!   (.env, Schluessel, credentials ...) sind gesperrt.
++//! * Sicherheitsmodus fuer die Shell (Schalter in der App, Standard aus): pc_PowerShell
++//!   nur mit erlaubten Einzelbefehlen, keine Netzwerk-/Push-Befehle, Registry und
++//!   unsicheres Browser-JS gesperrt.
++
++use once_cell::sync::Lazy;
++use regex::Regex;
++use serde_json::{json, Value};
++use sha2::Digest;
++use std::path::{Component, Path, PathBuf};
++
++const MAX_READ: u64 = 512_000;
++const MAX_WRITE: usize = 1_000_000;
++const IGNORED_DIRS: &[&str] = &[".git", ".hg", ".svn", ".venv", "venv", "node_modules", "__pycache__", ".idea", ".vscode", "dist", "build", ".next", "target"];
++const SENSITIVE_NAMES: &[&str] = &[".env", ".env.local", "id_rsa", "id_ed25519", "credentials", "credentials.json", "secrets.json", "token.json", "config.json", "plazcode-notion.json"];
++const SENSITIVE_EXT: &[&str] = &["pem", "key", "p12", "pfx", "kdbx"];
++
++static SENSITIVE_CMD: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)(?:\.env(?:\.[a-z0-9_-]+)?\b|id_rsa|id_ed25519|credentials(?:\.json)?|secrets?\.json|plazcode-notion\.json|\.(?:pem|key|p12|pfx|kdbx)\b|GITHUB_PERSONAL_ACCESS_TOKEN)").unwrap());
++
++fn root() -> PathBuf { crate::mcp_addons::shared_dir() }
++
++fn sha(data: &[u8]) -> String { sha2::Sha256::digest(data).iter().map(|b| format!("{b:02x}")).collect() }
++
++fn is_sensitive(p: &Path) -> bool {
++    p.components().any(|c| matches!(c, Component::Normal(n) if SENSITIVE_NAMES.contains(&n.to_string_lossy().to_ascii_lowercase().as_str())))
++        || p.extension().map(|e| SENSITIVE_EXT.contains(&e.to_string_lossy().to_ascii_lowercase().as_str())).unwrap_or(false)
++}
++
++fn resolve(rel: &str) -> Result<PathBuf, String> {
++    let raw = rel.trim().replace('\\', "/");
++    let raw = if raw.is_empty() { ".".to_string() } else { raw };
++    let cand = PathBuf::from(&raw);
++    if cand.is_absolute() || raw.contains(':') || cand.components().any(|c| matches!(c, Component::ParentDir | Component::RootDir | Component::Prefix(_))) {
++        return Err("Bitte einen relativen Pfad innerhalb des Shared-Ordners verwenden".into());
++    }
++    for c in cand.components() {
++        if let Component::Normal(n) = c {
++            let n = n.to_string_lossy();
++            if n.starts_with('.') || IGNORED_DIRS.contains(&n.to_ascii_lowercase().as_str()) {
++                return Err("Versteckte, Abhaengigkeits- und Build-Ordner sind ausgeschlossen".into());
++            }
++        }
++    }
++    if is_sensitive(&cand) { return Err("Dieser Pfad ist gesperrt, weil er Zugangsdaten oder Geheimnisse enthalten kann".into()); }
++    Ok(root().join(cand))
++}
++
++fn display(p: &Path) -> String { p.strip_prefix(root()).map(|r| r.to_string_lossy().replace('\\', "/")).unwrap_or_default() }
++
++fn read_file(rel: &str) -> Result<String, String> {
++    let p = resolve(rel)?;
++    let meta = std::fs::metadata(&p).map_err(|_| format!("Datei nicht gefunden: {rel}"))?;
++    if !meta.is_file() { return Err("Der Pfad ist keine Datei".into()); }
++    if meta.len() > MAX_READ { return Err(format!("Datei ist groesser als {MAX_READ} Bytes")); }
++    let data = std::fs::read(&p).map_err(|e| e.to_string())?;
++    let text = String::from_utf8(data.clone()).map_err(|_| "Datei ist kein UTF-8-Text".to_string())?;
++    Ok(format!("sha256: {}\npath: {}\n---\n{}", sha(&data), display(&p), text))
++}
++
++fn write_file(rel: &str, content: &str, expected: &str) -> Result<String, String> {
++    let p = resolve(rel)?;
++    if p == root() { return Err("Ungueltiger Dateipfad".into()); }
++    let parent = p.parent().ok_or("Ungueltiger Dateipfad")?;
++    if !parent.is_dir() { return Err("Der Ordner der Datei muss im Shared-Ordner bereits existieren".into()); }
++    let data = content.as_bytes();
++    if data.len() > MAX_WRITE { return Err(format!("Inhalt ueberschreitet {MAX_WRITE} Bytes")); }
++    let expected = expected.trim().to_ascii_lowercase();
++    let exists = p.exists();
++    if exists {
++        if expected.is_empty() { return Err("Datei existiert bereits. Zuerst mit safe_read_file lesen und deren sha256 als expected_sha256 uebergeben.".into()); }
++        let current = std::fs::read(&p).map_err(|e| e.to_string())?;
++        if sha(&current) != expected { return Err("Datei wurde seit dem Lesen geaendert - bitte erneut lesen, bevor du sie ersetzt.".into()); }
++    } else if !expected.is_empty() {
++        return Err("Datei existiert nicht - expected_sha256 weglassen, um sie anzulegen.".into());
++    }
++    let tmp = parent.join(format!(".plazcode-write-{}.tmp", std::process::id()));
++    std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
++    if exists {
++        let current = std::fs::read(&p).unwrap_or_default();
++        if sha(&current) != expected { let _ = std::fs::remove_file(&tmp); return Err("Datei wurde waehrend des Schreibens geaendert - bitte erneut lesen.".into()); }
++        if let Err(e) = std::fs::rename(&tmp, &p) { let _ = std::fs::remove_file(&tmp); return Err(e.to_string()); }
++    } else {
++        let r = std::fs::hard_link(&tmp, &p).or_else(|_| if p.exists() { Err(std::io::Error::other("exists")) } else { std::fs::copy(&tmp, &p).map(|_| ()) });
++        let _ = std::fs::remove_file(&tmp);
++        r.map_err(|_| "Datei wurde gleichzeitig von jemand anderem angelegt - bitte erneut lesen.".to_string())?;
++    }
++    Ok(format!("{} {}. Neuer sha256: {}", if exists { "Ersetzt:" } else { "Angelegt:" }, display(&p), sha(data)))
++}
++
++fn search_files(query: &str, rel: &str, max: usize) -> Result<String, String> {
++    if query.is_empty() { return Err("query darf nicht leer sein".into()); }
++    let start = resolve(rel)?;
++    if !start.is_dir() { return Err("Der Pfad ist kein Ordner".into()); }
++    let (mut hits, mut scanned, mut stack) = (Vec::new(), 0usize, vec![start]);
++    let needle = query.to_lowercase();
++    while let Some(dir) = stack.pop() {
++        let Ok(entries) = std::fs::read_dir(&dir) else { continue; };
++        for e in entries.flatten() {
++            let p = e.path();
++            let name = e.file_name().to_string_lossy().to_string();
++            if name.starts_with('.') || IGNORED_DIRS.contains(&name.to_ascii_lowercase().as_str()) || is_sensitive(&p) { continue; }
++            if p.is_dir() { stack.push(p); continue; }
++            scanned += 1;
++            if scanned > 5000 || hits.len() >= max { break; }
++            if e.metadata().map(|m| m.len() > MAX_READ).unwrap_or(true) { continue; }
++            let Ok(text) = std::fs::read_to_string(&p) else { continue; };
++            for (i, line) in text.lines().enumerate() {
++                if line.to_lowercase().contains(&needle) {
++                    hits.push(format!("{}:{}: {}", display(&p), i + 1, line.trim().chars().take(240).collect::<String>()));
++                    if hits.len() >= max { break; }
++                }
++            }
++        }
++    }
++    Ok(if hits.is_empty() { "Keine Treffer.".into() } else { hits.join("\n") })
++}
++
++pub fn tools() -> Vec<Value> {
++    vec![
++        json!({"name": "safe_read_file", "description": "[Sicher] Liest eine UTF-8-Textdatei (max. 500 KB) im Shared-Ordner und liefert ihren sha256. Pfade relativ zum Shared-Ordner; Geheimnis-Dateien sind gesperrt.",
++            "inputSchema": {"type": "object", "required": ["path"], "properties": {"path": {"type": "string"}}}, "annotations": {"readOnlyHint": true}}),
++        json!({"name": "safe_write_file", "description": "[Sicher] Legt eine Datei an oder ersetzt sie NUR, wenn expected_sha256 noch zur aktuellen Version passt (vorher safe_read_file). Verhindert, dass parallele Chats sich gegenseitig ueberschreiben.",
++            "inputSchema": {"type": "object", "required": ["path", "content"], "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "expected_sha256": {"type": "string", "description": "Pflicht beim Ersetzen, weglassen beim Anlegen."}}},
++            "annotations": {"destructiveHint": true}}),
++        json!({"name": "safe_search_files", "description": "[Sicher] Sucht Text in den Dateien des Shared-Ordners (ohne Abhaengigkeits-/Build-Ordner und Geheimnis-Dateien).",
++            "inputSchema": {"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}, "path": {"type": "string"}, "max_results": {"type": "integer", "minimum": 1, "maximum": 200}}},
++            "annotations": {"readOnlyHint": true}}),
++    ]
++}
++
++pub fn call(name: &str, args: &Value) -> Option<Value> {
++    let r = match name {
++        "safe_read_file" => read_file(args["path"].as_str().unwrap_or("")),
++        "safe_write_file" => {
++            let path = args["path"].as_str().unwrap_or("");
++            if let Some(owner) = crate::notion_cowork::lock_owner(path, args["agent"].as_str().unwrap_or("")) {
++                Err(format!("Datei ist im Co-Work-Board von '{owner}' gesperrt."))
++            } else {
++                write_file(path, args["content"].as_str().unwrap_or(""), args["expected_sha256"].as_str().unwrap_or(""))
++            }
++        }
++        "safe_search_files" => search_files(args["query"].as_str().unwrap_or(""), args["path"].as_str().unwrap_or("."), args["max_results"].as_u64().unwrap_or(50).clamp(1, 200) as usize),
++        _ => return None,
++    };
++    Some(match r {
++        Ok(t) => json!({"content": [{"type": "text", "text": t}]}),
++        Err(e) => json!({"isError": true, "content": [{"type": "text", "text": e}]}),
++    })
++}
++
++// ---------------------------------------------------------------- Shell-Sicherheitsmodus
++
++const PS_ALLOWED: &[&str] = &["get-childitem", "dir", "ls", "get-content", "cat", "type", "select-string", "test-path", "get-command", "get-process", "get-filehash", "get-item", "get-location", "tasklist", "netstat", "where.exe", "git", "node", "npm", "cargo", "rustc", "python", "py", "stylua", "selene", "luau-lsp", "rojo"];
++const META: &[char] = &[';', '|', '&', '<', '>', '`', '\n', '\r', '\0'];
++const GIT_BLOCKED: &[&str] = &["push", "pull", "fetch", "clone", "remote", "ls-remote", "submodule", "credential", "config"];
++const NPM_BLOCKED: &[&str] = &["install", "i", "ci", "exec", "x", "publish", "login", "adduser", "view", "init", "pack", "update"];
++
++/// Prueft einen pc_PowerShell-Befehl im Sicherheitsmodus.
++pub fn validate_shell(command: &str) -> Result<(), String> {
++    let cmd = command.trim();
++    if cmd.is_empty() || cmd.len() > 4000 { return Err("Sicherheitsmodus: genau ein Befehl mit hoechstens 4000 Zeichen".into()); }
++    if cmd.contains(META) || cmd.contains("$(") || cmd.contains("${") { return Err("Sicherheitsmodus: Pipes, Verkettung, Umleitung und Ausdruecke sind gesperrt".into()); }
++    if cmd.contains("..") { return Err("Sicherheitsmodus: '..' in Pfaden ist gesperrt".into()); }
++    if SENSITIVE_CMD.is_match(cmd) { return Err("Sicherheitsmodus: Befehle mit Geheimnis-Dateien oder Tokens sind gesperrt".into()); }
++    let parts: Vec<String> = cmd.split_whitespace().map(|p| p.trim_matches(|c| c == '"' || c == '\'').to_ascii_lowercase()).collect();
++    let exe = parts[0].trim_start_matches(".\\").trim_end_matches(".exe").trim_end_matches(".cmd").to_string();
++    let exe_full = if parts[0] == "where.exe" { "where.exe".to_string() } else { exe.clone() };
++    if !PS_ALLOWED.contains(&exe_full.as_str()) && !PS_ALLOWED.contains(&exe.as_str()) {
++        return Err(format!("Sicherheitsmodus: '{}' ist nicht erlaubt. Erlaubt: {}", parts[0], PS_ALLOWED.join(", ")));
++    }
++    let sub: Vec<&str> = parts[1..].iter().map(|s| s.as_str()).filter(|s| !s.starts_with('-')).collect();
++    if exe == "git" {
++        if let Some(s) = sub.first() { if GIT_BLOCKED.contains(s) { return Err(format!("Sicherheitsmodus: 'git {s}' ist gesperrt (Netzwerk/Konfiguration)")); } }
++        if parts.iter().any(|p| p == "-c" || p.starts_with("--exec") || p.starts_with("--upload-pack")) { return Err("Sicherheitsmodus: git -c/--exec ist gesperrt".into()); }
++    }
++    if exe == "npm" { if let Some(s) = sub.first() { if NPM_BLOCKED.contains(s) { return Err(format!("Sicherheitsmodus: 'npm {s}' bitte selbst ausfuehren")); } } }
++    if exe == "node" || exe == "python" || exe == "py" {
++        if parts.iter().any(|p| p == "-e" || p == "-c" || p == "--eval" || p == "-p" || p == "-m") { return Err("Sicherheitsmodus: Inline-Code (-e/-c/-m) ist gesperrt; nur Skript-Dateien im Projekt".into()); }
++    }
++    if exe == "cargo" { if let Some(s) = sub.first() { if ["install", "publish", "login", "owner", "yank"].contains(s) { return Err(format!("Sicherheitsmodus: 'cargo {s}' ist gesperrt")); } } }
++    Ok(())
++}
++
++/// Liefert eine Fehlermeldung, wenn der Sicherheitsmodus das Tool blockiert.
++pub fn guard_tool(exposed: &str, args: &Value) -> Option<String> {
++    if !crate::notion_mcp::safe_shell_enabled() { return None; }
++    match exposed {
++        "pc_PowerShell" => validate_shell(args["command"].as_str().unwrap_or("")).err(),
++        "pc_Registry" => Some("Sicherheitsmodus: Registry-Zugriff ist gesperrt.".into()),
++        "browser_browser_run_code_unsafe" => Some("Sicherheitsmodus: unsicheres Browser-JavaScript ist gesperrt.".into()),
++        "files_write_file" | "files_edit_file" | "files_move_file" => {
++            let p = args["path"].as_str().or_else(|| args["source"].as_str()).unwrap_or("");
++            if is_sensitive(Path::new(&p.replace('\\', "/"))) { Some("Sicherheitsmodus: Geheimnis-Dateien sind gesperrt.".into()) } else { None }
++        }
++        _ => None,
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn shell_rules() {
++        assert!(validate_shell("git status").is_ok());
++        assert!(validate_shell("Get-ChildItem src").is_ok());
++        assert!(validate_shell("git push origin main").is_err());
++        assert!(validate_shell("Remove-Item x").is_err());
++        assert!(validate_shell("git status; rm x").is_err());
++        assert!(validate_shell("Get-Content .env").is_err());
++        assert!(validate_shell("node -e 1").is_err());
++        assert!(validate_shell("npm install x").is_err());
++        assert!(validate_shell("npm test").is_ok());
++    }
++    #[test]
++    fn paths() {
++        assert!(resolve("../x").is_err());
++        assert!(resolve("C:/x").is_err());
++        assert!(resolve(".git/config").is_err());
++        assert!(resolve("a/.env").is_err());
++        assert!(resolve("src/main.rs").is_ok());
 +    }
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
@@ -3331,6 +3513,711 @@ index 0000000..81d25a2
 +    }
 +}
 \ No newline at end of file
+diff --git a/agent/src/notion_web_agents.rs b/agent/src/notion_web_agents.rs
+new file mode 100644
+index 0000000..6fe012c
+--- /dev/null
++++ b/agent/src/notion_web_agents.rs
+@@ -0,0 +1,380 @@
++//! PlazCode Notion 1.0.8: Multi-KI-Web-Agenten + Direkt-Modus (aus Secretscript portiert).
++//!
++//! Die PlazCode-Browser-Erweiterung verbindet sich per WebSocket mit
++//! `ws://127.0.0.1:<port>/extension/ws` (Token = Erweiterungs-Token). Notion AI steuert
++//! damit nur Tabs, die du in der Erweiterung ausdruecklich freigegeben hast
++//! (ChatGPT, Claude, Gemini, DeepSeek, Qwen, Kimi, GLM, Arena, Notion AI).
++//!
++//! Direkt-Modus: Ein freigegebener KI-Tab steuert Roblox Studio selbst ueber
++//! `/direct-agent/*`; jede Aenderung braucht eine frische Freigabe im Seiten-Panel.
++
++use axum::{
++    extract::{ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade}, Path, State},
++    http::{HeaderMap, StatusCode},
++    response::{IntoResponse, Response},
++    Json,
++};
++use futures::{SinkExt, StreamExt};
++use once_cell::sync::Lazy;
++use serde_json::{json, Value};
++use std::{collections::{HashMap, HashSet}, sync::Mutex, time::{Duration, Instant}};
++
++const SESSION_TTL: Duration = Duration::from_secs(300);
++const MAX_TOOL_CALLS: u32 = 50;
++
++fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> { m.lock().unwrap_or_else(|e| e.into_inner()) }
++
++fn providers() -> Value {
++    json!([
++        {"id":"deepseek","name":"DeepSeek","hosts":["chat.deepseek.com"],"status":"beta","maxMessageChars":60000},
++        {"id":"chatgpt","name":"ChatGPT","hosts":["chatgpt.com","chat.openai.com"],"status":"experimental","maxMessageChars":30000},
++        {"id":"claude","name":"Claude","hosts":["claude.ai"],"status":"experimental","maxMessageChars":40000},
++        {"id":"gemini","name":"Gemini","hosts":["gemini.google.com"],"status":"experimental","maxMessageChars":30000},
++        {"id":"qwen","name":"Qwen","hosts":["chat.qwen.ai"],"status":"experimental","maxMessageChars":30000},
++        {"id":"kimi","name":"Kimi","hosts":["kimi.com","kimi.ai"],"status":"experimental","maxMessageChars":30000},
++        {"id":"glm","name":"GLM (Z.ai)","hosts":["chat.z.ai"],"status":"experimental","maxMessageChars":30000},
++        {"id":"arena","name":"Arena","hosts":["lmarena.ai","arena.ai"],"status":"experimental","maxMessageChars":20000,"notes":"Nur Direkt-Modus; Battle/Side-by-side wird nicht unterstuetzt."},
++        {"id":"notion","name":"Notion AI","hosts":["notion.so","app.notion.com"],"status":"experimental","enabledByDefault":false,"maxMessageChars":12000,"notes":"Standardmaessig aus; in den Erweiterungs-Optionen aktivieren."}
++    ])
++}
++
++const PROVIDER_IDS: &[&str] = &["deepseek", "chatgpt", "claude", "gemini", "qwen", "kimi", "glm", "arena", "notion"];
++
++fn random_hex(n: usize) -> String {
++    let mut b = vec![0u8; n];
++    let _ = getrandom::getrandom(&mut b);
++    b.iter().map(|x| format!("{x:02x}")).collect()
++}
++
++fn token_eq(a: &str, b: &str) -> bool {
++    if b.is_empty() { return false; }
++    use sha2::Digest;
++    let x = sha2::Sha256::digest(a.as_bytes());
++    let y = sha2::Sha256::digest(b.as_bytes());
++    x.iter().zip(y.iter()).fold(0u8, |acc, (p, q)| acc | (p ^ q)) == 0
++}
++
++// ---------------------------------------------------------------- Broker
++
++struct Conn { id: String, tx: tokio::sync::mpsc::UnboundedSender<String> }
++
++static CONN: Lazy<Mutex<Option<Conn>>> = Lazy::new(|| Mutex::new(None));
++static PENDING: Lazy<Mutex<HashMap<String, tokio::sync::oneshot::Sender<Value>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
++
++pub fn extension_connected() -> bool { lock(&CONN).is_some() }
++
++fn detach(id: &str) {
++    let mut c = lock(&CONN);
++    if c.as_ref().map(|x| x.id == id).unwrap_or(false) {
++        *c = None;
++        drop(c);
++        let pending: Vec<_> = lock(&PENDING).drain().collect();
++        for (_, tx) in pending { let _ = tx.send(json!({"error": "Browser-Erweiterung wurde getrennt."})); }
++    }
++}
++
++pub(crate) async fn ws_handler(ws: WebSocketUpgrade, headers: HeaderMap) -> Response {
++    let origin = headers.get("origin").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
++    if !origin.is_empty() && !origin.starts_with("chrome-extension://") {
++        return StatusCode::FORBIDDEN.into_response();
++    }
++    ws.on_upgrade(handle_socket)
++}
++
++async fn handle_socket(mut socket: WebSocket) {
++    let hello = tokio::time::timeout(Duration::from_secs(10), socket.recv()).await;
++    let ok = match hello {
++        Ok(Some(Ok(Message::Text(t)))) => serde_json::from_str::<Value>(&t).ok()
++            .map(|v| v["type"] == "hello" && token_eq(v["token"].as_str().unwrap_or(""), &crate::notion_mcp::web_token()))
++            .unwrap_or(false),
++        _ => false,
++    };
++    if !ok {
++        let _ = socket.send(Message::Close(Some(CloseFrame { code: 4401, reason: "unauthorized".into() }))).await;
++        return;
++    }
++    let (mut sink, mut stream) = socket.split();
++    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
++    let id = random_hex(12);
++    *lock(&CONN) = Some(Conn { id: id.clone(), tx });
++    tracing::info!("[notion] Browser-Erweiterung verbunden");
++    let _ = sink.send(Message::Text(json!({"type": "ready", "providers": PROVIDER_IDS}).to_string())).await;
++    loop {
++        tokio::select! {
++            out = rx.recv() => match out {
++                Some(text) => if sink.send(Message::Text(text)).await.is_err() { break; },
++                None => break,
++            },
++            inc = stream.next() => match inc {
++                Some(Ok(Message::Text(t))) => {
++                    if let Ok(v) = serde_json::from_str::<Value>(&t) {
++                        if v["type"] == "response" {
++                            if let Some(rid) = v["id"].as_str() {
++                                if let Some(waiter) = lock(&PENDING).remove(rid) {
++                                    let result = if v["result"].is_object() { v["result"].clone() } else { json!({"error": "Ungueltige Antwort der Erweiterung."}) };
++                                    let _ = waiter.send(result);
++                                }
++                            }
++                        }
++                    }
++                }
++                Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
++                _ => {}
++            },
++        }
++    }
++    detach(&id);
++    tracing::info!("[notion] Browser-Erweiterung getrennt");
++}
++
++async fn broker_call(tool: &str, args: &Value) -> Result<Value, String> {
++    if tool == "web_sites" {
++        return Ok(json!({"providers": providers(), "extensionConnected": extension_connected()}));
++    }
++    let action = args["action"].as_str().unwrap_or("");
++    let allowed: &[&str] = if tool == "web_chat" { &["inspect", "send", "wait", "read"] } else { &["list", "inspect", "run", "send", "wait", "read"] };
++    if !allowed.contains(&action) { return Err(format!("Aktion '{action}' wird von {tool} nicht unterstuetzt")); }
++    if tool == "web_agents" && action != "list" {
++        let id = args["agent_id"].as_str().unwrap_or("");
++        if !id.starts_with("agent-") { return Err("agent_id fehlt - zuerst web_agents(action='list') aufrufen".into()); }
++    }
++    if action == "send" || action == "run" {
++        let key = if action == "run" { "task" } else { "text" };
++        let text = args[key].as_str().unwrap_or("");
++        if text.trim().is_empty() { return Err(format!("{action} braucht einen nicht-leeren Wert fuer '{key}'")); }
++        if text.chars().count() > 60_000 { return Err("Text ueberschreitet 60.000 Zeichen".into()); }
++    }
++    let wait = match args.get("wait_seconds") {
++        None | Some(Value::Null) => if action == "run" { 150 } else { 30 },
++        Some(v) => v.as_i64().filter(|n| (1..=150).contains(n)).ok_or("wait_seconds muss zwischen 1 und 150 liegen")?,
++    } as u64;
++    let mut payload = args.clone();
++    payload["wait_seconds"] = json!(wait);
++    let request_id = random_hex(12);
++    let (tx, rx) = tokio::sync::oneshot::channel();
++    {
++        let conn = lock(&CONN);
++        let Some(c) = conn.as_ref() else {
++            return Err("Browser-Erweiterung ist nicht verbunden. Oeffne ihre Optionen, trage den Erweiterungs-Token aus PlazCode Notion ein und oeffne eine unterstuetzte Chat-Seite.".into());
++        };
++        lock(&PENDING).insert(request_id.clone(), tx);
++        let msg = json!({"type": "request", "id": request_id, "tool": tool, "arguments": payload}).to_string();
++        if c.tx.send(msg).is_err() { lock(&PENDING).remove(&request_id); return Err("Browser-Erweiterung ist nicht erreichbar.".into()); }
++    }
++    let limit = if action == "wait" || action == "run" { wait + 5 } else { 60 };
++    let result = tokio::time::timeout(Duration::from_secs(limit.clamp(3, 180)), rx).await;
++    lock(&PENDING).remove(&request_id);
++    match result {
++        Err(_) => Err("Zeitueberschreitung beim Warten auf den Chat-Tab. Ist der Browser offen und die Erweiterung verbunden?".into()),
++        Ok(Err(_)) => Err("Browser-Erweiterung wurde getrennt.".into()),
++        Ok(Ok(v)) => match v.get("error").and_then(|e| e.as_str()) { Some(e) => Err(e.to_string()), None => Ok(v) },
++    }
++}
++
++pub fn tools() -> Vec<Value> {
++    vec![
++        json!({"name": "web_sites", "description": "[Web-Agenten] Listet die unterstuetzten KI-Chat-Seiten und ob die PlazCode-Browser-Erweiterung verbunden ist.",
++            "inputSchema": {"type": "object", "properties": {}}, "annotations": {"readOnlyHint": true}}),
++        json!({"name": "web_agents", "description": "[Web-Agenten] Steuert nur KI-Chat-Tabs, die du in der Browser-Erweiterung mit 'Agent aktivieren' freigegeben hast (ChatGPT, Claude, Gemini, DeepSeek, Qwen, Kimi, GLM, Arena, Notion AI). list liefert agent_ids; run schickt eine Aufgabe und wartet auf die Antwort; send/wait/read/inspect fuer einzelne Schritte. Ideal als zusaetzliche Team-Mitglieder in Co-Work.",
++            "inputSchema": {"type": "object", "required": ["action"], "properties": {
++                "action": {"type": "string", "enum": ["list", "inspect", "run", "send", "wait", "read"]},
++                "agent_id": {"type": "string", "description": "Ausser bei list erforderlich; kommt aus list."},
++                "task": {"type": "string", "description": "Fuer run: Aufgabe an die KI dieses Tabs."},
++                "text": {"type": "string", "description": "Fuer send: normale Nachricht."},
++                "wait_seconds": {"type": "integer", "minimum": 1, "maximum": 150}
++            }}}),
++        json!({"name": "web_chat", "description": "[Web-Agenten] Kompatibilitaets-Tool fuer den gerade aktiven, freigegebenen Chat-Tab: inspect, send, wait, read.",
++            "inputSchema": {"type": "object", "required": ["action"], "properties": {
++                "action": {"type": "string", "enum": ["inspect", "send", "wait", "read"]},
++                "text": {"type": "string"}, "wait_seconds": {"type": "integer", "minimum": 1, "maximum": 150}
++            }}}),
++    ]
++}
++
++pub async fn call(name: &str, args: &Value) -> Option<Value> {
++    if !["web_sites", "web_agents", "web_chat"].contains(&name) { return None; }
++    Some(match broker_call(name, args).await {
++        Ok(v) => json!({"content": [{"type": "text", "text": serde_json::to_string_pretty(&v).unwrap_or_default()}]}),
++        Err(e) => json!({"isError": true, "content": [{"type": "text", "text": e}]}),
++    })
++}
++
++// ---------------------------------------------------------------- Direkt-Modus
++
++#[derive(Clone)]
++struct Session { id: String, agent_id: String, provider: String, last: Instant, calls: u32, native: HashSet<String> }
++
++static SESSION: Lazy<Mutex<Option<Session>>> = Lazy::new(|| Mutex::new(None));
++
++fn expire() {
++    let mut s = lock(&SESSION);
++    if s.as_ref().map(|x| x.last.elapsed() > SESSION_TTL).unwrap_or(false) { *s = None; }
++}
++
++pub fn direct_session_info() -> Value {
++    expire();
++    match lock(&SESSION).as_ref() {
++        Some(s) => json!({"active": true, "provider": s.provider, "agent_id": s.agent_id, "tool_calls": s.calls}),
++        None => json!({"active": false}),
++    }
++}
++
++/// Notion-Schreibzugriffe auf Studio sind gesperrt, solange ein Direkt-Agent laeuft.
++pub fn notion_write_allowed() -> Result<(), String> {
++    expire();
++    if lock(&SESSION).is_some() {
++        return Err("Roblox Studio ist gerade fuer einen Direkt-Agenten im Browser reserviert. Stoppe ihn im Seiten-Panel, bevor Notion Aenderungen macht.".into());
++    }
++    Ok(())
++}
++
++enum DErr { Bad(String), Forbidden(String), Conflict(String) }
++impl From<String> for DErr { fn from(s: String) -> Self { DErr::Conflict(s) } }
++
++fn get_session(session_id: &str, agent_id: &str) -> Result<Session, DErr> {
++    expire();
++    match lock(&SESSION).as_ref() {
++        Some(s) if s.id == session_id && s.agent_id == agent_id => Ok(s.clone()),
++        _ => Err(DErr::Conflict("Direkt-Agent-Sitzung ist abgelaufen oder gehoert zu einer anderen Seite".into())),
++    }
++}
++
++async fn direct_start(state: &crate::AppState, body: &Value) -> Result<Value, DErr> {
++    let agent_id = body["agent_id"].as_str().unwrap_or("");
++    let provider = body["provider"].as_str().unwrap_or("");
++    let task = body["task"].as_str().unwrap_or("").trim().to_string();
++    if agent_id.len() < 7 || !agent_id.starts_with("agent-") || !agent_id[6..].chars().all(|c| c.is_ascii_digit()) { return Err(DErr::Bad("Ein registrierter Seiten-Agent ist erforderlich".into())); }
++    if !PROVIDER_IDS.contains(&provider) { return Err(DErr::Bad("Nicht unterstuetzter KI-Anbieter".into())); }
++    if task.is_empty() || task.chars().count() > 8000 { return Err(DErr::Bad("Die Aufgabe muss 1-8.000 Zeichen haben".into())); }
++    expire();
++    if lock(&SESSION).is_some() { return Err(DErr::Conflict("Ein anderer Direkt-Agent nutzt Roblox Studio bereits. Stoppe ihn zuerst.".into())); }
++    let tools: Vec<Value> = { state.roblox_mcp.lock().await.tools.clone() };
++    if tools.is_empty() { return Err(DErr::Conflict("Roblox Studio ist nicht bereit oder meldet keine MCP-Tools.".into())); }
++    let session_id = format!("direct_{}", random_hex(18));
++    let native: HashSet<String> = tools.iter().filter_map(|t| t["name"].as_str().map(String::from)).collect();
++    {
++        let mut s = lock(&SESSION);
++        if s.is_some() { return Err(DErr::Conflict("Ein anderer Direkt-Agent nutzt Roblox Studio bereits.".into())); }
++        *s = Some(Session { id: session_id.clone(), agent_id: agent_id.into(), provider: provider.into(), last: Instant::now(), calls: 0, native });
++    }
++    let native_tools: Vec<Value> = tools.iter().map(|t| {
++        let name = t["name"].as_str().unwrap_or("");
++        let desc: String = t["description"].as_str().unwrap_or("").chars().take(240).collect();
++        json!({"name": name, "description": desc, "inputSchema": t.get("inputSchema").cloned().unwrap_or_else(|| json!({})),
++               "risk": if crate::notion_roblox_plus::is_guarded(name) { "write" } else { "read" }})
++    }).collect();
++    tracing::info!("[notion] Direkt-Agent gestartet ({provider}, {agent_id})");
++    Ok(json!({
++        "session_id": session_id, "provider": provider, "task": task,
++        "studio_actions": crate::notion_roblox_plus::STUDIO_ACTIONS,
++        "native_tools": native_tools, "max_tool_calls": MAX_TOOL_CALLS,
++        "approval_policy": "Jede Aenderung braucht eine frische, ausdrueckliche Freigabe im Seiten-Panel."
++    }))
++}
++
++async fn direct_tool(state: &crate::AppState, body: &Value) -> Result<Value, DErr> {
++    let session_id = body["session_id"].as_str().unwrap_or("");
++    let agent_id = body["agent_id"].as_str().unwrap_or("");
++    let tool = body["tool"].as_str().unwrap_or("");
++    let args = body.get("arguments").cloned().unwrap_or_else(|| json!({}));
++    let approved = body["approved"].as_bool().unwrap_or(false);
++    if !args.is_object() { return Err(DErr::Bad("Tool-Argumente muessen ein Objekt sein".into())); }
++    let session = get_session(session_id, agent_id)?;
++    if session.calls >= MAX_TOOL_CALLS { return Err(DErr::Conflict("Diese Direkt-Agent-Sitzung hat das Limit von 50 Aufrufen erreicht.".into())); }
++    let risk = match tool {
++        "roblox_studio" => {
++            let action = args["action"].as_str().unwrap_or("");
++            if !crate::notion_roblox_plus::STUDIO_ACTIONS.contains(&action) { return Err(DErr::Bad("Nicht unterstuetzte roblox_studio-Aktion".into())); }
++            if !args.get("arguments").map(|v| v.is_object() || v.is_null()).unwrap_or(true) { return Err(DErr::Bad("roblox_studio arguments muss ein Objekt sein".into())); }
++            if crate::notion_roblox_plus::STUDIO_READS.contains(&action) { "read" } else { "write" }
++        }
++        "roblox_execute_luau" => "destructive",
++        "roblox_native_call" => {
++            let name = args["tool_name"].as_str().unwrap_or("");
++            if !session.native.contains(name) { return Err(DErr::Bad("Natives Tool ist nicht verfuegbar".into())); }
++            if crate::notion_roblox_plus::is_guarded(name) { "write" } else { "read" }
++        }
++        _ => return Err(DErr::Bad("Der Direkt-Agent darf nur Roblox-Studio-Tools nutzen".into())),
++    };
++    if risk != "read" && !approved { return Err(DErr::Forbidden("Diese Aenderung braucht eine frische Freigabe im Browser-Panel.".into())); }
++    {
++        let mut s = lock(&SESSION);
++        match s.as_mut() {
++            Some(x) if x.id == session_id => { x.calls += 1; x.last = Instant::now(); }
++            _ => return Err(DErr::Conflict("Direkt-Agent-Sitzung ist abgelaufen".into())),
++        }
++    }
++    match tool {
++        "roblox_studio" => {
++            let action = args["action"].as_str().unwrap_or("").to_string();
++            let nested = args.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
++            let result = crate::notion_roblox_plus::run_action(state, &action, &nested, 60).await?;
++            if risk != "read" { crate::notion_roblox_plus::record_event(state, "change", &action, &nested, "Direkt-Agent", result["snapshotId"].as_str()).await; }
++            Ok(json!({"tool": tool, "action": action, "risk": risk, "result": result}))
++        }
++        "roblox_execute_luau" => {
++            let code = args["code"].as_str().unwrap_or("");
++            if code.len() > 30_000 { return Err(DErr::Bad("Luau-Code darf hoechstens 30.000 Zeichen haben".into())); }
++            let mut a = args.clone();
++            a["timeout_seconds"] = json!(60);
++            let result = crate::notion_roblox_plus::execute_luau(state, &a).await?;
++            crate::notion_roblox_plus::record_event(state, "change", "execute_luau", &json!({}), "Direkt-Agent hat Luau ausgefuehrt", result["snapshotId"].as_str()).await;
++            Ok(json!({"tool": tool, "risk": risk, "result": result}))
++        }
++        _ => {
++            let name = args["tool_name"].as_str().unwrap_or("").to_string();
++            let native_args = args.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
++            let snapshot = if risk != "read" { crate::notion_roblox_plus::before_native_write(state, &name, &native_args).await } else { None };
++            let out = tokio::time::timeout(Duration::from_secs(65), crate::roblox_tool(state, &name, native_args.clone())).await
++                .map_err(|_| DErr::Conflict("Roblox Studio hat nicht rechtzeitig geantwortet".into()))?
++                .map_err(|e| DErr::Conflict(format!("{e:#}")))?;
++            if risk != "read" { crate::notion_roblox_plus::record_event(state, "change", &name, &native_args, "Direkt-Agent", snapshot.as_deref()).await; }
++            let text: String = out.text.chars().take(20_000).collect();
++            Ok(json!({"tool": tool, "native_tool": name, "risk": risk, "result": {"text": text, "images": out.images.len(), "snapshotId": snapshot}}))
++        }
++    }
++}
++
++pub(crate) async fn direct_handler(State(state): State<crate::AppState>, Path(op): Path<String>, headers: HeaderMap, body: axum::body::Bytes) -> Response {
++    let got = headers.get("authorization").and_then(|v| v.to_str().ok())
++        .filter(|a| a.len() > 7 && a[..7].eq_ignore_ascii_case("bearer ")).map(|a| a[7..].trim().to_string()).unwrap_or_default();
++    if !token_eq(&got, &crate::notion_mcp::web_token()) {
++        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "Erweiterungs-Token ungueltig"}))).into_response();
++    }
++    let body: Value = serde_json::from_slice(&body).unwrap_or_else(|_| json!({}));
++    let result: Result<Value, DErr> = match op.as_str() {
++        "start" => direct_start(&state, &body).await,
++        "tool" => direct_tool(&state, &body).await,
++        "heartbeat" => get_session(body["session_id"].as_str().unwrap_or(""), body["agent_id"].as_str().unwrap_or("")).map(|_| {
++            if let Some(s) = lock(&SESSION).as_mut() { s.last = Instant::now(); }
++            json!({"ok": true})
++        }),
++        "stop" => {
++            let mut s = lock(&SESSION);
++            if s.as_ref().map(|x| Some(x.id.as_str()) == body["session_id"].as_str() && Some(x.agent_id.as_str()) == body["agent_id"].as_str()).unwrap_or(false) { *s = None; }
++            Ok(json!({"ok": true}))
++        }
++        _ => return StatusCode::NOT_FOUND.into_response(),
++    };
++    match result {
++        Ok(v) => Json(v).into_response(),
++        Err(DErr::Bad(e)) => (StatusCode::BAD_REQUEST, Json(json!({"error": e}))).into_response(),
++        Err(DErr::Forbidden(e)) => (StatusCode::FORBIDDEN, Json(json!({"error": e}))).into_response(),
++        Err(DErr::Conflict(e)) => (StatusCode::CONFLICT, Json(json!({"error": e}))).into_response(),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn tokens_and_writer_lock() {
++        assert!(token_eq("abc", "abc"));
++        assert!(!token_eq("abc", "abd"));
++        assert!(!token_eq("", ""));
++        assert!(notion_write_allowed().is_ok());
++        *lock(&SESSION) = Some(Session { id: "s".into(), agent_id: "agent-1".into(), provider: "claude".into(), last: Instant::now(), calls: 0, native: HashSet::new() });
++        assert!(notion_write_allowed().is_err());
++        *lock(&SESSION) = None;
++    }
++}
+diff --git a/agent/src/roblox_helpers.luau b/agent/src/roblox_helpers.luau
+new file mode 100644
+index 0000000..a9fbbb6
+--- /dev/null
++++ b/agent/src/roblox_helpers.luau
+@@ -0,0 +1,313 @@
++-- Roblox Studio helpers adapted from Brickwire's BW library.
++local BW = {}
++local function service(name)
++	return game:GetService(name)
++end
++local function fail(message)
++	error("BW: " .. message, 0)
++end
++
++function BW.find(path, root)
++	if typeof(path) == "Instance" then return path end
++	if type(path) ~= "string" then return nil end
++	local current = root or game
++	for segment in string.gmatch(path, "[^%.]+") do
++		if current == game and segment == "game" then
++			continue
++		elseif current == game and (segment == "Workspace" or segment == "workspace") then
++			current = workspace
++		else
++			local next = current:FindFirstChild(segment)
++			if not next and current == game then
++				local ok, result = pcall(function() return service(segment) end)
++				if ok then next = result end
++			end
++			if not next then return nil end
++			current = next
++		end
++	end
++	return current
++end
++
++function BW.get(path)
++	local instance = BW.find(path)
++	if not instance then fail("not found: " .. tostring(path)) end
++	return instance
++end
++function BW.exists(path) return BW.find(path) ~= nil end
++function BW.color(value)
++	if typeof(value) == "Color3" then return value end
++	if type(value) == "string" then
++		local hex = string.gsub(value, "^#", "")
++		if #hex == 6 and string.match(hex, "^%x+$") then return Color3.fromHex(hex) end
++		return BrickColor.new(value).Color
++	end
++	if type(value) == "table" then
++		local r, g, b = value[1] or value.r or 0, value[2] or value.g or 0, value[3] or value.b or 0
++		if r > 1 or g > 1 or b > 1 then return Color3.fromRGB(r, g, b) end
++		return Color3.new(r, g, b)
++	end
++	fail("cannot convert color: " .. tostring(value))
++end
++function BW.v3(value)
++	if typeof(value) == "Vector3" then return value end
++	if type(value) == "table" then return Vector3.new(value[1] or value.x or 0, value[2] or value.y or 0, value[3] or value.z or 0) end
++	fail("cannot convert Vector3: " .. tostring(value))
++end
++function BW.udim2(value)
++	if typeof(value) == "UDim2" then return value end
++	if type(value) ~= "table" then fail("cannot convert UDim2") end
++	if #value == 2 then return UDim2.fromScale(value[1], value[2]) end
++	return UDim2.new(value[1] or 0, value[2] or 0, value[3] or 0, value[4] or 0)
++end
++
++function BW.set(instance, properties)
++	local function numberSequence(value)
++		if type(value) == "number" then return NumberSequence.new(value) end
++		if type(value) == "table" and type(value[1]) == "number" and #value == 2 then
++			return NumberSequence.new({NumberSequenceKeypoint.new(0,value[1]),NumberSequenceKeypoint.new(1,value[2])})
++		end
++		return value
++	end
++	local function colorSequence(value)
++		if typeof(value) == "ColorSequence" then return value end
++		if type(value) == "table" and #value == 2 then
++			return ColorSequence.new({ColorSequenceKeypoint.new(0,BW.color(value[1])),ColorSequenceKeypoint.new(1,BW.color(value[2]))})
++		end
++		return ColorSequence.new(BW.color(value))
++	end
++	for key, value in pairs(properties or {}) do
++		if key == "Attributes" then
++			for name, attribute in pairs(value) do instance:SetAttribute(name, attribute) end
++		elseif key == "Corner" then
++			local corner = Instance.new("UICorner")
++			corner.CornerRadius = UDim.new(0, value)
++			corner.Parent = instance
++		elseif key == "Padding" then
++			local padding = Instance.new("UIPadding")
++			local u = UDim.new(0, value)
++			padding.PaddingTop, padding.PaddingBottom, padding.PaddingLeft, padding.PaddingRight = u, u, u, u
++			padding.Parent = instance
++		elseif key == "Stroke" then
++			local info = type(value) == "table" and value or {Thickness=value}
++			BW.new("UIStroke", {Color=info.Color or info[1] or "#000000", Thickness=info.Thickness or info[2] or 1, Parent=instance})
++		elseif key == "List" then
++			local info = type(value) == "table" and value or {}
++			BW.new("UIListLayout", {Padding=UDim.new(0,info.Padding or 6), FillDirection=info.Direction or "Vertical", HorizontalAlignment=info.Align or "Center", SortOrder="LayoutOrder", Parent=instance})
++		elseif key == "Aspect" then
++			BW.new("UIAspectRatioConstraint", {AspectRatio=value, Parent=instance})
++		elseif key == "Gradient" then
++			BW.new("UIGradient", {Color=colorSequence(value), Parent=instance})
++		elseif key ~= "Parent" and key ~= "Class" then
++			if instance.ClassName == "ParticleEmitter" or instance.ClassName == "Beam" or instance.ClassName == "Trail" then
++				if key == "Color" then value = colorSequence(value)
++				elseif key == "Size" or key == "Transparency" or key == "Squash" then value = numberSequence(value)
++				elseif key == "Lifetime" or key == "Speed" or key == "Rotation" or key == "RotSpeed" then value = type(value) == "number" and NumberRange.new(value) or type(value) == "table" and NumberRange.new(value[1],value[2] or value[1]) or value end
++			elseif key == "Color" or key == "Color3" or key == "BackgroundColor3" or key == "TextColor3" then value = BW.color(value)
++			elseif (key == "Size" or key == "Position") and instance:IsA("GuiObject") then value = BW.udim2(value)
++			elseif key == "Size" or key == "Position" or key == "Orientation" then
++				if instance:IsA("BasePart") then value = BW.v3(value) end
++			end
++			local ok, err = pcall(function() instance[key] = value end)
++			if not ok then fail("cannot set " .. instance.ClassName .. "." .. key .. ": " .. tostring(err)) end
++		end
++	end
++	return instance
++end
++
++function BW.new(className, properties)
++	local ok, instance = pcall(function() return Instance.new(className) end)
++	if not ok then fail("unknown class " .. tostring(className)) end
++	properties = properties or {}
++	if instance:IsA("BasePart") and properties.Anchored == nil then instance.Anchored = true end
++	if instance:IsA("GuiObject") and properties.BorderSizePixel == nil then instance.BorderSizePixel = 0 end
++	if instance:IsA("BasePart") then pcall(function() instance.TopSurface, instance.BottomSurface = Enum.SurfaceType.Smooth, Enum.SurfaceType.Smooth end) end
++	BW.set(instance, properties)
++	local parent = properties.Parent
++	if type(parent) == "string" then parent = BW.get(parent) end
++	if instance:IsA("BasePart") and parent == nil then parent = BW.defaultParent or workspace end
++	if parent then instance.Parent = parent end
++	return instance
++end
++BW.part = function(properties) return BW.new(properties.Class or "Part", properties) end
++function BW.folder(name, parent)
++	parent = type(parent) == "string" and BW.get(parent) or parent or workspace
++	local folder = parent:FindFirstChild(name)
++	if folder then return folder end
++	return BW.new("Folder", { Name = name, Parent = parent })
++end
++function BW.model(name, parent, replace)
++	parent = type(parent) == "string" and BW.get(parent) or parent or workspace
++	local old = parent:FindFirstChild(name)
++	if old then
++		if old:GetAttribute("BW_Owned") or replace then old:Destroy()
++		else fail("model already exists: " .. old:GetFullName()) end
++	end
++	local model = Instance.new("Model")
++	model.Name, model.Parent = name, parent
++	model:SetAttribute("BW_Owned", true)
++	BW.defaultParent = model
++	return model
++end
++function BW.weldAll(model, unanchor)
++	model = type(model) == "string" and BW.get(model) or model
++	local parts = {}
++	for _, item in ipairs(model:GetDescendants()) do if item:IsA("BasePart") then table.insert(parts, item) end end
++	local root = model.PrimaryPart or parts[1]
++	if not root then fail("weldAll: model has no parts") end
++	for _, part in ipairs(parts) do
++		if part ~= root then BW.new("WeldConstraint", { Part0 = root, Part1 = part, Parent = part }) end
++		if unanchor then part.Anchored = false end
++	end
++	return #parts
++end
++
++function BW.tree(target, depth)
++	local root = BW.get(target or "Workspace")
++	depth = math.max(0, math.min(6, depth or 2))
++	local lines = {}
++	local function walk(instance, level, prefix)
++		table.insert(lines, prefix .. instance.Name .. " [" .. instance.ClassName .. "]")
++		if level >= depth then return end
++		for index, child in ipairs(instance:GetChildren()) do
++			if index > 60 then table.insert(lines, prefix .. "  ... more children"); break end
++			walk(child, level + 1, prefix .. "  ")
++		end
++	end
++	walk(root, 0, "")
++	print(table.concat(lines, "\n"))
++	return lines
++end
++function BW.report(target)
++	local root, counts, parts = BW.get(target or "Workspace"), {}, 0
++	local lo, hi
++	for _, item in ipairs(root:GetDescendants()) do
++		counts[item.ClassName] = (counts[item.ClassName] or 0) + 1
++		if item:IsA("BasePart") then
++			parts += 1
++			local p, s = item.Position, item.Size
++			local a, b = {p.X-s.X/2,p.Y-s.Y/2,p.Z-s.Z/2}, {p.X+s.X/2,p.Y+s.Y/2,p.Z+s.Z/2}
++			if not lo then lo, hi = a, b else for i=1,3 do lo[i], hi[i] = math.min(lo[i],a[i]), math.max(hi[i],b[i]) end end
++		end
++	end
++	local result = { path = root:GetFullName(), descendants = #root:GetDescendants(), parts = parts, classes = counts }
++	if lo then result.bounds = { min = lo, max = hi } end
++	print("BW_REPORT " .. game:GetService("HttpService"):JSONEncode(result))
++	return result
++end
++function BW.check(condition, message)
++	print((condition and "BW_CHECK OK " or "BW_CHECK FAIL ") .. tostring(message))
++	return condition
++end
++
++local defaults = { Script = "ServerScriptService", LocalScript = "StarterPlayer.StarterPlayerScripts", ModuleScript = "ReplicatedStorage" }
++function BW.script(kind, name, parent, source)
++	if not defaults[kind] then fail("kind must be Script, LocalScript or ModuleScript") end
++	parent = BW.get(parent or defaults[kind])
++	local script = parent:FindFirstChild(name)
++	if script and script.ClassName ~= kind then fail("existing object is not a " .. kind) end
++	if not script then script = Instance.new(kind); script.Name = name; script.Parent = parent end
++	local ok, err = pcall(function() script.Source = source end)
++	if not ok then fail("cannot write script source: " .. tostring(err)) end
++	return script
++end
++function BW.source(path, fromLine, toLine)
++	local script = BW.get(path)
++	if not script:IsA("LuaSourceContainer") then fail("not a script") end
++	local lines = {}
++	for index, line in ipairs(string.split(script.Source, "\n")) do if index >= (fromLine or 1) and index <= (toLine or math.huge) then table.insert(lines, string.format("%4d| %s", index, line)) end end
++	print("BW_SOURCE " .. script:GetFullName() .. "\n" .. table.concat(lines, "\n"))
++	return script.Source
++end
++function BW.patch(path, oldText, newText, maxCount)
++	local script, source, out, count, at = BW.get(path), BW.get(path).Source, {}, 0, 1
++	while true do
++		local first, last = string.find(source, oldText, at, true)
++		if not first or (maxCount and count >= maxCount) then break end
++		table.insert(out, string.sub(source, at, first - 1)); table.insert(out, newText)
++		at, count = last + 1, count + 1
++	end
++	if count == 0 then fail("patch text not found") end
++	table.insert(out, string.sub(source, at)); script.Source = table.concat(out)
++	return count
++end
++function BW.scan(text, limit)
++	local hits, total = {}, 0
++	for _, item in ipairs(game:GetDescendants()) do
++		if item:IsA("LuaSourceContainer") then
++			local ok, source = pcall(function() return item.Source end)
++			if ok then for i, line in ipairs(string.split(source, "\n")) do if string.find(line, text, 1, true) then
++				total += 1; if #hits < (limit or 40) then table.insert(hits, {path=item:GetFullName(), line=i, text=string.sub(line,1,160)}) end
++			end end end
++		end
++	end
++	return { total = total, hits = hits }
++end
++function BW.remote(name, className)
++	local folder = BW.folder("Remotes", service("ReplicatedStorage"))
++	return folder:FindFirstChild(name) or BW.new(className or "RemoteEvent", {Name=name, Parent=folder})
++end
++
++function BW.screen(name, replace)
++	local parent = service("StarterGui")
++	local old = parent:FindFirstChild(name)
++	if old then if old:GetAttribute("BW_Owned") or replace then old:Destroy() else fail("GUI already exists: " .. name) end end
++	local gui = Instance.new("ScreenGui")
++	gui.Name, gui.ResetOnSpawn, gui.Parent = name, false, parent
++	gui:SetAttribute("BW_Owned", true)
++	return gui
++end
++function BW.ui(className, properties)
++	if not properties or not properties.Parent then fail("BW.ui needs Parent") end
++	if className == "TextLabel" or className == "TextButton" or className == "TextBox" then
++		properties.Font = properties.Font or Enum.Font.GothamMedium
++		properties.TextColor3 = properties.TextColor3 or Color3.new(1,1,1)
++	end
++	return BW.new(className, properties)
++end
++function BW.particles(parent, preset, overrides)
++	parent = type(parent) == "string" and BW.get(parent) or parent
++	local presets = {
++		fire={Color=ColorSequence.new(Color3.fromRGB(255,180,60),Color3.fromRGB(255,60,20)),Rate=45,Speed=NumberRange.new(3,6),Lifetime=NumberRange.new(.6,1.1),LightEmission=1},
++		smoke={Color=ColorSequence.new(Color3.fromRGB(90,90,90)),Rate=8,Speed=NumberRange.new(1,2),Lifetime=NumberRange.new(3,5)},
++		sparkles={Rate=25,Speed=NumberRange.new(2,4),Lifetime=NumberRange.new(.5,1),LightEmission=1},
++		magic={Color=ColorSequence.new(Color3.fromRGB(180,108,255),Color3.fromRGB(60,200,255)),Rate=30,Speed=NumberRange.new(.5,1.5),Lifetime=NumberRange.new(1,1.6),LightEmission=1},
++		dust={Color=ColorSequence.new(Color3.fromRGB(200,180,140)),Rate=10,Speed=NumberRange.new(.5,1),Lifetime=NumberRange.new(1,2)},
++	}
++	local properties = presets[preset or "sparkles"]
++	if not properties then fail("preset must be fire, smoke, sparkles, magic or dust") end
++	properties = table.clone(properties)
++	for key, value in pairs(overrides or {}) do properties[key] = value end
++	properties.Name, properties.Parent = properties.Name or ((preset or "sparkles") .. "FX"), parent
++	return BW.new("ParticleEmitter", properties)
++end
++function BW.light(parent, kind, properties)
++	properties = properties or {}; properties.Parent = type(parent) == "string" and BW.get(parent) or parent
++	properties.Brightness, properties.Range = properties.Brightness or 2, properties.Range or 12
++	return BW.new(kind or "PointLight", properties)
++end
++function BW.leaderstats(stats)
++	local source = {"local Players=game:GetService(\"Players\")","Players.PlayerAdded:Connect(function(player)","\tlocal ls=Instance.new(\"Folder\"); ls.Name=\"leaderstats\"; ls.Parent=player"}
++	for key,value in pairs(stats) do
++		local name,start = if type(key)=="number" then tostring(value) else tostring(key), if type(key)=="number" then 0 else tonumber(value) or 0
++		table.insert(source,"\tlocal v=Instance.new(\"IntValue\"); v.Name="..string.format("%q",name).."; v.Value="..tostring(start).."; v.Parent=ls")
++	end
++	table.insert(source,"end)")
++	return BW.script("Script","Leaderstats","ServerScriptService",table.concat(source,"\n"))
++end
++function BW.killPart(part, damage)
++	part = type(part)=="string" and BW.get(part) or part
++	local value = damage or "math.huge"
++	local source = "local part=script.Parent\nlocal DAMAGE="..tostring(value).."\nlocal debounce={}\npart.Touched:Connect(function(hit)\n local hum=hit.Parent and hit.Parent:FindFirstChildOfClass(\"Humanoid\")\n if hum and not debounce[hum] then debounce[hum]=true; hum:TakeDamage(DAMAGE); task.wait(0.5); debounce[hum]=nil end\nend)"
++	return BW.script("Script","KillScript",part,source)
++end
++function BW.logs(count, kind)
++	local history = service("LogService"):GetLogHistory()
++	local result = {}
++	for i = #history, 1, -1 do
++		local item = history[i]; local name = item.messageType and item.messageType.Name or "MessageOutput"
++		local keep = kind == "all" or (kind == "error" and name == "MessageError") or (kind == "warn" and name == "MessageWarning") or ((kind == nil or kind == "problems") and (name == "MessageError" or name == "MessageWarning"))
++		if keep and not string.find(item.message, "BW_", 1, true) then table.insert(result, 1, "[" .. name .. "] " .. item.message); if #result >= (count or 30) then break end end
++	end
++	return result
++end
 diff --git a/agent/src/updater.rs b/agent/src/updater.rs
 index ecb0723..b0cd4dd 100644
 --- a/agent/src/updater.rs

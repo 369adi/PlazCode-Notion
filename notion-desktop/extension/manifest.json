@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "PlazCode Notion Web Agents",
+  "version": "1.0.8",
+  "description": "Verbindet freigegebene KI-Chat-Tabs mit PlazCode Notion (web_agents, web_chat, Direkt-Agent).",
+  "minimum_chrome_version": "116",
+  "action": {"default_popup":"popup.html","default_title":"PlazCode Web Agents"},
+  "options_page": "options.html",
+  "background": {"service_worker":"background.js"},
+  "permissions": ["storage"],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*",
+    "https://chat.deepseek.com/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://chat.qwen.ai/*",
+    "https://kimi.com/*",
+    "https://www.kimi.com/*",
+    "https://kimi.ai/*",
+    "https://www.kimi.ai/*",
+    "https://chat.z.ai/*",
+    "https://lmarena.ai/*",
+    "https://arena.ai/*",
+    "https://www.arena.ai/*",
+    "https://notion.so/*",
+    "https://www.notion.so/*",
+    "https://app.notion.com/*"
+  ],
+  "content_scripts": [{
+    "matches": [
+      "https://chat.deepseek.com/*","https://chatgpt.com/*","https://chat.openai.com/*",
+      "https://claude.ai/*","https://gemini.google.com/*","https://chat.qwen.ai/*",
+      "https://kimi.com/*","https://www.kimi.com/*","https://kimi.ai/*","https://www.kimi.ai/*",
+      "https://chat.z.ai/*","https://lmarena.ai/*","https://arena.ai/*","https://www.arena.ai/*",
+      "https://notion.so/*","https://www.notion.so/*","https://app.notion.com/*"
+    ],
+    "js": ["content.js"],
+    "run_at": "document_idle",
+    "all_frames": false
+  }]
+}

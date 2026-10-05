@@ -12,6 +12,7 @@ Entpacken, Original-PlazCode beenden, `PlazCode-Notion\PlazCode.exe` starten.
 - Seite **Notion AI**: eingebauter MCP-Server + ngrok-Tunnel → Notion AI steuert Roblox Studio, PC und Browser ohne Browser-Erweiterung
 - Katalog-Einträge „PC (Windows-MCP)“ und „Browser (Playwright)“ unter MCP Servers
 - Automatische Updates deaktiviert (sonst würde das Original den Fork überschreiben)
+- Neu in 1.0.8: Web-Agenten (Chrome-Erweiterung), Direkt-Modus mit Freigabe, `roblox_studio`/`roblox_workflow`, Projekt-Gedächtnis, Snapshots, sicheres Datei-Schreiben, Shell-Sicherheitsmodus
 
 ## Repository-Inhalt
 | Datei | Zweck |

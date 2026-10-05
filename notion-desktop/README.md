@@ -12,6 +12,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.8
+- Web-Agenten: Notion AI nutzt freigegebene KI-Chat-Tabs über die Chrome-Erweiterung (Ordner `notion-desktop/extension` im Repo) (Installation: `chrome://extensions` → Entwicklermodus → „Entpackte Erweiterung laden“; Token von der Seite Notion AI → „Web-Agenten & Sicherheit“).
+- Direkt-Modus: ein KI-Chat als Roblox-Agent, jede Änderung mit Freigabe.
+- Roblox: `roblox_studio` (23 Aktionen), `roblox_workflow`, Projekt-Gedächtnis, automatische Snapshots + Wiederherstellen, BW-Helper werden automatisch geladen.
+- Sicheres Datei-Schreiben mit SHA-256-Prüfung und Schutz von Secret-Dateien.
+- Sicherheitsmodus für die Shell (Schalter auf der Seite Notion AI, Standard aus).
 ## Start
 1. Original-PlazCode und die alte `PlazCode-Notion-Bridge.exe` beenden (Port 3000 / 8787 und ngrok-Domain werden sonst blockiert).
 2. `PlazCode-Notion.exe` herunterladen und starten (entpackt sich beim ersten Start nach `%LOCALAPPDATA%\PlazCodeNotion\app`).

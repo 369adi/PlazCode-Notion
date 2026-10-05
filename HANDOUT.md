@@ -40,6 +40,12 @@ Notion-Design + eingebauter MCP-Server, damit Notion AI Roblox Studio, PC und Br
 
 ## Hinweise
 Inoffizieller Fork, keine Verbindung zu den PlazCode-Autoren oder Notion Labs. `LICENSE` und `BRANDING-NOTICE.txt` müssen erhalten bleiben. Tokens nie veröffentlichen.
+## Neu in 1.0.8: Funktionen aus Secretscript
+- **Web-Agenten** (`notion_web_agents.rs` + Chrome-Erweiterung in `notion-desktop/extension`): Tools `web_sites`, `web_agents`, `web_chat`. Notion AI kann freigegebene KI-Chat-Tabs (ChatGPT, Claude, Gemini, DeepSeek, Qwen, Kimi, GLM, Arena) nutzen. WebSocket `ws://127.0.0.1:8787/extension/ws`, eigener Erweiterungs-Token (Seite Notion AI → „Web-Agenten & Sicherheit“).
+- **Direkt-Modus**: Ein KI-Chat arbeitet als Roblox-Agent (`/direct-agent/*`, 300 s Laufzeit, max. 50 Aufrufe); jede Änderung braucht eine Freigabe im Panel auf der Seite. Solange er läuft, sind Notion-Schreibzugriffe auf Studio gesperrt.
+- **Roblox Plus** (`notion_roblox_plus.rs`): `roblox_studio` mit 23 High-Level-Aktionen, `roblox_workflow` (Playbooks), `roblox_project_memory` (`%LOCALAPPDATA%\PlazCodeNotion\roblox-project-memory.json`), automatische Snapshots vor Schreibzugriffen + Wiederherstellen, BW-Helper-Bibliothek (`roblox_helpers.luau`) wird bei `execute_luau` automatisch geladen.
+- **Sicheres Datei-Schreiben** (`notion_safety.rs`): `safe_read_file`/`safe_write_file` (SHA-256-Prüfung gegen Überschreiben veralteter Stände)/`safe_search_files`, Secret-Dateien (.env, Schlüssel, Tokens …) werden blockiert, Co-Work-Locks werden beachtet.
+- **Sicherheitsmodus für die Shell** (Schalter, Standard aus): PowerShell nur mit erlaubten Einzelbefehlen, Registry und unsicherer Browser-Code gesperrt.
 ## Neu in 1.0.7: Co-Work mit festen Experten-Rollen + Live-Status
 
 Der Main Chat ist der Lead: Er zerlegt das Projekt, vergibt Tasks nur an die Rollen, die wirklich gebraucht werden, und fuehrt am Ende alle Ergebnisse zu EINER optimierten Antwort zusammen (cowork_results).
