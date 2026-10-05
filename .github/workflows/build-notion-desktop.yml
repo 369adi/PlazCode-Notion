@@ -21,10 +21,12 @@ jobs:
         shell: pwsh
         run: |
           Expand-Archive -Path PlazCode-source-1.19.36.zip -DestinationPath build-src -Force
-          Push-Location build-src/PlazCode
-          git apply --verbose --whitespace=nowarn ../../notion-desktop/plazcode-notion.patch
+          # Run from the repository root with --directory: inside a repo subfolder
+          # git apply would silently skip every file.
+          git apply --verbose --whitespace=nowarn --directory=build-src/PlazCode notion-desktop/plazcode-notion.patch
           if ($LASTEXITCODE -ne 0) { throw "Patch failed" }
-          Pop-Location
+          if (-not (Select-String -Path build-src/PlazCode/agent/src/desktop.html -Pattern 'plazcode-notion-theme' -Quiet)) { throw "Notion UI patch missing" }
+          if (-not (Test-Path build-src/PlazCode/agent/src/notion_mcp.rs)) { throw "notion_mcp.rs missing" }
 
       - uses: Swatinem/rust-cache@v2
         with:
