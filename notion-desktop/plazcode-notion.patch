@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..c444d62 100644
+index 07dc4c0..8a14f09 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -308,7 +308,7 @@ index 07dc4c0..c444d62 100644
            <div class="stat" data-tone="amber"><div class="stat-head"><span id="studioDot" class="dot"></span>Roblox Studio</div><div id="studioVal" class="stat-val">Offline</div><div class="stat-sub">Primary Studio MCP</div></div>
            <div class="stat" data-tone="blue"><div class="stat-head"><span class="dot on" style="background:var(--blue)"></span>Tools</div><div id="toolCount" class="stat-val">0</div><div class="stat-sub">Live tool catalog</div></div>
            <div class="stat" data-tone="purple"><div class="stat-head"><span class="dot on" style="background:var(--purple)"></span>Workspace</div><div id="workspaceVal" class="stat-val">Off</div><div id="workspaceSub" class="stat-sub">AgentScript files</div></div>
-@@ -366,6 +465,59 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -366,6 +465,61 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
            <div class="panel"><div class="panel-head recent-head"><div class="panel-title">Recent activity</div><button class="clearbtn" id="clearHome">Clear</button></div><div id="recent" class="activity"></div></div>
          </div>
        </section>
@@ -353,7 +353,9 @@ index 07dc4c0..c444d62 100644
 +        <div class="settingcard notion-card">
 +          <h3>Tunnel (ngrok)</h3>
 +          <p><b>Neu hier?</b> 1. Kostenloses Konto auf <b>ngrok.com</b> anlegen. 2. Unten <b>ngrok installieren</b>. 3. Den <b>Authtoken</b> (dashboard.ngrok.com → Your Authtoken) eintragen. 4. Unter <b>Domains</b> die kostenlose feste Domain kopieren und bei <b>Domain / URL</b> eintragen (die ganze URL geht auch).</p>
-+          <div class="nrow"><span class="nlabel">ngrok</span><span id="nNgrokFound" class="nbadge">…</span><button class="softbtn" id="nInstallNgrok">ngrok installieren</button></div><button class="softbtn" id="nSaveDomain">Speichern</button></div>
++          <div class="nrow"><span class="nlabel">ngrok</span><span id="nNgrokFound" class="nbadge">…</span><button class="softbtn" id="nInstallNgrok">ngrok installieren</button></div>
++          <div class="nrow"><span class="nlabel">Authtoken</span><input id="nAuthtoken" type="password" autocomplete="off" style="flex:1;min-width:220px;padding:7px 10px" placeholder="von dashboard.ngrok.com → Your Authtoken"><button class="softbtn" id="nSaveAuth">Speichern</button><span id="nAuthState" class="nbadge">…</span></div>
++          <div class="nrow"><span class="nlabel">Domain / URL</span><input id="nDomain" style="flex:1;min-width:220px;padding:7px 10px" placeholder="z. B. name.ngrok-free.app oder https://name.ngrok-free.app"><button class="softbtn" id="nSaveDomain">Speichern</button></div>
 +          <div class="nrow"><span class="nlabel">ngrok.exe</span><input id="nNgrokPath" style="flex:1;min-width:220px;padding:7px 10px" placeholder="automatisch suchen"><button class="softbtn" id="nSavePath">Speichern</button></div>
 +          <div class="nrow"><span class="nlabel">Tunnel aktiv</span><label style="display:flex;align-items:center;gap:8px;font-size:14px"><input type="checkbox" id="nEnabled"> beim Start automatisch verbinden</label></div>
 +          <div class="nrow"><span class="nlabel">Lokal</span><span id="nLocal" class="nvalue">–</span></div>
@@ -368,7 +370,7 @@ index 07dc4c0..c444d62 100644
        <section class="page" id="page-tools">
          <div class="page-head"><div><div class="page-title">Tools</div><div class="page-sub">Every currently usable PlazCode tool, grouped by live source.</div></div></div>
          <div class="toolbar"><input id="toolSearch" class="search" placeholder="Search tools or sources..."><div id="toolFilters" class="filters"></div></div>
-@@ -389,7 +541,19 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -389,7 +543,19 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
          <div id="updateReleaseNotes" class="update-release-notes" aria-label="Release notes"></div>
        </section>
        <div id="updateOverlay" class="enhancer-modal" hidden role="dialog" aria-modal="true" aria-label="PlazCode update progress"><div class="settingcard update-progress"><div class="update-spinner" aria-hidden="true"><svg viewBox="0 0 80 80"><circle class="swirl-track" cx="40" cy="40" r="31"/><circle class="swirl-outer" cx="40" cy="40" r="31"/><circle class="swirl-inner" cx="40" cy="40" r="21"/><circle class="swirl-core" cx="40" cy="40" r="5"/></svg></div><span class="eyebrow update-eyebrow">PLAZCODE UPDATE</span><h2 id="updateOverlayTitle">PlazCode is updating</h2><p id="updateOverlayMessage" role="status">Downloading the verified release…</p><progress id="updateProgress" max="100" value="0"></progress><p id="updateOverlayHint">Keep this window open. PlazCode will reopen when it finishes.</p><pre id="updateError" hidden></pre><button id="closeUpdateError" class="softbtn" hidden>Close</button></div></div>
@@ -389,7 +391,7 @@ index 07dc4c0..c444d62 100644
          <div class="page-head"><div><div class="page-title">Settings</div><div class="page-sub">Changes autosave immediately and stay synced with the extension.</div></div></div>
          <div class="settingcard appearance-card"><h3>Appearance</h3><div class="palette-preview" role="group" aria-label="Color palette"><button type="button" data-desktop-palette="default" aria-label="Orange theme" title="Orange" aria-pressed="false">Orange</button><button type="button" data-desktop-palette="amethyst" aria-label="Amethyst theme" title="Amethyst" aria-pressed="false">Amethyst</button><button type="button" data-desktop-palette="cyan" aria-label="Polar Cyan theme" title="Polar Cyan" aria-pressed="false">Polar Cyan</button><button type="button" data-desktop-palette="rose" aria-label="Rose theme" title="Rose" aria-pressed="false">Rose</button><button type="button" data-desktop-palette="emerald" aria-label="Emerald theme" title="Emerald" aria-pressed="false">Emerald</button><button type="button" data-desktop-palette="graphite" aria-label="Graphite theme" title="Graphite" aria-pressed="false">Graphite</button><button type="button" data-desktop-palette="ocean" aria-label="Oceanic theme" title="Oceanic" aria-pressed="false">Oceanic</button><button type="button" data-desktop-palette="copper" aria-label="Copper Atelier theme" title="Copper Atelier" aria-pressed="false">Copper Atelier</button><button type="button" data-desktop-palette="aurora" aria-label="Aurora theme" title="Aurora" aria-pressed="false">Aurora</button><button type="button" data-desktop-palette="orchid" aria-label="Orchid Noir theme" title="Orchid Noir" aria-pressed="false">Orchid Noir</button><button type="button" data-desktop-palette="solar" aria-label="Solar Dusk theme" title="Solar Dusk" aria-pressed="false">Solar Dusk</button></div><p>Choose a shared palette, glow and gradients. Changes also update the PlazCode browser bar and panels while the bridge is connected.</p><div class="settingrow"><label for="desktopTheme">Color palette</label><select id="desktopTheme"><option value="default">PlazCode Orange</option><option value="amethyst">Amethyst</option><option value="cyan">Polar Cyan</option><option value="rose">Rose</option><option value="emerald">Emerald</option><option value="graphite">Graphite</option><option value="crimson">Crimson</option><option value="ocean">Oceanic</option><option value="copper">Copper Atelier</option><option value="aurora">Aurora</option><option value="orchid">Orchid Noir</option><option value="solar">Solar Dusk</option></select></div><div class="settingrow"><label for="desktopGlow">Glow effects</label><select id="desktopGlow"><option value="off">Off</option><option value="subtle">Subtle</option><option value="strong">Strong</option></select></div><div class="settingrow"><label for="desktopGradients">Gradients</label><select id="desktopGradients"><option value="on">On</option><option value="off">Off</option></select></div><div class="instructions-actions"><button id="resetAppearance" class="softbtn">Restore default theme</button><span id="appearanceStatus" class="instructions-status" role="status"></span></div></div>
          <div id="memorySettings" class="settingcard"></div>
-@@ -573,7 +737,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +739,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -398,7 +400,7 @@ index 07dc4c0..c444d62 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -1206,5 +1370,118 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1372,120 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -451,6 +453,8 @@ index 07dc4c0..c444d62 100644
 +    if ($("nRequests")) $("nRequests").textContent = S.requests ? (S.requests + " Anfragen" + (S.last_request ? " · zuletzt " + S.last_request.time + " (" + S.last_request.what + ")" : "")) : "Noch keine Anfrage von Notion";
 +    var D = $("nDomain"); if (D && document.activeElement !== D && !D.dataset.dirty) D.value = S.domain || "";
 +    var P = $("nNgrokPath"); if (P && document.activeElement !== P && !P.dataset.dirty) P.value = S.ngrok_path || "";
++    if ($("nNgrokFound")) { Badge($("nNgrokFound"), S.ngrok_found ? "online" : "fehlt", ""); $("nNgrokFound").textContent = S.ngrok_found ? "gefunden" : "fehlt"; } if ($("nInstallNgrok")) $("nInstallNgrok").textContent = S.ngrok_found ? "Neu installieren" : "ngrok installieren";
++    if ($("nAuthState")) { Badge($("nAuthState"), S.ngrok_authtoken ? "online" : "fehlt", ""); $("nAuthState").textContent = S.ngrok_authtoken ? "eingerichtet" : "fehlt"; }
 +    var C = $("nEnabled"); if (C) C.checked = !!S.ngrok_enabled;
 +    var Tools = S.tools || [];
 +    if ($("nToolCount")) $("nToolCount").textContent = String(Tools.length);

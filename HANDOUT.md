@@ -40,6 +40,9 @@ Notion-Design + eingebauter MCP-Server, damit Notion AI Roblox Studio, PC und Br
 
 ## Hinweise
 Inoffizieller Fork, keine Verbindung zu den PlazCode-Autoren oder Notion Labs. `LICENSE` und `BRANDING-NOTICE.txt` müssen erhalten bleiben. Tokens nie veröffentlichen.
+## Neu in 1.0.12
+- Fix: Die Inhalte der Seite Notion AI (Tool-Liste) erschienen auf jeder Seite, und die Felder für Authtoken und Domain / URL fehlten. Beides ist repariert.
+
 ## Neu in 1.0.11
 - Updates kommen schneller: Der Launcher prüft jetzt alle 15 Sekunden statt alle 90 Sekunden auf neue Versionen.
 
