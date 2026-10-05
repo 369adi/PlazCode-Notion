@@ -1,0 +1,72 @@
+name: Build PlazCode Notion Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "notion-desktop/**"
+      - ".github/workflows/build-notion-desktop.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare patched source
+        shell: pwsh
+        run: |
+          Expand-Archive -Path PlazCode-source-1.19.36.zip -DestinationPath build-src -Force
+          Push-Location build-src/PlazCode
+          git apply --verbose --whitespace=nowarn ../../notion-desktop/plazcode-notion.patch
+          if ($LASTEXITCODE -ne 0) { throw "Patch failed" }
+          Pop-Location
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: build-src/PlazCode/agent
+
+      - name: Build PlazCode.exe
+        working-directory: build-src/PlazCode/agent
+        run: cargo build --release --locked
+
+      - name: Package
+        id: pkg
+        shell: pwsh
+        run: |
+          $v = (Get-Content notion-desktop/VERSION -Raw).Trim()
+          Expand-Archive -Path PlazCode-1.19.36.zip -DestinationPath pkg -Force
+          Copy-Item build-src/PlazCode/agent/target/release/PlazCode.exe pkg/PlazCode/PlazCode.exe -Force
+          Copy-Item notion-desktop/README.md pkg/PlazCode/PLAZCODE-NOTION.md -Force
+          Rename-Item pkg/PlazCode PlazCode-Notion
+          $zip = "PlazCode-Notion-$v-windows.zip"
+          Compress-Archive -Path pkg/PlazCode-Notion -DestinationPath $zip -Force
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  $zip" | Set-Content "$zip.sha256"
+          "version=$v" >> $env:GITHUB_OUTPUT
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PlazCode-Notion-windows
+          path: |
+            ${{ steps.pkg.outputs.zip }}
+            ${{ steps.pkg.outputs.zip }}.sha256
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "notion-desktop-v${{ steps.pkg.outputs.version }}"
+          $zip = "${{ steps.pkg.outputs.zip }}"
+          gh release view $tag 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $zip "$zip.sha256" --clobber
+          } else {
+            gh release create $tag $zip "$zip.sha256" --title "PlazCode Notion Desktop ${{ steps.pkg.outputs.version }} (inoffizieller Fork)" --notes-file notion-desktop/README.md
+          }
