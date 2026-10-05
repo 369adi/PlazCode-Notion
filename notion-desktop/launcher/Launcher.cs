@@ -19,7 +19,7 @@ static class Launcher
     const string Repo = "369adi/PlazCode-Notion";
     const string AssetName = "PlazCode-Notion.exe";
     const string TagPrefix = "notion-desktop-v";
-    const int CheckSeconds = 90;
+    const int CheckSeconds = 15;
     // Files with user state are never overwritten by an update.
     static readonly string[] Keep = { "config.json", "plazcode-settings.json" };
 

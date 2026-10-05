@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..8128d3c 100644
+index 07dc4c0..c444d62 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -380,7 +380,7 @@ index 07dc4c0..8128d3c 100644
 +          <div class="nrow"><span class="nlabel">Installiert</span><span id="uCurrent" class="nvalue">–</span><span id="uBadge" class="nbadge">…</span></div>
 +          <div class="nrow"><span class="nlabel">Neueste</span><span id="uLatest" class="nvalue">–</span><span id="uChecked" class="nhint"></span></div>
 +          <div id="uError" class="nerr" hidden></div>
-+          <p class="nhint">Der Launcher (PlazCode-Notion.exe) prüft alle 90 Sekunden, ob es eine neue Version gibt, und installiert sie automatisch – bei jedem Nutzer. Die App startet dabei kurz neu, Einstellungen und Logins bleiben erhalten.</p>
++          <p class="nhint">Der Launcher (PlazCode-Notion.exe) prüft alle 15 Sekunden, ob es eine neue Version gibt, und installiert sie automatisch – bei jedem Nutzer. Die App startet dabei kurz neu, Einstellungen und Logins bleiben erhalten.</p>
 +          <div class="nrow"><button class="softbtn" id="uCheck">Jetzt prüfen</button><button class="softbtn" id="uNow">Jetzt aktualisieren</button><span id="uMsg" class="nhint"></span></div>
 +        </div>
 +        <div class="settingcard notion-card"><h3>Was ist neu?</h3><div id="uList" class="ureleases"><p class="nhint">Lädt …</p></div></div>
