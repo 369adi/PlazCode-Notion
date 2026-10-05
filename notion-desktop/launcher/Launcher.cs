@@ -238,9 +238,17 @@ static class Launcher
     {
         try
         {
-            using (ManagementObjectSearcher q = new ManagementObjectSearcher("SELECT ProcessId FROM Win32_Process WHERE ParentProcessId=" + pid))
+            using (ManagementObjectSearcher q = new ManagementObjectSearcher("SELECT ProcessId,Name,CommandLine FROM Win32_Process WHERE ParentProcessId=" + pid))
             {
-                foreach (ManagementObject o in q.Get()) KillTree(Convert.ToInt32(o["ProcessId"]));
+                foreach (ManagementObject o in q.Get())
+                {
+                    string name = Convert.ToString(o["Name"] ?? "").ToLowerInvariant();
+                    string cmd = Convert.ToString(o["CommandLine"] ?? "").ToLowerInvariant();
+                    bool browser = name.Contains("chrome") || name.Contains("msedge") || name.Contains("brave");
+                    bool coworkProfile = cmd.Contains("plazcodenotion\\profiles\\agent-");
+                    if (browser && coworkProfile) { Log("preserving Co-Work browser pid " + o["ProcessId"]); continue; }
+                    KillTree(Convert.ToInt32(o["ProcessId"]));
+                }
             }
         }
         catch { }

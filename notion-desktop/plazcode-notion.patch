@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..caf9711 100644
+index 07dc4c0..ef49f38 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -417,7 +417,7 @@ index 07dc4c0..caf9711 100644
        </section>
        <section class="page" id="page-terminal">
          <div class="page-head"><div><div class="page-title">Terminal</div><div class="page-sub">Live bridge, Studio, MCP, and AgentScript logs.</div></div><div style="margin-left:auto;display:flex;gap:8px"><button class="softbtn" id="restartMcp">Restart MCP</button><button class="clearbtn" id="clearTerminal">Clear</button></div></div>
-@@ -382,24 +550,47 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -382,24 +550,46 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
        <section class="page" id="page-models"><div class="page-head"><div><h1>Model Builder</h1><p>Describe a model, review the preview, then add it to Roblox Studio.</p></div></div><div id="modelWorkspace"></div></section>
        <section class="page" id="page-ui"><div class="page-head"><div><h1>UI Builder</h1><p>Describe a menu or HUD, check its layout, then add it to Roblox Studio.</p></div></div><div id="uiWorkspace"></div></section>
        <section class="page" id="page-toolkit"><div class="page-head"><div><h1>Toolkit</h1><p>Start game systems with AI, run Studio tools, and keep saved place backups.</p></div></div><div id="toolkitWorkspace"></div></section>
@@ -444,14 +444,13 @@ index 07dc4c0..caf9711 100644
 +        <div class="settingcard notion-card"><h3>Was ist neu?</h3><div id="uList" class="ureleases"><p class="nhint">Lädt …</p></div></div>
 +        <div class="settingcard notion-card"><h3>Launcher-Protokoll</h3><pre id="uLog" class="nhint" style="white-space:pre-wrap;margin:0;font-size:12px"></pre></div>
 +      </section>      <section class="page" id="page-cowork">
-+        <div class="page-head"><div><div class="page-title">Co-Work 2.0</div><div class="page-sub">Vier feste Rollen, Auto-Kickoff und dauerhaft aktive Notion-AI-Container.</div></div></div>
-+        <div class="notion-callout"><span class="ico">🧱</span><div>Vier Gmail-Konten eintragen und einmal anmelden. Rollen folgen automatisch der Reihenfolge: <b>Main · Coder · Reviewer · Tester</b>. Alle Tabs bleiben auch versteckt und unfokussiert aktiv.</div></div>
++        <div class="page-head"><div><div class="page-title">Co-Work 2.0</div><div class="page-sub">Main ist deine einzige Chat-Oberfläche; drei Worker laufen dauerhaft versteckt im Hintergrund.</div></div></div>
++        <div class="notion-callout"><span class="ico">🧱</span><div>Vier Gmail-Konten eintragen und einmal anmelden. <b>Alle starten</b> öffnet Main sichtbar; dort schreibst du deine Aufgabe. Coder, Reviewer und Tester treten automatisch bei und bleiben versteckt aktiv. Rollen: <b>Main · Coder · Reviewer · Tester</b>.</div></div>
 +        <div class="settingcard notion-card">
-+          <div class="nrow"><span class="nlabel">Aufgabe</span><textarea id="cwGoal" class="nvalue" rows="3" placeholder="Was sollen die vier Agents gemeinsam erledigen?"></textarea></div>
 +          <div class="nrow" style="margin:0 0 10px"><button class="softbtn" id="cwAdd">+ Tab hinzufügen</button><button class="softbtn" id="cwSave">Speichern</button><button class="softbtn" id="cwStartAll">▶ Alle starten</button><button class="softbtn" id="cwShowAll">Alle zeigen</button><button class="softbtn" id="cwCheck">Accounts prüfen</button><button class="softbtn" id="cwStopAll">■ Alle stoppen</button><span id="cwDirty" class="nbadge warn" style="display:none">Nicht gespeichert</span><span id="cwMsg" class="nhint"></span></div>
 +          <div class="nrow" style="margin:0 0 6px"><span class="nlabel">Browser</span><span id="cwBrowser" class="nvalue">–</span></div>
 +          <div id="cwTabs" style="overflow-x:auto"><p class="nhint">Lädt …</p></div>
-+          <p class="nhint" style="margin-top:10px">„Auto“ = wird bei <b>Alle starten</b> mitgestartet. Startseite leer = Notion AI. Die Logins liegen in <code>%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N</code>; „Entfernen“ löscht den Tab inklusive Login.</p>
++          <p class="nhint" style="margin-top:10px">Projekt-Memory synchronisiert HANDOUT.md automatisch und hält Aurelune, PlazCode usw. getrennt – auch bei sehr langen Chats. Die Logins liegen in <code>%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N</code>; „Entfernen“ löscht den Tab inklusive Login.</p>
 +        </div>
 +      </section>
        <section class="page" id="page-settings">
@@ -472,7 +471,7 @@ index 07dc4c0..caf9711 100644
              <div class="settingrow"><label>Permissions</label><select data-pref="rsPermMode"><option value="sandbox">Sandbox</option><option value="ask">Ask</option><option value="full">Full</option></select></div><p class="settinghelp"><strong>Sandbox:</strong> AgentScript stays inside the connected project folder. <strong>Ask:</strong> request approval for writes and command execution. <strong>Full:</strong> allow AgentScript to work outside the project folder and run PC commands. Roblox actions still use the connected Studio bridge.</p>
            </div>
            <div class="settingcard"><h3>Reasoning</h3><p>Matches the extension work and thinking controls.</p>
-@@ -408,7 +599,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -408,7 +598,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="settingrow"><label>Extra Thinking</label><div class="toggle" data-pref="rsExtraThinking"></div></div>
              <div class="settingrow"><label>Plan Mode</label><div class="toggle" data-pref="rsPlanMode"></div></div>
            </div>
@@ -481,7 +480,7 @@ index 07dc4c0..caf9711 100644
              <div class="settingrow"><label>Forge UI</label><div class="toggle" data-pref="rsForgeMode"></div></div>
              <div class="settingrow"><label>Auto Fix</label><div class="toggle" data-pref="rsAutoFix"></div></div>
              <div class="settingrow"><label>Background Mode</label><div class="toggle" data-pref="rsBgMode"></div></div>
-@@ -419,10 +610,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -419,10 +609,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="instructions-actions"><button class="softbtn" id="saveInstructions">Save</button><span class="instructions-status" id="instructionsStatus" role="status"></span></div>
  
            </div>
@@ -494,7 +493,7 @@ index 07dc4c0..caf9711 100644
            </div>
          </div>
        </section>
-@@ -480,7 +671,7 @@ __PLAZCODE_VERSION_UI__
+@@ -480,7 +670,7 @@ __PLAZCODE_VERSION_UI__
          window.ipc.postMessage(String(Message));
        }
      } catch (Error) {
@@ -503,7 +502,7 @@ index 07dc4c0..caf9711 100644
      }
    }
  
-@@ -520,7 +711,7 @@ __PLAZCODE_VERSION_UI__
+@@ -520,7 +710,7 @@ __PLAZCODE_VERSION_UI__
  
    function Showerror(Error) {
      var Message = Error && Error.message ? Error.message : String(Error);
@@ -512,7 +511,7 @@ index 07dc4c0..caf9711 100644
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
-@@ -538,7 +729,7 @@ __PLAZCODE_VERSION_UI__
+@@ -538,7 +728,7 @@ __PLAZCODE_VERSION_UI__
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
@@ -521,7 +520,7 @@ index 07dc4c0..caf9711 100644
      }
    }
  
-@@ -573,7 +764,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +763,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -530,7 +529,7 @@ index 07dc4c0..caf9711 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -655,7 +846,7 @@ __PLAZCODE_VERSION_UI__
+@@ -655,7 +845,7 @@ __PLAZCODE_VERSION_UI__
          Live[Server.id] = Server;
        });
  
@@ -539,7 +538,7 @@ index 07dc4c0..caf9711 100644
  
        var Catalogservers = Catalog && Catalog.servers ? Catalog.servers : [];
        Html += Catalogservers.map(function (Server) {
-@@ -892,7 +1083,7 @@ __PLAZCODE_VERSION_UI__
+@@ -892,7 +1082,7 @@ __PLAZCODE_VERSION_UI__
      var List = Byid('updateReleaseNotes'); List.replaceChildren();
      (Notes || []).forEach(function (Release, Index) {
        var Card = document.createElement('details'); Card.className='settingcard release-note'; Card.open=Index === 0;
@@ -548,7 +547,7 @@ index 07dc4c0..caf9711 100644
        var Summary=document.createElement('p'); Summary.textContent=Release.summary; Card.appendChild(Summary);
        [['added','New additions'],['improved','Improvements'],['fixed','Bug fixes']].forEach(function (Section) {
          if (!Array.isArray(Release[Section[0]]) || !Release[Section[0]].length) return;
-@@ -905,12 +1096,12 @@ __PLAZCODE_VERSION_UI__
+@@ -905,12 +1095,12 @@ __PLAZCODE_VERSION_UI__
    function Refreshupdates() {
      if (Updatepolling) return Promise.resolve(); Updatepolling = true;
      return Api('/api/desktop/update').then(function (Value) {
@@ -563,7 +562,7 @@ index 07dc4c0..caf9711 100644
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
-@@ -919,18 +1110,18 @@ __PLAZCODE_VERSION_UI__
+@@ -919,18 +1109,18 @@ __PLAZCODE_VERSION_UI__
        Byid('installUpdate').disabled = Updating || Value.available !== true;
        Byid('checkUpdates').disabled = Updating;
        Byid('updateOverlay').hidden = (!Updating || Value.background === true) && (!Value.error || UpdateerrorDismissed);
@@ -585,7 +584,7 @@ index 07dc4c0..caf9711 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1397,193 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1396,193 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -731,7 +730,7 @@ index 07dc4c0..caf9711 100644
 +        var T = CW.tabs[Number(B.closest("tr").getAttribute("data-i"))]; if (!T) return;
 +        var A = B.getAttribute("data-a");
 +        if (A === "mcp") CAct("cowork_setup_mcp", T.id).then(function(){setTimeout(function(){CLoad(true);},4000);}).catch(function () {});
-+        if (A === "prompt") { var G = ($("cwGoal") && $("cwGoal").value.trim()) || "<Aufgabe>"; var P = T.role === "Main" ? ("Du bist Main/Lead. Starte mit cowork_start: " + G) : ("Du bist " + T.role + ". Finde das aktive Projekt, cowork_join als " + T.role + ", dann claim → arbeiten → update → wait."); Copy(P); CMsg("Startprompt kopiert."); }
++        if (A === "prompt") { var P = T.role === "Main" ? "Du bist der Main Chat. Warte auf meine Aufgabe; lade zuerst die passende Projekt-Memory und starte dann cowork_start." : ("Du bist " + T.role + ". Warte auf das aktive Projekt, cowork_join als " + T.role + ", dann claim → arbeiten → update → wait."); Copy(P); CMsg("Startprompt kopiert."); }
 +        if (A === "login") { if (!String(T.email || "").trim()) { CMsg("Tab " + T.id + ": erst ein Gmail-Konto eintragen."); return; } CSaveIf().then(function () { return CAct("cowork_login", T.id); }).catch(function () {}); }
 +        if (A === "stop") CAct("cowork_stop", T.id).catch(function () {});
 +        if (A === "del" && confirm("Tab " + T.id + " (" + (T.email || T.label) + ") entfernen? Der Login in diesem Container geht verloren.")) CAct("cowork_delete", T.id).catch(function () {});
@@ -739,7 +738,7 @@ index 07dc4c0..caf9711 100644
 +    }
 +    On("cwAdd", function () { CSaveIf().then(function () { return CAct("cowork_add_tab"); }).then(function () { return CLoad(true); }).catch(function () {}); });
 +    On("cwSave", function () { CSave().catch(function () {}); });
-+    On("cwStartAll", function () { var G = ($("cwGoal") && $("cwGoal").value.trim()) || ""; if (!G) { CMsg("Bitte zuerst die Aufgabe eintragen."); return; } CSaveIf().then(function () { return CAct("cowork_start_all", { goal: G }); }).catch(function () {}); });
++    On("cwStartAll", function () { CSaveIf().then(function () { return CAct("cowork_start_all"); }).catch(function () {}); });
 +    On("cwShowAll", function () { CAct("cowork_show_all").catch(function () {}); });
 +    On("cwCheck", function () { CAct("cowork_check_accounts").then(function(){setTimeout(function(){CLoad(true);},2500);}).catch(function () {}); });
 +    On("cwStopAll", function () { if (confirm("Alle Co-Work-Tabs schließen?")) CAct("cowork_stop_all").catch(function () {}); });
@@ -809,10 +808,10 @@ index 04ebefa..16ffb12 100644
                  _ if body.starts_with("toolkit-store:") => toolkit_store_url(body).map(UiEvent::OpenExternal),
                  _ => supported_ai_url(body).map(|url|UiEvent::OpenExternal(url.to_owned())).or_else(|| body.strip_prefix("js-error:").map(|message| UiEvent::JsError(message.to_string()))),
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..fba25b2 100644
+index 77cc050..97e6816 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,14 @@ mod media;
+@@ -81,6 +81,15 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -823,11 +822,12 @@ index 77cc050..fba25b2 100644
 +mod notion_web_agents;
 +mod notion_safety;
 +mod notion_profiles;
++mod notion_project_memory;
 +mod notion_updates;
  
  #[cfg(windows)]
  mod win_msg {
-@@ -726,13 +734,13 @@ fn main() {
+@@ -726,13 +735,13 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -843,7 +843,7 @@ index 77cc050..fba25b2 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +839,8 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +840,8 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -852,7 +852,7 @@ index 77cc050..fba25b2 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -881,6 +891,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -881,6 +892,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
      let addon_state = state.clone();
      tokio::spawn(async move {
          let (tools, servers) = addon_state.addons.lock().await.list_tools().await;
@@ -860,7 +860,7 @@ index 77cc050..fba25b2 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -937,6 +948,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -937,6 +949,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
      updater::start_checker();
@@ -868,7 +868,7 @@ index 77cc050..fba25b2 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +960,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +961,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -876,7 +876,7 @@ index 77cc050..fba25b2 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +990,10 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +991,10 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -887,7 +887,7 @@ index 77cc050..fba25b2 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1460,6 +1477,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1478,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -895,7 +895,7 @@ index 77cc050..fba25b2 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1549,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1550,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -903,7 +903,7 @@ index 77cc050..fba25b2 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1558,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1559,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -1243,10 +1243,10 @@ index 1a68aee..fddb1e6 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..e4c29a2
+index 0000000..797bcdd
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,829 @@
+@@ -0,0 +1,830 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -1341,6 +1341,7 @@ index 0000000..e4c29a2
 +
 +static BOARD: Lazy<Mutex<Board>> = Lazy::new(|| Mutex::new(load()));
 +static CHANGED: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
++pub(crate) fn project_count() -> usize { BOARD.lock().unwrap_or_else(|e| e.into_inner()).projects.len() }
 +
 +fn now() -> i64 { chrono::Utc::now().timestamp() }
 +
@@ -2078,10 +2079,10 @@ index 0000000..e4c29a2
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..6fb2dde
+index 0000000..6e08718
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,762 @@
+@@ -0,0 +1,765 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -2219,6 +2220,7 @@ index 0000000..6fb2dde
 +    let s1 = state.clone();
 +    tokio::spawn(async move { run_listener(s1).await });
 +    tokio::spawn(async move { run_ngrok().await });
++    crate::notion_project_memory::start();
 +    tokio::spawn(async move {
 +        loop {
 +            rebuild(&state);
@@ -2289,7 +2291,8 @@ index 0000000..6fb2dde
 +    for schema in crate::notion_cowork::tools().into_iter()
 +        .chain(crate::notion_roblox_plus::tools())
 +        .chain(crate::notion_web_agents::tools())
-+        .chain(crate::notion_safety::tools()) {
++        .chain(crate::notion_safety::tools())
++        .chain(crate::notion_project_memory::tools()) {
 +        let exposed = schema["name"].as_str().unwrap_or("").to_string();
 +        out.push(ExposedTool { exposed, internal: String::new(), schema });
 +    }
@@ -2359,6 +2362,7 @@ index 0000000..6fb2dde
 +    if let Some(msg) = crate::notion_safety::guard_tool(&name, &args) {
 +        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
 +    }
++    if let Some(out) = crate::notion_project_memory::call(&name, &args) { return out; }
 +    if let Some(out) = crate::notion_safety::call(&name, &args) {
 +        return out;
 +    }
@@ -2846,10 +2850,10 @@ index 0000000..6fb2dde
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..1096ce7
+index 0000000..5c5efd5
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,186 @@
+@@ -0,0 +1,196 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -2953,8 +2957,8 @@ index 0000000..1096ce7
 +    use super::*;
 +    static PIDS: Lazy<Mutex<(HashSet<u32>, bool)>> = Lazy::new(|| Mutex::new((HashSet::new(), false)));
 +    #[link(name="user32")]
-+    extern "system" { fn EnumWindows(cb: unsafe extern "system" fn(isize,isize)->i32, data:isize)->i32; fn GetWindowThreadProcessId(hwnd:isize,pid:*mut u32)->u32; fn ShowWindow(hwnd:isize,cmd:i32)->i32; }
-+    unsafe extern "system" fn visit(hwnd:isize,_:isize)->i32 { let mut pid=0; GetWindowThreadProcessId(hwnd,&mut pid); let g=lock(&PIDS); if g.0.contains(&pid){ShowWindow(hwnd,if g.1{5}else{0});} 1 }
++    extern "system" { fn EnumWindows(cb: unsafe extern "system" fn(isize,isize)->i32, data:isize)->i32; fn GetWindowThreadProcessId(hwnd:isize,pid:*mut u32)->u32; fn ShowWindowAsync(hwnd:isize,cmd:i32)->i32; fn SetForegroundWindow(hwnd:isize)->i32; }
++    unsafe extern "system" fn visit(hwnd:isize,_:isize)->i32 { let mut pid=0; GetWindowThreadProcessId(hwnd,&mut pid); let g=lock(&PIDS); if g.0.contains(&pid){if g.1{ShowWindowAsync(hwnd,9);SetForegroundWindow(hwnd);}else{ShowWindowAsync(hwnd,0);}} 1 }
 +    pub fn set_hidden(tabs:&[Tab], hidden:bool){
 +        let cmds=browser_cmds(); let mut p=HashSet::new();
 +        for t in tabs { let d=dir(t.id).display().to_string(); for(pid,c) in &cmds { if cmd_uses(c,&d){p.insert(pid.as_u32());} } }
@@ -2982,9 +2986,12 @@ index 0000000..1096ce7
 +    for mut cmd in commands{let id=out.len()+1;cmd["id"]=json!(id);socket.send(tokio_tungstenite::tungstenite::Message::Text(cmd.to_string().into())).await.map_err(|e|e.to_string())?;loop{let msg=tokio::time::timeout(Duration::from_secs(5),socket.next()).await.map_err(|_|"CDP timeout".to_string())?.ok_or("CDP geschlossen")?.map_err(|e|e.to_string())?;if let Ok(txt)=msg.into_text(){if let Ok(v)=serde_json::from_str::<Value>(&txt){if v["id"]==id{out.push(v);break;}}}}
 +    } Ok(out)
 +}
-+fn prompt_for(t:&Tab,goal:&str)->String{
-+    let loop_text="Arbeite selbstständig in der Schleife: cowork_claim, Aufgabe bearbeiten, cowork_update, dann cowork_wait. Antworte kurz und nur mit Neuem.";
-+    if t.role=="Main"{format!("Du bist Main/Lead im AdiCode Co-Work. Starte jetzt mit cowork_start ein Projekt für diese Aufgabe: {goal}\n{loop_text}")}else{format!("Du bist {} im AdiCode Co-Work. Finde das einzige aktive Projekt mit cowork_board, tritt mit cowork_join als {} bei. {loop_text}",t.role,t.role)}
++fn prompt_for(t:&Tab)->String {
++    if t.role=="Main" { "Du bist der Main Chat und das einzige Interface zum Nutzer. Wenn der Nutzer ein Projekt nennt: project_memory_open/search aufrufen, dann cowork_start. Nach wichtigen Änderungen HANDOUT.md und project_memory_update aktualisieren.".into() }
++    else { format!("Du bist {} im AdiCode Co-Work. Warte auf das aktive Projekt, tritt mit cowork_join als {} bei und arbeite selbstständig: cowork_claim → arbeiten → cowork_update → cowork_wait. Antworte kurz und nur mit Neuem.",t.role,t.role) }
++}
++async fn open_main(port:u16)->Result<(),String>{
++    cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;tokio::time::sleep(Duration::from_secs(3)).await;cdp(port,vec![json!({"method":"Page.bringToFront"})]).await?;Ok(())
 +}
 +async fn insert_prompt(port:u16,prompt:String)->Result<(),String>{
 +    cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;
@@ -3002,18 +3009,25 @@ index 0000000..1096ce7
 +    let expr=format!(r#"(async()=>{{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const visible=e=>{{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'}};const click=words=>{{const e=[...document.querySelectorAll('button,[role="button"]')].find(x=>visible(x)&&words.some(w=>(x.innerText||x.getAttribute('aria-label')||'').toLowerCase().includes(w)));if(e){{e.click();return true}}return false}};click(['add custom mcp','custom mcp','benutzerdefinierten mcp','mcp hinzufügen']);await sleep(1200);const inputs=[...document.querySelectorAll('input')].filter(visible);const set=(e,v)=>{{if(!e)return;e.focus();const d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(e,v);e.dispatchEvent(new Event('input',{{bubbles:true}}));e.dispatchEvent(new Event('change',{{bubbles:true}}))}};const u=inputs.find(e=>e.type==='url'||/url|server/i.test((e.placeholder||'')+' '+(e.getAttribute('aria-label')||'')))||inputs[0];set(u,{url});const name=inputs.find(e=>e!==u&&/name/i.test((e.placeholder||'')+' '+(e.getAttribute('aria-label')||'')));set(name,'AdiCode');click(['bearer token','authentication','authentifizierung']);await sleep(500);const current=[...document.querySelectorAll('input')].filter(visible);const tok=current.find(e=>e!==u&&e!==name&&(e.type==='password'||/token|api key/i.test((e.placeholder||'')+' '+(e.getAttribute('aria-label')||''))))||current[current.length-1];set(tok,{token});await sleep(300);const ok=click(['connect','verbinden','save','speichern']);return {{ok,href:location.href,inputs:current.length}}}})()"#,url=json!(url),token=json!(token));
 +    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);
 +    let ok=value["ok"].as_bool().unwrap_or(false);let mut a=lock(&ACCOUNT);let entry=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));entry["mcp"]=json!(if ok{"Einrichtung gesendet"}else{"Manueller Fallback nötig"});if ok{Ok("MCP-Einrichtung wurde an Notion übergeben.".into())}else{Err("Notion-Dialog nicht automatisch gefunden; bitte manuell verbinden.".into())}
-+}async fn inspect_account(t:&Tab,i:usize){
++}
++async fn inspect_account(t:&Tab,i:usize){
 +    let expr=r#"(()=>{const body=(document.body&&document.body.innerText)||'';let store='';for(let i=0;i<localStorage.length;i++){try{store+='\n'+localStorage.getItem(localStorage.key(i));}catch(e){}}const text=body+'\n'+store;const names=['GPT-5','GPT-4.1','GPT-4o','Claude 4.5 Sonnet','Claude 4 Sonnet','Claude 3.7 Sonnet','Gemini 2.5 Pro','o3','o4-mini','Notion AI'];const models=[...new Set(names.filter(n=>text.toLowerCase().includes(n.toLowerCase())))];const near=text.match(/(?:usage|verwendet|genutzt|limit|kontingent)[^%]{0,100}(\d{1,3})\s*%/i)||text.match(/(\d{1,3})\s*%[^\n]{0,100}(?:usage|verwendet|genutzt|limit|kontingent)/i);return {usage:near?Math.min(100,Number(near[1])):null,models,checked:new Date().toLocaleTimeString(),url:location.href}})()"#;
 +    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).cloned()).unwrap_or_else(||json!({"usage":null,"models":[],"error":"Account-Check nicht erreichbar"}));lock(&ACCOUNT).insert(t.id,value);
 +}
-+async fn keep_alive(tabs:Vec<Tab>){
-+    loop{for(i,t)in tabs.iter().enumerate(){let _=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":"(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));return document.visibilityState})()"}})]).await;inspect_account(t,i).await;}tokio::time::sleep(Duration::from_secs(20)).await;}
++async fn keep_alive(tabs:Vec<Tab>){loop{for(i,t)in tabs.iter().enumerate(){let _=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":"(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));return document.visibilityState})()"}})]).await;inspect_account(t,i).await;}tokio::time::sleep(Duration::from_secs(20)).await;}}
++async fn kickoff(tabs:Vec<Tab>, baseline:usize){
++    tokio::time::sleep(Duration::from_secs(5)).await;
++    for(i,t)in tabs.iter().enumerate(){let _=setup_mcp(t,i).await;}
++    let _=open_main(cdp_port(0)).await;
++    if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}
++    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
++    loop{if crate::notion_cowork::project_count()>baseline{break;}tokio::time::sleep(Duration::from_secs(3)).await;}
++    for(i,t)in tabs.iter().enumerate().skip(1){let _=insert_prompt(cdp_port(i),prompt_for(t)).await;tokio::time::sleep(Duration::from_secs(2)).await;}
++    let _=open_main(cdp_port(0)).await;
 +}
-+async fn kickoff(tabs:Vec<Tab>,goal:String){tokio::time::sleep(Duration::from_secs(6)).await;for(i,t)in tabs.iter().enumerate(){let _=setup_mcp(t,i).await;let _=insert_prompt(cdp_port(i),prompt_for(t,&goal)).await;tokio::time::sleep(Duration::from_secs(2)).await;}if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}windows::set_hidden(&tabs[1..],true);}
-+
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
 +fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
-+fn start_all(v:&Value)->Result<String,String>{let tabs=load();if tabs.len()!=4||tabs.iter().any(|t|t.email.is_empty()){return Err("Start erst möglich, wenn genau 4 Tabs mit E-Mail eingetragen sind.".into());}let running=running_ids(&tabs);for t in tabs.iter().filter(|t|!running.contains(&t.id)){launch(t,&start_url(t))?;}let goal=clean(v.get("goal").and_then(Value::as_str).unwrap_or(""),4000);if goal.is_empty(){return Err("Bitte zuerst die Aufgabe eintragen.".into());}tokio::spawn(kickoff(tabs,goal));Ok("4 Tabs gestartet. Auto-Kickoff läuft; danach bleiben Coder, Reviewer und Tester versteckt aktiv.".into())}
++fn start_all(_: &Value)->Result<String,String>{let tabs=load();if tabs.len()!=4||tabs.iter().any(|t|t.email.is_empty()){return Err("Start erst möglich, wenn genau 4 Tabs mit E-Mail eingetragen sind.".into());}let running=running_ids(&tabs);for t in tabs.iter().filter(|t|!running.contains(&t.id)){launch(t,&start_url(t))?;}let baseline=crate::notion_cowork::project_count();tokio::spawn(kickoff(tabs,baseline));Ok("Main wird sichtbar geöffnet. Schreibe deine Aufgabe dort; die drei Worker treten danach automatisch bei.".into())}
 +fn delete(id:Option<u32>)->Result<String,String>{let t=find(id)?;if running_ids(std::slice::from_ref(&t)).contains(&t.id){return Err("Tab läuft noch. Erst stoppen.".into());}if dir(t.id).is_dir(){std::fs::remove_dir_all(dir(t.id)).map_err(|e|e.to_string())?;}let tabs:Vec<Tab>=load().into_iter().filter(|x|x.id!=t.id).collect();save(&tabs)?;lock(&ACCOUNT).remove(&t.id);Ok(format!("Tab {} entfernt; Rollen wurden nachgerückt.",t.id))}
 +fn open_tab(t:&Tab)->Result<String,String>{launch(t,&start_url(t)).map(|b|format!("Tab {} geöffnet ({b}).",t.id))}
 +
@@ -3027,7 +3041,7 @@ index 0000000..1096ce7
 +        "cowork_show_all"=>{let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],false);}Ok("Alle Co-Work-Fenster angezeigt.".into())},
 +        "cowork_check_accounts"=>{let tabs=load();tokio::spawn(async move{for(i,t)in tabs.iter().enumerate(){inspect_account(t,i).await;}});Ok("Account-Check läuft (Usage + Modelle).".into())},
 +        "cowork_setup_mcp"=>find(id).map(|t|{let i=tab_index(t.id);tokio::spawn(async move{let _=setup_mcp(&t,i).await;});"MCP-Einrichtung gestartet.".into()}),
-+        "cowork_copy_prompt"=>find(id).map(|t|prompt_for(&t,v.get("goal").and_then(Value::as_str).unwrap_or(""))),
++        "cowork_copy_prompt"=>find(id).map(|t|prompt_for(&t)),
 +        "cowork_stop"=>find(id).map(|t|format!("Tab {} gestoppt ({} Prozesse).",t.id,stop_ids(&[t.id]))),
 +        "open_notion_window"=>match id{Some(_)=>find(id).and_then(|t|open_tab(&t)),None=>add_tab().and_then(|_|load().last().cloned().ok_or("Tab fehlt.".into())).and_then(|t|open_tab(&t))},
 +        "cowork_login"=>find(id).and_then(|t|{if t.email.is_empty(){return Err("Erst Gmail-Konto eintragen und speichern.".into());}let url=format!("https://accounts.google.com/AccountChooser?Email={}&continue={}",enc(&t.email),enc("https://www.notion.so/login"));launch(&t,&url).map(|b|format!("Google-Login für {} geöffnet ({b}).",t.email))}),
@@ -3036,6 +3050,58 @@ index 0000000..1096ce7
 +        _=>return None,
 +    })
 +}
+diff --git a/agent/src/notion_project_memory.rs b/agent/src/notion_project_memory.rs
+new file mode 100644
+index 0000000..8141c3b
+--- /dev/null
++++ b/agent/src/notion_project_memory.rs
+@@ -0,0 +1,46 @@
++//! Durable, project-scoped memory for long-running Notion AI chats.
++use once_cell::sync::Lazy;
++use serde::{Deserialize, Serialize};
++use serde_json::{json, Value};
++use std::{collections::BTreeMap, path::{Path, PathBuf}, sync::Mutex, time::Duration};
++
++#[derive(Clone, Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Record { name:String, summary:String, handout:String, handout_path:String, updated:i64 }
++#[derive(Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Store { projects:BTreeMap<String,Record> }
++static STORE:Lazy<Mutex<Store>>=Lazy::new(||Mutex::new(load()));
++fn lock()->std::sync::MutexGuard<'static,Store>{STORE.lock().unwrap_or_else(|e|e.into_inner())}
++fn root()->PathBuf{std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion").join("project-memory")}
++fn db()->PathBuf{root().join("projects.json")}
++fn load()->Store{std::fs::read_to_string(db()).ok().and_then(|s|serde_json::from_str(s.trim_start_matches('\u{feff}')).ok()).unwrap_or_default()}
++fn save(s:&Store){let p=db();if let Some(d)=p.parent(){let _=std::fs::create_dir_all(d);}let tmp=p.with_extension("tmp");if std::fs::write(&tmp,serde_json::to_vec_pretty(s).unwrap_or_default()).is_ok(){let _=std::fs::rename(tmp,p);}}
++fn key(s:&str)->String{s.trim().to_lowercase().chars().filter(|c|c.is_alphanumeric()||*c=='-'||*c=='_').take(80).collect()}
++fn now()->i64{chrono::Utc::now().timestamp()}
++fn read_handout(path:&Path)->Option<String>{let m=std::fs::metadata(path).ok()?;if !m.is_file()||m.len()>512*1024{return None;}std::fs::read_to_string(path).ok()}
++fn shared_work()->PathBuf{std::env::var_os("PLAZCODE_SHARED_DIR").map(PathBuf::from).unwrap_or_else(||std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_else(||PathBuf::from(".")).join("PlazCode-Shared")).join("work")}
++fn discover(dir:&Path,depth:u8,out:&mut Vec<PathBuf>){if depth==0||out.len()>200{return;}let Ok(rd)=std::fs::read_dir(dir)else{return};for e in rd.flatten(){let p=e.path();if p.is_dir(){let n=e.file_name().to_string_lossy().to_ascii_lowercase();if !matches!(n.as_str(),"node_modules"|"target"|".git"|"dist"|"build"){discover(&p,depth-1,out);}}else{let n=e.file_name().to_string_lossy().to_ascii_lowercase();if matches!(n.as_str(),"handout.md"|"project_handout.md"|"project-memory.md"|"memory.md"){out.push(p);}}}}
++fn sync(){
++    let mut changed=false;let mut store=lock();let mut found=Vec::new();discover(&shared_work(),5,&mut found);
++    for p in found{let Some(text)=read_handout(&p)else{continue};let name=p.parent().and_then(Path::file_name).map(|x|x.to_string_lossy().to_string()).unwrap_or_else(||"Projekt".into());let k=key(&name);let r=store.projects.entry(k).or_insert_with(||Record{name:name.clone(),..Default::default()});if r.handout!=text||r.handout_path!=p.to_string_lossy(){r.handout=text;r.handout_path=p.to_string_lossy().to_string();r.updated=now();changed=true;}}
++    let keys:Vec<String>=store.projects.keys().cloned().collect();for k in keys{let path=store.projects[&k].handout_path.clone();if path.is_empty(){continue;}if let Some(text)=read_handout(Path::new(&path)){if store.projects[&k].handout!=text{let r=store.projects.get_mut(&k).unwrap();r.handout=text;r.updated=now();changed=true;}}}
++    if changed{save(&store);}
++}
++pub(crate) fn start(){tokio::spawn(async{loop{let _=tokio::task::spawn_blocking(sync).await;tokio::time::sleep(Duration::from_secs(20)).await;}});}
++fn text(s:String)->Value{json!({"content":[{"type":"text","text":s}]})}
++fn err(s:String)->Value{json!({"isError":true,"content":[{"type":"text","text":s}]})}
++fn render(r:&Record)->String{format!("Projekt: {}\nAktualisiert: {}\nHandout: {}\n\nZusammenfassung:\n{}\n\nProjekt-Handout:\n{}",r.name,r.updated,if r.handout_path.is_empty(){"-"}else{&r.handout_path},r.summary,r.handout)}
++pub(crate) fn tools()->Vec<Value>{vec![
++ json!({"name":"project_memory_list","description":"Listet dauerhaft gespeicherte Projekt-Kontexte. Vor einem Themenwechsel oder bei 'weiter an X' verwenden.","inputSchema":{"type":"object","properties":{}}}),
++ json!({"name":"project_memory_open","description":"Laedt den kompletten Kontext eines Projekts (Zusammenfassung + automatisch synchronisiertes HANDOUT.md). Immer vor Weiterarbeit an einem genannten Projekt aufrufen.","inputSchema":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}),
++ json!({"name":"project_memory_search","description":"Sucht projektuebergreifend in Namen, Zusammenfassungen und Handouts.","inputSchema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}),
++ json!({"name":"project_memory_update","description":"Speichert den aktuellen Projektstand dauerhaft. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel aufrufen; handout_path registriert eine Datei fuer automatische Synchronisierung.","inputSchema":{"type":"object","properties":{"name":{"type":"string"},"summary":{"type":"string"},"handout":{"type":"string"},"handout_path":{"type":"string"}},"required":["name"]}})
++]}
++pub(crate) fn call(name:&str,args:&Value)->Option<Value>{Some(match name{
++ "project_memory_list"=>{sync();let s=lock();let mut v:Vec<_>=s.projects.values().map(|r|format!("- {} (aktualisiert {}, Handout: {})",r.name,r.updated,if r.handout_path.is_empty(){"nein"}else{"ja"})).collect();v.sort();text(if v.is_empty(){"Noch keine Projekt-Memory. Lege beim ersten Projekt ein HANDOUT.md an und rufe project_memory_update auf.".into()}else{v.join("\n")})},
++ "project_memory_open"=>{sync();let n=args["name"].as_str().unwrap_or("");let k=key(n);let s=lock();match s.projects.get(&k).or_else(||s.projects.values().find(|r|r.name.eq_ignore_ascii_case(n))){Some(r)=>text(render(r)),None=>err(format!("Projekt '{n}' nicht gefunden. project_memory_search/list verwenden oder neu anlegen."))}},
++ "project_memory_search"=>{sync();let q=args["query"].as_str().unwrap_or("").trim().to_lowercase();if q.is_empty(){return Some(err("query fehlt".into()));}let s=lock();let mut out=Vec::new();for r in s.projects.values(){let hay=format!("{}\n{}\n{}",r.name,r.summary,r.handout).to_lowercase();if hay.contains(&q){let preview: String=if !r.summary.is_empty(){r.summary.chars().take(700).collect()}else{r.handout.chars().take(700).collect()};out.push(format!("## {}\n{}",r.name,preview));}}text(if out.is_empty(){"Keine Treffer.".into()}else{out.join("\n\n")})},
++ "project_memory_update"=>{let name=args["name"].as_str().unwrap_or("").trim();if name.is_empty(){return Some(err("name fehlt".into()));}let k=key(name);let mut s=lock();let r=s.projects.entry(k).or_insert_with(||Record{name:name.into(),..Default::default()});r.name=name.into();if let Some(v)=args["summary"].as_str(){if !v.trim().is_empty(){r.summary=v.chars().take(50000).collect();}}if let Some(v)=args["handout"].as_str(){if !v.trim().is_empty(){r.handout=v.chars().take(500000).collect();}}if let Some(v)=args["handout_path"].as_str(){if !v.trim().is_empty(){r.handout_path=v.trim().to_string();if let Some(t)=read_handout(Path::new(&r.handout_path)){r.handout=t;}}}r.updated=now();let out=render(r);save(&s);text(format!("Projekt-Memory gespeichert.\n\n{out}"))},
++ _=>return None,
++})}
 diff --git a/agent/src/notion_roblox_plus.rs b/agent/src/notion_roblox_plus.rs
 new file mode 100644
 index 0000000..be8820a
@@ -4269,17 +4335,17 @@ index 0000000..9759733
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
 new file mode 100644
-index 0000000..9d1c620
+index 0000000..c7762ac
 --- /dev/null
 +++ b/agent/src/notion_skills.rs
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,157 @@
 +//! AdiCode (unofficial fork): built-in coding skills and control tools
 +//! for Notion AI. Skills are short, opinionated checklists the agent loads
 +//! before it writes code (Roblox/Luau and general app development).
 +
 +use serde_json::{json, Value};
 +
-+pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork). Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist.";
++pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork). Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
 +
 +struct Skill { id: &'static str, title: &'static str, body: &'static str }
 +
@@ -4351,14 +4417,30 @@ index 0000000..9d1c620
 +- Before pushing: run build/tests, review git diff --staged.
 +- Do not force-push shared branches or rewrite published history without explicit user confirmation.
 +- Releases: bump version file, tag (vX.Y.Z), write release notes."# },
-+    Skill { id: "cowork", title: "Co-Work: several Notion AI chats with fixed expert roles on one project", body: r#"Co-Work lets several Notion AI chats (browser tabs) build one project in parallel via a shared board (cowork_* tools). The MAIN CHAT is the lead and the only interface to the user; every other tab joins with ONE fixed expert role.
++    Skill { id: "project-memory", title: "Durable multi-project memory across long chats", body: r#"Purpose
++- A Notion chat is not infinite. Treat the chat as a temporary interface and project_memory_* plus HANDOUT.md as the durable source of truth.
++- Every project has its own namespace (for example Aurelune, PlazCode, AdiCode). Never mix decisions between projects.
++
++On project selection / switching
++1. If the user says "continue X", "work on X" or names a project: project_memory_open(name=X). If the exact name is unclear, project_memory_search/list first.
++2. Read the registered HANDOUT.md and current repository before planning. Briefly mention only missing or conflicting context.
++3. Work normally. The Main chat remains the only user interface; worker tabs receive tasks through cowork_*.
++
++After material work
++1. Update that project's HANDOUT.md: current architecture, decisions, build/release workflow, pitfalls, changelog, and next tasks. Keep it concise and factual.
++2. Call project_memory_update with the same stable project name, a compact current summary, and handout_path. The background watcher then keeps future HANDOUT changes synchronized.
++3. Before switching to another project, save the old project first. Opening another project never deletes prior memory.
++
++Context pressure
++- Do not try to retain an unlimited raw transcript. Preserve decisions, interfaces, file paths, commands, failures and next steps; omit chatter and duplicated status.
++- If a response suggests context was lost, stop and reload project_memory_open plus HANDOUT.md before continuing."# },    Skill { id: "cowork", title: "Co-Work: several Notion AI chats with fixed expert roles on one project", body: r#"Co-Work lets several Notion AI chats (browser tabs) build one project in parallel via a shared board (cowork_* tools). The MAIN CHAT is the lead and the only interface to the user; every other tab joins with ONE fixed expert role.
 +ROLES: lead = Main Chat, prompt = Prompt-Schreiber, coder = Programmierer, reviewer = Code-Bewerter, uiux = UI/UX-Kritiker, tester = Tester, roblox = Roblox-Spezialist, worker = Generalist. Custom roles are allowed. German names work too ("Programmierer", "Code-Bewerter", "UI/UX-Kritiker" ...).
 +LEAD (the chat where the user describes the project):
-+1. Understand the goal, inspect the existing code/project (files, git, Roblox tree) so tasks are concrete.
++1. Identify the project, load project_memory_open and its HANDOUT.md, then inspect current code/project (files, git, Roblox tree) so tasks are concrete.
 +2. cowork_start with title, goal (stack, folders, conventions, interfaces) and 4-15 small tasks. Each task: clear title, detail with acceptance criteria, role (ONLY roles that are really needed for that task), files it touches, depends_on for real ordering only. Set review=reviewer for code tasks and review=uiux for UI tasks; a review task is then created automatically when the task is done, and requested changes become fix tasks (max 2 rounds, then you decide).
 +3. Tell the user which role tabs to open and the exact sentence per tab: "Tritt Co-Work-Projekt <id> bei als <Rolle>". Missing roles are covered by other tabs automatically.
 +4. Orchestrate: cowork_wait / cowork_board, answer blocked tasks and messages, add tasks with cowork_add_tasks. Only do tasks yourself if nobody else can.
-+5. When the board says ALLE TASKS ERLEDIGT: cowork_results, then merge everything into ONE final, optimized answer for the user (resolve contradictions, include review feedback, no duplicates, clear next steps). Close the project only if the user wants.
++5. When all tasks are done: cowork_results, update HANDOUT.md, project_memory_update, then give ONE short optimized answer. Close the project only if the user wants.
 +ROLE TAB (any other chat, e.g. "Tritt Co-Work-Projekt p1 bei als Code-Bewerter"):
 +1. cowork_join with project and role; remember your agent name and pass it as agent on every cowork call. Act strictly as the expert of your role (the join answer contains the role guide).
 +2. Loop: cowork_claim (you get tasks of your role first, then unassigned ones, then tasks of unfilled roles) -> load the matching skill (roblox, roblox-studio, app, debug, git) -> read files before editing -> change only the task files (lock extra files with cowork_lock) -> verify -> cowork_update status=done with a short, precise result (what, which files, how tested).

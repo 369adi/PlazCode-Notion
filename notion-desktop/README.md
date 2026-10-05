@@ -12,6 +12,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.18
+- Updates beenden Co-Work-Browser nicht mehr: Der Launcher schliesst beim App-Neustart weiterhin AdiCode, ngrok und Add-ons, bewahrt aber alle Browserprozesse der vier Profilordner.
+- „Alle zeigen“ stellt versteckte Worker-Fenster mit Windows `SW_RESTORE` wirklich wieder her.
+- Main-First-Ablauf: **Alle starten** öffnet nur Main sichtbar. Aufgaben werden direkt im Main-Notion-Chat geschrieben; Coder, Reviewer und Tester bleiben versteckt und treten bei, sobald Main ein neues Co-Work-Projekt startet.
+- Neues eingebautes `project_memory_*`: getrennte dauerhafte Kontexte pro Projekt, Suche/Öffnen/Aktualisieren und automatische Synchronisierung von HANDOUT.md-Dateien im Shared-Work-Ordner. Damit kann ein langer Main-Chat zwischen Aurelune, PlazCode usw. wechseln, ohne die Projekte zu vermischen.
+- Neuer Skill `project-memory`: vor Weiterarbeit Projekt-Memory laden; nach wichtigen Änderungen HANDOUT.md und Memory aktualisieren. Roher Chatverlauf wird nicht als dauerhaft oder unbegrenzt angenommen.
 ## Neu in 1.0.17
 - **Co-Work 2.0:** genau vier Tabs mit festen Rollen nach E-Mail-Reihenfolge (Main, Coder, Reviewer, Tester). Start erst mit vier Konten und eingetragener Aufgabe.
 - **Auto-Kickoff per CDP:** Jeder Tab wird zuerst gezielt auf Notion AI (`/ai`) navigiert; nur der sichtbare untere AI-Composer wird verwendet. Pro Tab gibt es weiterhin „Startprompt kopieren“ als Fallback.
