@@ -40,6 +40,9 @@ Notion-Design + eingebauter MCP-Server, damit Notion AI Roblox Studio, PC und Br
 
 ## Hinweise
 Inoffizieller Fork, keine Verbindung zu den PlazCode-Autoren oder Notion Labs. `LICENSE` und `BRANDING-NOTICE.txt` müssen erhalten bleiben. Tokens nie veröffentlichen.
+## Neu in 1.0.9: Aufgeräumte Oberfläche + getrennte Notion-Fenster
+- Model Builder, UI Builder, Toolkit, Templates und Updates sind aus der Oberfläche entfernt (Code bleibt intern erhalten).
+- Seite Notion AI → Karte **„Notion-Fenster (getrennte Logins)“**: „Neues Notion-Fenster“ startet Chrome/Edge/Brave mit eigenem Profil (`%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N`) als App-Fenster mit Notion AI. Jedes Profil hat eigene Cookies – Ein-/Ausloggen wirkt nur dort. Profile können benannt, geöffnet und gelöscht werden (`notion_profiles.rs`).
 ## Neu in 1.0.8: Funktionen aus Secretscript
 - **Web-Agenten** (`notion_web_agents.rs` + Chrome-Erweiterung in `notion-desktop/extension`): Tools `web_sites`, `web_agents`, `web_chat`. Notion AI kann freigegebene KI-Chat-Tabs (ChatGPT, Claude, Gemini, DeepSeek, Qwen, Kimi, GLM, Arena) nutzen. WebSocket `ws://127.0.0.1:8787/extension/ws`, eigener Erweiterungs-Token (Seite Notion AI → „Web-Agenten & Sicherheit“).
 - **Direkt-Modus**: Ein KI-Chat arbeitet als Roblox-Agent (`/direct-agent/*`, 300 s Laufzeit, max. 50 Aufrufe); jede Änderung braucht eine Freigabe im Panel auf der Seite. Solange er läuft, sind Notion-Schreibzugriffe auf Studio gesperrt.

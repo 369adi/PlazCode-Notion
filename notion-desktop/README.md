@@ -12,6 +12,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.9: Aufgeräumte Oberfläche + getrennte Notion-Fenster
+- Model Builder, UI Builder, Toolkit, Templates und Updates sind aus der Oberfläche entfernt (Code bleibt intern erhalten).
+- Seite Notion AI → Karte **„Notion-Fenster (getrennte Logins)“**: „Neues Notion-Fenster“ startet Chrome/Edge/Brave mit eigenem Profil (`%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N`) als App-Fenster mit Notion AI. Jedes Profil hat eigene Cookies – Ein-/Ausloggen wirkt nur dort. Profile können benannt, geöffnet und gelöscht werden (`notion_profiles.rs`).
 ## Neu in 1.0.8
 - Web-Agenten: Notion AI nutzt freigegebene KI-Chat-Tabs über die Chrome-Erweiterung (Ordner `notion-desktop/extension` im Repo) (Installation: `chrome://extensions` → Entwicklermodus → „Entpackte Erweiterung laden“; Token von der Seite Notion AI → „Web-Agenten & Sicherheit“).
 - Direkt-Modus: ein KI-Chat als Roblox-Agent, jede Änderung mit Freigabe.
