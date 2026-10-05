@@ -1,5 +1,7 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.IO;
 using System.IO.Compression;
 using System.Management;
@@ -20,6 +22,11 @@ static class Launcher
     const string AssetName = "PlazCode-Notion.exe";
     const string TagPrefix = "notion-desktop-v";
     const int CheckSeconds = 15;
+    delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr data);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc proc, IntPtr data);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [DllImport("user32.dll")] static extern bool ShowWindowAsync(IntPtr hwnd, int command);
+    [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr hwnd);
     // Files with user state are never overwritten by an update.
     static readonly string[] Keep = { "config.json", "plazcode-settings.json" };
 
@@ -222,8 +229,28 @@ static class Launcher
         Log("app started");
     }
 
+    static void RestoreCoWorkWindows()
+    {
+        try
+        {
+            HashSet<uint> pids = new HashSet<uint>();
+            using (ManagementObjectSearcher q = new ManagementObjectSearcher("SELECT ProcessId,Name,CommandLine FROM Win32_Process"))
+            foreach (ManagementObject o in q.Get())
+            {
+                string name = Convert.ToString(o["Name"] ?? "").ToLowerInvariant();
+                string cmd = Convert.ToString(o["CommandLine"] ?? "").ToLowerInvariant();
+                bool browser = name.Contains("chrome") || name.Contains("msedge") || name.Contains("brave");
+                if (browser && cmd.Contains("plazcodenotion\\profiles\\agent-")) pids.Add(Convert.ToUInt32(o["ProcessId"]));
+            }
+            EnumWindows(delegate(IntPtr hwnd, IntPtr data) { uint pid; GetWindowThreadProcessId(hwnd, out pid); if (pids.Contains(pid)) { ShowWindowAsync(hwnd, 9); SetForegroundWindow(hwnd); } return true; }, IntPtr.Zero);
+            Log("restored Co-Work browser windows");
+        }
+        catch (Exception ex) { Log("restore Co-Work windows failed: " + ex.Message); }
+    }
+
     static void StopApp()
     {
+        RestoreCoWorkWindows();
         Process p;
         while ((p = FindApp()) != null)
         {

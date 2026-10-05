@@ -808,7 +808,7 @@ index 04ebefa..16ffb12 100644
                  _ if body.starts_with("toolkit-store:") => toolkit_store_url(body).map(UiEvent::OpenExternal),
                  _ => supported_ai_url(body).map(|url|UiEvent::OpenExternal(url.to_owned())).or_else(|| body.strip_prefix("js-error:").map(|message| UiEvent::JsError(message.to_string()))),
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..97e6816 100644
+index 77cc050..d5fd154 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
 @@ -81,6 +81,15 @@ mod media;
@@ -843,16 +843,17 @@ index 77cc050..97e6816 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +840,8 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +840,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
 +                shutdown_state.addons.lock().await.reset_all().await;
++                notion_profiles::show_all_windows();
 +                notion_mcp::shutdown();
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -881,6 +892,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -881,6 +893,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
      let addon_state = state.clone();
      tokio::spawn(async move {
          let (tools, servers) = addon_state.addons.lock().await.list_tools().await;
@@ -860,7 +861,7 @@ index 77cc050..97e6816 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -937,6 +949,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -937,6 +950,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
      updater::start_checker();
@@ -868,7 +869,7 @@ index 77cc050..97e6816 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +961,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +962,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -876,7 +877,7 @@ index 77cc050..97e6816 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +991,10 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +992,10 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -887,7 +888,7 @@ index 77cc050..97e6816 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1460,6 +1478,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1479,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -895,7 +896,7 @@ index 77cc050..97e6816 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1550,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1551,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -903,7 +904,7 @@ index 77cc050..97e6816 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1559,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1560,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -2850,10 +2851,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..5c5efd5
+index 0000000..54fba95
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,196 @@
+@@ -0,0 +1,198 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -3031,6 +3032,8 @@ index 0000000..5c5efd5
 +fn delete(id:Option<u32>)->Result<String,String>{let t=find(id)?;if running_ids(std::slice::from_ref(&t)).contains(&t.id){return Err("Tab läuft noch. Erst stoppen.".into());}if dir(t.id).is_dir(){std::fs::remove_dir_all(dir(t.id)).map_err(|e|e.to_string())?;}let tabs:Vec<Tab>=load().into_iter().filter(|x|x.id!=t.id).collect();save(&tabs)?;lock(&ACCOUNT).remove(&t.id);Ok(format!("Tab {} entfernt; Rollen wurden nachgerückt.",t.id))}
 +fn open_tab(t:&Tab)->Result<String,String>{launch(t,&start_url(t)).map(|b|format!("Tab {} geöffnet ({b}).",t.id))}
 +
++pub(crate) fn show_all_windows(){let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],false);}}
++
 +pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();json!({"ok":true,"browser":browser_name(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v}).collect::<Vec<_>>()})}
 +pub async fn tabs_handler()->impl IntoResponse{Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e|json!({"ok":false,"error":e.to_string()})))}
 +pub fn action(name:&str,v:&Value)->Option<Result<String,String>>{
@@ -3038,7 +3041,7 @@ index 0000000..5c5efd5
 +    Some(match name{
 +        "cowork_add_tab"=>add_tab(),"cowork_save_tabs"=>save_tabs(v),"cowork_start_all"=>start_all(v),
 +        "cowork_stop_all"=>{let ids:Vec<u32>=load().iter().map(|t|t.id).collect();Ok(format!("{} Browser-Prozesse beendet.",stop_ids(&ids)))},
-+        "cowork_show_all"=>{let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],false);}Ok("Alle Co-Work-Fenster angezeigt.".into())},
++        "cowork_show_all"=>{show_all_windows();Ok("Alle Co-Work-Fenster angezeigt.".into())},
 +        "cowork_check_accounts"=>{let tabs=load();tokio::spawn(async move{for(i,t)in tabs.iter().enumerate(){inspect_account(t,i).await;}});Ok("Account-Check läuft (Usage + Modelle).".into())},
 +        "cowork_setup_mcp"=>find(id).map(|t|{let i=tab_index(t.id);tokio::spawn(async move{let _=setup_mcp(&t,i).await;});"MCP-Einrichtung gestartet.".into()}),
 +        "cowork_copy_prompt"=>find(id).map(|t|prompt_for(&t)),

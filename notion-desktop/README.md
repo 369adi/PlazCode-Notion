@@ -13,7 +13,7 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
 ## Neu in 1.0.18
-- Updates beenden Co-Work-Browser nicht mehr: Der Launcher schliesst beim App-Neustart weiterhin AdiCode, ngrok und Add-ons, bewahrt aber alle Browserprozesse der vier Profilordner.
+- Updates beenden Co-Work-Browser nicht mehr: Der Launcher schliesst beim App-Neustart weiterhin AdiCode, ngrok und Add-ons, bewahrt aber alle Browserprozesse der vier Profilordner. Vor Update-Neustarts und normalem Beenden werden versteckte Worker-Fenster wieder sichtbar gemacht.
 - „Alle zeigen“ stellt versteckte Worker-Fenster mit Windows `SW_RESTORE` wirklich wieder her.
 - Main-First-Ablauf: **Alle starten** öffnet nur Main sichtbar. Aufgaben werden direkt im Main-Notion-Chat geschrieben; Coder, Reviewer und Tester bleiben versteckt und treten bei, sobald Main ein neues Co-Work-Projekt startet.
 - Neues eingebautes `project_memory_*`: getrennte dauerhafte Kontexte pro Projekt, Suche/Öffnen/Aktualisieren und automatische Synchronisierung von HANDOUT.md-Dateien im Shared-Work-Ordner. Damit kann ein langer Main-Chat zwischen Aurelune, PlazCode usw. wechseln, ohne die Projekte zu vermischen.
