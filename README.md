@@ -1,8 +1,21 @@
+PlazCode 1.19.34 — Firefox Notion startup, Co-Work and update-restart fixes
+
+Fix Firefox paste and file delivery for Notion and Co-Work, keep the desktop app open during active work and start ChatGPT commands sooner.
+
+- A Firefox-only page helper that delivers PlazCode paste, file-drop and input events to AI pages with their text and files intact. Chromium packages are unchanged.
+- Real-Firefox release checks for the Notion protocol file upload, inline follow-up paste, Co-Work draft clearing and unchanged native page events.
+- Automatic desktop updates wait until PlazCode has been idle for 3 minutes. An update found during a task shows Update ready, and Update now still installs immediately.
+- After an automatic update, an open desktop window reopens without taking focus instead of restarting minimized.
+- ChatGPT commands start 0.5 seconds after the reply stops and its Stop control disappears, instead of after a fixed 1.5-second idle wait. Each command round trip is about 0.8 seconds faster.
+- Firefox Notion no longer waits a long time at Start and then fails with Message was not confirmed because the protocol file upload never reached Notion.
+- Firefox Co-Work on Notion accepts typed follow-ups while the AI is working, queues them with Enter and clears the composer, matching Chrome.
+- The desktop app no longer closes in the middle of a task when an automatic update arrives, and no longer appears to close by restarting minimized after a background update.
+
 PlazCode 1.19.33 — Firefox installation and authenticated bridge support
 
 Add a Firefox extension package and correct Firefox background startup and desktop pairing.
 
-- A dedicated PlazCode-Extension-Firefox folder in both desktop downloads and a standalone PlazCode-Firefox-1.19.33.zip with manifest.json at its root.
+- A dedicated PlazCode-Extension-Firefox folder in both desktop downloads and a standalone PlazCode-Firefox-1.19.34.zip with manifest.json at its root.
 - Firefox installation instructions explain selecting manifest.json or the Firefox ZIP in about:debugging, reloading after updates and the unsigned temporary-install limitation.
 - Firefox uses the same provider adapters, tools, bar, creators and settings as the Chromium extension, with a Firefox background script and stable addon identity.
 - Firefox requests use the installation-specific extension UUID for automatic pairing, while authenticated desktop HTTP and WebSocket routes recognize valid moz-extension origins.

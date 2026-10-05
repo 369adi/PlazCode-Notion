@@ -1,9 +1,28 @@
 {
-  "version": "1.19.33",
-  "desktop_version": "1.19.33",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.33.zip",
-  "sha256": "5869943889ae9e473c0f29a816f2943143a55d0bd2c0d55b24406001a7b29ba5",
+  "version": "1.19.34",
+  "desktop_version": "1.19.34",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.34.zip",
+  "sha256": "96bac628543caee702e9805e55f0c262d194d6fa8bd3c36ff75cef2874ad14cf",
   "release_notes": [
+    {
+      "version": "1.19.34",
+      "title": "Firefox Notion startup, Co-Work and update-restart fixes",
+      "summary": "Fix Firefox paste and file delivery for Notion and Co-Work, keep the desktop app open during active work and start ChatGPT commands sooner.",
+      "added": [
+        "A Firefox-only page helper that delivers PlazCode paste, file-drop and input events to AI pages with their text and files intact. Chromium packages are unchanged.",
+        "Real-Firefox release checks for the Notion protocol file upload, inline follow-up paste, Co-Work draft clearing and unchanged native page events."
+      ],
+      "improved": [
+        "Automatic desktop updates wait until PlazCode has been idle for 3 minutes. An update found during a task shows Update ready, and Update now still installs immediately.",
+        "After an automatic update, an open desktop window reopens without taking focus instead of restarting minimized.",
+        "ChatGPT commands start 0.5 seconds after the reply stops and its Stop control disappears, instead of after a fixed 1.5-second idle wait. Each command round trip is about 0.8 seconds faster."
+      ],
+      "fixed": [
+        "Firefox Notion no longer waits a long time at Start and then fails with Message was not confirmed because the protocol file upload never reached Notion.",
+        "Firefox Co-Work on Notion accepts typed follow-ups while the AI is working, queues them with Enter and clears the composer, matching Chrome.",
+        "The desktop app no longer closes in the middle of a task when an automatic update arrives, and no longer appears to close by restarting minimized after a background update."
+      ]
+    },
     {
       "version": "1.19.33",
       "title": "Firefox installation and authenticated bridge support",
@@ -708,40 +727,6 @@
       "fixed": [
         "Initialize Co-work placeholder state before the first UI render. The shared fix covers ChatGPT, DeepSeek, Claude, Notion and other providers using the same bar.",
         "Full content-script boot tests exercise composers already present on ChatGPT, DeepSeek, Claude and Notion; placement and native Co-work/Stop regression checks are retained."
-      ]
-    },
-    {
-      "version": "1.18.99",
-      "title": "Native Co-work, continuation and reliability",
-      "summary": "Use the site's own composer for Co-work, preserve chat context across sites, and bound long-running work. Notion long prompts use verified small pastes.",
-      "added": [
-        "New-chat continuation choices: Yes, continue. / No, I wanna start a new project. Context is loaded only after successful startup; captured chat history and continuation excerpts have explicit retention limits.",
-        "Shared command and task-time budgets, continuation export and explicit paused-task resume; zero disables a budget.",
-        "Selective restoration of captured local files and direct Studio script edits, with current-content conflict checks and Edit-mode/session guards.",
-        "Optional bounded, deduplicated Studio screenshots for visual review. Screenshots do not verify runtime behavior.",
-        "Versioned GitHub Releases with fresh-install and compatibility ZIP assets and matching change notes."
-      ],
-      "improved": [
-        "Co-work uses the original ChatGPT, Claude, DeepSeek and Notion composer and native Send control. Follow up is placeholder text only while work is active. Requests are accepted immediately and reach the AI at a safe message boundary; native Stop keeps its role.",
-        "Unsent native composer drafts are guarded and protected during internal tool-result sends. Existing settings, memory and MCP preferences retain their data locations.",
-        "The extension toolbar popup follows shared palette, glow and gradient settings from desktop/bar."
-      ],
-      "fixed": [
-        "Notion 33k+ startup prompts are split into bounded, retained paste chunks, avoiding repeated long-paste attachment conversion. Rejection, cancellation and timeouts do not authorize startup.",
-        "Budget pauses resist automatic watchdog restart; continuation requires a positively confirmed startup in the intended chat.",
-        "Automatic visual checks participate in Immediate Stop and cancellation settling."
-      ]
-    },
-    {
-      "version": "1.18.98",
-      "title": "Keep Immediate Stop latched until cancellation settles",
-      "summary": "Includes all 1.18.97 improvements, with an additional guard against dispatching tools while an interrupted operation is still settling.",
-      "added": [],
-      "improved": [
-        "Immediate Stop remains the default; Safe Stop continues to wait for the current tool step."
-      ],
-      "fixed": [
-        "Keep the browser stop latch while an abandoned tool remains active and block tool dispatch until it settles. New task startup remains guarded."
       ]
     }
   ]
