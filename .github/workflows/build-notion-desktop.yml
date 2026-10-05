@@ -56,7 +56,7 @@ jobs:
           } catch { Write-Warning "Icon extraction failed: $_" }
           $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
           $exe = "PlazCode-Notion.exe"
-          & $csc /nologo /target:winexe /optimize+ "/out:$exe" @iconArg /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /resource:app.zip,app.zip notion-desktop/launcher/Launcher.cs Version.cs
+          & $csc /nologo /target:winexe /optimize+ "/out:$exe" @iconArg /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /resource:app.zip,app.zip "$PWD\notion-desktop\launcher\Launcher.cs" "$PWD\Version.cs"
           if ($LASTEXITCODE -ne 0) { throw "Launcher build failed" }
           "version=$v" >> $env:GITHUB_OUTPUT
           "exe=$exe" >> $env:GITHUB_OUTPUT
