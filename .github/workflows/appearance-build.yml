@@ -2,7 +2,9 @@ name: Build PlazCode icons and background update presentation
 on:
   push:
     branches: [icons-updater-1.19.19]
-    paths: [appearance-source.zip, appearance-source/**, .github/workflows/appearance-build.yml]
+    # Only the workflow commit (which pins the new source checksum) starts a build;
+    # uploading the source parts in earlier commits must not trigger partial runs.
+    paths: [.github/workflows/appearance-build.yml]
   workflow_dispatch:
 concurrency:
   group: plazcode-appearance-validation
@@ -18,7 +20,7 @@ jobs:
       - name: Assemble verified build source
         run: |
           cat appearance-source/appearance-source.zip.b64.part* | base64 --decode > appearance-source.zip
-          echo '928d1fd5e9e169f28297641ec8397ae8a4ef3365dedb2fe9fc4019cc4fa013f2  appearance-source.zip' | sha256sum --check
+          echo '67d4a39cafd0523a52cb62d1da785e01b99469e390598387f7ad04b375ca37bb  appearance-source.zip' | sha256sum --check
       - run: unzip -q appearance-source.zip -d build
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -76,7 +78,7 @@ jobs:
       - name: Assemble verified build source
         run: |
           cat appearance-source/appearance-source.zip.b64.part* | base64 --decode > appearance-source.zip
-          echo '928d1fd5e9e169f28297641ec8397ae8a4ef3365dedb2fe9fc4019cc4fa013f2  appearance-source.zip' | sha256sum --check
+          echo '67d4a39cafd0523a52cb62d1da785e01b99469e390598387f7ad04b375ca37bb  appearance-source.zip' | sha256sum --check
       - run: unzip -q appearance-source.zip -d build
       - uses: actions/setup-node@v4
         with:
@@ -111,7 +113,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Extract verified build source
         shell: bash
-        run: python -c "import base64,glob,hashlib,zipfile; data=base64.b64decode(''.join(open(p).read() for p in sorted(glob.glob('appearance-source/appearance-source.zip.b64.part*')))); assert hashlib.sha256(data).hexdigest()=='928d1fd5e9e169f28297641ec8397ae8a4ef3365dedb2fe9fc4019cc4fa013f2', 'Build source checksum mismatch'; open('appearance-source.zip','wb').write(data); zipfile.ZipFile('appearance-source.zip').extractall('build')"
+        run: python -c "import base64,glob,hashlib,zipfile; data=base64.b64decode(''.join(open(p).read() for p in sorted(glob.glob('appearance-source/appearance-source.zip.b64.part*')))); assert hashlib.sha256(data).hexdigest()=='67d4a39cafd0523a52cb62d1da785e01b99469e390598387f7ad04b375ca37bb', 'Build source checksum mismatch'; open('appearance-source.zip','wb').write(data); zipfile.ZipFile('appearance-source.zip').extractall('build')"
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -212,7 +214,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for part in $(gh api "repos/$GITHUB_REPOSITORY/contents/appearance-source?ref=$GITHUB_SHA" --jq '.[].name' | sort); do curl --fail --location --silent --show-error "https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/appearance-source/$part"; done | base64 --decode > appearance-source.zip
-          echo '928d1fd5e9e169f28297641ec8397ae8a4ef3365dedb2fe9fc4019cc4fa013f2  appearance-source.zip' | sha256sum --check
+          echo '67d4a39cafd0523a52cb62d1da785e01b99469e390598387f7ad04b375ca37bb  appearance-source.zip' | sha256sum --check
           gh api "repos/$GITHUB_REPOSITORY/contents/package-appearance.py?ref=$GITHUB_SHA" --jq .content | base64 --decode > package-appearance.py
           gh api "repos/$GITHUB_REPOSITORY/contents/publisher-appearance.py?ref=$GITHUB_SHA" --jq .content | base64 --decode > publisher-appearance.py
           unzip -q appearance-source.zip -d build
@@ -224,17 +226,17 @@ jobs:
         env:
           NODE_PATH: ${{ github.workspace }}/build/PlazCode/release-tools/node_modules
         run: |
-          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.33', 'Main release changed; manual rebase required'"
+          python -c "import json; assert json.load(open('latest.json'))['version']=='1.19.34', 'Main release changed; manual rebase required'"
           python package-appearance.py
-          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.34.zip').read_bytes(),'1.19.34','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.34.zip').read_bytes(),'1.19.34','macos')"
+          python -c "import publish_release,json,pathlib; f=json.load(open('latest.json')); publish_release.validate_archive(pathlib.Path('PlazCode-1.19.35.zip').read_bytes(),'1.19.35','windows'); publish_release.validate_archive(pathlib.Path('PlazCode-macOS-1.19.35.zip').read_bytes(),'1.19.35','macos')"
       - uses: actions/attest@v4
         id: provenance
         with:
           subject-path: |
-            PlazCode-1.19.34.zip
-            PlazCode-macOS-1.19.34.zip
-            PlazCode-source-1.19.34.zip
-            PlazCode-Firefox-1.19.34.zip
+            PlazCode-1.19.35.zip
+            PlazCode-macOS-1.19.35.zip
+            PlazCode-source-1.19.35.zip
+            PlazCode-Firefox-1.19.35.zip
             latest.json
             latest-macos.json
       - name: Verify build provenance before publishing
@@ -242,17 +244,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BUNDLE_PATH: ${{ steps.provenance.outputs.bundle-path }}
         run: |
-          cp "$BUNDLE_PATH" PlazCode-1.19.34.sigstore.json
-          for file in PlazCode-1.19.34.zip PlazCode-macOS-1.19.34.zip PlazCode-source-1.19.34.zip PlazCode-Firefox-1.19.34.zip latest.json latest-macos.json; do gh attestation verify "$file" --repo "$GITHUB_REPOSITORY"; done
+          cp "$BUNDLE_PATH" PlazCode-1.19.35.sigstore.json
+          for file in PlazCode-1.19.35.zip PlazCode-macOS-1.19.35.zip PlazCode-source-1.19.35.zip PlazCode-Firefox-1.19.35.zip latest.json latest-macos.json; do gh attestation verify "$file" --repo "$GITHUB_REPOSITORY"; done
       - name: Commit release files and publish verified GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name 'PlazCode release automation'
           git config user.email 'actions@users.noreply.github.com'
-          git rm PlazCode-1.19.33.zip PlazCode-macOS-1.19.33.zip
-          git add PlazCode-Firefox-1.19.34.zip publish_release.py Update-PlazCode.ps1 PlazCode-1.19.34.zip PlazCode-macOS-1.19.34.zip PlazCode-source-1.19.34.zip PlazCode-1.19.34.sigstore.json latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.34.txt
-          git commit -m 'Release PlazCode 1.19.34: Firefox Notion startup, Co-Work and update-restart fixes'
+          git rm PlazCode-1.19.34.zip PlazCode-macOS-1.19.34.zip
+          git add PlazCode-Firefox-1.19.35.zip publish_release.py Update-PlazCode.ps1 PlazCode-1.19.35.zip PlazCode-macOS-1.19.35.zip PlazCode-source-1.19.35.zip PlazCode-1.19.35.sigstore.json latest.json latest-macos.json SHA256SUMS.txt release-metadata.json release-notes.json README.md UPDATE.txt MAINTENANCE.md VALIDATION.txt release-description-1.19.35.txt
+          git commit -m 'Release PlazCode 1.19.35: Reliable Notion file uploads and faster Windows updates'
           git push origin HEAD:main
           export GITHUB_SHA=$(git rev-parse HEAD)
           python publish_release.py
