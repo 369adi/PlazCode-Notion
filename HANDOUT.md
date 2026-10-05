@@ -40,6 +40,17 @@ Notion-Design + eingebauter MCP-Server, damit Notion AI Roblox Studio, PC und Br
 
 ## Hinweise
 Inoffizieller Fork, keine Verbindung zu den PlazCode-Autoren oder Notion Labs. `LICENSE` und `BRANDING-NOTICE.txt` müssen erhalten bleiben. Tokens nie veröffentlichen.
+## Neu in 1.0.6: Co-Work (mehrere Notion-AI-Chats an einem Projekt)
+
+Mehrere Notion-AI-Tabs im Browser arbeiten gleichzeitig am selben Projekt. Sie koordinieren sich ueber ein gemeinsames Board in PlazCode Notion: Tasks mit Abhaengigkeiten, atomare Uebernahme (kein Task wird doppelt bearbeitet), Datei-Sperren und Nachrichten zwischen den Chats.
+
+So geht's:
+1. Tab 1 (Lead): "Starte ein Co-Work-Projekt: <Ziel>". Die KI zerlegt das Ziel in Tasks und nennt eine Projekt-ID (z. B. p1).
+2. Weitere Tabs (2-5 empfohlen): "Tritt Co-Work-Projekt p1 bei". Jeder Tab holt sich automatisch freie Tasks, arbeitet sie ab und meldet das Ergebnis.
+3. Der Lead arbeitet mit, prueft Ergebnisse, ergaenzt Fix-Tasks und macht am Ende die Endkontrolle.
+
+Tools: cowork_start, cowork_join, cowork_board, cowork_claim, cowork_update, cowork_add_tasks, cowork_message, cowork_lock, cowork_wait, cowork_close. Skill: plazcode_skill name=cowork.
+Das Board wird in %LOCALAPPDATA%\PlazCodeNotion\cowork.json gespeichert und uebersteht Neustarts. Inaktive Agents (20 Min.) geben ihre Tasks automatisch frei.
 ## Neu in 1.0.5 – mehr Tools & Skills fürs Programmieren
 - **Local files** (`files`): `@modelcontextprotocol/server-filesystem` auf einen Shared-Ordner (Standard `%USERPROFILE%\PlazCode-Shared`, änderbar per Umgebungsvariable `PLAZCODE_SHARED_DIR`). Pfade sind relativ zum Shared-Ordner (Arbeitsverzeichnis des Servers).
 - **GitHub** (`github`): `@modelcontextprotocol/server-github`. Vorher Benutzer-Umgebungsvariable `GITHUB_PERSONAL_ACCESS_TOKEN` setzen und App neu starten. Token nie ins Repo.
