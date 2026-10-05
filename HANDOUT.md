@@ -101,6 +101,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - **Name vs. Technik:** Sichtbar heißt alles AdiCode. Technisch bleiben `PlazCode-Notion.exe` (Release-Asset), Tag-Präfix `notion-desktop-v`, Repo, Datenordner `%LOCALAPPDATA%\PlazCodeNotion` und Prozess `PlazCode.exe` – sonst finden installierte Launcher keine Updates mehr.
 
 ## 10. Offene Aufgaben (Stand nach 1.0.22)
+**ZUERST Abschnitt 12 (Arbeitsstand) lesen – dort geht es weiter.**
 **Release B = 1.0.17 „Co-Work 2.0“ ist umgesetzt.**
 
 Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Execution, Stop mode, Permissions, Reasoning, Automation und Instructions** entfernt werden? Außerdem die leere Karte oben entfernen. Appearance und Desktop bleiben.
@@ -124,3 +125,48 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.6** – Co-Work (mehrere Notion-AI-Chats an einem Projekt).
 - **1.0.5** – mehr Tools und Skills fürs Programmieren.
 - **1.0.1** – Build-Fix (`git apply --directory`). 1.0.0 war fehlerhaft.
+
+## 12. ARBEITSSTAND / NÄCHSTE SCHRITTE (Session 05.10.2026 nachts – hier morgen weitermachen)
+
+### Erledigt
+- **1.0.22 ist live** (Release `notion-desktop-v1.0.22`, Launcher auf dem PC läuft mit 1.0.22). GitHub Actions hatte einen **Major Outage** (Jobs blieben „queued“, 1.0.21 wurde deshalb abgebrochen). Lösung: Release **lokal gebaut und per API veröffentlicht**:
+  - `C:\Users\liket\PlazCode-Shared\work\rel.ps1` = baut exakt wie der Workflow (git archive HEAD → Patch anwenden → Branding → `cargo build` mit `CARGO_TARGET_DIR` = build-src-Target → app.zip → csc Launcher) nach `work\relbuild\r\PlazCode-Notion.exe`.
+  - `work\pub.ps1` = legt Release `notion-desktop-v<VERSION>` an (make_latest) und lädt `PlazCode-Notion.exe` hoch (Token aus User-Env `GITHUB_PERSONAL_ACCESS_TOKEN`). Beide per `Start-Process … -RedirectStandardOutput` starten (MCP-Timeout ~55 s).
+  - Beim Update kam einmal „PlazCode.exe wird von einem anderen Prozess verwendet“ → alte Prozesse beenden (`taskkill /F /IM PlazCode.exe /T`) und neu starten. (Idee: Launcher sollte vor dem Entpacken alle PlazCode.exe aus dem app-Ordner killen + Retry.)
+- Lokale API zum Testen: `http://127.0.0.1:3000/api/notion/chat/state` mit `Authorization: Bearer <Inhalt von %LOCALAPPDATA%\PlazCode\bridge-key>`.
+- `.git/info/exclude` enthält `build-src/`, `build.log`, `test.log`.
+
+### Offen 1: Chat-Tab zeigt „loading“ (Typing-Dots + doppelte User-Nachricht), obwohl Main geantwortet hat
+- Server-State ist korrekt (gen=false, 2 Nachrichten). Ursache liegt in `notion_chat_ui.html` → `apply()`: `S.pending` wird nur gelöscht, wenn `users > S.pending.users` (Anzahl User-Nachrichten). Wenn beim Senden ein **anderer/neuer Chat** entsteht (Main wurde gestartet / `ensure_main` / neuer Chat / Kickoff navigiert), ist die Anzahl nicht größer → pending hängt bis 90 s.
+- **Fix (noch nicht gemacht):** beim Senden Set der bekannten User-Nachricht-Keys (`id||text`) + URL merken; pending löschen, wenn eine unbekannte User-Nachricht auftaucht ODER letzte User-Nachricht == pending-Text ODER (`inflight=false` && !gen && >8 s). Optional: `send()` in notion_chat.rs gibt `url` + Anzahl zurück.
+
+### Offen 2: Co-Work-Überarbeitung (Wunsch von Mia) – Code GESCHRIEBEN, NOCH NICHT KOMPILIERT
+Ziel: Rollen = **Schwerpunkt + Bewertungs-Brille, keine Grenze**. Bei jedem Aufgabenstart und bei jedem neuen Prompt mitten in der Aufgabe bewertet jeder Worker den Prompt aus Sicht seiner Rolle, danach helfen alle bei der Arbeitsaufteilung/Umsetzung.
+
+Gefundene Schwächen im alten Code (`notion_cowork.rs` + `notion_profiles.rs`):
+1. `role_ok`: Task mit Rolle X nur für Agent X, solange X lebt → andere idle, Coder arbeitet seriell = kein 4x.
+2. Keine Bewertung von Prompts; neue Nutzer-Nachrichten mitten im Projekt kommen nie bei den Workern an.
+3. **Notion-AI-Chats loopen nicht endlos**: nach Ende eines AI-Turns bleibt ein Worker stehen (cowork_wait max 45 s) → niemand weckt ihn. Es gibt keinen „Nudger“.
+4. Main bekommt beim Kickoff keine Instruktionen (prompt_for(Main) wird nur bei „Prompt kopieren“ benutzt).
+
+Neue Version liegt als **`build-src\PlazCode\agent\src\notion_cowork.rs.wip`** (Original unverändert in `notion_cowork.rs`). Inhalt:
+- Konstanten `GATE_SECS=150`, `STEAL_SECS=90`, `ASSESS_WINDOW_SECS=900`.
+- Task: neue Felder `assignee`, `wave`; Project: `waves: Vec<Wave{id,text,by,ts}>`.
+- `role_ok`: assignee-Tasks nur für den Assignee; sonst eigene Rolle/ohne Rolle immer; fremde Rolle erlaubt, wenn kein **freier** Experte (`specialist_idle`) oder Task > 90 s offen. Review nie eigene Arbeit.
+- Prompt-Wellen: `open_wave` (bei `cowork_start` mit `assess` default true, und neues Tool **`cowork_prompt`** für neue Nutzer-Nachrichten) → `add_assess` = Bewertungs-Task je lebendem Worker mit rollenspezifischer `lens()`. Late Joiner bekommen ihn beim `cowork_join`. `gate_open`: Arbeits-Tasks der Welle starten, wenn alle Bewertungen fertig oder nach 150 s (ohne Worker nach 20 s). Phase „wartet auf Bewertung“.
+- Claim-Reihenfolge: eigene Bewertung → eigene Rolle → Reviews → ohne Rolle → Rest (Helfen). Hinweistext „Experte beschäftigt – du hilfst mit“.
+- `cowork_update` akzeptiert `tasks=[...]` (Teilaufgaben vorschlagen; Duplikate offener Titel werden ignoriert); Bewertungen gehen als Direktnachricht an den Lead.
+- `cowork_add_tasks` optional `gated`.
+- **`pub fn nudge_for(agent) -> Option<(sig, text)>`** + `latest_lead()`: Weckruf-Text „[AdiCode Co-Work] …“ für Worker mit freien Tasks/Direktnachrichten/hängendem Task (>8 min) und für den Lead (Bewertungen/Blocker, alles erledigt → cowork_results).
+- PROTOCOL, Rollen-Guides, Tool-Beschreibungen angepasst; alte Tests mit `"assess": false`, neuer Test `roles_are_focus_and_prompts_get_assessed` (+ Helfer `nudge_for_board`).
+
+**Morgen als Nächstes:**
+1. `notion_cowork.rs.wip` → `notion_cowork.rs` (vorher Original sichern), `cargo build --release --locked` + `cargo test --release --locked cowork` (im Hintergrund, Log `work\PlazCode-Notion\build.log/test.log`), Compile-Fehler fixen.
+2. `notion_profiles.rs`: **Nudger-Loop** (alle ~10 s; Worker-Agentname `AdiCode-<Rolle>`, Main = `latest_lead()`; nur wenn Chat idle: kein `[data-testid=agent-chat-stop-button]` und Composer leer; erneut senden nur bei neuer Signatur oder nach 4 min; per `insert_prompt`). Starten in `kickoff` neben keep_alive (Flag `NUDGER_STARTED`).
+3. `prompt_for` neu (Worker: Rolle = Schwerpunkt, hilft bei allem, Bewertungen zuerst, [AdiCode Co-Work] = Weckruf; Main: cowork_start mit parallelen Tasks, jede neue Nutzer-Nachricht → cowork_prompt, selbst mithelfen, am Ende cowork_results) und Main-Instruktion beim Kickoff einmal in den Main-Chat schicken (nach prepare_chat).
+4. Skill `cowork` in `notion_skills.rs` an das neue Modell anpassen (Text sagt noch „ONE fixed expert role“, „Only do tasks yourself if nobody else can“).
+5. Chat-Pending-Fix (Offen 1).
+6. Patch neu erzeugen (siehe Abschnitt 3 / bisheriges Verfahren: `git add -A agent/src` + `git diff --cached --binary c29ca985… > ..\..\notion-desktop\plazcode-notion.patch`, `git apply --check` in Temp-Worktree; die `.wip`-Datei vorher löschen!), VERSION 1.0.23, README/Changelog, push. Wenn Actions noch gestört: `rel.ps1` + `pub.ps1`.
+7. Echter E2E-Test mit 4 Konten: Co-Work starten, Aufgabe im Chat-Tab, prüfen dass Bewertungen kommen, Arbeit verteilt wird, Nudger weckt, Main fasst zusammen.
+
+Kopie des WIP-Codes zusätzlich im Repo: `wip/notion_cowork.rs.wip` (löst keinen Build aus).
