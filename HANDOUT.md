@@ -40,3 +40,12 @@ Notion-Design + eingebauter MCP-Server, damit Notion AI Roblox Studio, PC und Br
 
 ## Hinweise
 Inoffizieller Fork, keine Verbindung zu den PlazCode-Autoren oder Notion Labs. `LICENSE` und `BRANDING-NOTICE.txt` müssen erhalten bleiben. Tokens nie veröffentlichen.
+## Neu in 1.0.5 – mehr Tools & Skills fürs Programmieren
+- **Local files** (`files`): `@modelcontextprotocol/server-filesystem` auf einen Shared-Ordner (Standard `%USERPROFILE%\PlazCode-Shared`, änderbar per Umgebungsvariable `PLAZCODE_SHARED_DIR`). Pfade sind relativ zum Shared-Ordner (Arbeitsverzeichnis des Servers).
+- **GitHub** (`github`): `@modelcontextprotocol/server-github`. Vorher Benutzer-Umgebungsvariable `GITHUB_PERSONAL_ACCESS_TOKEN` setzen und App neu starten. Token nie ins Repo.
+- Bereits im Katalog: Context7, Fetch, Git, Memory, Sequential Thinking – unter **MCP Servers** aktivieren.
+- Neues Modul `notion_skills.rs`:
+  - Tool `plazcode_skill` mit eingebauten Skills `roblox`, `roblox-studio`, `app`, `debug`, `git`.
+  - Tool `plazcode_restart_server` startet ein hängendes Add-on (oder `all`) neu.
+  - Ausführlichere MCP-`instructions` für Notion AI.
+- Patch-Hinweis: `desktop.html`, `gui.rs`, `updater.rs` unverändert aus 1.0.4 übernommen; `main.rs`, `mcp_addons.rs`, `notion_mcp.rs`, `notion_skills.rs` neu erzeugt und per `git apply` gegen die Original-Quelle geprüft.
