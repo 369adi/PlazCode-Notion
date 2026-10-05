@@ -12,6 +12,14 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.22
+- Neuer Tab **Chat**: eine ChatGPT-artige Chatbox direkt in AdiCode. Sie läuft über deinen Co-Work-Main-Tab (Notion AI) – das Main-Fenster kann dabei versteckt bleiben (Knopf „Main-Fenster zeigen/verstecken“).
+- Fotos, Videos und Dateien anhängen: **+**-Knopf, Drag & Drop oder Strg+V (Screenshots). Vorschaubilder mit Upload-Anzeige, bis 512 MB pro Datei.
+- **Sprechen:** Mikrofon-Knopf = Diktat (Notion transkribiert, Text landet im Eingabefeld). Wellen-Knopf = **Sprachmodus** wie bei ChatGPT: reden → automatisch senden → Antwort wird vorgelesen → wieder zuhören (Esc beendet).
+- Antworten mit Formatierung, Code-Blöcken (Kopieren), „Gedankengang“-Schritten, Vorlesen, Freigabe-Knöpfen (Allow/Deny) und Stopp-Knopf. Lokaler Chat-Verlauf in der Seitenleiste.
+- **Co-Work aus dem Chat:** „Co-Work starten“ öffnet alle Konten; danach schreibst du die Aufgabe einfach in den Chat. Der Co-Work-Status (Coder/Reviewer/Tester verbunden) steht oben.
+- Fix: Die Erkennung „AdiCode-MCP bereits verbunden“ in Notion griff wegen kaputter Regex-Zeichen nie – jetzt behoben (erkennt auch die Verbindung „asf“).
+- Hinweis: Der 1.0.21-Build wurde auf GitHub ohne Runner abgebrochen; 1.0.22 enthält alles aus 1.0.21.
 ## Neu in 1.0.21
 - Echte automatische MCP-Einrichtung an die aktuelle Notion-Oberfläche angepasst: Workspace-Menü → Settings → Connections → Installed/Discover → Custom MCP, zweistufiger URL-/Bearer-Dialog und echte CDP-Mausklicks für Notions sicherheitsrelevanten Connect-Knopf.
 - Beim Chatstart wird pro Account bevorzugt der vorhandene Verlauf **Welcome to Notion / Willkommen bei Notion** geöffnet. Fehlt er, wird bewusst ein neuer Chat benutzt – nie mehr versehentlich ein anderes laufendes Projektgespräch.

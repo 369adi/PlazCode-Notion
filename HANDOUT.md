@@ -51,9 +51,9 @@ Der Fork baut einen MCP-Server in die App ein, damit **Notion AI** über einen n
 |---|---|
 | `notion_mcp.rs` | MCP-Endpunkt `127.0.0.1:8787/mcp` (Bearer oder `/k/<token>/mcp`), Tool-Registrierung und Routing, ngrok-Supervisor (feste Domain, `--url`/`--domain`), Einstellungen `%LOCALAPPDATA%\PlazCodeNotion\plazcode-notion.json` (token, domain, port, ngrok_*, web_token, safe_shell), API `/api/notion/state` + `/api/notion/action` |
 | `notion_cowork.rs` | Co-Work-Board für mehrere Notion-AI-Chats: Tools `cowork_start/join/board/claim/update/add_tasks/message/lock/wait/results/close`, Rollen, Reviews, Datei-Locks (`lock_owner`) |
+| `notion_chat.rs` + `notion_chat_ui.html` | **Chat-Tab** (ab 1.0.22): steuert den Main-Tab (Notion AI) per CDP. API `/api/notion/chat/{state,history,send,control,upload}`; Uploads in `%LOCALAPPDATA%\PlazCodeNotion\chat-uploads`, Verlauf `chat-history.json`. UI wird über den Platzhalter `__ADICODE_CHAT_UI__` in desktop.html eingesetzt. DOM-Selektoren: Composer `[role=textbox][contenteditable]`, `input[type=file]`, Buttons `data-testid=agent-chat-{send,stop,dictation,stop-recording,cancel-recording}-button`, Zeilen `[data-agent-service-find-row]` |
 | `notion_profiles.rs` | **Co-Work-Tabs** = getrennte Browser-Container (siehe 6.), API `/api/notion/cowork-tabs` |
-| 
-otion_project_memory.rs | Dauerhafte, getrennte Projekt-Memory (project_memory_*), JSON-Store + automatische HANDOUT.md-Synchronisierung |
+| `notion_project_memory.rs` | Dauerhafte, getrennte Projekt-Memory (project_memory_*), JSON-Store + automatische HANDOUT.md-Synchronisierung |
 | `notion_updates.rs` | Seite *Updates* (GitHub-Releases, Notizen pro Version, Cache 10 min), API `/api/notion/updates`, ngrok-Installation (`bin.equinox.io` + `tar`), Authtoken (`ngrok config add-authtoken`), Trigger-Datei `update-now` |
 | `notion_web_agents.rs` | WebSocket `/extension/ws` für die Chrome-Erweiterung, Tools `web_sites/web_agents/web_chat`, Direkt-Modus `/direct-agent/:op` (Freigabe-Panel, 300 s, 50 Aufrufe, sperrt Notion-Schreibzugriffe) |
 | `notion_roblox_plus.rs` + `roblox_helpers.luau` | `roblox_studio` (23 Aktionen), `roblox_workflow`, `roblox_project_memory`, automatische Snapshots vor Schreibzugriffen, BW-Helper werden bei `execute_luau` automatisch geladen |
@@ -67,7 +67,7 @@ otion_project_memory.rs | Dauerhafte, getrennte Projekt-Memory (project_memory_*
 **Launcher (`Launcher.cs`):** Mutex `Local\PlazCodeNotionLauncher`; entpackt `app.zip` nach `%LOCALAPPDATA%\PlazCodeNotion\app` (Marker `.version`); prüft **alle 15 s** `github.com/369adi/PlazCode-Notion/releases/latest` (HEAD-Redirect, kein API-Limit); ist eine neuere Version da: lädt die exe, ersetzt sich selbst (`.old`), startet mit `--updated`, beendet die alte App (Kill-Tree) und installiert die neue. Ist die Datei `%LOCALAPPDATA%\PlazCodeNotion\update-now` da, prüft er sofort. Log: `%LOCALAPPDATA%\PlazCodeNotion\logs\launcher.log`.
 
 ## 5. Oberfläche (Seitenleiste)
-Home · **Notion AI** · **Co-Work** · Tools · MCP Servers · Terminal · Settings · **Updates**
+Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Terminal · Settings · **Updates**
 - Ausgeblendet (Code bleibt drin, Weiterleitung auf Notion AI): Model Builder, UI Builder, Toolkit, Templates, die Original-Updates-Seite (`page-updates`). Die neue Updates-Seite heißt `page-fupdates`.
 - Notion AI: Verbindung (Server-URL **editierbar**, Token, URL mit Schlüssel), Web-Agenten & Sicherheit, Einrichtung in Notion, Tunnel (ngrok installieren, Authtoken, Domain / URL, ngrok.exe-Pfad), Tool-Liste.
 - MCP Servers: oben die Karte „Notion-Verbindung (ngrok)“ mit editierbarer Server-URL.
@@ -100,11 +100,12 @@ Home · **Notion AI** · **Co-Work** · Tools · MCP Servers · Terminal · Sett
 - **Workflow-Prüfung:** Der Build bricht ab, wenn in desktop.html der Text `plazcode-notion-theme` fehlt. Steht deshalb als Kommentar im AdiCode-Theme – nicht entfernen. Workflow selbst nicht ändern (Token ohne workflow-Scope).
 - **Name vs. Technik:** Sichtbar heißt alles AdiCode. Technisch bleiben `PlazCode-Notion.exe` (Release-Asset), Tag-Präfix `notion-desktop-v`, Repo, Datenordner `%LOCALAPPDATA%\PlazCodeNotion` und Prozess `PlazCode.exe` – sonst finden installierte Launcher keine Updates mehr.
 
-## 10. Offene Aufgaben (Stand nach 1.0.21)
+## 10. Offene Aufgaben (Stand nach 1.0.22)
 **Release B = 1.0.17 „Co-Work 2.0“ ist umgesetzt.**
 
 Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Execution, Stop mode, Permissions, Reasoning, Automation und Instructions** entfernt werden? Außerdem die leere Karte oben entfernen. Appearance und Desktop bleiben.
 ## 11. Changelog
+- **1.0.22** – Neuer Tab **Chat** (ChatGPT-artig) über den Main-Tab: Text, Foto/Video/Datei-Anhänge (Upload-Endpunkt, 512 MB), Notion-Diktat + Sprachmodus (VAD, Vorlesen per speechSynthesis), Stopp, Freigabe-Knöpfe, lokaler Verlauf, Co-Work-Start/Status. Fix: echte 0x08-Zeichen statt `\b` in den Regexen von `setup_mcp` (Erkennung bestehender Verbindung griff nie). Der 1.0.21-Run wurde mangels Runner abgebrochen – Workflow ist ok, einfach neu pushen bzw. Rerun.
 - **1.0.21** – Weitere reale Vier-Account-E2E-Fixes: `setup_mcp` folgt nun der aktuellen Notion-UI über Workspace-Menü → Settings → Connections, erkennt bereits installiertes AdiCode, öffnet sonst Discover → Custom MCP, bearbeitet den zweistufigen Dialog und nutzt für Connect vertrauenswürdige CDP-Mausereignisse. Chat-Boot klickt explizit „Welcome to Notion“/„Willkommen bei Notion“; ohne diesen Verlauf wird ein neuer Chat geöffnet, statt ein bestehendes Projektgespräch zu übernehmen. Worker senden über den sichtbaren Submit-Knopf (Ctrl+Enter-Fallback), damit unterschiedliche Enter-Einstellungen nicht blockieren.
 - **1.0.20** – Hotfix aus realem Vier-Account-E2E: Worker-Prompts scheiterten in 1.0.19, weil der Composer fälschlich unterhalb von 45 % der Fensterhöhe liegen musste. `insert_prompt` navigiert den vorbereiteten „Willkommen in Notion“-Chat nicht mehr weg, sucht sichtbare Composer robust nach Platzhalter/Position und wartet bis zu 10 s. Der neue Selektor wurde per CDP gegen alle vier echten Account-Layouts geprüft.
 - **1.0.19** – Sicherer Co-Work-Boot: Jeder Account wird beim Start einmalig auf `/ai` bzw. Chat/„Willkommen in Notion“ geführt und per CDP auf ein sichtbares Eingabefeld geprüft. Worker werden erst versteckt, wenn alle vier Tabs bereit sind. Nach Main-`cowork_start` senden die Worker feste Rollenprompts; ein 90-s-Handshake prüft, ob Coder, Reviewer und Tester dem neuesten Board wirklich beigetreten sind. Live-Status und Tab-Zeilen zeigen den Fortschritt; bei Chat-, Prompt- oder Rollenfehlern werden alle Fenster sichtbar. Account-Checks erhalten MCP-/Chat-Status statt ihn zu überschreiben.
