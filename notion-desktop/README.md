@@ -12,6 +12,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.10: Updates-Seite + einfache Ersteinrichtung
+- Neue Seite **Updates**: installierte und neueste Version, „Was ist neu?“ für jede Version, Launcher-Protokoll, Knöpfe „Jetzt prüfen“ und „Jetzt aktualisieren“. Updates installiert der Launcher weiterhin automatisch bei jedem Nutzer.
+- Ngrok-Ersteinrichtung direkt in der App: **ngrok installieren** (lädt ngrok automatisch herunter), **Authtoken** eintragen, **Domain / URL** eintragen (ganze URL geht auch, Enter speichert).
+- Fix: Das Domain-Feld wurde alle 2,5 s vom Status überschrieben, wenn man woanders hingeklickt hatte – Eingaben bleiben jetzt stehen, bis man speichert.
 ## Neu in 1.0.9: Aufgeräumte Oberfläche + getrennte Notion-Fenster
 - Model Builder, UI Builder, Toolkit, Templates und Updates sind aus der Oberfläche entfernt (Code bleibt intern erhalten).
 - Seite Notion AI → Karte **„Notion-Fenster (getrennte Logins)“**: „Neues Notion-Fenster“ startet Chrome/Edge/Brave mit eigenem Profil (`%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N`) als App-Fenster mit Notion AI. Jedes Profil hat eigene Cookies – Ein-/Ausloggen wirkt nur dort. Profile können benannt, geöffnet und gelöscht werden (`notion_profiles.rs`).

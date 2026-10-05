@@ -26,6 +26,7 @@ static class Launcher
     static string BaseDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PlazCodeNotion"); } }
     static string Root { get { return Path.Combine(BaseDir, "app"); } }
     static string AppExe { get { return Path.Combine(Root, "PlazCode.exe"); } }
+    static string Trigger { get { return Path.Combine(BaseDir, "update-now"); } }
 
     [STAThread]
     static int Main(string[] args)
@@ -76,6 +77,14 @@ static class Launcher
             {
                 Thread.Sleep(1000);
                 if (FindApp() == null) { Log("app closed - launcher exits"); return 0; }
+                if (File.Exists(Trigger))
+                {
+                    // "Jetzt aktualisieren" in der App (Seite Updates).
+                    TryDelete(Trigger);
+                    Log("manual update check");
+                    if (TryUpdate(self, current)) return 0;
+                    Log("no newer release than " + current);
+                }
             }
             if (TryUpdate(self, current)) return 0;
         }
