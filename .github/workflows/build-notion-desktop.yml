@@ -28,6 +28,10 @@ jobs:
           if (-not (Select-String -Path build-src/PlazCode/agent/src/desktop.html -Pattern 'plazcode-notion-theme' -Quiet)) { throw "Notion UI patch missing" }
           if (-not (Test-Path build-src/PlazCode/agent/src/notion_mcp.rs)) { throw "notion_mcp.rs missing" }
 
+      - name: Apply PlazCode Notion branding
+        shell: pwsh
+        run: ./notion-desktop/branding/apply-branding.ps1 -Source build-src/PlazCode
+
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: build-src/PlazCode/agent
@@ -47,16 +51,9 @@ jobs:
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           [System.IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path pkg/PlazCode).Path, "$PWD/app.zip", [System.IO.Compression.CompressionLevel]::Optimal, $false)
           "[assembly: System.Reflection.AssemblyVersion(`"$v.0`")]" | Set-Content Version.cs
-          $iconArg = @()
-          try {
-            Add-Type -AssemblyName System.Drawing
-            $ico = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path pkg/PlazCode/PlazCode.exe).Path)
-            $fs = [System.IO.File]::Create("$PWD/app.ico"); $ico.Save($fs); $fs.Close()
-            $iconArg = @('/win32icon:app.ico')
-          } catch { Write-Warning "Icon extraction failed: $_" }
           $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
           $exe = "PlazCode-Notion.exe"
-          & $csc /nologo /target:winexe /optimize+ "/out:$exe" @iconArg /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /resource:app.zip,app.zip "$PWD\notion-desktop\launcher\Launcher.cs" "$PWD\Version.cs"
+          & $csc /nologo /target:winexe /optimize+ "/out:$exe" "/win32icon:$PWD\notion-desktop\branding\plazcode.ico" /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Windows.Forms.dll /reference:System.Management.dll /resource:app.zip,app.zip "$PWD\notion-desktop\launcher\Launcher.cs" "$PWD\Version.cs"
           if ($LASTEXITCODE -ne 0) { throw "Launcher build failed" }
           "version=$v" >> $env:GITHUB_OUTPUT
           "exe=$exe" >> $env:GITHUB_OUTPUT

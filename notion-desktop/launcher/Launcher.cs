@@ -1,73 +1,258 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
+using System.Management;
+using System.Net;
 using System.Reflection;
+using System.Threading;
 using System.Windows.Forms;
 
 [assembly: AssemblyTitle("PlazCode Notion")]
 [assembly: AssemblyProduct("PlazCode Notion (inoffizieller Fork)")]
 
+// Single-file launcher: embeds the full PlazCode Notion package (app.zip), extracts it to
+// %LOCALAPPDATA%\PlazCodeNotion\app, starts it and keeps watching GitHub Releases. When a
+// newer release appears it replaces itself, restarts PlazCode Notion and exits.
 static class Launcher
 {
-    // Dateien mit Benutzerzustand werden bei Updates nicht ueberschrieben.
+    const string Repo = "369adi/PlazCode-Notion";
+    const string AssetName = "PlazCode-Notion.exe";
+    const string TagPrefix = "notion-desktop-v";
+    const int CheckSeconds = 90;
+    // Files with user state are never overwritten by an update.
     static readonly string[] Keep = { "config.json", "plazcode-settings.json" };
+
+    static string BaseDir { get { return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PlazCodeNotion"); } }
+    static string Root { get { return Path.Combine(BaseDir, "app"); } }
+    static string AppExe { get { return Path.Combine(Root, "PlazCode.exe"); } }
 
     [STAThread]
     static int Main(string[] args)
     {
-        try
+        ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072; // TLS 1.2
+        bool updated = Array.IndexOf(args, "--updated") >= 0;
+        bool owner;
+        using (Mutex mutex = new Mutex(true, "Local\\PlazCodeNotionLauncher", out owner))
         {
-            Assembly asm = Assembly.GetExecutingAssembly();
-            string version = asm.GetName().Version.ToString();
-            string root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PlazCodeNotion", "app");
-            string marker = Path.Combine(root, ".version");
-            string exe = Path.Combine(root, "PlazCode.exe");
-
-            bool current = File.Exists(exe) && File.Exists(marker) && File.ReadAllText(marker).Trim() == version;
-            if (!current)
+            if (!owner)
             {
-                StopRunning(root);
-                Directory.CreateDirectory(root);
-                using (Stream s = asm.GetManifestResourceStream("app.zip"))
-                using (ZipArchive zip = new ZipArchive(s, ZipArchiveMode.Read))
+                if (!updated)
                 {
-                    foreach (ZipArchiveEntry e in zip.Entries)
-                    {
-                        string dest = Path.GetFullPath(Path.Combine(root, e.FullName));
-                        if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;
-                        if (e.FullName.EndsWith("/") || e.FullName.EndsWith("\\")) { Directory.CreateDirectory(dest); continue; }
-                        if (File.Exists(dest) && Array.IndexOf(Keep, e.FullName) >= 0) continue;
-                        Directory.CreateDirectory(Path.GetDirectoryName(dest));
-                        e.ExtractToFile(dest, true);
-                    }
+                    // A launcher is already watching; just make sure the app is visible/running.
+                    if (FindApp() == null) StartApp();
+                    return 0;
                 }
-                File.WriteAllText(marker, version);
+                try { owner = mutex.WaitOne(TimeSpan.FromSeconds(90)); } catch (AbandonedMutexException) { owner = true; }
+                if (!owner) return 1;
             }
-
-            ProcessStartInfo psi = new ProcessStartInfo(exe);
-            psi.WorkingDirectory = root;
-            psi.UseShellExecute = false;
-            psi.Arguments = string.Join(" ", Array.ConvertAll(args, a => "\"" + a + "\""));
-            Process.Start(psi);
-            return 0;
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show("PlazCode Notion konnte nicht gestartet werden:\n\n" + ex.Message, "PlazCode Notion", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            return 1;
+            try { return Run(updated); }
+            catch (Exception ex)
+            {
+                Log("fatal: " + ex);
+                MessageBox.Show("PlazCode Notion konnte nicht gestartet werden:\n\n" + ex.Message, "PlazCode Notion", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return 1;
+            }
+            finally { try { mutex.ReleaseMutex(); } catch { } }
         }
     }
 
-    static void StopRunning(string root)
+    static int Run(bool updated)
+    {
+        string self = Assembly.GetExecutingAssembly().Location;
+        TryDelete(self + ".old");
+        Version current = Normalize(Assembly.GetExecutingAssembly().GetName().Version);
+        Log("launcher " + current + (updated ? " (after update)" : "") + " from " + self);
+
+        if (!updated && TryUpdate(self, current)) return 0;
+
+        EnsureExtracted(current.ToString());
+        if (FindApp() == null) StartApp();
+
+        // Watch for new releases while PlazCode Notion is running.
+        while (true)
+        {
+            for (int i = 0; i < CheckSeconds; i++)
+            {
+                Thread.Sleep(1000);
+                if (FindApp() == null) { Log("app closed - launcher exits"); return 0; }
+            }
+            if (TryUpdate(self, current)) return 0;
+        }
+    }
+
+    // ---------- update ----------
+
+    static bool TryUpdate(string self, Version current)
+    {
+        string tag; Version latest;
+        if (!LatestRelease(out tag, out latest) || latest.CompareTo(current) <= 0) return false;
+        Log("update available: " + current + " -> " + latest);
+        string tmp = Path.Combine(Path.GetTempPath(), "PlazCode-Notion-" + latest + ".exe");
+        try
+        {
+            using (WebClient wc = new WebClient())
+            {
+                wc.Headers.Add("User-Agent", "PlazCode-Notion-Launcher");
+                wc.DownloadFile("https://github.com/" + Repo + "/releases/download/" + tag + "/" + AssetName, tmp);
+            }
+            if (!LooksLikeExe(tmp)) { Log("download is not a valid exe"); TryDelete(tmp); return false; }
+
+            string target = self;
+            try
+            {
+                TryDelete(self + ".old");
+                File.Move(self, self + ".old");
+                try { File.Move(tmp, self); }
+                catch { File.Move(self + ".old", self); throw; }
+            }
+            catch (Exception ex)
+            {
+                // e.g. read-only folder: install next to the app data instead.
+                Log("in-place replace failed (" + ex.Message + "), using " + BaseDir);
+                target = Path.Combine(BaseDir, AssetName);
+                Directory.CreateDirectory(BaseDir);
+                File.Copy(tmp, target, true);
+                TryDelete(tmp);
+            }
+            ProcessStartInfo psi = new ProcessStartInfo(target, "--updated");
+            psi.UseShellExecute = false;
+            psi.WorkingDirectory = Path.GetDirectoryName(target);
+            Process.Start(psi);
+            Log("started updated launcher " + target);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log("update failed: " + ex.Message);
+            TryDelete(tmp);
+            return false;
+        }
+    }
+
+    // Reads the tag of the latest release from the redirect of /releases/latest (no API rate limit).
+    static bool LatestRelease(out string tag, out Version version)
+    {
+        tag = null; version = null;
+        try
+        {
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create("https://github.com/" + Repo + "/releases/latest");
+            req.Method = "HEAD";
+            req.AllowAutoRedirect = false;
+            req.UserAgent = "PlazCode-Notion-Launcher";
+            req.Timeout = 15000;
+            using (HttpWebResponse res = (HttpWebResponse)req.GetResponse())
+            {
+                string loc = res.Headers["Location"];
+                if (string.IsNullOrEmpty(loc)) return false;
+                int i = loc.LastIndexOf("/tag/", StringComparison.Ordinal);
+                if (i < 0) return false;
+                tag = Uri.UnescapeDataString(loc.Substring(i + 5));
+                if (!tag.StartsWith(TagPrefix, StringComparison.Ordinal)) return false;
+                version = Normalize(new Version(tag.Substring(TagPrefix.Length)));
+                return true;
+            }
+        }
+        catch (Exception ex) { Log("update check failed: " + ex.Message); return false; }
+    }
+
+    static Version Normalize(Version v)
+    {
+        return new Version(v.Major, v.Minor, Math.Max(v.Build, 0));
+    }
+
+    static bool LooksLikeExe(string path)
+    {
+        FileInfo f = new FileInfo(path);
+        if (!f.Exists || f.Length < 1024 * 1024) return false;
+        using (FileStream s = f.OpenRead()) { return s.ReadByte() == 'M' && s.ReadByte() == 'Z'; }
+    }
+
+    // ---------- app ----------
+
+    static void EnsureExtracted(string version)
+    {
+        string marker = Path.Combine(Root, ".version");
+        if (File.Exists(AppExe) && File.Exists(marker) && File.ReadAllText(marker).Trim() == version) return;
+        Log("installing app " + version);
+        StopApp();
+        Directory.CreateDirectory(Root);
+        string rootFull = Path.GetFullPath(Root);
+        using (Stream s = Assembly.GetExecutingAssembly().GetManifestResourceStream("app.zip"))
+        using (ZipArchive zip = new ZipArchive(s, ZipArchiveMode.Read))
+        {
+            foreach (ZipArchiveEntry e in zip.Entries)
+            {
+                string dest = Path.GetFullPath(Path.Combine(rootFull, e.FullName));
+                if (!dest.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase)) continue;
+                if (e.FullName.EndsWith("/") || e.FullName.EndsWith("\\")) { Directory.CreateDirectory(dest); continue; }
+                if (File.Exists(dest) && Array.IndexOf(Keep, e.FullName) >= 0) continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(dest));
+                e.ExtractToFile(dest, true);
+            }
+        }
+        File.WriteAllText(marker, version);
+    }
+
+    static Process FindApp()
     {
         foreach (Process p in Process.GetProcessesByName("PlazCode"))
         {
-            try
-            {
-                if (p.MainModule.FileName.StartsWith(root, StringComparison.OrdinalIgnoreCase)) { p.Kill(); p.WaitForExit(5000); }
-            }
+            try { if (p.MainModule.FileName.StartsWith(Root, StringComparison.OrdinalIgnoreCase)) return p; }
             catch { }
         }
+        return null;
+    }
+
+    static void StartApp()
+    {
+        ProcessStartInfo psi = new ProcessStartInfo(AppExe);
+        psi.WorkingDirectory = Root;
+        psi.UseShellExecute = false;
+        Process.Start(psi);
+        Log("app started");
+    }
+
+    static void StopApp()
+    {
+        Process p;
+        while ((p = FindApp()) != null)
+        {
+            Log("stopping app pid " + p.Id);
+            KillTree(p.Id);
+            Thread.Sleep(500);
+        }
+    }
+
+    // Kills a process and all its children (ngrok, MCP add-ons, ...), children first.
+    static void KillTree(int pid)
+    {
+        try
+        {
+            using (ManagementObjectSearcher q = new ManagementObjectSearcher("SELECT ProcessId FROM Win32_Process WHERE ParentProcessId=" + pid))
+            {
+                foreach (ManagementObject o in q.Get()) KillTree(Convert.ToInt32(o["ProcessId"]));
+            }
+        }
+        catch { }
+        try { Process p = Process.GetProcessById(pid); p.Kill(); p.WaitForExit(5000); } catch { }
+    }
+
+    // ---------- helpers ----------
+
+    static void TryDelete(string path)
+    {
+        try { if (File.Exists(path)) File.Delete(path); } catch { }
+    }
+
+    static void Log(string message)
+    {
+        try
+        {
+            string dir = Path.Combine(BaseDir, "logs");
+            Directory.CreateDirectory(dir);
+            File.AppendAllText(Path.Combine(dir, "launcher.log"), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  " + message + Environment.NewLine);
+        }
+        catch { }
     }
 }
