@@ -12,6 +12,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.17
+- **Co-Work 2.0:** genau vier Tabs mit festen Rollen nach E-Mail-Reihenfolge (Main, Coder, Reviewer, Tester). Start erst mit vier Konten und eingetragener Aufgabe.
+- **Auto-Kickoff per CDP:** Startprompts werden automatisch eingefuegt; pro Tab gibt es weiterhin „Startprompt kopieren“ als Fallback.
+- **Zuverlaessige Hintergrundarbeit:** Chromium-Drosselung und Native Window Occlusion sind deaktiviert; ein CDP-Keeper haelt alle Tabs auch versteckt und unfokussiert aktiv. Nur Main bleibt sichtbar, „Alle zeigen“ holt die anderen zurueck.
+- **Account-Check:** Usage-Fortschritt und erkannte verfuegbare Notion-AI-Modelle pro Konto.
+- **Codebase Memory:** `codebase-memory-mcp` 0.11.0 als standardmaessig aktiviertes Add-on.
+- Co-Work-Antworten enthalten nur noch neue Meldungen statt immer das ganze Board.
 ## Neu in 1.0.16
 - Tunnel-Selbstheilung: AdiCode prueft die oeffentliche ngrok-URL regelmaessig ueber `/health`. Wenn ngrok noch laeuft, die reservierte Domain aber nicht mehr erreichbar ist, wird der Tunnel automatisch neu verbunden. Damit meldet Notion nicht mehr dauerhaft, dass eine korrekte MCP-URL kein unterstuetzter Endpoint sei.
 

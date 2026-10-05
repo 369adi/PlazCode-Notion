@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..10fa28c 100644
+index 07dc4c0..ea34756 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -417,7 +417,7 @@ index 07dc4c0..10fa28c 100644
        </section>
        <section class="page" id="page-terminal">
          <div class="page-head"><div><div class="page-title">Terminal</div><div class="page-sub">Live bridge, Studio, MCP, and AgentScript logs.</div></div><div style="margin-left:auto;display:flex;gap:8px"><button class="softbtn" id="restartMcp">Restart MCP</button><button class="clearbtn" id="clearTerminal">Clear</button></div></div>
-@@ -382,24 +550,46 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -382,24 +550,47 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
        <section class="page" id="page-models"><div class="page-head"><div><h1>Model Builder</h1><p>Describe a model, review the preview, then add it to Roblox Studio.</p></div></div><div id="modelWorkspace"></div></section>
        <section class="page" id="page-ui"><div class="page-head"><div><h1>UI Builder</h1><p>Describe a menu or HUD, check its layout, then add it to Roblox Studio.</p></div></div><div id="uiWorkspace"></div></section>
        <section class="page" id="page-toolkit"><div class="page-head"><div><h1>Toolkit</h1><p>Start game systems with AI, run Studio tools, and keep saved place backups.</p></div></div><div id="toolkitWorkspace"></div></section>
@@ -444,10 +444,11 @@ index 07dc4c0..10fa28c 100644
 +        <div class="settingcard notion-card"><h3>Was ist neu?</h3><div id="uList" class="ureleases"><p class="nhint">Lädt …</p></div></div>
 +        <div class="settingcard notion-card"><h3>Launcher-Protokoll</h3><pre id="uLog" class="nhint" style="white-space:pre-wrap;margin:0;font-size:12px"></pre></div>
 +      </section>      <section class="page" id="page-cowork">
-+        <div class="page-head"><div><div class="page-title">Co-Work</div><div class="page-sub">Mehrere Notion-AI-Tabs gleichzeitig – jeder in einem eigenen Container mit eigenem Gmail-Login.</div></div></div>
-+        <div class="notion-callout"><span class="ico">🧱</span><div><b>So geht’s:</b> 1. <b>+ Tab hinzufügen</b> und pro Tab ein Gmail-Konto eintragen → <b>Speichern</b>. 2. Bei jedem Tab einmal <b>Gmail-Login</b> klicken und in Notion „Mit Google fortfahren“. 3. Ab dann startet <b>Alle starten</b> alle Tabs mit ihren eingeloggten Sessions. Jeder Tab hat eigene Cookies – Ein- oder Ausloggen in einem Tab ändert nichts an den anderen. In jedem Tab Notion AI z. B. sagen: <code>cowork_join</code> mit der Rolle des Tabs.</div></div>
++        <div class="page-head"><div><div class="page-title">Co-Work 2.0</div><div class="page-sub">Vier feste Rollen, Auto-Kickoff und dauerhaft aktive Notion-AI-Container.</div></div></div>
++        <div class="notion-callout"><span class="ico">🧱</span><div>Vier Gmail-Konten eintragen und einmal anmelden. Rollen folgen automatisch der Reihenfolge: <b>Main · Coder · Reviewer · Tester</b>. Alle Tabs bleiben auch versteckt und unfokussiert aktiv.</div></div>
 +        <div class="settingcard notion-card">
-+          <div class="nrow" style="margin:0 0 10px"><button class="softbtn" id="cwAdd">+ Tab hinzufügen</button><button class="softbtn" id="cwSave">Speichern</button><button class="softbtn" id="cwStartAll">▶ Alle starten</button><button class="softbtn" id="cwStopAll">■ Alle stoppen</button><span id="cwDirty" class="nbadge warn" style="display:none">Nicht gespeichert</span><span id="cwMsg" class="nhint"></span></div>
++          <div class="nrow"><span class="nlabel">Aufgabe</span><textarea id="cwGoal" class="nvalue" rows="3" placeholder="Was sollen die vier Agents gemeinsam erledigen?"></textarea></div>
++          <div class="nrow" style="margin:0 0 10px"><button class="softbtn" id="cwAdd">+ Tab hinzufügen</button><button class="softbtn" id="cwSave">Speichern</button><button class="softbtn" id="cwStartAll">▶ Alle starten</button><button class="softbtn" id="cwShowAll">Alle zeigen</button><button class="softbtn" id="cwCheck">Accounts prüfen</button><button class="softbtn" id="cwStopAll">■ Alle stoppen</button><span id="cwDirty" class="nbadge warn" style="display:none">Nicht gespeichert</span><span id="cwMsg" class="nhint"></span></div>
 +          <div class="nrow" style="margin:0 0 6px"><span class="nlabel">Browser</span><span id="cwBrowser" class="nvalue">–</span></div>
 +          <div id="cwTabs" style="overflow-x:auto"><p class="nhint">Lädt …</p></div>
 +          <p class="nhint" style="margin-top:10px">„Auto“ = wird bei <b>Alle starten</b> mitgestartet. Startseite leer = Notion AI. Die Logins liegen in <code>%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N</code>; „Entfernen“ löscht den Tab inklusive Login.</p>
@@ -471,7 +472,7 @@ index 07dc4c0..10fa28c 100644
              <div class="settingrow"><label>Permissions</label><select data-pref="rsPermMode"><option value="sandbox">Sandbox</option><option value="ask">Ask</option><option value="full">Full</option></select></div><p class="settinghelp"><strong>Sandbox:</strong> AgentScript stays inside the connected project folder. <strong>Ask:</strong> request approval for writes and command execution. <strong>Full:</strong> allow AgentScript to work outside the project folder and run PC commands. Roblox actions still use the connected Studio bridge.</p>
            </div>
            <div class="settingcard"><h3>Reasoning</h3><p>Matches the extension work and thinking controls.</p>
-@@ -408,7 +598,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -408,7 +599,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="settingrow"><label>Extra Thinking</label><div class="toggle" data-pref="rsExtraThinking"></div></div>
              <div class="settingrow"><label>Plan Mode</label><div class="toggle" data-pref="rsPlanMode"></div></div>
            </div>
@@ -480,7 +481,7 @@ index 07dc4c0..10fa28c 100644
              <div class="settingrow"><label>Forge UI</label><div class="toggle" data-pref="rsForgeMode"></div></div>
              <div class="settingrow"><label>Auto Fix</label><div class="toggle" data-pref="rsAutoFix"></div></div>
              <div class="settingrow"><label>Background Mode</label><div class="toggle" data-pref="rsBgMode"></div></div>
-@@ -419,10 +609,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -419,10 +610,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="instructions-actions"><button class="softbtn" id="saveInstructions">Save</button><span class="instructions-status" id="instructionsStatus" role="status"></span></div>
  
            </div>
@@ -493,7 +494,7 @@ index 07dc4c0..10fa28c 100644
            </div>
          </div>
        </section>
-@@ -480,7 +670,7 @@ __PLAZCODE_VERSION_UI__
+@@ -480,7 +671,7 @@ __PLAZCODE_VERSION_UI__
          window.ipc.postMessage(String(Message));
        }
      } catch (Error) {
@@ -502,7 +503,7 @@ index 07dc4c0..10fa28c 100644
      }
    }
  
-@@ -520,7 +710,7 @@ __PLAZCODE_VERSION_UI__
+@@ -520,7 +711,7 @@ __PLAZCODE_VERSION_UI__
  
    function Showerror(Error) {
      var Message = Error && Error.message ? Error.message : String(Error);
@@ -511,7 +512,7 @@ index 07dc4c0..10fa28c 100644
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
-@@ -538,7 +728,7 @@ __PLAZCODE_VERSION_UI__
+@@ -538,7 +729,7 @@ __PLAZCODE_VERSION_UI__
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
@@ -520,7 +521,7 @@ index 07dc4c0..10fa28c 100644
      }
    }
  
-@@ -573,7 +763,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +764,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -529,7 +530,7 @@ index 07dc4c0..10fa28c 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -655,7 +845,7 @@ __PLAZCODE_VERSION_UI__
+@@ -655,7 +846,7 @@ __PLAZCODE_VERSION_UI__
          Live[Server.id] = Server;
        });
  
@@ -538,7 +539,7 @@ index 07dc4c0..10fa28c 100644
  
        var Catalogservers = Catalog && Catalog.servers ? Catalog.servers : [];
        Html += Catalogservers.map(function (Server) {
-@@ -892,7 +1082,7 @@ __PLAZCODE_VERSION_UI__
+@@ -892,7 +1083,7 @@ __PLAZCODE_VERSION_UI__
      var List = Byid('updateReleaseNotes'); List.replaceChildren();
      (Notes || []).forEach(function (Release, Index) {
        var Card = document.createElement('details'); Card.className='settingcard release-note'; Card.open=Index === 0;
@@ -547,7 +548,7 @@ index 07dc4c0..10fa28c 100644
        var Summary=document.createElement('p'); Summary.textContent=Release.summary; Card.appendChild(Summary);
        [['added','New additions'],['improved','Improvements'],['fixed','Bug fixes']].forEach(function (Section) {
          if (!Array.isArray(Release[Section[0]]) || !Release[Section[0]].length) return;
-@@ -905,12 +1095,12 @@ __PLAZCODE_VERSION_UI__
+@@ -905,12 +1096,12 @@ __PLAZCODE_VERSION_UI__
    function Refreshupdates() {
      if (Updatepolling) return Promise.resolve(); Updatepolling = true;
      return Api('/api/desktop/update').then(function (Value) {
@@ -562,7 +563,7 @@ index 07dc4c0..10fa28c 100644
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
-@@ -919,18 +1109,18 @@ __PLAZCODE_VERSION_UI__
+@@ -919,18 +1110,18 @@ __PLAZCODE_VERSION_UI__
        Byid('installUpdate').disabled = Updating || Value.available !== true;
        Byid('checkUpdates').disabled = Updating;
        Byid('updateOverlay').hidden = (!Updating || Value.background === true) && (!Value.error || UpdateerrorDismissed);
@@ -584,7 +585,7 @@ index 07dc4c0..10fa28c 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1396,193 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1397,192 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -684,45 +685,42 @@ index 07dc4c0..10fa28c 100644
 +        Call("/api/notion/action", { action: "set_domain", value: V }).then(function (R) { var M = $("mUrlMsg"); if (M) M.textContent = R.message || "Gespeichert."; Msg(R.message || "Gespeichert."); Poll(); }).catch(function (E) { var M = $("mUrlMsg"); if (M) M.textContent = E.message || String(E); Msg(E.message || String(E)); });
 +      };
 +    });    var CW = { tabs: [], dirty: false, sig: "" };
-+    var CRoles = ["", "Main", "Coder", "Reviewer", "Tester", "Designer", "Researcher"];
-+    var CEsc = function (X) { return String(X == null ? "" : X).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
++    var CEsc = function (X) { return String(X == null ? "" : X).replace(/[&<>\"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
 +    var CMsg = function (T) { var M = $("cwMsg"); if (M) M.textContent = T || ""; };
 +    var CDirty = function (D) { CW.dirty = D; var B = $("cwDirty"); if (B) B.style.display = D ? "" : "none"; };
++    var CPct = function (A) { var P = A && A.usage; return P == null ? "<span class=\"nhint\">–</span>" : "<div style=\"min-width:90px\"><div style=\"height:7px;background:#252a39;border-radius:4px;overflow:hidden\"><i style=\"display:block;height:100%;width:" + P + "%;background:linear-gradient(90deg,#7c5cff,#21d4fd)\"></i></div><small>" + P + "%</small></div>"; };
 +    var CRow = function (T, I) {
-+      var Roles = CRoles.indexOf(T.role) < 0 ? CRoles.concat([T.role]) : CRoles;
-+      return "<tr data-i=\"" + I + "\"><td><b>" + T.id + "</b></td>" +
-+        "<td><input data-f=\"label\" value=\"" + CEsc(T.label) + "\" placeholder=\"Name\"></td>" +
++      var A = T.account || {}, Models = (A.models || []).join(", ") || "–";
++      return "<tr data-i=\"" + I + "\"><td><b>" + (I + 1) + "</b></td>" +
++        "<td><b>" + CEsc(T.role) + "</b><br><input data-f=\"label\" value=\"" + CEsc(T.label) + "\" placeholder=\"Name\"></td>" +
 +        "<td><input data-f=\"email\" type=\"email\" value=\"" + CEsc(T.email) + "\" placeholder=\"name@gmail.com\"></td>" +
-+        "<td><select data-f=\"role\">" + Roles.map(function (R) { return "<option value=\"" + CEsc(R) + "\"" + (R === T.role ? " selected" : "") + ">" + (R ? CEsc(R) : "–") + "</option>"; }).join("") + "</select></td>" +
-+        "<td><input data-f=\"url\" value=\"" + CEsc(T.url) + "\" placeholder=\"Notion AI (Standard)\"></td>" +
-+        "<td style=\"text-align:center\"><input data-f=\"autostart\" type=\"checkbox\"" + (T.autostart ? " checked" : "") + "></td>" +
++        "<td>" + CPct(A) + "</td><td style=\"max-width:210px\">" + CEsc(Models) + "</td>" +
 +        "<td><span class=\"nbadge" + (T.running ? " ok" : "") + "\" data-run=\"" + T.id + "\">" + (T.running ? "läuft" : "aus") + "</span></td>" +
-+        "<td class=\"cwbtns\"><button class=\"softbtn\" data-a=\"start\">Starten</button><button class=\"softbtn\" data-a=\"login\">Gmail-Login</button><button class=\"softbtn\" data-a=\"stop\">Stoppen</button><button class=\"dangerbtn\" data-a=\"del\">Entfernen</button></td></tr>";
++        "<td class=\"cwbtns\"><button class=\"softbtn\" data-a=\"login\">Gmail-Login</button><button class=\"softbtn\" data-a=\"prompt\">Startprompt kopieren</button><button class=\"softbtn\" data-a=\"stop\">Stoppen</button><button class=\"dangerbtn\" data-a=\"del\">Entfernen</button></td></tr>";
 +    };
 +    var CRender = function () {
 +      var Box = $("cwTabs"); if (!Box) return;
-+      if (!CW.tabs.length) { Box.innerHTML = "<p class=\"nhint\">Noch keine Tabs. Klick auf „+ Tab hinzufügen“.</p>"; return; }
-+      Box.innerHTML = "<table class=\"cwtable\"><thead><tr><th>#</th><th>Name</th><th>Gmail-Konto</th><th>Rolle</th><th>Startseite</th><th>Auto</th><th>Status</th><th></th></tr></thead><tbody>" + CW.tabs.map(CRow).join("") + "</tbody></table>";
++      if (!CW.tabs.length) { Box.innerHTML = "<p class=\"nhint\">Noch keine Tabs.</p>"; return; }
++      Box.innerHTML = "<table class=\"cwtable\"><thead><tr><th>#</th><th>Rolle / Name</th><th>Gmail-Konto</th><th>Usage</th><th>Modelle</th><th>Status</th><th></th></tr></thead><tbody>" + CW.tabs.map(CRow).join("") + "</tbody></table>";
++      var Ready = CW.tabs.length === 4 && CW.tabs.every(function (T) { return String(T.email || "").trim(); });
++      if ($("cwStartAll")) $("cwStartAll").disabled = !Ready;
++      if ($("cwAdd")) $("cwAdd").disabled = CW.tabs.length >= 4;
 +    };
 +    var CLoad = function (Full) {
 +      return Call("/api/notion/cowork-tabs").then(function (R) {
 +        if ($("cwBrowser")) $("cwBrowser").textContent = R.browser || "Kein Chrome/Edge/Brave gefunden";
-+        var Tabs = R.tabs || [];
-+        var Sig = Tabs.map(function (T) { return T.id; }).join(",");
-+        if (Full || (!CW.dirty && Sig !== CW.sig)) { CW.tabs = Tabs; CW.sig = Sig; CDirty(false); CRender(); return; }
-+        if (!CW.dirty) Tabs.forEach(function (T, I) { if (CW.tabs[I] && CW.tabs[I].id === T.id) CW.tabs[I] = Object.assign({}, CW.tabs[I], { running: T.running }); });
-+        Tabs.forEach(function (T) { var B = document.querySelector("#cwTabs [data-run=\"" + T.id + "\"]"); if (B) { B.textContent = T.running ? "läuft" : "aus"; B.className = "nbadge" + (T.running ? " ok" : ""); } });
++        var Tabs = R.tabs || [], Sig = Tabs.map(function (T) { return T.id; }).join(",");
++        if (Full || !CW.dirty) { CW.tabs = Tabs; CW.sig = Sig; CDirty(false); CRender(); return; }
++        Tabs.forEach(function (T, I) { if (CW.tabs[I] && CW.tabs[I].id === T.id) CW.tabs[I] = Object.assign({}, CW.tabs[I], { running: T.running, account: T.account, role: T.role }); }); CRender();
 +      }).catch(function (E) { CMsg(E.message || String(E)); });
 +    };
 +    var CAct = function (Action, Value) {
-+      CMsg("…");
-+      return Call("/api/notion/action", { action: Action, value: Value === undefined ? null : Value }).then(function (R) { CMsg(R.message || "OK"); return CLoad(!CW.dirty); }).catch(function (E) { CMsg(E.message || String(E)); throw E; });
++      CMsg("…"); return Call("/api/notion/action", { action: Action, value: Value === undefined ? null : Value }).then(function (R) { CMsg(R.message || "OK"); return CLoad(!CW.dirty).then(function(){return R;}); }).catch(function (E) { CMsg(E.message || String(E)); throw E; });
 +    };
 +    var CSave = function () {
-+      var Data = CW.tabs.map(function (T) { return { id: T.id, label: T.label || "", email: T.email || "", role: T.role || "", url: T.url || "", autostart: !!T.autostart }; });
++      var Data = CW.tabs.map(function (T) { return { id: T.id, label: T.label || "", email: T.email || "", url: T.url || "", autostart: true }; });
 +      return Call("/api/notion/action", { action: "cowork_save_tabs", value: Data }).then(function (R) { CDirty(false); CMsg(R.message || "Gespeichert."); return CLoad(true); }).catch(function (E) { CMsg(E.message || String(E)); throw E; });
-+    };
-+    var CSaveIf = function () { return CW.dirty ? CSave() : Promise.resolve(); };
++    };    var CSaveIf = function () { return CW.dirty ? CSave() : Promise.resolve(); };
 +    var CBox = $("cwTabs");
 +    if (CBox) {
 +      var CEdit = function (Ev) { var El = Ev.target, F = El.getAttribute && El.getAttribute("data-f"); if (!F) return; var Tr = El.closest("tr"); var T = CW.tabs[Number(Tr.getAttribute("data-i"))]; if (!T) return; T[F] = El.type === "checkbox" ? El.checked : El.value; CDirty(true); };
@@ -732,7 +730,7 @@ index 07dc4c0..10fa28c 100644
 +        var B = Ev.target.closest("button[data-a]"); if (!B) return;
 +        var T = CW.tabs[Number(B.closest("tr").getAttribute("data-i"))]; if (!T) return;
 +        var A = B.getAttribute("data-a");
-+        if (A === "start") CSaveIf().then(function () { return CAct("open_notion_window", T.id); }).catch(function () {});
++        if (A === "prompt") { var G = ($("cwGoal") && $("cwGoal").value.trim()) || "<Aufgabe>"; var P = T.role === "Main" ? ("Du bist Main/Lead. Starte mit cowork_start: " + G) : ("Du bist " + T.role + ". Finde das aktive Projekt, cowork_join als " + T.role + ", dann claim → arbeiten → update → wait."); Copy(P); CMsg("Startprompt kopiert."); }
 +        if (A === "login") { if (!String(T.email || "").trim()) { CMsg("Tab " + T.id + ": erst ein Gmail-Konto eintragen."); return; } CSaveIf().then(function () { return CAct("cowork_login", T.id); }).catch(function () {}); }
 +        if (A === "stop") CAct("cowork_stop", T.id).catch(function () {});
 +        if (A === "del" && confirm("Tab " + T.id + " (" + (T.email || T.label) + ") entfernen? Der Login in diesem Container geht verloren.")) CAct("cowork_delete", T.id).catch(function () {});
@@ -740,7 +738,9 @@ index 07dc4c0..10fa28c 100644
 +    }
 +    On("cwAdd", function () { CSaveIf().then(function () { return CAct("cowork_add_tab"); }).then(function () { return CLoad(true); }).catch(function () {}); });
 +    On("cwSave", function () { CSave().catch(function () {}); });
-+    On("cwStartAll", function () { CSaveIf().then(function () { return CAct("cowork_start_all"); }).catch(function () {}); });
++    On("cwStartAll", function () { var G = ($("cwGoal") && $("cwGoal").value.trim()) || ""; if (!G) { CMsg("Bitte zuerst die Aufgabe eintragen."); return; } CSaveIf().then(function () { return CAct("cowork_start_all", { goal: G }); }).catch(function () {}); });
++    On("cwShowAll", function () { CAct("cowork_show_all").catch(function () {}); });
++    On("cwCheck", function () { CAct("cowork_check_accounts").then(function(){setTimeout(function(){CLoad(true);},2500);}).catch(function () {}); });
 +    On("cwStopAll", function () { if (confirm("Alle Co-Work-Tabs schließen?")) CAct("cowork_stop_all").catch(function () {}); });
 +    document.querySelectorAll("[data-page=cowork]").forEach(function (B) { B.addEventListener("click", function () { CLoad(false); }); });
 +    setInterval(function () { if (document.querySelector("#page-cowork.active")) CLoad(false); }, 3000);
@@ -912,7 +912,7 @@ index 77cc050..fba25b2 100644
      }
      let mut mcp = state.roblox_mcp.lock().await;
 diff --git a/agent/src/mcp_addons.rs b/agent/src/mcp_addons.rs
-index 1a68aee..6eca8cf 100644
+index 1a68aee..c88d8ca 100644
 --- a/agent/src/mcp_addons.rs
 +++ b/agent/src/mcp_addons.rs
 @@ -47,6 +47,34 @@ pub struct ServerSummary {
@@ -950,7 +950,36 @@ index 1a68aee..6eca8cf 100644
          CatalogEntry {
              id: "blender",
              name: "Blender",
-@@ -137,9 +165,22 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -75,6 +103,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
+             command: "uvx",
+             args: &["mcp-server-git"],
+         },
++        CatalogEntry {
++            id: "codebase",
++            name: "Codebase Memory",
++            description: "Dauerhaftes Projekt-Gedaechtnis und Code-Intelligenz fuer Coding-Agents (DeusData).",
++            command: "npx",
++            args: &["-y", "codebase-memory-mcp@0.11.0"],
++        },
+         CatalogEntry {
+             id: "memory",
+             name: "Memory",
+@@ -108,6 +143,14 @@ pub fn read_config() -> McpConfig {
+         .ok()
+         .and_then(|raw| serde_json::from_str::<McpConfig>(&raw).ok())
+         .unwrap_or_default();
++    let codebase_marker = path.with_extension("codebase-default-added");
++    if !codebase_marker.exists() {
++        cfg.servers.entry("codebase".to_string()).or_insert_with(|| ServerSpec {
++            command: "npx".to_string(), args: vec!["-y".into(), "codebase-memory-mcp@0.11.0".into()], env: HashMap::new(),
++        });
++        let _ = std::fs::write(&codebase_marker, b"1");
++        let _ = std::fs::write(&path, serde_json::to_vec_pretty(&cfg).unwrap_or_default());
++    }
+     cfg.servers.entry("roblox".to_string()).or_insert_with(|| ServerSpec {
+         command: "launch_studio_mcp.py".to_string(),
+         args: Vec::new(),
+@@ -137,9 +180,22 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
          .ok_or_else(|| anyhow::anyhow!("unknown catalog server '{id}'"))?;
      let mut cfg = read_config();
      if enabled {
@@ -974,7 +1003,7 @@ index 1a68aee..6eca8cf 100644
              env: HashMap::new(),
          });
      } else {
-@@ -148,6 +189,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -148,6 +204,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
      write_config(&cfg)
  }
  
@@ -999,7 +1028,7 @@ index 1a68aee..6eca8cf 100644
  pub fn add_server(id: &str, spec: ServerSpec) -> anyhow::Result<()> {
      let id = id.trim();
      anyhow::ensure!(!id.is_empty(), "server id is required");
-@@ -269,6 +328,9 @@ impl AddonRuntime {
+@@ -269,6 +343,9 @@ impl AddonRuntime {
                      }
                      cmd.env("PATH", std::env::join_paths(paths)?);
                      cmd.current_dir(&app).creation_flags(CREATE_NO_WINDOW);
@@ -1009,7 +1038,7 @@ index 1a68aee..6eca8cf 100644
                      return Ok(cmd);
                  }
                  anyhow::bail!("[{}] {} runtime unavailable; first-use setup requires internet access.", self.id, low);
-@@ -411,13 +473,23 @@ impl AddonRuntime {
+@@ -411,13 +488,23 @@ impl AddonRuntime {
      }
  }
  
@@ -1035,7 +1064,7 @@ index 1a68aee..6eca8cf 100644
      }
  
      async fn sync_config(&mut self) {
-@@ -425,36 +497,51 @@ impl AddonManager {
+@@ -425,36 +512,51 @@ impl AddonManager {
          let wanted: HashMap<String, ServerSpec> = cfg.servers.into_iter()
              .filter(|(id, _)| id != "roblox")
              .collect();
@@ -1101,7 +1130,7 @@ index 1a68aee..6eca8cf 100644
      }
  
      pub async fn list_tools(&mut self) -> (Vec<serde_json::Value>, Vec<ServerSummary>) {
-@@ -463,9 +550,21 @@ impl AddonManager {
+@@ -463,9 +565,21 @@ impl AddonManager {
          let mut summaries = Vec::new();
          let ids: Vec<String> = self.runtimes.keys().cloned().collect();
          for id in ids {
@@ -1125,7 +1154,7 @@ index 1a68aee..6eca8cf 100644
                      for mut tool in server_tools {
                          let Some(real) = tool.get("name").and_then(|v| v.as_str()).map(str::to_string) else { continue; };
                          tool["name"] = serde_json::Value::String(format!("{id}__{real}"));
-@@ -475,23 +574,10 @@ impl AddonManager {
+@@ -475,23 +589,10 @@ impl AddonManager {
                          tool["server"] = serde_json::Value::String(id.clone());
                          tools.push(tool);
                      }
@@ -1151,7 +1180,7 @@ index 1a68aee..6eca8cf 100644
                  }
              }
          }
-@@ -499,20 +585,45 @@ impl AddonManager {
+@@ -499,20 +600,45 @@ impl AddonManager {
          (tools, summaries)
      }
  
@@ -1208,7 +1237,7 @@ index 1a68aee..6eca8cf 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..d47913f
+index 0000000..e4c29a2
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
 @@ -0,0 +1,829 @@
@@ -1693,7 +1722,7 @@ index 0000000..d47913f
 +            if ids.is_empty() { return Err("tasks ist leer".into()); }
 +            let list = ids.iter().map(|i| format!("#{i}")).collect::<Vec<_>>().join(", ");
 +            post(p, &agent, "", format!("Neue Tasks: {list}"));
-+            Ok((format!("Tasks hinzugefuegt: {list}\n\n{}", summary(p)), true))
++            Ok((format!("Tasks hinzugefuegt: {list}"), true))
 +        }
 +        "cowork_claim" => {
 +            touch(p, &agent)?;
@@ -1716,7 +1745,7 @@ index 0000000..d47913f
 +                        Some(i) => i,
 +                        None => {
 +                            let news = take_unread(p, &agent);
-+                            return Ok((format!("Gerade kein freier Task fuer dich ({}). Mit cowork_wait auf neue Tasks/Nachrichten warten.\n\n{}{news}", role_title(&my_role), summary(p)), true));
++                            return Ok((format!("Gerade kein freier Task fuer dich ({}). Mit cowork_wait warten.{news}", role_title(&my_role)), true));
 +                        }
 +                    }
 +                }
@@ -1818,7 +1847,7 @@ index 0000000..d47913f
 +            post(p, &agent, &to, note);
 +            let free = p.tasks.iter().filter(|t| claimable(p, t, &agent)).count();
 +            let news = take_unread(p, &agent);
-+            Ok((format!("Task #{id} -> {status}.{extra} Freie Tasks fuer dich: {free}. Weiter mit cowork_claim (oder cowork_wait).\n\n{}{news}", summary(p)), true))
++            Ok((format!("Task #{id} -> {status}.{extra} Freie Tasks: {free}. Weiter mit cowork_claim oder cowork_wait.{news}"), true))
 +        }
 +        "cowork_message" => {
 +            touch(p, &agent)?;
@@ -1862,7 +1891,7 @@ index 0000000..d47913f
 +    if !(has_news(p, &agent) || tokio::time::Instant::now() >= deadline) { return Ok(None); }
 +    let news = take_unread(p, &agent);
 +    let free = p.tasks.iter().filter(|t| claimable(p, t, &agent)).count();
-+    let out = format!("Freie Tasks fuer dich: {free}.\n\n{}{news}", summary(p));
++    let out = if news.trim().is_empty() { format!("Keine Neuigkeiten. Freie Tasks: {free}.") } else { format!("Freie Tasks: {free}.{news}") };
 +    save(&board);
 +    Ok(Some(out))
 +}
@@ -2810,21 +2839,23 @@ index 0000000..268a5df
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..112ce8d
+index 0000000..38f891a
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,273 @@
-+//! AdiCode Co-Work-Tabs: jeder Tab ist ein eigener Browser-"Container"
-+//! (Chrome/Edge/Brave mit eigenem --user-data-dir). Cookies und Logins sind pro Tab
-+//! getrennt; jeder Tab gehoert zu einem Gmail-Konto des Nutzers. Konfiguration liegt in
-+//! %LOCALAPPDATA%\PlazCodeNotion\profiles\tabs.json, die Sessions im jeweiligen Profilordner.
+@@ -0,0 +1,173 @@
++//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
++use futures::{SinkExt, StreamExt};
++use once_cell::sync::Lazy;
 +use serde::{Deserialize, Serialize};
 +use serde_json::{json, Value};
-+use std::path::PathBuf;
++use std::{collections::{BTreeMap, HashSet}, path::PathBuf, sync::{atomic::{AtomicBool, Ordering}, Mutex}, time::Duration};
 +
 +const NOTION_URL: &str = "https://www.notion.so/ai";
-+const MAX_TABS: u32 = 99;
++const MAX_TABS: u32 = 4;
++const ROLES: [&str; 4] = ["Main", "Coder", "Reviewer", "Tester"];
++static ACCOUNT: Lazy<Mutex<BTreeMap<u32, Value>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
++static KEEPER_STARTED: AtomicBool = AtomicBool::new(false);
 +
 +#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
 +#[serde(default)]
@@ -2841,251 +2872,149 @@ index 0000000..112ce8d
 +    let root = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
 +    root.join("PlazCodeNotion").join("profiles")
 +}
-+
 +fn dir(id: u32) -> PathBuf { base().join(format!("agent-{id}")) }
 +fn tabs_file() -> PathBuf { base().join("tabs.json") }
-+
-+fn parse_id(name: &str) -> Option<u32> {
-+    name.strip_prefix("agent-").and_then(|x| x.parse::<u32>().ok()).filter(|n| (1..=MAX_TABS).contains(n))
-+}
-+
++fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> { m.lock().unwrap_or_else(|e| e.into_inner()) }
++fn role(i: usize) -> String { ROLES.get(i).copied().unwrap_or("Tester").to_string() }
++fn cdp_port(i: usize) -> u16 { 9301 + i as u16 }
++fn parse_id(name: &str) -> Option<u32> { name.strip_prefix("agent-").and_then(|x| x.parse::<u32>().ok()).filter(|n| (1..=MAX_TABS).contains(n)) }
 +fn dir_ids() -> Vec<u32> {
-+    let mut v: Vec<u32> = std::fs::read_dir(base())
-+        .map(|rd| rd.flatten().filter(|e| e.path().is_dir()).filter_map(|e| parse_id(&e.file_name().to_string_lossy())).collect())
-+        .unwrap_or_default();
-+    v.sort_unstable();
-+    v
++    let mut v: Vec<u32> = std::fs::read_dir(base()).map(|rd| rd.flatten().filter(|e| e.path().is_dir()).filter_map(|e| parse_id(&e.file_name().to_string_lossy())).collect()).unwrap_or_default();
++    v.sort_unstable(); v
 +}
++fn normalize(tabs: &mut [Tab]) { for (i, t) in tabs.iter_mut().enumerate() { t.role = role(i); } }
 +
-+/// Gespeicherte Tabs + Profilordner, die (z. B. aus 1.0.9) noch nicht in tabs.json stehen.
 +pub fn load() -> Vec<Tab> {
-+    let mut tabs: Vec<Tab> = std::fs::read_to_string(tabs_file()).ok()
-+        .and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok())
-+        .unwrap_or_default();
++    let mut tabs: Vec<Tab> = std::fs::read_to_string(tabs_file()).ok().and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok()).unwrap_or_default();
 +    tabs.retain(|t| (1..=MAX_TABS).contains(&t.id));
 +    for id in dir_ids() {
++        if tabs.len() >= MAX_TABS as usize { break; }
 +        if !tabs.iter().any(|t| t.id == id) {
 +            let label = std::fs::read_to_string(dir(id).join("plazcode-label.txt")).map(|s| s.trim().to_string()).unwrap_or_default();
 +            tabs.push(Tab { id, label: if label.is_empty() { format!("Tab {id}") } else { label }, autostart: true, ..Default::default() });
 +        }
 +    }
-+    tabs
++    normalize(&mut tabs); tabs
 +}
-+
 +fn save(tabs: &[Tab]) -> Result<(), String> {
 +    std::fs::create_dir_all(base()).map_err(|e| e.to_string())?;
++    let mut tabs = tabs.to_vec(); normalize(&mut tabs);
 +    let tmp = tabs_file().with_extension("json.tmp");
-+    std::fs::write(&tmp, serde_json::to_vec_pretty(tabs).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
++    std::fs::write(&tmp, serde_json::to_vec_pretty(&tabs).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
 +    std::fs::rename(&tmp, tabs_file()).map_err(|e| e.to_string())
 +}
-+
 +fn clean(s: &str, max: usize) -> String { s.trim().chars().filter(|c| !c.is_control()).take(max).collect::<String>().trim().to_string() }
-+
 +fn sanitize(t: &Tab) -> Result<Tab, String> {
 +    let email = clean(&t.email, 120).to_ascii_lowercase();
-+    if !email.is_empty() && (!email.contains('@') || email.contains(' ') || email.starts_with('@') || email.ends_with('@')) {
-+        return Err(format!("Tab {}: \"{email}\" ist keine gültige E-Mail-Adresse.", t.id));
-+    }
++    if !email.is_empty() && (!email.contains('@') || email.contains(' ') || email.starts_with('@') || email.ends_with('@')) { return Err(format!("Tab {}: ungültige E-Mail-Adresse.", t.id)); }
 +    let url = clean(&t.url, 300);
-+    if !url.is_empty() && !url.starts_with("https://") {
-+        return Err(format!("Tab {}: Die Startseite muss mit https:// beginnen.", t.id));
-+    }
++    if !url.is_empty() && !url.starts_with("https://") { return Err(format!("Tab {}: Die Startseite muss mit https:// beginnen.", t.id)); }
 +    let label = clean(&t.label, 40);
-+    Ok(Tab { id: t.id, label: if label.is_empty() { format!("Tab {}", t.id) } else { label }, email, role: clean(&t.role, 30), url, autostart: t.autostart })
++    Ok(Tab { id: t.id, label: if label.is_empty() { format!("Tab {}", t.id) } else { label }, email, role: String::new(), url, autostart: t.autostart })
 +}
 +
 +pub fn browser() -> Option<(&'static str, PathBuf)> {
-+    let mut c: Vec<(&'static str, PathBuf)> = Vec::new();
-+    for (name, rel) in [
-+        ("Chrome", r"Google\Chrome\Application\chrome.exe"),
-+        ("Edge", r"Microsoft\Edge\Application\msedge.exe"),
-+        ("Brave", r"BraveSoftware\Brave-Browser\Application\brave.exe"),
-+    ] {
-+        for k in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
-+            if let Some(b) = std::env::var_os(k) { c.push((name, PathBuf::from(b).join(rel))); }
-+        }
++    let mut c = Vec::new();
++    for (name, rel) in [("Chrome", r"Google\Chrome\Application\chrome.exe"), ("Edge", r"Microsoft\Edge\Application\msedge.exe"), ("Brave", r"BraveSoftware\Brave-Browser\Application\brave.exe")] {
++        for k in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] { if let Some(b) = std::env::var_os(k) { c.push((name, PathBuf::from(b).join(rel))); } }
 +    }
 +    c.into_iter().find(|(_, p)| p.is_file())
 +}
-+
 +pub fn browser_name() -> Value { browser().map(|(n, _)| json!(n)).unwrap_or(Value::Null) }
++pub fn list() -> Value { json!(load().into_iter().map(|t| json!({"id":t.id,"label":t.label})).collect::<Vec<_>>()) }
 +
-+/// Fuer /api/notion/state (Kompatibilitaet).
-+pub fn list() -> Value { json!(load().into_iter().map(|t| json!({"id": t.id, "label": t.label})).collect::<Vec<_>>()) }
-+
-+// ---------- laufende Container erkennen / stoppen ----------
-+
-+/// true, wenn `cmd` genau dieses Profil (und nicht z. B. agent-30 statt agent-3) nutzt.
 +fn cmd_uses(cmd: &str, dir: &str) -> bool {
 +    let (cmd, dir) = (cmd.to_ascii_lowercase(), dir.to_ascii_lowercase());
 +    cmd.match_indices(&dir).any(|(i, _)| !cmd[i + dir.len()..].starts_with(|c: char| c.is_ascii_digit()))
 +}
-+
 +fn browser_cmds() -> Vec<(sysinfo::Pid, String)> {
 +    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
-+    let mut sys = System::new();
-+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
-+    sys.processes().iter().filter_map(|(pid, p)| {
-+        let cmd = p.cmd().iter().map(|a| a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" ");
-+        cmd.contains("--user-data-dir=").then_some((*pid, cmd))
-+    }).collect()
++    let mut sys = System::new(); sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
++    sys.processes().iter().filter_map(|(pid,p)| { let cmd=p.cmd().iter().map(|a|a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" "); cmd.contains("--user-data-dir=").then_some((*pid,cmd)) }).collect()
 +}
-+
-+fn running_ids(tabs: &[Tab]) -> Vec<u32> {
-+    let cmds = browser_cmds();
-+    tabs.iter().filter(|t| { let d = dir(t.id).display().to_string(); cmds.iter().any(|(_, c)| cmd_uses(c, &d)) }).map(|t| t.id).collect()
-+}
-+
++fn running_ids(tabs: &[Tab]) -> Vec<u32> { let cmds=browser_cmds(); tabs.iter().filter(|t| {let d=dir(t.id).display().to_string();cmds.iter().any(|(_,c)|cmd_uses(c,&d))}).map(|t|t.id).collect() }
 +fn stop_ids(ids: &[u32]) -> usize {
 +    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
-+    let mut sys = System::new();
-+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
-+    let dirs: Vec<String> = ids.iter().map(|i| dir(*i).display().to_string()).collect();
-+    let mut n = 0;
-+    for p in sys.processes().values() {
-+        let cmd = p.cmd().iter().map(|a| a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" ");
-+        if cmd.contains("--user-data-dir=") && dirs.iter().any(|d| cmd_uses(&cmd, d)) && p.kill() { n += 1; }
-+    }
++    let mut sys=System::new();sys.refresh_processes_specifics(ProcessesToUpdate::All,true,ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
++    let dirs:Vec<String>=ids.iter().map(|i|dir(*i).display().to_string()).collect(); let mut n=0;
++    for p in sys.processes().values(){let cmd=p.cmd().iter().map(|a|a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" ");if cmd.contains("--user-data-dir=")&&dirs.iter().any(|d|cmd_uses(&cmd,d))&&p.kill(){n+=1;}}
 +    n
 +}
 +
-+pub fn state() -> Value {
-+    let tabs = load();
-+    let running = running_ids(&tabs);
-+    json!({
-+        "ok": true,
-+        "browser": browser_name(),
-+        "tabs": tabs.iter().map(|t| { let mut v = json!(t); v["running"] = json!(running.contains(&t.id)); v }).collect::<Vec<_>>(),
-+    })
-+}
-+
-+pub async fn tabs_handler() -> impl IntoResponse {
-+    Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e| json!({"ok": false, "error": e.to_string()})))
-+}
-+
-+// ---------- starten ----------
-+
-+fn enc(s: &str) -> String {
-+    s.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
-+}
-+
-+fn launch(t: &Tab, url: &str) -> Result<&'static str, String> {
-+    let (name, exe) = browser().ok_or("Kein Chrome, Edge oder Brave gefunden.")?;
-+    let d = dir(t.id);
-+    std::fs::create_dir_all(&d).map_err(|e| format!("Profilordner konnte nicht angelegt werden: {e}"))?;
-+    std::process::Command::new(&exe)
-+        .arg(format!("--user-data-dir={}", d.display()))
-+        .args(["--no-first-run", "--no-default-browser-check"])
-+        .arg(format!("--app={url}"))
-+        .spawn()
-+        .map_err(|e| format!("{name} konnte nicht gestartet werden: {e}"))?;
-+    Ok(name)
-+}
-+
-+fn start_url(t: &Tab) -> String { if t.url.is_empty() { NOTION_URL.to_string() } else { t.url.clone() } }
-+
-+fn find(id: Option<u32>) -> Result<Tab, String> {
-+    let id = id.ok_or("Tab-Nummer fehlt.")?;
-+    load().into_iter().find(|t| t.id == id).ok_or(format!("Tab {id} gibt es nicht."))
-+}
-+
-+fn add_tab() -> Result<String, String> {
-+    let mut tabs = load();
-+    let id = tabs.iter().map(|t| t.id).chain(dir_ids()).max().unwrap_or(0) + 1;
-+    if id > MAX_TABS { return Err("Maximal 99 Tabs.".into()); }
-+    std::fs::create_dir_all(dir(id)).map_err(|e| e.to_string())?;
-+    tabs.push(Tab { id, label: format!("Tab {id}"), autostart: true, ..Default::default() });
-+    save(&tabs)?;
-+    Ok(format!("Tab {id} angelegt. Gmail-Konto eintragen, Speichern, dann „Gmail-Login“."))
-+}
-+
-+fn save_tabs(v: &Value) -> Result<String, String> {
-+    let incoming: Vec<Tab> = serde_json::from_value(v.clone()).map_err(|e| format!("Ungültige Daten: {e}"))?;
-+    let known = load();
-+    let mut out: Vec<Tab> = Vec::new();
-+    for t in &incoming {
-+        if !known.iter().any(|k| k.id == t.id) { return Err(format!("Tab {} gibt es nicht mehr.", t.id)); }
-+        if out.iter().any(|o| o.id == t.id) { continue; }
-+        out.push(sanitize(t)?);
-+    }
-+    // Tabs, die der Client nicht kennt (z. B. gerade angelegt), nicht verlieren.
-+    for k in known { if !out.iter().any(|o| o.id == k.id) { out.push(k); } }
-+    save(&out)?;
-+    Ok(format!("{} Tabs gespeichert.", out.len()))
-+}
-+
-+fn start_all() -> Result<String, String> {
-+    let tabs = load();
-+    let running = running_ids(&tabs);
-+    let todo: Vec<&Tab> = tabs.iter().filter(|t| t.autostart && !running.contains(&t.id)).collect();
-+    if todo.is_empty() { return Ok(if tabs.is_empty() { "Noch keine Tabs angelegt.".into() } else { "Alle Auto-Start-Tabs laufen bereits.".into() }); }
-+    let mut errs = Vec::new();
-+    for t in &todo { if let Err(e) = launch(t, &start_url(t)) { errs.push(format!("Tab {}: {e}", t.id)); } }
-+    if errs.is_empty() { Ok(format!("{} Tabs gestartet.", todo.len())) } else { Err(errs.join(" · ")) }
-+}
-+
-+fn delete(id: Option<u32>) -> Result<String, String> {
-+    let t = find(id)?;
-+    if running_ids(std::slice::from_ref(&t)).contains(&t.id) {
-+        return Err(format!("Tab {} läuft noch. Erst stoppen.", t.id));
-+    }
-+    let d = dir(t.id);
-+    if d.is_dir() { std::fs::remove_dir_all(&d).map_err(|e| format!("Tab {} konnte nicht gelöscht werden: {e}", t.id))?; }
-+    let tabs: Vec<Tab> = load().into_iter().filter(|x| x.id != t.id).collect();
-+    save(&tabs)?;
-+    Ok(format!("Tab {} entfernt (inkl. Login).", t.id))
-+}
-+
-+fn open_tab(t: &Tab) -> Result<String, String> {
-+    launch(t, &start_url(t)).map(|b| format!("Tab {} geöffnet ({b}).", t.id))
-+}
-+
-+/// Aktionen der Co-Work-Seite. `None` = nicht zustaendig.
-+pub fn action(name: &str, v: &Value) -> Option<Result<String, String>> {
-+    let id = v.as_u64().or_else(|| v.get("id").and_then(Value::as_u64)).and_then(|n| u32::try_from(n).ok());
-+    Some(match name {
-+        "cowork_add_tab" => add_tab(),
-+        "cowork_save_tabs" => save_tabs(v),
-+        "cowork_start_all" => start_all(),
-+        "cowork_stop_all" => { let ids: Vec<u32> = load().iter().map(|t| t.id).collect(); Ok(format!("{} Browser-Prozesse beendet.", stop_ids(&ids))) }
-+        "cowork_stop" => find(id).map(|t| format!("Tab {} gestoppt ({} Prozesse).", t.id, stop_ids(&[t.id]))),
-+        "open_notion_window" => match id {
-+            Some(_) => find(id).and_then(|t| open_tab(&t)),
-+            None => add_tab().and_then(|_| load().into_iter().max_by_key(|t| t.id).ok_or_else(|| "Tab fehlt.".to_string())).and_then(|t| open_tab(&t)),
-+        },
-+        "cowork_login" => find(id).and_then(|t| {
-+            if t.email.is_empty() { return Err(format!("Tab {}: erst ein Gmail-Konto eintragen und speichern.", t.id)); }
-+            let url = format!("https://accounts.google.com/AccountChooser?Email={}&continue={}", enc(&t.email), enc("https://www.notion.so/login"));
-+            launch(&t, &url).map(|b| format!("Tab {}: Google-Login für {} geöffnet ({b}). Danach in Notion „Mit Google fortfahren“.", t.id, t.email))
-+        }),
-+        "delete_notion_profile" | "cowork_delete" => delete(id),
-+        "rename_notion_profile" => find(id).and_then(|t| {
-+            let mut tabs = load();
-+            if let Some(x) = tabs.iter_mut().find(|x| x.id == t.id) { x.label = clean(v.get("label").and_then(Value::as_str).unwrap_or(""), 40); }
-+            save(&tabs).map(|_| "Name gespeichert.".to_string())
-+        }),
-+        _ => return None,
-+    })
-+}
-+
-+#[cfg(test)]
-+mod tests {
++#[cfg(windows)]
++mod windows {
 +    use super::*;
-+    #[test]
-+    fn ids_cmds_and_sanitize() {
-+        assert_eq!(parse_id("agent-3"), Some(3));
-+        assert_eq!(parse_id("agent-0"), None);
-+        assert_eq!(parse_id("agent-100"), None);
-+        assert!(cmd_uses(r"chrome.exe --user-data-dir=C:\X\agent-3 --app=x", r"c:\x\agent-3"));
-+        assert!(!cmd_uses(r"chrome.exe --user-data-dir=C:\X\agent-30 --app=x", r"C:\X\agent-3"));
-+        let ok = sanitize(&Tab { id: 2, email: " Max@Gmail.com ".into(), ..Default::default() }).unwrap();
-+        assert_eq!(ok.email, "max@gmail.com");
-+        assert_eq!(ok.label, "Tab 2");
-+        assert!(sanitize(&Tab { id: 2, email: "kein-at".into(), ..Default::default() }).is_err());
-+        assert!(sanitize(&Tab { id: 2, url: "http://x".into(), ..Default::default() }).is_err());
-+        assert_eq!(enc("a b@c"), "a%20b%40c");
-+        assert!(action("unbekannt", &Value::Null).is_none());
++    static PIDS: Lazy<Mutex<(HashSet<u32>, bool)>> = Lazy::new(|| Mutex::new((HashSet::new(), false)));
++    #[link(name="user32")]
++    extern "system" { fn EnumWindows(cb: unsafe extern "system" fn(isize,isize)->i32, data:isize)->i32; fn GetWindowThreadProcessId(hwnd:isize,pid:*mut u32)->u32; fn ShowWindow(hwnd:isize,cmd:i32)->i32; }
++    unsafe extern "system" fn visit(hwnd:isize,_:isize)->i32 { let mut pid=0; GetWindowThreadProcessId(hwnd,&mut pid); let g=lock(&PIDS); if g.0.contains(&pid){ShowWindow(hwnd,if g.1{5}else{0});} 1 }
++    pub fn set_hidden(tabs:&[Tab], hidden:bool){
++        let cmds=browser_cmds(); let mut p=HashSet::new();
++        for t in tabs { let d=dir(t.id).display().to_string(); for(pid,c) in &cmds { if cmd_uses(c,&d){p.insert(pid.as_u32());} } }
++        *lock(&PIDS)=(p,!hidden); unsafe{EnumWindows(visit,0);}
 +    }
++}
++#[cfg(not(windows))] mod windows { use super::*; pub fn set_hidden(_: &[Tab],_:bool){} }
++
++fn start_url(t:&Tab)->String{if t.url.is_empty(){NOTION_URL.to_string()}else{t.url.clone()}}
++fn tab_index(id:u32)->usize{load().iter().position(|t|t.id==id).unwrap_or(0)}
++fn launch(t:&Tab,url:&str)->Result<&'static str,String>{
++    let(name,exe)=browser().ok_or("Kein Chrome, Edge oder Brave gefunden.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;
++    let port=cdp_port(tab_index(t.id));
++    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion"]).arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;Ok(name)
++}
++fn find(id:Option<u32>)->Result<Tab,String>{let id=id.ok_or("Tab-Nummer fehlt.")?;load().into_iter().find(|t|t.id==id).ok_or(format!("Tab {id} gibt es nicht."))}
++fn enc(s:&str)->String{s.bytes().map(|b|if b.is_ascii_alphanumeric()||b"-_.~".contains(&b){(b as char).to_string()}else{format!("%{b:02X}")}).collect()}
++
++async fn target(port:u16)->Result<String,String>{
++    let list:Vec<Value>=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?;
++    list.into_iter().find(|v|v["type"]=="page"&&v["url"].as_str().unwrap_or("").contains("notion.")).and_then(|v|v["webSocketDebuggerUrl"].as_str().map(str::to_string)).ok_or("Kein Notion-CDP-Tab gefunden.".into())
++}
++async fn cdp(port:u16, commands:Vec<Value>)->Result<Vec<Value>,String>{
++    let ws=target(port).await?;let(mut socket,_)=tokio_tungstenite::connect_async(&ws).await.map_err(|e|e.to_string())?;let mut out=Vec::new();
++    for(mut cmd)in commands{let id=out.len()+1;cmd["id"]=json!(id);socket.send(tokio_tungstenite::tungstenite::Message::Text(cmd.to_string().into())).await.map_err(|e|e.to_string())?;loop{let msg=tokio::time::timeout(Duration::from_secs(5),socket.next()).await.map_err(|_|"CDP timeout".to_string())?.ok_or("CDP geschlossen")?.map_err(|e|e.to_string())?;if let Ok(txt)=msg.into_text(){if let Ok(v)=serde_json::from_str::<Value>(&txt){if v["id"]==id{out.push(v);break;}}}}
++    } Ok(out)
++}
++fn prompt_for(t:&Tab,goal:&str)->String{
++    let loop_text="Arbeite selbstständig in der Schleife: cowork_claim, Aufgabe bearbeiten, cowork_update, dann cowork_wait. Antworte kurz und nur mit Neuem.";
++    if t.role=="Main"{format!("Du bist Main/Lead im AdiCode Co-Work. Starte jetzt mit cowork_start ein Projekt für diese Aufgabe: {goal}\n{loop_text}")}else{format!("Du bist {} im AdiCode Co-Work. Finde das einzige aktive Projekt mit cowork_board, tritt mit cowork_join als {} bei. {loop_text}",t.role,t.role)}
++}
++async fn insert_prompt(port:u16,prompt:String)->Result<(),String>{
++    let focus="(()=>{const e=document.querySelector('[contenteditable=\"true\"]')||document.querySelector('textarea');if(!e)return false;e.focus();return true})()";
++    cdp(port,vec![json!({"method":"Page.bringToFront"}),json!({"method":"Runtime.evaluate","params":{"expression":focus}}),json!({"method":"Input.insertText","params":{"text":prompt}}),json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyDown","key":"Enter","code":"Enter","windowsVirtualKeyCode":13}}),json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyUp","key":"Enter","code":"Enter","windowsVirtualKeyCode":13}})]).await?;Ok(())
++}
++async fn inspect_account(t:&Tab,i:usize){
++    let expr=r#"(()=>{const body=(document.body&&document.body.innerText)||'';let store='';for(let i=0;i<localStorage.length;i++){try{store+='\n'+localStorage.getItem(localStorage.key(i));}catch(e){}}const text=body+'\n'+store;const names=['GPT-5','GPT-4.1','GPT-4o','Claude 4.5 Sonnet','Claude 4 Sonnet','Claude 3.7 Sonnet','Gemini 2.5 Pro','o3','o4-mini','Notion AI'];const models=[...new Set(names.filter(n=>text.toLowerCase().includes(n.toLowerCase())))];const near=text.match(/(?:usage|verwendet|genutzt|limit|kontingent)[^%]{0,100}(\d{1,3})\s*%/i)||text.match(/(\d{1,3})\s*%[^\n]{0,100}(?:usage|verwendet|genutzt|limit|kontingent)/i);return {usage:near?Math.min(100,Number(near[1])):null,models,checked:new Date().toLocaleTimeString(),url:location.href}})()"#;
++    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).cloned()).unwrap_or_else(||json!({"usage":null,"models":[],"error":"Account-Check nicht erreichbar"}));lock(&ACCOUNT).insert(t.id,value);
++}
++async fn keep_alive(tabs:Vec<Tab>){
++    loop{for(i,t)in tabs.iter().enumerate(){let _=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":"(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));return document.visibilityState})()"}})]).await;inspect_account(t,i).await;}tokio::time::sleep(Duration::from_secs(20)).await;}
++}
++async fn kickoff(tabs:Vec<Tab>,goal:String){tokio::time::sleep(Duration::from_secs(6)).await;for(i,t)in tabs.iter().enumerate(){let _=insert_prompt(cdp_port(i),prompt_for(t,&goal)).await;tokio::time::sleep(Duration::from_secs(2)).await;}if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}windows::set_hidden(&tabs[1..],true);}
++
++fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
++fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
++fn start_all(v:&Value)->Result<String,String>{let tabs=load();if tabs.len()!=4||tabs.iter().any(|t|t.email.is_empty()){return Err("Start erst möglich, wenn genau 4 Tabs mit E-Mail eingetragen sind.".into());}let running=running_ids(&tabs);for t in tabs.iter().filter(|t|!running.contains(&t.id)){launch(t,&start_url(t))?;}let goal=clean(v.get("goal").and_then(Value::as_str).unwrap_or(""),4000);if goal.is_empty(){return Err("Bitte zuerst die Aufgabe eintragen.".into());}tokio::spawn(kickoff(tabs,goal));Ok("4 Tabs gestartet. Auto-Kickoff läuft; danach bleiben Coder, Reviewer und Tester versteckt aktiv.".into())}
++fn delete(id:Option<u32>)->Result<String,String>{let t=find(id)?;if running_ids(std::slice::from_ref(&t)).contains(&t.id){return Err("Tab läuft noch. Erst stoppen.".into());}if dir(t.id).is_dir(){std::fs::remove_dir_all(dir(t.id)).map_err(|e|e.to_string())?;}let tabs:Vec<Tab>=load().into_iter().filter(|x|x.id!=t.id).collect();save(&tabs)?;lock(&ACCOUNT).remove(&t.id);Ok(format!("Tab {} entfernt; Rollen wurden nachgerückt.",t.id))}
++fn open_tab(t:&Tab)->Result<String,String>{launch(t,&start_url(t)).map(|b|format!("Tab {} geöffnet ({b}).",t.id))}
++
++pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();json!({"ok":true,"browser":browser_name(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v}).collect::<Vec<_>>()})}
++pub async fn tabs_handler()->impl IntoResponse{Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e|json!({"ok":false,"error":e.to_string()})))}
++pub fn action(name:&str,v:&Value)->Option<Result<String,String>>{
++    let id=v.as_u64().or_else(||v.get("id").and_then(Value::as_u64)).and_then(|n|u32::try_from(n).ok());
++    Some(match name{
++        "cowork_add_tab"=>add_tab(),"cowork_save_tabs"=>save_tabs(v),"cowork_start_all"=>start_all(v),
++        "cowork_stop_all"=>{let ids:Vec<u32>=load().iter().map(|t|t.id).collect();Ok(format!("{} Browser-Prozesse beendet.",stop_ids(&ids)))},
++        "cowork_show_all"=>{let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],false);}Ok("Alle Co-Work-Fenster angezeigt.".into())},
++        "cowork_check_accounts"=>{let tabs=load();tokio::spawn(async move{for(i,t)in tabs.iter().enumerate(){inspect_account(t,i).await;}});Ok("Account-Check läuft (Usage + Modelle).".into())},
++        "cowork_copy_prompt"=>find(id).map(|t|prompt_for(&t,v.get("goal").and_then(Value::as_str).unwrap_or(""))),
++        "cowork_stop"=>find(id).map(|t|format!("Tab {} gestoppt ({} Prozesse).",t.id,stop_ids(&[t.id]))),
++        "open_notion_window"=>match id{Some(_)=>find(id).and_then(|t|open_tab(&t)),None=>add_tab().and_then(|_|load().last().cloned().ok_or("Tab fehlt.".into())).and_then(|t|open_tab(&t))},
++        "cowork_login"=>find(id).and_then(|t|{if t.email.is_empty(){return Err("Erst Gmail-Konto eintragen und speichern.".into());}let url=format!("https://accounts.google.com/AccountChooser?Email={}&continue={}",enc(&t.email),enc("https://www.notion.so/login"));launch(&t,&url).map(|b|format!("Google-Login für {} geöffnet ({b}).",t.email))}),
++        "delete_notion_profile"|"cowork_delete"=>delete(id),
++        "rename_notion_profile"=>find(id).and_then(|t|{let mut tabs=load();if let Some(x)=tabs.iter_mut().find(|x|x.id==t.id){x.label=clean(v.get("label").and_then(Value::as_str).unwrap_or(""),40);}save(&tabs).map(|_|"Name gespeichert.".into())}),
++        _=>return None,
++    })
 +}
 diff --git a/agent/src/notion_roblox_plus.rs b/agent/src/notion_roblox_plus.rs
 new file mode 100644
