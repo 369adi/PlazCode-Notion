@@ -7,7 +7,7 @@ Copy-Item (Join-Path $b 'plazcode.png') (Join-Path $Source 'agent/assets/plazcod
 $html = (Resolve-Path (Join-Path $Source 'agent/src/desktop.html')).Path
 $t = [IO.File]::ReadAllText($html)
 $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $b 'plazcode.png')))
-$img = '<img class="pcn-logo" alt="PlazCode Notion" src="data:image/png;base64,' + $b64 + '">'
+$img = '<img class="pcn-logo" alt="AdiCode" src="data:image/png;base64,' + $b64 + '">'
 $pattern = '<svg class="logo-svg"[\s\S]*?</svg>'
 $n = ([regex]::Matches($t, $pattern)).Count
 if ($n -lt 1) { throw 'logo-svg not found in desktop.html' }

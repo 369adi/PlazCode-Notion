@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "PlazCode Notion Web Agents",
+  "name": "AdiCode Web Agents",
   "version": "1.0.8",
-  "description": "Verbindet freigegebene KI-Chat-Tabs mit PlazCode Notion (web_agents, web_chat, Direkt-Agent).",
+  "description": "Verbindet freigegebene KI-Chat-Tabs mit AdiCode (web_agents, web_chat, Direkt-Agent).",
   "minimum_chrome_version": "116",
-  "action": {"default_popup":"popup.html","default_title":"PlazCode Web Agents"},
+  "action": {"default_popup":"popup.html","default_title":"AdiCode Web Agents"},
   "options_page": "options.html",
   "background": {"service_worker":"background.js"},
   "permissions": ["storage"],

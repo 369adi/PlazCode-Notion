@@ -12,6 +12,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.15
+- Neuer Name **AdiCode** und neues Logo (A-Monogramm mit Farbverlauf), auch als Icon der exe. Die Tools heissen jetzt `adicode_status`, `adicode_skill` und `adicode_restart_server`.
+- Komplett neues **dunkles Design**: ruhige dunkle Flaechen, Akzent-Verlauf Violett-Cyan, neue Karten, Buttons, Eingabefelder, Badges und Tabellen.
+- Stabilerer MCP-Server: Jeder Tool-Aufruf laeuft abgesichert (ein Absturz reisst den Server nicht mehr mit) und antwortet nach spaetestens 55 s. Sehr grosse Antworten werden gekuerzt.
+- Schneller: Jedes Add-on (pc, browser, git, ...) hat jetzt eine eigene Warteschlange. Ein langer Befehl auf einem Add-on blockiert die anderen nicht mehr. Haengende oder abgestuerzte Add-ons werden automatisch neu gestartet.
+- Co-Work: Das Board wird gebuendelt im Hintergrund gespeichert, der Nachrichtenverlauf ist auf 300 begrenzt.
+
 ## Neu in 1.0.14
 - Neue Seite **Co-Work**: mehrere Notion-AI-Tabs gleichzeitig, jeder in einem eigenen Container (eigenes Browser-Profil, eigene Cookies). Pro Tab ein Gmail-Konto, Name, Rolle, Startseite und Auto-Start. **Speichern** merkt sich alles, **Gmail-Login** meldet den Tab einmal an, **Alle starten** oeffnet alle Tabs mit ihren eingeloggten Sessions, **Alle stoppen** schliesst sie.
 - HANDOUT.md komplett neu: Projektueberblick, Build-Ablauf, Architektur, Fallstricke und Changelog fuer neue Chats.

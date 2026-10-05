@@ -12,6 +12,7 @@ Entpacken, Original-PlazCode beenden, `PlazCode-Notion\PlazCode.exe` starten.
 - Seite **Notion AI**: eingebauter MCP-Server + ngrok-Tunnel → Notion AI steuert Roblox Studio, PC und Browser ohne Browser-Erweiterung
 - Katalog-Einträge „PC (Windows-MCP)“ und „Browser (Playwright)“ unter MCP Servers
 - Automatische Updates deaktiviert (sonst würde das Original den Fork überschreiben)
+- Neu in 1.0.15: neuer Name AdiCode, neues Logo, dunkles Design, stabilerer und schnellerer MCP-Server (Timeout + Absturzschutz pro Tool, eigene Warteschlange pro Add-on)
 - Neu in 1.0.14: Seite Co-Work (mehrere Notion-Tabs als getrennte Container mit eigenem Gmail-Login, Alle starten). Fuer neue Chats: siehe `HANDOUT.md`
 - Neu in 1.0.10: Seite Updates (Versionen + Notizen, Jetzt aktualisieren), ngrok-Ersteinrichtung in der App (installieren, Authtoken, Domain/URL)
 - Neu in 1.0.9: aufgeräumte Oberfläche (ohne Model/UI Builder, Toolkit, Templates, Updates), getrennte Notion-Fenster mit eigenem Login pro Profil

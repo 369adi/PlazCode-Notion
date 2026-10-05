@@ -76,7 +76,7 @@ async function runOnAgent(agentId, message) {
 
 async function directAgentApi(path, body) {
   const config = await settings();
-  if (!config.bridgeToken) return {error:"Add the bridge token in the extension options (token from PlazCode Notion > Notion AI) first. The direct Roblox agent needs the local bridge."};
+  if (!config.bridgeToken) return {error:"Add the bridge token in the extension options (token from AdiCode > Notion AI) first. The direct Roblox agent needs the local bridge."};
   const base = (config.bridgeUrl || DEFAULT_URL)
     .replace(/^ws:/i,"http:").replace(/^wss:/i,"https:").replace(/\/extension\/ws\/?$/i,"");
   try {
@@ -104,7 +104,7 @@ async function connect() {
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return;
   const config = await settings();
   if (!config.bridgeToken) {
-    await status("needs_setup", "Add the bridge token in the extension options (token from PlazCode Notion > Notion AI).");
+    await status("needs_setup", "Add the bridge token in the extension options (token from AdiCode > Notion AI).");
     return;
   }
   let ws;
@@ -136,7 +136,7 @@ async function connect() {
   ws.onclose = async event => {
     clearInterval(heartbeatTimer);
     if (socket === ws) socket = null;
-    await status(event.code === 4401 ? "unauthorized" : "disconnected", event.code === 4401 ? "The bridge token was rejected. Update it in the extension options (token from PlazCode Notion > Notion AI)." : "Waiting for the local bridge.");
+    await status(event.code === 4401 ? "unauthorized" : "disconnected", event.code === 4401 ? "The bridge token was rejected. Update it in the extension options (token from AdiCode > Notion AI)." : "Waiting for the local bridge.");
     scheduleReconnect();
   };
 }

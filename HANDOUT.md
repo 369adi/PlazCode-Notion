@@ -1,4 +1,4 @@
-# PlazCode Notion – Handout für neue Chats
+# AdiCode (ehemals PlazCode Notion) – Handout für neue Chats
 
 > Diese Datei ist das Gedächtnis des Projekts. Neue Chats zuerst diese Datei lesen.
 > Nach jeder Änderung hier unten im **Changelog** und, falls nötig, in den anderen Abschnitten nachtragen.
@@ -91,11 +91,15 @@ Home · **Notion AI** · **Co-Work** · Tools · MCP Servers · Terminal · Sett
 - **PowerShell:** Typografische Anführungszeichen (`„ “ ’`) im Befehl beenden Strings. In Skripttexten vermeiden oder `[char]` verwenden.
 - **PowerShell-Befehle über ~30 KB** scheitern (WinError 206) → große Dateien mit `files_write_file` schreiben.
 - Bei `desktop.html` nach Änderungen die `div`-Bilanz pro `<section class="page">` und `node --check` prüfen. Alle `section.page` müssen direkte Kinder von `#content` sein.
-- Startet die App neu (Auto-Update), ist der Tunnel kurz weg (ngrok-Fehler ERR_NGROK_3004 oder „Unknown tool“). Kurz warten, dann `plazcode_status` aufrufen.
-- Hängt ein Add-on: `plazcode_restart_server` (z. B. `pc`). Dabei werden Kindprozesse beendet, also auch laufende `cargo`-Jobs.
+- Startet die App neu (Auto-Update), ist der Tunnel kurz weg (ngrok-Fehler ERR_NGROK_3004 oder „Unknown tool“). Kurz warten, dann `adicode_status` aufrufen.
+- Hängt ein Add-on: `adicode_restart_server` (z. B. `pc`). Dabei werden Kindprozesse beendet, also auch laufende `cargo`-Jobs.
 - Lange Befehle (> ca. 60–90 s) laufen ins MCP-Timeout → im Hintergrund starten und abfragen.
 
+- **Workflow-Prüfung:** Der Build bricht ab, wenn in desktop.html der Text `plazcode-notion-theme` fehlt. Steht deshalb als Kommentar im AdiCode-Theme – nicht entfernen. Workflow selbst nicht ändern (Token ohne workflow-Scope).
+- **Name vs. Technik:** Sichtbar heißt alles AdiCode. Technisch bleiben `PlazCode-Notion.exe` (Release-Asset), Tag-Präfix `notion-desktop-v`, Repo, Datenordner `%LOCALAPPDATA%\PlazCodeNotion` und Prozess `PlazCode.exe` – sonst finden installierte Launcher keine Updates mehr.
+
 ## 9. Changelog
+- **1.0.15** – Umbenannt in **AdiCode** (sichtbare Texte, Fenstertitel, Tray, Erweiterung, Launcher-Meldungen), neues Logo (`notion-desktop/branding/make-icon.ps1` erzeugt `plazcode.ico/png`, Dateinamen bleiben wegen Workflow). Tools `plazcode_*` → `adicode_*`. Neues dunkles Theme (`<style id="adicode-theme">` in desktop.html, ersetzt das helle Notion-Theme). Stabilität: `call_tool_guarded` in notion_mcp.rs (eigene Task, Panic-Schutz, 55-s-Timeout, Ausgabe > 120 000 Zeichen gekürzt); `AddonManager` mit eigenem Lock pro Add-on (`mcp_addons::call_shared`), Cache für Tool-Listen, Auto-Reset bei Timeout/Absturz; Co-Work speichert gebündelt im Hintergrund-Thread, max. 300 Nachrichten.
 - **1.0.14** – Neue Seite **Co-Work**: mehrere Notion-Tabs als getrennte Container, je ein Gmail-Konto, Speichern, Gmail-Login, Alle starten/stoppen, Status „läuft“. Dieses Handout neu geschrieben.
 - **1.0.13** – Server-URL direkt eintragbar (Notion AI + Karte auf MCP Servers).
 - **1.0.12** – Fix: Notion-AI-Inhalte erschienen auf jeder Seite; Felder für Authtoken und Domain fehlten.

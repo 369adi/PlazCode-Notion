@@ -18,7 +18,7 @@ async function refresh() {
     return;
   }
   state.textContent = `${page.info.name}${page.enabled ? " · Agent freigegeben" : " · Agent nicht freigegeben"}`;
-  detail.textContent = `PlazCode: ${connection.configured ? connection.connectionState || "getrennt" : "Token fehlt"}. Der Direkt-Modus braucht PlazCode Notion und ein verbundenes Roblox Studio; Notion ist optional.`;
+  detail.textContent = `PlazCode: ${connection.configured ? connection.connectionState || "getrennt" : "Token fehlt"}. Der Direkt-Modus braucht AdiCode und ein verbundenes Roblox Studio; Notion ist optional.`;
   enable.textContent = page.enabled ? "Freigabe entfernen" : "Agent freigeben";
   enable.disabled = false;
   run.disabled = !page.enabled;

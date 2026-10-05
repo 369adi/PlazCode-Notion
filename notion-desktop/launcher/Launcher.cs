@@ -8,12 +8,12 @@ using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
 
-[assembly: AssemblyTitle("PlazCode Notion")]
-[assembly: AssemblyProduct("PlazCode Notion (inoffizieller Fork)")]
+[assembly: AssemblyTitle("AdiCode")]
+[assembly: AssemblyProduct("AdiCode (basiert auf PlazCode, GPL-3.0)")]
 
-// Single-file launcher: embeds the full PlazCode Notion package (app.zip), extracts it to
+// Single-file launcher: embeds the full AdiCode package (app.zip), extracts it to
 // %LOCALAPPDATA%\PlazCodeNotion\app, starts it and keeps watching GitHub Releases. When a
-// newer release appears it replaces itself, restarts PlazCode Notion and exits.
+// newer release appears it replaces itself, restarts AdiCode and exits.
 static class Launcher
 {
     const string Repo = "369adi/PlazCode-Notion";
@@ -51,7 +51,7 @@ static class Launcher
             catch (Exception ex)
             {
                 Log("fatal: " + ex);
-                MessageBox.Show("PlazCode Notion konnte nicht gestartet werden:\n\n" + ex.Message, "PlazCode Notion", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("AdiCode konnte nicht gestartet werden:\n\n" + ex.Message, "AdiCode", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return 1;
             }
             finally { try { mutex.ReleaseMutex(); } catch { } }
@@ -70,7 +70,7 @@ static class Launcher
         EnsureExtracted(current.ToString());
         if (FindApp() == null) StartApp();
 
-        // Watch for new releases while PlazCode Notion is running.
+        // Watch for new releases while AdiCode is running.
         while (true)
         {
             for (int i = 0; i < CheckSeconds; i++)
