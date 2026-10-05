@@ -12,6 +12,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.19
+- Sicherer Co-Work-Start: Alle vier Konten werden zuerst einmalig nach **Chat / Willkommen in Notion** geführt. AdiCode prüft pro Tab, ob das sichtbare Notion-AI-Eingabefeld wirklich bereit ist. Erst wenn alle vier erfolgreich sind, werden Coder, Reviewer und Tester versteckt.
+- Rollen-Handshake: Nach dem Main-Kickoff müssen Coder, Reviewer und Tester dem neuesten Board nachweislich über `cowork_join` beitreten. Der Live-Status zeigt den Fortschritt; bei Fehlern werden alle Fenster automatisch sichtbar statt still weiterzulaufen.
+- Präzisere Worker-Schleife: feste Agent-Namen und Rollen, selbstständiges `claim → arbeiten → update → wait` sowie Blocker-Nachrichten an Main.
+
 ## Neu in 1.0.18
 - Updates beenden Co-Work-Browser nicht mehr: Der Launcher schliesst beim App-Neustart weiterhin AdiCode, ngrok und Add-ons, bewahrt aber alle Browserprozesse der vier Profilordner. Vor Update-Neustarts und normalem Beenden werden versteckte Worker-Fenster wieder sichtbar gemacht.
 - „Alle zeigen“ stellt versteckte Worker-Fenster mit Windows `SW_RESTORE` wirklich wieder her.

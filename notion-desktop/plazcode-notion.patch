@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..ef49f38 100644
+index 07dc4c0..4d3b9bd 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -445,7 +445,7 @@ index 07dc4c0..ef49f38 100644
 +        <div class="settingcard notion-card"><h3>Launcher-Protokoll</h3><pre id="uLog" class="nhint" style="white-space:pre-wrap;margin:0;font-size:12px"></pre></div>
 +      </section>      <section class="page" id="page-cowork">
 +        <div class="page-head"><div><div class="page-title">Co-Work 2.0</div><div class="page-sub">Main ist deine einzige Chat-Oberfläche; drei Worker laufen dauerhaft versteckt im Hintergrund.</div></div></div>
-+        <div class="notion-callout"><span class="ico">🧱</span><div>Vier Gmail-Konten eintragen und einmal anmelden. <b>Alle starten</b> öffnet Main sichtbar; dort schreibst du deine Aufgabe. Coder, Reviewer und Tester treten automatisch bei und bleiben versteckt aktiv. Rollen: <b>Main · Coder · Reviewer · Tester</b>.</div></div>
++        <div class="notion-callout"><span class="ico">🧱</span><div>Vier Gmail-Konten eintragen und einmal anmelden. <b>Alle starten</b> öffnet zuerst in jedem Konto die Chat-Startseite „Willkommen in Notion“ und prüft alle vier Eingabefelder. Erst danach bleiben Coder, Reviewer und Tester versteckt aktiv; Main bleibt sichtbar. Rollen: <b>Main · Coder · Reviewer · Tester</b>.</div></div>
 +        <div class="settingcard notion-card">
 +          <div class="nrow" style="margin:0 0 10px"><button class="softbtn" id="cwAdd">+ Tab hinzufügen</button><button class="softbtn" id="cwSave">Speichern</button><button class="softbtn" id="cwStartAll">▶ Alle starten</button><button class="softbtn" id="cwShowAll">Alle zeigen</button><button class="softbtn" id="cwCheck">Accounts prüfen</button><button class="softbtn" id="cwStopAll">■ Alle stoppen</button><span id="cwDirty" class="nbadge warn" style="display:none">Nicht gespeichert</span><span id="cwMsg" class="nhint"></span></div>
 +          <div class="nrow" style="margin:0 0 6px"><span class="nlabel">Browser</span><span id="cwBrowser" class="nvalue">–</span></div>
@@ -693,7 +693,7 @@ index 07dc4c0..ef49f38 100644
 +      return "<tr data-i=\"" + I + "\"><td><b>" + (I + 1) + "</b></td>" +
 +        "<td><b>" + CEsc(T.role) + "</b><br><input data-f=\"label\" value=\"" + CEsc(T.label) + "\" placeholder=\"Name\"></td>" +
 +        "<td><input data-f=\"email\" type=\"email\" value=\"" + CEsc(T.email) + "\" placeholder=\"name@gmail.com\"></td>" +
-+        "<td>" + CPct(A) + "</td><td style=\"max-width:210px\">" + CEsc(Models) + (A.mcp ? ("<br><small class=\"nhint\">MCP: " + CEsc(A.mcp) + "</small>") : "") + "</td>" +
++        "<td>" + CPct(A) + "</td><td style=\"max-width:210px\">" + CEsc(Models) + (A.mcp ? ("<br><small class=\"nhint\">MCP: " + CEsc(A.mcp) + "</small>") : "") + (A.chat ? ("<br><small class=\"nhint\">Chat: " + CEsc(A.chat) + "</small>") : "") + "</td>" +
 +        "<td><span class=\"nbadge" + (T.running ? " ok" : "") + "\" data-run=\"" + T.id + "\">" + (T.running ? "läuft" : "aus") + "</span></td>" +
 +        "<td class=\"cwbtns\"><button class=\"softbtn\" data-a=\"login\">Gmail-Login</button><button class=\"softbtn\" data-a=\"mcp\">MCP einrichten</button><button class=\"softbtn\" data-a=\"prompt\">Startprompt kopieren</button><button class=\"softbtn\" data-a=\"stop\">Stoppen</button><button class=\"dangerbtn\" data-a=\"del\">Entfernen</button></td></tr>";
 +    };
@@ -707,7 +707,7 @@ index 07dc4c0..ef49f38 100644
 +    };
 +    var CLoad = function (Full) {
 +      return Call("/api/notion/cowork-tabs").then(function (R) {
-+        if ($("cwBrowser")) $("cwBrowser").textContent = R.browser || "Kein Chrome/Edge/Brave gefunden";
++        if ($("cwBrowser")) $("cwBrowser").textContent = R.browser || "Kein Chrome/Edge/Brave gefunden"; if (R.status) CMsg(R.status);
 +        var Tabs = R.tabs || [], Sig = Tabs.map(function (T) { return T.id; }).join(",");
 +        if (Full || !CW.dirty) { CW.tabs = Tabs; CW.sig = Sig; CDirty(false); CRender(); return; }
 +        Tabs.forEach(function (T, I) { if (CW.tabs[I] && CW.tabs[I].id === T.id) CW.tabs[I] = Object.assign({}, CW.tabs[I], { running: T.running, account: T.account, role: T.role }); }); CRender();
@@ -1244,10 +1244,10 @@ index 1a68aee..fddb1e6 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..797bcdd
+index 0000000..04d1c8f
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,830 @@
+@@ -0,0 +1,831 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -1343,6 +1343,7 @@ index 0000000..797bcdd
 +static BOARD: Lazy<Mutex<Board>> = Lazy::new(|| Mutex::new(load()));
 +static CHANGED: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
 +pub(crate) fn project_count() -> usize { BOARD.lock().unwrap_or_else(|e| e.into_inner()).projects.len() }
++pub(crate) fn latest_agent_roles() -> Vec<String> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.agents.values().map(|a|a.role.clone()).collect()).unwrap_or_default() }
 +
 +fn now() -> i64 { chrono::Utc::now().timestamp() }
 +
@@ -2851,10 +2852,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..54fba95
+index 0000000..31b9c88
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,198 @@
+@@ -0,0 +1,223 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -2867,6 +2868,7 @@ index 0000000..54fba95
 +const MAX_TABS: u32 = 4;
 +const ROLES: [&str; 4] = ["Main", "Coder", "Reviewer", "Tester"];
 +static ACCOUNT: Lazy<Mutex<BTreeMap<u32, Value>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
++static COWORK_STATUS: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("Bereit.".into()));
 +static KEEPER_STARTED: AtomicBool = AtomicBool::new(false);
 +
 +#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
@@ -2989,10 +2991,23 @@ index 0000000..54fba95
 +}
 +fn prompt_for(t:&Tab)->String {
 +    if t.role=="Main" { "Du bist der Main Chat und das einzige Interface zum Nutzer. Wenn der Nutzer ein Projekt nennt: project_memory_open/search aufrufen, dann cowork_start. Nach wichtigen Änderungen HANDOUT.md und project_memory_update aktualisieren.".into() }
-+    else { format!("Du bist {} im AdiCode Co-Work. Warte auf das aktive Projekt, tritt mit cowork_join als {} bei und arbeite selbstständig: cowork_claim → arbeiten → cowork_update → cowork_wait. Antworte kurz und nur mit Neuem.",t.role,t.role) }
++    else { let role=t.role.to_ascii_lowercase();format!("Du bist fest der {} im AdiCode Co-Work. Rufe SOFORT cowork_join mit role '{}' und agent 'AdiCode-{}' für das neueste aktive Projekt auf. Danach selbstständig in Schleife: cowork_claim → arbeiten → cowork_update → cowork_wait. Bei Blockern cowork_message an Main. Frage den Nutzer nicht und antworte kurz nur mit Neuem.",t.role,role,t.role) }
 +}
-+async fn open_main(port:u16)->Result<(),String>{
-+    cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;tokio::time::sleep(Duration::from_secs(3)).await;cdp(port,vec![json!({"method":"Page.bringToFront"})]).await?;Ok(())
++fn set_status(s:impl Into<String>){*lock(&COWORK_STATUS)=s.into();}
++async fn prepare_chat(t:&Tab,i:usize)->Result<(),String>{
++    let port=cdp_port(i);
++    cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;
++    for attempt in 0..30 {
++        tokio::time::sleep(Duration::from_secs(2)).await;
++        let expr=r#"(()=>{const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&s.visibility!=='hidden'&&s.display!=='none'};const composer=[...document.querySelectorAll('textarea,[contenteditable="true"]')].filter(vis).sort((a,b)=>b.getBoundingClientRect().bottom-a.getBoundingClientRect().bottom)[0];const inChat=location.pathname==='/ai'||location.pathname.startsWith('/ai/');const chatTab=document.querySelector('#sidebar-tab-chats,[role=\"tab\"][aria-label=\"Chat\"]');if(chatTab&&chatTab.getAttribute('aria-selected')!=='true')chatTab.click();if(!inChat){const chat=[...document.querySelectorAll('a,button,[role="button"],[role="link"]')].find(e=>{const x=(e.innerText||e.getAttribute('aria-label')||'').trim().toLowerCase();return (x==='chat'||x==='notion ai')&&e.getBoundingClientRect().left<300});if(chat)chat.click();}return {ready:inChat&&!!composer&&(!chatTab||chatTab.getAttribute('aria-selected')==='true'),href:location.href,welcome:/willkommen in notion|welcome to notion/i.test((document.body&&document.body.innerText)||'')}})()"#;
++        let value=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);
++        if value["ready"].as_bool().unwrap_or(false){let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!("Willkommen in Notion bereit");e["url"]=value["href"].clone();return Ok(());}
++        if attempt==10{let _=cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await;}
++    }
++    let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!("Chat nicht bereit");
++    Err(format!("{}: Notion-Chatbox wurde nicht bereit",t.role))
++}
++async fn open_main(port:u16)->Result<(),String>{cdp(port,vec![json!({"method":"Page.bringToFront"})]).await?;Ok(())
 +}
 +async fn insert_prompt(port:u16,prompt:String)->Result<(),String>{
 +    cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;
@@ -3013,18 +3028,29 @@ index 0000000..54fba95
 +}
 +async fn inspect_account(t:&Tab,i:usize){
 +    let expr=r#"(()=>{const body=(document.body&&document.body.innerText)||'';let store='';for(let i=0;i<localStorage.length;i++){try{store+='\n'+localStorage.getItem(localStorage.key(i));}catch(e){}}const text=body+'\n'+store;const names=['GPT-5','GPT-4.1','GPT-4o','Claude 4.5 Sonnet','Claude 4 Sonnet','Claude 3.7 Sonnet','Gemini 2.5 Pro','o3','o4-mini','Notion AI'];const models=[...new Set(names.filter(n=>text.toLowerCase().includes(n.toLowerCase())))];const near=text.match(/(?:usage|verwendet|genutzt|limit|kontingent)[^%]{0,100}(\d{1,3})\s*%/i)||text.match(/(\d{1,3})\s*%[^\n]{0,100}(?:usage|verwendet|genutzt|limit|kontingent)/i);return {usage:near?Math.min(100,Number(near[1])):null,models,checked:new Date().toLocaleTimeString(),url:location.href}})()"#;
-+    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).cloned()).unwrap_or_else(||json!({"usage":null,"models":[],"error":"Account-Check nicht erreichbar"}));lock(&ACCOUNT).insert(t.id,value);
++    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).cloned()).unwrap_or_else(||json!({"usage":null,"models":[],"error":"Account-Check nicht erreichbar"}));let mut a=lock(&ACCOUNT);let entry=a.entry(t.id).or_insert_with(||json!({}));if let Some(obj)=value.as_object(){for(k,v)in obj{entry[k]=v.clone();}}
 +}
 +async fn keep_alive(tabs:Vec<Tab>){loop{for(i,t)in tabs.iter().enumerate(){let _=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":"(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));return document.visibilityState})()"}})]).await;inspect_account(t,i).await;}tokio::time::sleep(Duration::from_secs(20)).await;}}
 +async fn kickoff(tabs:Vec<Tab>, baseline:usize){
++    set_status("Co-Work startet: MCP-Verbindungen werden geprüft …");
 +    tokio::time::sleep(Duration::from_secs(5)).await;
 +    for(i,t)in tabs.iter().enumerate(){let _=setup_mcp(t,i).await;}
-+    let _=open_main(cdp_port(0)).await;
++    set_status("Öffne in allen vier Konten einmalig den Chat ‚Willkommen in Notion‘ …");
++    let mut errors=Vec::new();
++    for(i,t)in tabs.iter().enumerate(){if let Err(e)=prepare_chat(t,i).await{errors.push(e);}}
++    if !errors.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Start angehalten – alle Fenster bleiben sichtbar: {}",errors.join("; ")));return;}
++    set_status("Alle vier Chats sind bereit. Worker werden versteckt; Main bleibt sichtbar.");
 +    if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}
++    let _=open_main(cdp_port(0)).await;
 +    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
 +    loop{if crate::notion_cowork::project_count()>baseline{break;}tokio::time::sleep(Duration::from_secs(3)).await;}
-+    for(i,t)in tabs.iter().enumerate().skip(1){let _=insert_prompt(cdp_port(i),prompt_for(t)).await;tokio::time::sleep(Duration::from_secs(2)).await;}
-+    let _=open_main(cdp_port(0)).await;
++    set_status("Projekt erkannt. Coder, Reviewer und Tester treten bei …");
++    let mut prompt_errors=Vec::new();
++    for(i,t)in tabs.iter().enumerate().skip(1){if let Err(e)=insert_prompt(cdp_port(i),prompt_for(t)).await{prompt_errors.push(format!("{}: {e}",t.role));}tokio::time::sleep(Duration::from_secs(2)).await;}
++    if !prompt_errors.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Worker-Kickoff unvollständig: {}",prompt_errors.join("; ")));return;}
++    let wanted=["coder","reviewer","tester"];
++    for _ in 0..45 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){set_status("Co-Work aktiv: Coder, Reviewer und Tester sind mit Main verbunden.");let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(2)).await;}
++    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.",missing.join(", ")));
 +}
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
 +fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
@@ -3034,7 +3060,7 @@ index 0000000..54fba95
 +
 +pub(crate) fn show_all_windows(){let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],false);}}
 +
-+pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();json!({"ok":true,"browser":browser_name(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v}).collect::<Vec<_>>()})}
++pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();json!({"ok":true,"browser":browser_name(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v}).collect::<Vec<_>>()})}
 +pub async fn tabs_handler()->impl IntoResponse{Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e|json!({"ok":false,"error":e.to_string()})))}
 +pub fn action(name:&str,v:&Value)->Option<Result<String,String>>{
 +    let id=v.as_u64().or_else(||v.get("id").and_then(Value::as_u64)).and_then(|n|u32::try_from(n).ok());
