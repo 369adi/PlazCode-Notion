@@ -387,7 +387,7 @@ index 676f912..257da7b 100644
 +            name: "PC (Windows-MCP)",
 +            description: "PlazCode Notion: Windows steuern – PowerShell, Apps, Fenster, Klicks, Tippen, Screenshots, Dateien. Wird über uvx (Python 3.14) gestartet.",
 +            command: "uvx",
-+            args: &["--python", "3.14", "--from", "windows-mcp==0.8.7", "windows-mcp"],
++            args: &["--python", "3.14", "--from", "windows-mcp==0.8.7", "windows-mcp", "serve"],
 +        },
 +        CatalogEntry {
 +            id: "browser",
