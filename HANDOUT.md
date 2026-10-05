@@ -1,97 +1,109 @@
-# PlazCode Notion – Handout (Stand 05.10.2026)
+# PlazCode Notion – Handout für neue Chats
 
-## Ziel
-Original-PlazCode-Desktop-App (stoveez/PlazCode, GPL-3.0) als **inoffiziellen Fork „PlazCode Notion“** umbauen:
-Notion-Design + eingebauter MCP-Server, damit Notion AI Roblox Studio, PC und Browser **ohne Browser-Erweiterung** steuert.
+> Diese Datei ist das Gedächtnis des Projekts. Neue Chats zuerst diese Datei lesen.
+> Nach jeder Änderung hier unten im **Changelog** und, falls nötig, in den anderen Abschnitten nachtragen.
 
-## Aufbau des Repos
-| Datei | Zweck |
+## 1. Was ist das?
+**PlazCode Notion** ist ein inoffizieller Fork der PlazCode-Desktop-App (stoveez/PlazCode, GPL-3.0, Basis-Version 1.19.36).
+Der Fork baut einen MCP-Server in die App ein, damit **Notion AI** über einen ngrok-Tunnel Roblox Studio, den PC, den Browser und weitere MCP-Server steuern kann. Eine Browser-Erweiterung ist dafür nicht nötig.
+
+- Repo: https://github.com/369adi/PlazCode-Notion (öffentlich)
+- Releases: Tag `notion-desktop-v<VERSION>` mit einer einzigen Datei `PlazCode-Notion.exe`
+- Besitzer: GitHub-User **369adi** (Adrian). Kommunikation auf Deutsch, per „du“.
+- Keine Verbindung zu den PlazCode-Autoren oder zu Notion Labs. `LICENSE` und `BRANDING-NOTICE.txt` müssen erhalten bleiben.
+
+## 2. Aufbau des Repos
+| Pfad | Zweck |
 |---|---|
-| `notion-desktop/plazcode-notion.patch` | Alle Änderungen ggü. PlazCode 1.19.36 |
-| `notion-desktop/VERSION` | Release-Version (aktuell 1.0.1) |
-| `PlazCode-source-1.19.36.zip` | Original-Quellcode (Build-Basis) |
-| `PlazCode-1.19.36.zip` | Original-Paket, darin wird nur `PlazCode.exe` ersetzt |
-| `.github/workflows/build-notion-desktop.yml` | Baut auf windows-latest mit Cargo, veröffentlicht Release `notion-desktop-v<VERSION>` |
+| `PlazCode-source-1.19.36.zip` | Original-Quellcode (Build-Basis, wird nicht verändert) |
+| `PlazCode-1.19.36.zip` | Original-Paket; darin wird nur `PlazCode.exe` ersetzt |
+| `notion-desktop/plazcode-notion.patch` | **Alle** Code-Änderungen ggü. dem Original (git diff, inkl. neuer Dateien) |
+| `notion-desktop/VERSION` | Release-Version, z. B. `1.0.14` (jede Erhöhung = neues Release + Auto-Update bei allen Nutzern) |
+| `notion-desktop/README.md` | Release-Notes (wird als Release-Text verwendet; Abschnitte `## Neu in X.Y.Z` erscheinen in der App unter *Updates*) |
+| `notion-desktop/launcher/Launcher.cs` | C#-Launcher = die verteilte `PlazCode-Notion.exe` (enthält app.zip, entpackt, startet, Auto-Update) |
+| `notion-desktop/extension/` | Chrome-Erweiterung „PlazCode Notion Web Agents“ (nicht in der exe, siehe 7.) |
+| `notion-desktop/branding/` | Icon usw. |
+| `.github/workflows/build-notion-desktop.yml` | Build auf `windows-latest`: Patch anwenden → `cargo build --release --locked` → Paket + Launcher → Release |
+| `HANDOUT.md` | diese Datei |
 
-## Inhalt des Patches (agent/src)
-- `notion_mcp.rs` (neu): MCP-Endpunkt `127.0.0.1:8787/mcp` (Bearer-Token oder `/k/<token>/mcp`), Tools `plazcode_status`, `roblox_*`, Add-on-Tools (`pc_*`, `browser_*` …); ngrok-Supervisor mit fester Domain; API `/api/notion/state` + `/api/notion/action`.
-  Einstellungen: `%LOCALAPPDATA%\PlazCodeNotion\plazcode-notion.json` (übernimmt beim ersten Start Token/Domain der alten Go-Bridge `config.json`).
-- `main.rs`: Modul registriert, Routen, Start, ngrok beim Beenden stoppen.
-- `mcp_addons.rs`: Katalog + „PC (Windows-MCP)“ (`uvx --python 3.14 --from windows-mcp==0.8.7 windows-mcp`) und „Browser (Playwright)“ (`npx -y @playwright/mcp@latest`, Brave/Chrome/Edge automatisch).
-- `updater.rs`: Auto-Update deaktiviert (sonst überschreibt das Original den Fork).
-- `gui.rs`: Fenstertitel „PlazCode Notion“, GitHub-Link auf den Fork.
-- `desktop.html`: Notion-Design-CSS, Seite „Notion AI“, Statuskarte auf Home, Branding.
+## 3. Build- und Release-Ablauf
+1. Workflow entpackt `PlazCode-source-1.19.36.zip` nach `build-src/PlazCode` und führt vom Repo-Root aus `git apply --directory=build-src/PlazCode notion-desktop/plazcode-notion.patch` aus.
+2. `cargo build --release --locked` in `build-src/PlazCode/agent`.
+3. `PlazCode-1.19.36.zip` wird entpackt, `PlazCode.exe` ersetzt, alles als `app.zip` in den Launcher eingebettet (csc, `Launcher.cs` + `Version.cs` aus VERSION).
+4. Release `notion-desktop-v<VERSION>` mit `PlazCode-Notion.exe` (als *latest*).
 
-## Status
-- Release 1.0.0: **fehlerhaft** – `git apply` lief in einem Repo-Unterordner und hat alle Dateien still übersprungen → exe = Original-Design ohne Notion-Tab. Nicht verwenden.
-- Fix in 1.0.1: `git apply --directory=build-src/PlazCode` vom Repo-Root + Prüfschritt (bricht ab, wenn der Patch fehlt). Build lief beim Erstellen dieses Handouts – Ergebnis unter *Actions* prüfen.
-  Jetzt wird der neue Rust-Code erstmals wirklich kompiliert → evtl. Compiler-Fehler im Actions-Log beheben, Patch neu erzeugen, VERSION erhöhen, pushen.
+**Lokale Arbeitskopie auf Adrians PC** (über das MCP „Lube Runner“ erreichbar):
+- Repo: `C:\Users\liket\PlazCode-Shared\work\PlazCode-Notion`
+- Gepatchter Quellcode: `...\PlazCode-Notion\build-src\PlazCode` (eigenes git-Repo, nicht im Haupt-Repo eingecheckt)
+  - Commit `original` = `c29ca985ab37e5d91801fe8aaf712c9a50feec19` = unveränderter Quellcode
+  - `agent/target/` steht in `.git/info/exclude` (nie mit-committen!)
+- Patch neu erzeugen (in `build-src/PlazCode`): `git add -A agent/src` und dann `git diff --cached --binary c29ca985… > ..\..\notion-desktop\plazcode-notion.patch` (per `cmd /c`, damit die Bytes stimmen).
+- Prüfen: `git worktree add -f --detach %TEMP%\pcverify c29ca985…`, dort `git apply --check <patch>`, danach Worktree entfernen.
+- Tests: `cargo test --release --locked notion` in `agent/` (dauert ca. 2–4 min; im Hintergrund per `Start-Process` starten, Log in `work\test.log`).
+- JS-Syntax von `desktop.html` prüfen: die `<script>`-Blöcke herauskopieren und `node --check` ausführen.
+- Release: VERSION erhöhen, Notizen in `notion-desktop/README.md` + Changelog hier, committen, pushen. Ergebnis über die GitHub-API unter `actions/runs` prüfen (Build dauert ca. 5–6 min).
 
-## Nutzung
-1. Original-PlazCode **und** alte `PlazCode-Notion-Bridge.exe` beenden (blockieren Port 3000/8787 und die ngrok-Domain). Desktop-Skript „PlazCode Notion starten.cmd“ erledigt das.
-2. `PlazCode-Notion-1.0.1-windows.zip` aus Releases entpacken, `PlazCode-Notion\PlazCode.exe` starten.
-3. Seite **Notion AI**: Server-URL `https://<ngrok-domain>/mcp` + Bearer-Token in Notion als benutzerdefinierten MCP-Server eintragen.
-4. Unter **MCP Servers** „PC (Windows-MCP)“ und „Browser (Playwright)“ aktivieren; Roblox-Tools erscheinen, sobald Studio verbunden ist.
+**Push:** Den Token im Windows-User-Env `GITHUB_PERSONAL_ACCESS_TOKEN` (Scope `repo`) per `git -c http.extraHeader="Authorization: Basic <base64 x-access-token:TOKEN>" push origin HEAD` verwenden. Den Token **nie** ausgeben oder in die git-Config schreiben.
+⚠️ Der Token hat **keinen `workflow`-Scope**: Änderungen an `.github/workflows/*` werden beim Push abgelehnt. Solche Änderungen muss Adrian selbst machen oder den Scope ergänzen.
 
-## Offene Punkte / Ideen
-- Build-Ergebnis 1.0.1 prüfen, ggf. Compiler-Fehler fixen.
-- Altes Release `notion-desktop-v1.0.0` löschen.
-- Optional: Dark-Mode im Notion-Stil, Steuer-Tools (Server neu starten) per MCP.
+## 4. Architektur (agent/src)
+| Datei | Inhalt |
+|---|---|
+| `notion_mcp.rs` | MCP-Endpunkt `127.0.0.1:8787/mcp` (Bearer oder `/k/<token>/mcp`), Tool-Registrierung und Routing, ngrok-Supervisor (feste Domain, `--url`/`--domain`), Einstellungen `%LOCALAPPDATA%\PlazCodeNotion\plazcode-notion.json` (token, domain, port, ngrok_*, web_token, safe_shell), API `/api/notion/state` + `/api/notion/action` |
+| `notion_cowork.rs` | Co-Work-Board für mehrere Notion-AI-Chats: Tools `cowork_start/join/board/claim/update/add_tasks/message/lock/wait/results/close`, Rollen, Reviews, Datei-Locks (`lock_owner`) |
+| `notion_profiles.rs` | **Co-Work-Tabs** = getrennte Browser-Container (siehe 6.), API `/api/notion/cowork-tabs` |
+| `notion_updates.rs` | Seite *Updates* (GitHub-Releases, Notizen pro Version, Cache 10 min), API `/api/notion/updates`, ngrok-Installation (`bin.equinox.io` + `tar`), Authtoken (`ngrok config add-authtoken`), Trigger-Datei `update-now` |
+| `notion_web_agents.rs` | WebSocket `/extension/ws` für die Chrome-Erweiterung, Tools `web_sites/web_agents/web_chat`, Direkt-Modus `/direct-agent/:op` (Freigabe-Panel, 300 s, 50 Aufrufe, sperrt Notion-Schreibzugriffe) |
+| `notion_roblox_plus.rs` + `roblox_helpers.luau` | `roblox_studio` (23 Aktionen), `roblox_workflow`, `roblox_project_memory`, automatische Snapshots vor Schreibzugriffen, BW-Helper werden bei `execute_luau` automatisch geladen |
+| `notion_safety.rs` | `safe_read_file/safe_write_file/safe_search_files` (SHA-256, Schutz von Secret-Dateien, Co-Work-Locks), Sicherheitsmodus für die Shell (`guard_tool`) |
+| `notion_skills.rs` | `plazcode_skill` (eingebaute Coding-Skills) |
+| `mcp_addons.rs` | Katalog der MCP-Add-ons (pc = Windows-MCP, browser = Playwright, files, git, github, memory, fetch, context7, thinking, blender …) |
+| `updater.rs` | Original-Auto-Update deaktiviert (sonst würde das Original den Fork überschreiben) |
+| `desktop.html` | Komplette Oberfläche (eine Datei, per `include_str!` eingebettet) |
+| `main.rs` | Module, Routen (`/api/notion/*`), Start |
 
-## Hinweise
-Inoffizieller Fork, keine Verbindung zu den PlazCode-Autoren oder Notion Labs. `LICENSE` und `BRANDING-NOTICE.txt` müssen erhalten bleiben. Tokens nie veröffentlichen.
-## Neu in 1.0.13
-- Server-URL direkt eintragbar: Auf der Seite **MCP Servers** gibt es oben die Karte *Notion-Verbindung (ngrok)*, und auf der Seite **Notion AI** ist die Server-URL jetzt ein Eingabefeld. ngrok-Domain oder ganze URL einfügen, Enter oder Speichern.
+**Launcher (`Launcher.cs`):** Mutex `Local\PlazCodeNotionLauncher`; entpackt `app.zip` nach `%LOCALAPPDATA%\PlazCodeNotion\app` (Marker `.version`); prüft **alle 15 s** `github.com/369adi/PlazCode-Notion/releases/latest` (HEAD-Redirect, kein API-Limit); ist eine neuere Version da: lädt die exe, ersetzt sich selbst (`.old`), startet mit `--updated`, beendet die alte App (Kill-Tree) und installiert die neue. Ist die Datei `%LOCALAPPDATA%\PlazCodeNotion\update-now` da, prüft er sofort. Log: `%LOCALAPPDATA%\PlazCodeNotion\logs\launcher.log`.
 
-## Neu in 1.0.12
-- Fix: Die Inhalte der Seite Notion AI (Tool-Liste) erschienen auf jeder Seite, und die Felder für Authtoken und Domain / URL fehlten. Beides ist repariert.
+## 5. Oberfläche (Seitenleiste)
+Home · **Notion AI** · **Co-Work** · Tools · MCP Servers · Terminal · Settings · **Updates**
+- Ausgeblendet (Code bleibt drin, Weiterleitung auf Notion AI): Model Builder, UI Builder, Toolkit, Templates, die Original-Updates-Seite (`page-updates`). Die neue Updates-Seite heißt `page-fupdates`.
+- Notion AI: Verbindung (Server-URL **editierbar**, Token, URL mit Schlüssel), Web-Agenten & Sicherheit, Einrichtung in Notion, Tunnel (ngrok installieren, Authtoken, Domain / URL, ngrok.exe-Pfad), Tool-Liste.
+- MCP Servers: oben die Karte „Notion-Verbindung (ngrok)“ mit editierbarer Server-URL.
+- Eingabefelder sind gegen das Status-Polling (alle 2,5 s) geschützt (`data-dirty`).
+- Offener Vorschlag (noch nicht umgesetzt, wartet auf Adrians OK): In den Settings alles ausblenden, was nur die alte Erweiterung nutzt (Engram, Execution, Stop mode, Permissions, Reasoning, Automation, Instructions). Appearance und Desktop bleiben.
 
-## Neu in 1.0.11
-- Updates kommen schneller: Der Launcher prüft jetzt alle 15 Sekunden statt alle 90 Sekunden auf neue Versionen.
+## 6. Co-Work-Tabs (Container mit eigenem Gmail-Login)
+- Jeder Tab = eigener Browser-Profilordner `%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N` → eigene Cookies. Aus- oder Einloggen in einem Tab ändert nichts an den anderen.
+- Konfiguration in `profiles\tabs.json`: `id, label, email (Gmail), role, url (leer = https://www.notion.so/ai), autostart`.
+- Ablauf für Nutzer: *+ Tab hinzufügen* → Gmail eintragen → *Speichern* → *Gmail-Login* (öffnet Google AccountChooser mit dem Konto, danach Notion-Login) → später *▶ Alle starten* (alle Tabs mit Auto) / *■ Alle stoppen*.
+- Gestartet wird Chrome → Edge → Brave mit `--user-data-dir=… --app=<url>`. Ob ein Tab läuft, wird per sysinfo an der Kommandozeile erkannt; Stoppen beendet diese Prozesse.
+- Aktionen (`/api/notion/action`): `cowork_add_tab, cowork_save_tabs, cowork_start_all, cowork_stop_all, cowork_stop, cowork_login, cowork_delete, open_notion_window`.
+- In jedem Tab sagt man Notion AI z. B. „`cowork_join` als Coder“. Alle teilen dasselbe Board (`notion_cowork.rs`).
 
-## Neu in 1.0.10: Updates-Seite + einfache Ersteinrichtung
-- Neue Seite **Updates**: installierte und neueste Version, „Was ist neu?“ für jede Version, Launcher-Protokoll, Knöpfe „Jetzt prüfen“ und „Jetzt aktualisieren“. Updates installiert der Launcher weiterhin automatisch bei jedem Nutzer.
-- Ngrok-Ersteinrichtung direkt in der App: **ngrok installieren** (lädt ngrok automatisch herunter), **Authtoken** eintragen, **Domain / URL** eintragen (ganze URL geht auch, Enter speichert).
-- Fix: Das Domain-Feld wurde alle 2,5 s vom Status überschrieben, wenn man woanders hingeklickt hatte – Eingaben bleiben jetzt stehen, bis man speichert.
-## Neu in 1.0.9: Aufgeräumte Oberfläche + getrennte Notion-Fenster
-- Model Builder, UI Builder, Toolkit, Templates und Updates sind aus der Oberfläche entfernt (Code bleibt intern erhalten).
-- Seite Notion AI → Karte **„Notion-Fenster (getrennte Logins)“**: „Neues Notion-Fenster“ startet Chrome/Edge/Brave mit eigenem Profil (`%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N`) als App-Fenster mit Notion AI. Jedes Profil hat eigene Cookies – Ein-/Ausloggen wirkt nur dort. Profile können benannt, geöffnet und gelöscht werden (`notion_profiles.rs`).
-## Neu in 1.0.8: Funktionen aus Secretscript
-- **Web-Agenten** (`notion_web_agents.rs` + Chrome-Erweiterung in `notion-desktop/extension`): Tools `web_sites`, `web_agents`, `web_chat`. Notion AI kann freigegebene KI-Chat-Tabs (ChatGPT, Claude, Gemini, DeepSeek, Qwen, Kimi, GLM, Arena) nutzen. WebSocket `ws://127.0.0.1:8787/extension/ws`, eigener Erweiterungs-Token (Seite Notion AI → „Web-Agenten & Sicherheit“).
-- **Direkt-Modus**: Ein KI-Chat arbeitet als Roblox-Agent (`/direct-agent/*`, 300 s Laufzeit, max. 50 Aufrufe); jede Änderung braucht eine Freigabe im Panel auf der Seite. Solange er läuft, sind Notion-Schreibzugriffe auf Studio gesperrt.
-- **Roblox Plus** (`notion_roblox_plus.rs`): `roblox_studio` mit 23 High-Level-Aktionen, `roblox_workflow` (Playbooks), `roblox_project_memory` (`%LOCALAPPDATA%\PlazCodeNotion\roblox-project-memory.json`), automatische Snapshots vor Schreibzugriffen + Wiederherstellen, BW-Helper-Bibliothek (`roblox_helpers.luau`) wird bei `execute_luau` automatisch geladen.
-- **Sicheres Datei-Schreiben** (`notion_safety.rs`): `safe_read_file`/`safe_write_file` (SHA-256-Prüfung gegen Überschreiben veralteter Stände)/`safe_search_files`, Secret-Dateien (.env, Schlüssel, Tokens …) werden blockiert, Co-Work-Locks werden beachtet.
-- **Sicherheitsmodus für die Shell** (Schalter, Standard aus): PowerShell nur mit erlaubten Einzelbefehlen, Registry und unsicherer Browser-Code gesperrt.
-## Neu in 1.0.7: Co-Work mit festen Experten-Rollen + Live-Status
+## 7. Chrome-Erweiterung (Web-Agenten)
+- Ordner `notion-desktop/extension` (lokal auch `%LOCALAPPDATA%\PlazCodeNotion\extension`). Installation: `chrome://extensions` → Entwicklermodus → „Entpackte Erweiterung laden“.
+- Optionen: `ws://127.0.0.1:8787/extension/ws` + Erweiterungs-Token (Notion AI → „Web-Agenten & Sicherheit“).
+- Nicht in der exe enthalten, weil der Workflow geändert werden müsste (fehlender `workflow`-Scope).
+- Herkunft: portiert aus dem privaten Repo `369adi/Secretscript`. Dort wurde `config.json` mit Tokens entfernt; Adrian sollte diese Tokens rotieren.
 
-Der Main Chat ist der Lead: Er zerlegt das Projekt, vergibt Tasks nur an die Rollen, die wirklich gebraucht werden, und fuehrt am Ende alle Ergebnisse zu EINER optimierten Antwort zusammen (cowork_results).
+## 8. Fallstricke (bisher gelernt)
+- **PowerShell:** Bei `@($a, 'x'+$nl+'y')` bindet das Komma stärker als `+`. Verkettungen immer in Klammern setzen, sonst fehlen Teile (das hat in 1.0.11 das Layout zerschossen).
+- **PowerShell:** Typografische Anführungszeichen (`„ “ ’`) im Befehl beenden Strings. In Skripttexten vermeiden oder `[char]` verwenden.
+- **PowerShell-Befehle über ~30 KB** scheitern (WinError 206) → große Dateien mit `files_write_file` schreiben.
+- Bei `desktop.html` nach Änderungen die `div`-Bilanz pro `<section class="page">` und `node --check` prüfen. Alle `section.page` müssen direkte Kinder von `#content` sein.
+- Startet die App neu (Auto-Update), ist der Tunnel kurz weg (ngrok-Fehler ERR_NGROK_3004 oder „Unknown tool“). Kurz warten, dann `plazcode_status` aufrufen.
+- Hängt ein Add-on: `plazcode_restart_server` (z. B. `pc`). Dabei werden Kindprozesse beendet, also auch laufende `cargo`-Jobs.
+- Lange Befehle (> ca. 60–90 s) laufen ins MCP-Timeout → im Hintergrund starten und abfragen.
 
-Rollen: Prompt-Schreiber, Programmierer, Code-Bewerter, UI/UX-Kritiker, Tester, Roblox-Spezialist, Generalist (eigene Rollen moeglich).
-
-So geht's:
-1. Main Chat: "Starte ein Co-Work-Projekt: <Ziel>". Die KI nennt Projekt-ID und welche Rollen-Tabs du oeffnen sollst.
-2. Pro weiterem Tab: "Tritt Co-Work-Projekt p1 bei als Code-Bewerter" (bzw. Programmierer, UI/UX-Kritiker ...).
-3. Fertige Code-/UI-Tasks gehen automatisch in die Pruefung (Review). Fordert der Pruefer Aenderungen an (Status changes), entsteht automatisch ein Fix-Task fuer die Original-Rolle (max. 2 Runden, danach entscheidet der Lead).
-4. In der Desktop-App zeigt der Button "Co-Work" unten rechts live alle Agents, Rollen und Task-Status.
-
-Robustheit: atomare Task-Uebernahme, Datei-Sperren, niemand prueft seine eigene Arbeit, unbesetzte Rollen werden von anderen uebernommen, haengende Agents geben ihre Tasks nach einstellbarer Zeit (stale_minutes, Standard 20) frei, Lead-Uebernahme wenn der Main Chat ausfaellt, Ergebnis Pflicht bei done/changes/blocked.
-## Neu in 1.0.6: Co-Work (mehrere Notion-AI-Chats an einem Projekt)
-
-Mehrere Notion-AI-Tabs im Browser arbeiten gleichzeitig am selben Projekt. Sie koordinieren sich ueber ein gemeinsames Board in PlazCode Notion: Tasks mit Abhaengigkeiten, atomare Uebernahme (kein Task wird doppelt bearbeitet), Datei-Sperren und Nachrichten zwischen den Chats.
-
-So geht's:
-1. Tab 1 (Lead): "Starte ein Co-Work-Projekt: <Ziel>". Die KI zerlegt das Ziel in Tasks und nennt eine Projekt-ID (z. B. p1).
-2. Weitere Tabs (2-5 empfohlen): "Tritt Co-Work-Projekt p1 bei". Jeder Tab holt sich automatisch freie Tasks, arbeitet sie ab und meldet das Ergebnis.
-3. Der Lead arbeitet mit, prueft Ergebnisse, ergaenzt Fix-Tasks und macht am Ende die Endkontrolle.
-
-Tools: cowork_start, cowork_join, cowork_board, cowork_claim, cowork_update, cowork_add_tasks, cowork_message, cowork_lock, cowork_wait, cowork_close. Skill: plazcode_skill name=cowork.
-Das Board wird in %LOCALAPPDATA%\PlazCodeNotion\cowork.json gespeichert und uebersteht Neustarts. Inaktive Agents (20 Min.) geben ihre Tasks automatisch frei.
-## Neu in 1.0.5 – mehr Tools & Skills fürs Programmieren
-- **Local files** (`files`): `@modelcontextprotocol/server-filesystem` auf einen Shared-Ordner (Standard `%USERPROFILE%\PlazCode-Shared`, änderbar per Umgebungsvariable `PLAZCODE_SHARED_DIR`). Pfade sind relativ zum Shared-Ordner (Arbeitsverzeichnis des Servers).
-- **GitHub** (`github`): `@modelcontextprotocol/server-github`. Vorher Benutzer-Umgebungsvariable `GITHUB_PERSONAL_ACCESS_TOKEN` setzen und App neu starten. Token nie ins Repo.
-- Bereits im Katalog: Context7, Fetch, Git, Memory, Sequential Thinking – unter **MCP Servers** aktivieren.
-- Neues Modul `notion_skills.rs`:
-  - Tool `plazcode_skill` mit eingebauten Skills `roblox`, `roblox-studio`, `app`, `debug`, `git`.
-  - Tool `plazcode_restart_server` startet ein hängendes Add-on (oder `all`) neu.
-  - Ausführlichere MCP-`instructions` für Notion AI.
-- Patch-Hinweis: `desktop.html`, `gui.rs`, `updater.rs` unverändert aus 1.0.4 übernommen; `main.rs`, `mcp_addons.rs`, `notion_mcp.rs`, `notion_skills.rs` neu erzeugt und per `git apply` gegen die Original-Quelle geprüft.
+## 9. Changelog
+- **1.0.14** – Neue Seite **Co-Work**: mehrere Notion-Tabs als getrennte Container, je ein Gmail-Konto, Speichern, Gmail-Login, Alle starten/stoppen, Status „läuft“. Dieses Handout neu geschrieben.
+- **1.0.13** – Server-URL direkt eintragbar (Notion AI + Karte auf MCP Servers).
+- **1.0.12** – Fix: Notion-AI-Inhalte erschienen auf jeder Seite; Felder für Authtoken und Domain fehlten.
+- **1.0.11** – Launcher prüft alle 15 s statt alle 90 s.
+- **1.0.10** – Seite *Updates* (Versionen, Notizen, Jetzt prüfen/aktualisieren, Launcher-Log); ngrok-Ersteinrichtung in der App; Fix: Domain-Feld wurde überschrieben.
+- **1.0.9** – Oberfläche aufgeräumt (Model/UI Builder, Toolkit, Templates, Updates raus); erste getrennte Notion-Fenster.
+- **1.0.8** – Aus Secretscript übernommen: Web-Agenten + Erweiterung, Direkt-Modus, roblox_studio/workflow/project_memory, Snapshots, BW-Helper, safe_* Dateitools, Shell-Sicherheitsmodus.
+- **1.0.7** – Co-Work mit festen Experten-Rollen + Live-Status.
+- **1.0.6** – Co-Work (mehrere Notion-AI-Chats an einem Projekt).
+- **1.0.5** – mehr Tools und Skills fürs Programmieren.
+- **1.0.1** – Build-Fix (`git apply --directory`). 1.0.0 war fehlerhaft.

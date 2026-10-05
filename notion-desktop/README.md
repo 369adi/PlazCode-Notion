@@ -12,6 +12,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.14
+- Neue Seite **Co-Work**: mehrere Notion-AI-Tabs gleichzeitig, jeder in einem eigenen Container (eigenes Browser-Profil, eigene Cookies). Pro Tab ein Gmail-Konto, Name, Rolle, Startseite und Auto-Start. **Speichern** merkt sich alles, **Gmail-Login** meldet den Tab einmal an, **Alle starten** oeffnet alle Tabs mit ihren eingeloggten Sessions, **Alle stoppen** schliesst sie.
+- HANDOUT.md komplett neu: Projektueberblick, Build-Ablauf, Architektur, Fallstricke und Changelog fuer neue Chats.
+
 ## Neu in 1.0.13
 - Server-URL direkt eintragbar: Auf der Seite **MCP Servers** gibt es oben die Karte *Notion-Verbindung (ngrok)*, und auf der Seite **Notion AI** ist die Server-URL jetzt ein Eingabefeld. ngrok-Domain oder ganze URL einfügen, Enter oder Speichern.
 
