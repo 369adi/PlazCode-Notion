@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..8a14f09 100644
+index 07dc4c0..5a28f2b 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -320,7 +320,7 @@ index 07dc4c0..8a14f09 100644
 +          <div class="nrow"><span class="nlabel">Lokaler Server</span><span id="nListener" class="nbadge">…</span></div>
 +          <div class="nrow"><span class="nlabel">Tunnel</span><span id="nTunnel" class="nbadge">…</span><span id="nRequests" class="nhint"></span></div>
 +          <div id="nError" class="nerr" hidden></div>
-+          <div class="nrow"><span class="nlabel">Server-URL</span><span id="nUrl" class="nvalue">–</span><button class="softbtn" data-ncopy="url">Kopieren</button></div>
++          <div class="nrow"><span class="nlabel">Server-URL</span><input id="nUrlEdit" class="nurledit" style="flex:1;min-width:220px;padding:7px 10px" placeholder="ngrok-Domain oder URL eintragen, z. B. https://name.ngrok-free.app"><button class="softbtn" id="nSaveUrl">Speichern</button><button class="softbtn" data-ncopy="url">Kopieren</button></div>
 +          <div class="nrow"><span class="nlabel">Bearer-Token</span><span id="nToken" class="nvalue">–</span><button class="softbtn" id="nShowToken">Anzeigen</button><button class="softbtn" data-ncopy="token">Kopieren</button></div>
 +          <div class="nrow"><span class="nlabel">URL mit Schlüssel</span><span id="nKeyUrl" class="nvalue">–</span><button class="softbtn" data-ncopy="key_url">Kopieren</button></div>
 +          <p class="nhint">Die „URL mit Schlüssel“ enthält den Token und funktioniert auch ohne Bearer-Feld. Behandle sie wie ein Passwort.</p>
@@ -370,7 +370,18 @@ index 07dc4c0..8a14f09 100644
        <section class="page" id="page-tools">
          <div class="page-head"><div><div class="page-title">Tools</div><div class="page-sub">Every currently usable PlazCode tool, grouped by live source.</div></div></div>
          <div class="toolbar"><input id="toolSearch" class="search" placeholder="Search tools or sources..."><div id="toolFilters" class="filters"></div></div>
-@@ -389,7 +543,19 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -373,7 +527,9 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+       </section>
+       <section class="page" id="page-mcp">
+         <div class="page-head"><div><div class="page-title">MCP Servers</div><div class="page-sub">Optional integrations plus the protected Roblox Studio primary server.</div></div></div>
+-        <div id="mcpGrid" class="cardgrid"></div>
++        <div class="settingcard notion-card" style="margin-bottom:16px"><h3>Notion-Verbindung (ngrok)</h3><p class="nhint">Trage hier deine feste ngrok-Domain ein – die ganze URL geht auch. Diese Server-URL kommt dann in Notion unter Einstellungen → Verbindungen → benutzerdefinierter MCP-Server. Authtoken und ngrok-Installation findest du auf der Seite Notion AI.</p>
++<div class="nrow"><span class="nlabel">Server-URL</span><input id="mUrlEdit" class="nurledit" style="flex:1;min-width:220px;padding:7px 10px" placeholder="z. B. https://name.ngrok-free.app"><button class="softbtn" id="mSaveUrl">Speichern</button><span id="mTunnel" class="nbadge">…</span><span id="mUrlMsg" class="nhint"></span></div></div>
++<div id="mcpGrid" class="cardgrid"></div>
+       </section>
+       <section class="page" id="page-terminal">
+         <div class="page-head"><div><div class="page-title">Terminal</div><div class="page-sub">Live bridge, Studio, MCP, and AgentScript logs.</div></div><div style="margin-left:auto;display:flex;gap:8px"><button class="softbtn" id="restartMcp">Restart MCP</button><button class="clearbtn" id="clearTerminal">Clear</button></div></div>
+@@ -389,7 +545,19 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
          <div id="updateReleaseNotes" class="update-release-notes" aria-label="Release notes"></div>
        </section>
        <div id="updateOverlay" class="enhancer-modal" hidden role="dialog" aria-modal="true" aria-label="PlazCode update progress"><div class="settingcard update-progress"><div class="update-spinner" aria-hidden="true"><svg viewBox="0 0 80 80"><circle class="swirl-track" cx="40" cy="40" r="31"/><circle class="swirl-outer" cx="40" cy="40" r="31"/><circle class="swirl-inner" cx="40" cy="40" r="21"/><circle class="swirl-core" cx="40" cy="40" r="5"/></svg></div><span class="eyebrow update-eyebrow">PLAZCODE UPDATE</span><h2 id="updateOverlayTitle">PlazCode is updating</h2><p id="updateOverlayMessage" role="status">Downloading the verified release…</p><progress id="updateProgress" max="100" value="0"></progress><p id="updateOverlayHint">Keep this window open. PlazCode will reopen when it finishes.</p><pre id="updateError" hidden></pre><button id="closeUpdateError" class="softbtn" hidden>Close</button></div></div>
@@ -391,7 +402,7 @@ index 07dc4c0..8a14f09 100644
          <div class="page-head"><div><div class="page-title">Settings</div><div class="page-sub">Changes autosave immediately and stay synced with the extension.</div></div></div>
          <div class="settingcard appearance-card"><h3>Appearance</h3><div class="palette-preview" role="group" aria-label="Color palette"><button type="button" data-desktop-palette="default" aria-label="Orange theme" title="Orange" aria-pressed="false">Orange</button><button type="button" data-desktop-palette="amethyst" aria-label="Amethyst theme" title="Amethyst" aria-pressed="false">Amethyst</button><button type="button" data-desktop-palette="cyan" aria-label="Polar Cyan theme" title="Polar Cyan" aria-pressed="false">Polar Cyan</button><button type="button" data-desktop-palette="rose" aria-label="Rose theme" title="Rose" aria-pressed="false">Rose</button><button type="button" data-desktop-palette="emerald" aria-label="Emerald theme" title="Emerald" aria-pressed="false">Emerald</button><button type="button" data-desktop-palette="graphite" aria-label="Graphite theme" title="Graphite" aria-pressed="false">Graphite</button><button type="button" data-desktop-palette="ocean" aria-label="Oceanic theme" title="Oceanic" aria-pressed="false">Oceanic</button><button type="button" data-desktop-palette="copper" aria-label="Copper Atelier theme" title="Copper Atelier" aria-pressed="false">Copper Atelier</button><button type="button" data-desktop-palette="aurora" aria-label="Aurora theme" title="Aurora" aria-pressed="false">Aurora</button><button type="button" data-desktop-palette="orchid" aria-label="Orchid Noir theme" title="Orchid Noir" aria-pressed="false">Orchid Noir</button><button type="button" data-desktop-palette="solar" aria-label="Solar Dusk theme" title="Solar Dusk" aria-pressed="false">Solar Dusk</button></div><p>Choose a shared palette, glow and gradients. Changes also update the PlazCode browser bar and panels while the bridge is connected.</p><div class="settingrow"><label for="desktopTheme">Color palette</label><select id="desktopTheme"><option value="default">PlazCode Orange</option><option value="amethyst">Amethyst</option><option value="cyan">Polar Cyan</option><option value="rose">Rose</option><option value="emerald">Emerald</option><option value="graphite">Graphite</option><option value="crimson">Crimson</option><option value="ocean">Oceanic</option><option value="copper">Copper Atelier</option><option value="aurora">Aurora</option><option value="orchid">Orchid Noir</option><option value="solar">Solar Dusk</option></select></div><div class="settingrow"><label for="desktopGlow">Glow effects</label><select id="desktopGlow"><option value="off">Off</option><option value="subtle">Subtle</option><option value="strong">Strong</option></select></div><div class="settingrow"><label for="desktopGradients">Gradients</label><select id="desktopGradients"><option value="on">On</option><option value="off">Off</option></select></div><div class="instructions-actions"><button id="resetAppearance" class="softbtn">Restore default theme</button><span id="appearanceStatus" class="instructions-status" role="status"></span></div></div>
          <div id="memorySettings" class="settingcard"></div>
-@@ -573,7 +739,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +741,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -400,7 +411,7 @@ index 07dc4c0..8a14f09 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -1206,5 +1372,120 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1374,131 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -452,6 +463,8 @@ index 07dc4c0..8a14f09 100644
 +    var PB = $("nProfiles"); if (PB && !PB.contains(document.activeElement)) { var Esc = function (X) { return String(X).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); }; var PH = (S.notion_profiles || []).map(function (P) { return "<div class=\"nrow\"><span class=\"nlabel\">Profil " + P.id + "</span><input data-plabel=\"" + P.id + "\" value=\"" + Esc(P.label || "") + "\" placeholder=\"Name, z. B. Main oder Coder\"><button class=\"softbtn\" data-popen=\"" + P.id + "\">Öffnen</button><button class=\"dangerbtn\" style=\"padding:6px 12px\" data-pdel=\"" + P.id + "\">Löschen</button></div>"; }).join("") || "<p class=\"nhint\">Noch keine Profile. Klick auf „Neues Notion-Fenster“.</p>"; if (PB.innerHTML !== PH) PB.innerHTML = PH; }
 +    if ($("nRequests")) $("nRequests").textContent = S.requests ? (S.requests + " Anfragen" + (S.last_request ? " · zuletzt " + S.last_request.time + " (" + S.last_request.what + ")" : "")) : "Noch keine Anfrage von Notion";
 +    var D = $("nDomain"); if (D && document.activeElement !== D && !D.dataset.dirty) D.value = S.domain || "";
++    ["nUrlEdit", "mUrlEdit"].forEach(function (Id) { var El = $(Id); if (El && document.activeElement !== El && !El.dataset.dirty) El.value = S.url || ""; });
++    Badge($("mTunnel"), S.ngrok && S.ngrok.state, S.ngrok && S.ngrok.error);
 +    var P = $("nNgrokPath"); if (P && document.activeElement !== P && !P.dataset.dirty) P.value = S.ngrok_path || "";
 +    if ($("nNgrokFound")) { Badge($("nNgrokFound"), S.ngrok_found ? "online" : "fehlt", ""); $("nNgrokFound").textContent = S.ngrok_found ? "gefunden" : "fehlt"; } if ($("nInstallNgrok")) $("nInstallNgrok").textContent = S.ngrok_found ? "Neu installieren" : "ngrok installieren";
 +    if ($("nAuthState")) { Badge($("nAuthState"), S.ngrok_authtoken ? "online" : "fehlt", ""); $("nAuthState").textContent = S.ngrok_authtoken ? "eingerichtet" : "fehlt"; }
@@ -488,7 +501,16 @@ index 07dc4c0..8a14f09 100644
 +    On("nSaveDomain", function () { var El = $("nDomain"); delete El.dataset.dirty; Act("set_domain", El.value); });
 +    On("nSavePath", function () { var El = $("nNgrokPath"); delete El.dataset.dirty; Act("set_ngrok_path", El.value); });
 +    [["nDomain", "nSaveDomain"], ["nNgrokPath", "nSavePath"], ["nAuthtoken", "nSaveAuth"]].forEach(function (Pair) { var El = $(Pair[0]); if (!El) return; El.addEventListener("input", function () { El.dataset.dirty = "1"; }); El.addEventListener("keydown", function (Ev) { if (Ev.key === "Enter") { Ev.preventDefault(); var B = $(Pair[1]); if (B) B.click(); } }); });
-+    On("nInstallNgrok", function () { Msg("ngrok wird heruntergeladen …"); Act("install_ngrok"); });
++    [["nUrlEdit", "nSaveUrl"], ["mUrlEdit", "mSaveUrl"]].forEach(function (Pair) {
++      var El = $(Pair[0]), Btn = $(Pair[1]); if (!El || !Btn) return;
++      El.addEventListener("input", function () { El.dataset.dirty = "1"; });
++      El.addEventListener("keydown", function (Ev) { if (Ev.key === "Enter") { Ev.preventDefault(); Btn.click(); } });
++      Btn.onclick = function () {
++        var V = El.value.trim(); if (!V) { Msg("Bitte zuerst die ngrok-Domain oder URL eintragen."); return; }
++        delete El.dataset.dirty;
++        Call("/api/notion/action", { action: "set_domain", value: V }).then(function (R) { var M = $("mUrlMsg"); if (M) M.textContent = R.message || "Gespeichert."; Msg(R.message || "Gespeichert."); Poll(); }).catch(function (E) { var M = $("mUrlMsg"); if (M) M.textContent = E.message || String(E); Msg(E.message || String(E)); });
++      };
++    });    On("nInstallNgrok", function () { Msg("ngrok wird heruntergeladen …"); Act("install_ngrok"); });
 +    On("nSaveAuth", function () { var A = $("nAuthtoken"); if (!A.value.trim()) { Msg("Bitte zuerst den Authtoken einfügen."); return; } Act("set_ngrok_authtoken", A.value).then(function () { A.value = ""; delete A.dataset.dirty; }); });
 +    var UEsc = function (X) { return String(X).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
 +    var UMd = function (Txt) { var Out = [], InList = false; String(Txt || "").split(/\r?\n/).forEach(function (Line) { var H = UEsc(Line).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>"); if (/^\s*-\s+/.test(Line)) { if (!InList) { Out.push("<ul>"); InList = true; } Out.push("<li>" + H.replace(/^\s*-\s+/, "") + "</li>"); } else { if (InList) { Out.push("</ul>"); InList = false; } if (Line.trim()) Out.push("<p style=\"margin:2px 0\">" + H + "</p>"); } }); if (InList) Out.push("</ul>"); return Out.join(""); };
@@ -511,7 +533,7 @@ index 07dc4c0..8a14f09 100644
 +    var C = $("nEnabled"); if (C) C.onchange = function () { Act("toggle_ngrok", C.checked); };
 +    Poll();
 +    setInterval(function () {
-+      var Visible = document.querySelector("#page-notion.active, #page-home.active");
++      var Visible = document.querySelector("#page-notion.active, #page-home.active, #page-mcp.active");
 +      if (Visible || !Last) Poll();
 +    }, 2500);
 +  }
