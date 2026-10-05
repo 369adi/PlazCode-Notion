@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..ea34756 100644
+index 07dc4c0..caf9711 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -585,7 +585,7 @@ index 07dc4c0..ea34756 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1397,192 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1397,193 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -694,9 +694,9 @@ index 07dc4c0..ea34756 100644
 +      return "<tr data-i=\"" + I + "\"><td><b>" + (I + 1) + "</b></td>" +
 +        "<td><b>" + CEsc(T.role) + "</b><br><input data-f=\"label\" value=\"" + CEsc(T.label) + "\" placeholder=\"Name\"></td>" +
 +        "<td><input data-f=\"email\" type=\"email\" value=\"" + CEsc(T.email) + "\" placeholder=\"name@gmail.com\"></td>" +
-+        "<td>" + CPct(A) + "</td><td style=\"max-width:210px\">" + CEsc(Models) + "</td>" +
++        "<td>" + CPct(A) + "</td><td style=\"max-width:210px\">" + CEsc(Models) + (A.mcp ? ("<br><small class=\"nhint\">MCP: " + CEsc(A.mcp) + "</small>") : "") + "</td>" +
 +        "<td><span class=\"nbadge" + (T.running ? " ok" : "") + "\" data-run=\"" + T.id + "\">" + (T.running ? "läuft" : "aus") + "</span></td>" +
-+        "<td class=\"cwbtns\"><button class=\"softbtn\" data-a=\"login\">Gmail-Login</button><button class=\"softbtn\" data-a=\"prompt\">Startprompt kopieren</button><button class=\"softbtn\" data-a=\"stop\">Stoppen</button><button class=\"dangerbtn\" data-a=\"del\">Entfernen</button></td></tr>";
++        "<td class=\"cwbtns\"><button class=\"softbtn\" data-a=\"login\">Gmail-Login</button><button class=\"softbtn\" data-a=\"mcp\">MCP einrichten</button><button class=\"softbtn\" data-a=\"prompt\">Startprompt kopieren</button><button class=\"softbtn\" data-a=\"stop\">Stoppen</button><button class=\"dangerbtn\" data-a=\"del\">Entfernen</button></td></tr>";
 +    };
 +    var CRender = function () {
 +      var Box = $("cwTabs"); if (!Box) return;
@@ -730,6 +730,7 @@ index 07dc4c0..ea34756 100644
 +        var B = Ev.target.closest("button[data-a]"); if (!B) return;
 +        var T = CW.tabs[Number(B.closest("tr").getAttribute("data-i"))]; if (!T) return;
 +        var A = B.getAttribute("data-a");
++        if (A === "mcp") CAct("cowork_setup_mcp", T.id).then(function(){setTimeout(function(){CLoad(true);},4000);}).catch(function () {});
 +        if (A === "prompt") { var G = ($("cwGoal") && $("cwGoal").value.trim()) || "<Aufgabe>"; var P = T.role === "Main" ? ("Du bist Main/Lead. Starte mit cowork_start: " + G) : ("Du bist " + T.role + ". Finde das aktive Projekt, cowork_join als " + T.role + ", dann claim → arbeiten → update → wait."); Copy(P); CMsg("Startprompt kopiert."); }
 +        if (A === "login") { if (!String(T.email || "").trim()) { CMsg("Tab " + T.id + ": erst ein Gmail-Konto eintragen."); return; } CSaveIf().then(function () { return CAct("cowork_login", T.id); }).catch(function () {}); }
 +        if (A === "stop") CAct("cowork_stop", T.id).catch(function () {});
@@ -912,7 +913,7 @@ index 77cc050..fba25b2 100644
      }
      let mut mcp = state.roblox_mcp.lock().await;
 diff --git a/agent/src/mcp_addons.rs b/agent/src/mcp_addons.rs
-index 1a68aee..c88d8ca 100644
+index 1a68aee..fddb1e6 100644
 --- a/agent/src/mcp_addons.rs
 +++ b/agent/src/mcp_addons.rs
 @@ -47,6 +47,34 @@ pub struct ServerSummary {
@@ -964,7 +965,12 @@ index 1a68aee..c88d8ca 100644
          CatalogEntry {
              id: "memory",
              name: "Memory",
-@@ -108,6 +143,14 @@ pub fn read_config() -> McpConfig {
+@@ -104,10 +139,18 @@ pub fn config_path() -> PathBuf {
+ 
+ pub fn read_config() -> McpConfig {
+     let path = config_path();
+-    let mut cfg = std::fs::read_to_string(path)
++    let mut cfg = std::fs::read_to_string(&path)
          .ok()
          .and_then(|raw| serde_json::from_str::<McpConfig>(&raw).ok())
          .unwrap_or_default();
@@ -2072,10 +2078,10 @@ index 0000000..e4c29a2
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..268a5df
+index 0000000..6fb2dde
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,761 @@
+@@ -0,0 +1,762 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -2202,6 +2208,7 @@ index 0000000..268a5df
 +
 +fn settings() -> NotionSettings { lock(&SHARED.settings).clone() }
 +pub(crate) fn web_token() -> String { lock(&SHARED.settings).web_token.clone() }
++pub(crate) fn cowork_connection() -> (String, String) { let s = settings(); (if s.domain.is_empty() { String::new() } else { format!("https://{}/mcp", s.domain) }, s.token) }
 +pub(crate) fn safe_shell_enabled() -> bool { lock(&SHARED.settings).safe_shell }
 +fn set_listener(state: &str, err: &str) { *lock(&SHARED.listener) = (state.into(), err.into()); }
 +fn set_ngrok(state: &str, err: &str) { *lock(&SHARED.ngrok) = (state.into(), err.into()); }
@@ -2839,10 +2846,10 @@ index 0000000..268a5df
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..38f891a
+index 0000000..1096ce7
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,186 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -2972,7 +2979,7 @@ index 0000000..38f891a
 +}
 +async fn cdp(port:u16, commands:Vec<Value>)->Result<Vec<Value>,String>{
 +    let ws=target(port).await?;let(mut socket,_)=tokio_tungstenite::connect_async(&ws).await.map_err(|e|e.to_string())?;let mut out=Vec::new();
-+    for(mut cmd)in commands{let id=out.len()+1;cmd["id"]=json!(id);socket.send(tokio_tungstenite::tungstenite::Message::Text(cmd.to_string().into())).await.map_err(|e|e.to_string())?;loop{let msg=tokio::time::timeout(Duration::from_secs(5),socket.next()).await.map_err(|_|"CDP timeout".to_string())?.ok_or("CDP geschlossen")?.map_err(|e|e.to_string())?;if let Ok(txt)=msg.into_text(){if let Ok(v)=serde_json::from_str::<Value>(&txt){if v["id"]==id{out.push(v);break;}}}}
++    for mut cmd in commands{let id=out.len()+1;cmd["id"]=json!(id);socket.send(tokio_tungstenite::tungstenite::Message::Text(cmd.to_string().into())).await.map_err(|e|e.to_string())?;loop{let msg=tokio::time::timeout(Duration::from_secs(5),socket.next()).await.map_err(|_|"CDP timeout".to_string())?.ok_or("CDP geschlossen")?.map_err(|e|e.to_string())?;if let Ok(txt)=msg.into_text(){if let Ok(v)=serde_json::from_str::<Value>(&txt){if v["id"]==id{out.push(v);break;}}}}
 +    } Ok(out)
 +}
 +fn prompt_for(t:&Tab,goal:&str)->String{
@@ -2980,17 +2987,29 @@ index 0000000..38f891a
 +    if t.role=="Main"{format!("Du bist Main/Lead im AdiCode Co-Work. Starte jetzt mit cowork_start ein Projekt für diese Aufgabe: {goal}\n{loop_text}")}else{format!("Du bist {} im AdiCode Co-Work. Finde das einzige aktive Projekt mit cowork_board, tritt mit cowork_join als {} bei. {loop_text}",t.role,t.role)}
 +}
 +async fn insert_prompt(port:u16,prompt:String)->Result<(),String>{
-+    let focus="(()=>{const e=document.querySelector('[contenteditable=\"true\"]')||document.querySelector('textarea');if(!e)return false;e.focus();return true})()";
-+    cdp(port,vec![json!({"method":"Page.bringToFront"}),json!({"method":"Runtime.evaluate","params":{"expression":focus}}),json!({"method":"Input.insertText","params":{"text":prompt}}),json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyDown","key":"Enter","code":"Enter","windowsVirtualKeyCode":13}}),json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyUp","key":"Enter","code":"Enter","windowsVirtualKeyCode":13}})]).await?;Ok(())
++    cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;
++    tokio::time::sleep(Duration::from_secs(4)).await;
++    let focus=r#"(()=>{if(!location.href.includes('notion.so/ai'))return false;const q=[...document.querySelectorAll('textarea,[contenteditable="true"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&r.bottom>innerHeight*.45&&s.visibility!=='hidden'&&s.display!=='none'}).sort((a,b)=>b.getBoundingClientRect().bottom-a.getBoundingClientRect().bottom);if(!q[0])return false;q[0].focus();return true})()"#;
++    let ready=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":focus,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool).unwrap_or(false);
++    if !ready{return Err("Notion-AI-Eingabefeld nicht gefunden; Startprompt kopieren verwenden.".into());}
++    cdp(port,vec![json!({"method":"Input.insertText","params":{"text":prompt}}),json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyDown","key":"Enter","code":"Enter","windowsVirtualKeyCode":13}}),json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyUp","key":"Enter","code":"Enter","windowsVirtualKeyCode":13}})]).await?;Ok(())
 +}
-+async fn inspect_account(t:&Tab,i:usize){
++async fn setup_mcp(t:&Tab,i:usize)->Result<String,String>{
++    let(url,token)=crate::notion_mcp::cowork_connection();
++    if url.is_empty()||token.is_empty(){return Err("MCP-URL oder Token fehlt in AdiCode.".into());}
++    cdp(cdp_port(i),vec![json!({"method":"Page.navigate","params":{"url":"https://www.notion.so/settings/connections"}})]).await?;
++    tokio::time::sleep(Duration::from_secs(4)).await;
++    let expr=format!(r#"(async()=>{{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const visible=e=>{{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'}};const click=words=>{{const e=[...document.querySelectorAll('button,[role="button"]')].find(x=>visible(x)&&words.some(w=>(x.innerText||x.getAttribute('aria-label')||'').toLowerCase().includes(w)));if(e){{e.click();return true}}return false}};click(['add custom mcp','custom mcp','benutzerdefinierten mcp','mcp hinzufügen']);await sleep(1200);const inputs=[...document.querySelectorAll('input')].filter(visible);const set=(e,v)=>{{if(!e)return;e.focus();const d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(e,v);e.dispatchEvent(new Event('input',{{bubbles:true}}));e.dispatchEvent(new Event('change',{{bubbles:true}}))}};const u=inputs.find(e=>e.type==='url'||/url|server/i.test((e.placeholder||'')+' '+(e.getAttribute('aria-label')||'')))||inputs[0];set(u,{url});const name=inputs.find(e=>e!==u&&/name/i.test((e.placeholder||'')+' '+(e.getAttribute('aria-label')||'')));set(name,'AdiCode');click(['bearer token','authentication','authentifizierung']);await sleep(500);const current=[...document.querySelectorAll('input')].filter(visible);const tok=current.find(e=>e!==u&&e!==name&&(e.type==='password'||/token|api key/i.test((e.placeholder||'')+' '+(e.getAttribute('aria-label')||''))))||current[current.length-1];set(tok,{token});await sleep(300);const ok=click(['connect','verbinden','save','speichern']);return {{ok,href:location.href,inputs:current.length}}}})()"#,url=json!(url),token=json!(token));
++    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);
++    let ok=value["ok"].as_bool().unwrap_or(false);let mut a=lock(&ACCOUNT);let entry=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));entry["mcp"]=json!(if ok{"Einrichtung gesendet"}else{"Manueller Fallback nötig"});if ok{Ok("MCP-Einrichtung wurde an Notion übergeben.".into())}else{Err("Notion-Dialog nicht automatisch gefunden; bitte manuell verbinden.".into())}
++}async fn inspect_account(t:&Tab,i:usize){
 +    let expr=r#"(()=>{const body=(document.body&&document.body.innerText)||'';let store='';for(let i=0;i<localStorage.length;i++){try{store+='\n'+localStorage.getItem(localStorage.key(i));}catch(e){}}const text=body+'\n'+store;const names=['GPT-5','GPT-4.1','GPT-4o','Claude 4.5 Sonnet','Claude 4 Sonnet','Claude 3.7 Sonnet','Gemini 2.5 Pro','o3','o4-mini','Notion AI'];const models=[...new Set(names.filter(n=>text.toLowerCase().includes(n.toLowerCase())))];const near=text.match(/(?:usage|verwendet|genutzt|limit|kontingent)[^%]{0,100}(\d{1,3})\s*%/i)||text.match(/(\d{1,3})\s*%[^\n]{0,100}(?:usage|verwendet|genutzt|limit|kontingent)/i);return {usage:near?Math.min(100,Number(near[1])):null,models,checked:new Date().toLocaleTimeString(),url:location.href}})()"#;
 +    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).cloned()).unwrap_or_else(||json!({"usage":null,"models":[],"error":"Account-Check nicht erreichbar"}));lock(&ACCOUNT).insert(t.id,value);
 +}
 +async fn keep_alive(tabs:Vec<Tab>){
 +    loop{for(i,t)in tabs.iter().enumerate(){let _=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":"(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));return document.visibilityState})()"}})]).await;inspect_account(t,i).await;}tokio::time::sleep(Duration::from_secs(20)).await;}
 +}
-+async fn kickoff(tabs:Vec<Tab>,goal:String){tokio::time::sleep(Duration::from_secs(6)).await;for(i,t)in tabs.iter().enumerate(){let _=insert_prompt(cdp_port(i),prompt_for(t,&goal)).await;tokio::time::sleep(Duration::from_secs(2)).await;}if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}windows::set_hidden(&tabs[1..],true);}
++async fn kickoff(tabs:Vec<Tab>,goal:String){tokio::time::sleep(Duration::from_secs(6)).await;for(i,t)in tabs.iter().enumerate(){let _=setup_mcp(t,i).await;let _=insert_prompt(cdp_port(i),prompt_for(t,&goal)).await;tokio::time::sleep(Duration::from_secs(2)).await;}if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}windows::set_hidden(&tabs[1..],true);}
 +
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
 +fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
@@ -3007,6 +3026,7 @@ index 0000000..38f891a
 +        "cowork_stop_all"=>{let ids:Vec<u32>=load().iter().map(|t|t.id).collect();Ok(format!("{} Browser-Prozesse beendet.",stop_ids(&ids)))},
 +        "cowork_show_all"=>{let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],false);}Ok("Alle Co-Work-Fenster angezeigt.".into())},
 +        "cowork_check_accounts"=>{let tabs=load();tokio::spawn(async move{for(i,t)in tabs.iter().enumerate(){inspect_account(t,i).await;}});Ok("Account-Check läuft (Usage + Modelle).".into())},
++        "cowork_setup_mcp"=>find(id).map(|t|{let i=tab_index(t.id);tokio::spawn(async move{let _=setup_mcp(&t,i).await;});"MCP-Einrichtung gestartet.".into()}),
 +        "cowork_copy_prompt"=>find(id).map(|t|prompt_for(&t,v.get("goal").and_then(Value::as_str).unwrap_or(""))),
 +        "cowork_stop"=>find(id).map(|t|format!("Tab {} gestoppt ({} Prozesse).",t.id,stop_ids(&[t.id]))),
 +        "open_notion_window"=>match id{Some(_)=>find(id).and_then(|t|open_tab(&t)),None=>add_tab().and_then(|_|load().last().cloned().ok_or("Tab fehlt.".into())).and_then(|t|open_tab(&t))},

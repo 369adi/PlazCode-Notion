@@ -14,7 +14,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 
 ## Neu in 1.0.17
 - **Co-Work 2.0:** genau vier Tabs mit festen Rollen nach E-Mail-Reihenfolge (Main, Coder, Reviewer, Tester). Start erst mit vier Konten und eingetragener Aufgabe.
-- **Auto-Kickoff per CDP:** Startprompts werden automatisch eingefuegt; pro Tab gibt es weiterhin „Startprompt kopieren“ als Fallback.
+- **Auto-Kickoff per CDP:** Jeder Tab wird zuerst gezielt auf Notion AI (`/ai`) navigiert; nur der sichtbare untere AI-Composer wird verwendet. Pro Tab gibt es weiterhin „Startprompt kopieren“ als Fallback.
+- **MCP pro Konto:** AdiCode versucht die gespeicherte MCP-URL und den Bearer-Token automatisch in jedem E-Mail-Tab unter Notion Connections einzurichten; eigener Button und manueller Fallback bleiben verfügbar.
 - **Zuverlaessige Hintergrundarbeit:** Chromium-Drosselung und Native Window Occlusion sind deaktiviert; ein CDP-Keeper haelt alle Tabs auch versteckt und unfokussiert aktiv. Nur Main bleibt sichtbar, „Alle zeigen“ holt die anderen zurueck.
 - **Account-Check:** Usage-Fortschritt und erkannte verfuegbare Notion-AI-Modelle pro Konto.
 - **Codebase Memory:** `codebase-memory-mcp` 0.11.0 als standardmaessig aktiviertes Add-on.
