@@ -1,6 +1,9 @@
 # PlazCode updater, Windows PowerShell 5.1. Accepts an optional local release ZIP.
 param([string]$InstallRoot, [string]$ZipPath, [string]$ExpectedSha256, [string]$ExpectedVersion, [switch]$ShowProgress, [switch]$BackgroundUpdate, [switch]$RestoreWindow, [string]$Theme="default", [string]$Glow="subtle", [switch]$NoGradients)
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1 redraws Invoke-WebRequest progress per chunk, which slows a
+# 40 MB download many times over. The updater window shows its own progress.
+$ProgressPreference = 'SilentlyContinue'
 $install = if ($InstallRoot) { [IO.Path]::GetFullPath($InstallRoot) } else { $PSScriptRoot }
 $stage = Join-Path ([IO.Path]::GetTempPath()) ('PlazCode-update-' + [guid]::NewGuid())
 $backup = Join-Path $stage 'backup'
@@ -183,7 +186,7 @@ try {
     Set-UpdaterProgress 60 'Closing PlazCode' 'Waiting for this installation to release its files. Roblox Studio stays open.'
     # Stop only agent processes belonging to this installation. Leave Studio running.
     $agentPaths = @('PlazCode.exe','plazcode-agent.exe') | ForEach-Object { [IO.Path]::GetFullPath((Join-Path $install $_)) }
-    $deadline = [DateTime]::UtcNow.AddSeconds(20)
+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
     do {
         # Process.Path works for our same-user app even if CIM omits ExecutablePath.
         $agents = @(Get-Process -Name 'PlazCode','plazcode-agent' -ErrorAction SilentlyContinue | Where-Object {
@@ -205,7 +208,7 @@ try {
             finally { if ($handle) { $handle.Dispose() } }
         }
         if (!$locked) { break }
-        if ([DateTime]::UtcNow -ge $deadline) { throw 'PlazCode.exe is still locked. Close other PlazCode windows and retry. No update files were copied.' }
+        if ([DateTime]::UtcNow -ge $deadline) { throw 'PlazCode.exe is still locked. Close other PlazCode windows (including any started as administrator), wait for antivirus scans to finish or restart Windows, then retry. No update files were copied.' }
         if ($ShowProgress) { Set-UpdaterProgress 60 'Waiting for PlazCode to close' 'Finishing process shutdown before replacing files.' }
         Start-Sleep -Milliseconds 250
     } while ($true)

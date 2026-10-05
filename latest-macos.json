@@ -1,9 +1,27 @@
 {
-  "version": "1.19.34",
-  "desktop_version": "1.19.34",
-  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.34.zip",
-  "sha256": "96bac628543caee702e9805e55f0c262d194d6fa8bd3c36ff75cef2874ad14cf",
+  "version": "1.19.35",
+  "desktop_version": "1.19.35",
+  "url": "https://raw.githubusercontent.com/stoveez/PlazCode/main/PlazCode-macOS-1.19.35.zip",
+  "sha256": "f8a746d3475673a55e2a7292d95679f99cf6af9add3f065166a3bee888fa5177",
   "release_notes": [
+    {
+      "version": "1.19.35",
+      "title": "Reliable Notion file uploads and faster Windows updates",
+      "summary": "Retry stalled Notion protocol file uploads automatically so long tasks keep running, and make Windows updates download faster and wait longer for PlazCode.exe to close.",
+      "added": [
+        "Automatic retry for Notion protocol file uploads. When Notion ignores the file or its upload spinner never finishes, PlazCode removes only its own file, pauses and uploads it again, up to four attempts, alternating between Notion's file picker and drag-and-drop."
+      ],
+      "improved": [
+        "Notion tool results and startup messages continue without stopping the task when a single upload stalls. Nothing is submitted until the file finishes uploading, so a retry never sends a message twice.",
+        "The Windows updater downloads the release package without PowerShell's per-chunk progress display, which slowed Update-PlazCode.bat downloads many times over. The updater window still shows its own progress.",
+        "The Windows updater waits up to 60 seconds instead of 20 for PlazCode.exe to be released after closing PlazCode, giving antivirus scans and slow process shutdowns time to finish."
+      ],
+      "fixed": [
+        "Notion no longer pauses mid-task and stops with Message was not confirmed after one stalled protocol file upload, during startup or while sending tool results.",
+        "Update-PlazCode.bat no longer takes a very long time on the Downloading update step in Windows PowerShell 5.1.",
+        "Updates no longer fail with PlazCode.exe is still locked when Windows releases the file slowly. If it stays locked, the message names the likely causes: another PlazCode copy started as administrator, an antivirus scan or a pending restart. No files are copied in that case, as before."
+      ]
+    },
     {
       "version": "1.19.34",
       "title": "Firefox Notion startup, Co-Work and update-restart fixes",
