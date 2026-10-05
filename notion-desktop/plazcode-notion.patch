@@ -2852,10 +2852,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..31b9c88
+index 0000000..5415cdc
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,223 @@
+@@ -0,0 +1,222 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -3010,10 +3010,9 @@ index 0000000..31b9c88
 +async fn open_main(port:u16)->Result<(),String>{cdp(port,vec![json!({"method":"Page.bringToFront"})]).await?;Ok(())
 +}
 +async fn insert_prompt(port:u16,prompt:String)->Result<(),String>{
-+    cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;
-+    tokio::time::sleep(Duration::from_secs(4)).await;
-+    let focus=r#"(()=>{if(!location.href.includes('notion.so/ai'))return false;const q=[...document.querySelectorAll('textarea,[contenteditable="true"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&r.bottom>innerHeight*.45&&s.visibility!=='hidden'&&s.display!=='none'}).sort((a,b)=>b.getBoundingClientRect().bottom-a.getBoundingClientRect().bottom);if(!q[0])return false;q[0].focus();return true})()"#;
-+    let ready=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":focus,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool).unwrap_or(false);
++    let focus=r#"(()=>{const q=[...document.querySelectorAll('textarea,[contenteditable=\"true\"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&r.left>70&&s.visibility!=='hidden'&&s.display!=='none'}).sort((a,b)=>{const score=e=>{const hint=((e.getAttribute('placeholder')||'')+' '+(e.getAttribute('aria-label')||'')).toLowerCase();return (/ask notion ai|notion ai fragen|frag notion ai/.test(hint)?100000:0)+e.getBoundingClientRect().bottom};return score(b)-score(a)});if(!q[0])return false;q[0].focus();return true})()"#;
++    let mut ready=false;
++    for _ in 0..20{ready=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":focus,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool).unwrap_or(false);if ready{break;}tokio::time::sleep(Duration::from_millis(500)).await;}
 +    if !ready{return Err("Notion-AI-Eingabefeld nicht gefunden; Startprompt kopieren verwenden.".into());}
 +    cdp(port,vec![json!({"method":"Input.insertText","params":{"text":prompt}}),json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyDown","key":"Enter","code":"Enter","windowsVirtualKeyCode":13}}),json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyUp","key":"Enter","code":"Enter","windowsVirtualKeyCode":13}})]).await?;Ok(())
 +}

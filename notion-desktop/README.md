@@ -12,6 +12,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.20
+- Co-Work-Hotfix aus dem echten Vier-Account-Test: Der Worker-Startprompt bleibt im zuvor geöffneten „Willkommen in Notion“-Chat und findet den Composer jetzt anhand Sichtbarkeit, Position und Notion-AI-Platzhalter statt einer falschen Bildschirmhöhen-Grenze.
+- Damit funktionieren auch mittig platzierte Eingabefelder und unterschiedliche Notion-Onboarding-Layouts; der Kopier-Button bleibt Fallback.
+
 ## Neu in 1.0.19
 - Sicherer Co-Work-Start: Alle vier Konten werden zuerst einmalig nach **Chat / Willkommen in Notion** geführt. AdiCode prüft pro Tab, ob das sichtbare Notion-AI-Eingabefeld wirklich bereit ist. Erst wenn alle vier erfolgreich sind, werden Coder, Reviewer und Tester versteckt.
 - Rollen-Handshake: Nach dem Main-Kickoff müssen Coder, Reviewer und Tester dem neuesten Board nachweislich über `cowork_join` beitreten. Der Live-Status zeigt den Fortschritt; bei Fehlern werden alle Fenster automatisch sichtbar statt still weiterzulaufen.
