@@ -2043,10 +2043,10 @@ index 0000000..d47913f
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..260336e
+index 0000000..268a5df
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,726 @@
+@@ -0,0 +1,761 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -2606,6 +2606,33 @@ index 0000000..260336e
 +
 +async fn wait_restart(d: Duration) { let _ = tokio::time::timeout(d, SHARED.restart.notified()).await; }
 +
++/// ngrok can keep running although the public edge no longer routes the reserved domain.
++/// Verify the unauthenticated health endpoint and force a reconnect after repeated failures.
++async fn monitor_public_tunnel(domain: String) -> String {
++    tokio::time::sleep(Duration::from_secs(8)).await;
++    let client = match reqwest::Client::builder().timeout(Duration::from_secs(8)).build() {
++        Ok(c) => c,
++        Err(e) => return format!("Tunnel-Pruefung konnte nicht gestartet werden: {e}"),
++    };
++    let url = format!("https://{domain}/health");
++    let mut failures = 0u8;
++    loop {
++        let ok = client.get(&url)
++            .header("ngrok-skip-browser-warning", "1")
++            .send().await.map(|r| r.status().is_success()).unwrap_or(false);
++        if ok {
++            failures = 0;
++            set_ngrok("online", "");
++        } else {
++            failures += 1;
++            if failures >= 3 {
++                return format!("Die oeffentliche URL {domain} ist nicht erreichbar. Tunnel wird neu gestartet.");
++            }
++        }
++        tokio::time::sleep(Duration::from_secs(15)).await;
++    }
++}
++
 +async fn run_ngrok() {
 +    let mut use_domain_flag = false;
 +    loop {
@@ -2669,6 +2696,14 @@ index 0000000..260336e
 +                tracing::warn!("[notion] ngrok: {text}");
 +                set_ngrok("Fehler", &text);
 +                wait_restart(Duration::from_secs(15)).await;
++            }
++            problem = monitor_public_tunnel(domain.clone()) => {
++                tracing::warn!("[notion] ngrok: {problem}");
++                set_ngrok("Fehler", &problem);
++                if let Some(pid) = child.id() { kill_pid(pid); }
++                let _ = child.kill().await;
++                SHARED.ngrok_pid.store(0, Ordering::Relaxed);
++                wait_restart(Duration::from_secs(3)).await;
 +            }
 +            _ = SHARED.restart.notified() => {
 +                if let Some(pid) = child.id() { kill_pid(pid); }

@@ -12,6 +12,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.16
+- Tunnel-Selbstheilung: AdiCode prueft die oeffentliche ngrok-URL regelmaessig ueber `/health`. Wenn ngrok noch laeuft, die reservierte Domain aber nicht mehr erreichbar ist, wird der Tunnel automatisch neu verbunden. Damit meldet Notion nicht mehr dauerhaft, dass eine korrekte MCP-URL kein unterstuetzter Endpoint sei.
+
 ## Neu in 1.0.15
 - Neuer Name **AdiCode** und neues Logo (A-Monogramm mit Farbverlauf), auch als Icon der exe. Die Tools heissen jetzt `adicode_status`, `adicode_skill` und `adicode_restart_server`.
 - Komplett neues **dunkles Design**: ruhige dunkle Flaechen, Akzent-Verlauf Violett-Cyan, neue Karten, Buttons, Eingabefelder, Badges und Tabellen.

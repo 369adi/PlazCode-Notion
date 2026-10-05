@@ -98,8 +98,8 @@ Home · **Notion AI** · **Co-Work** · Tools · MCP Servers · Terminal · Sett
 - **Workflow-Prüfung:** Der Build bricht ab, wenn in desktop.html der Text `plazcode-notion-theme` fehlt. Steht deshalb als Kommentar im AdiCode-Theme – nicht entfernen. Workflow selbst nicht ändern (Token ohne workflow-Scope).
 - **Name vs. Technik:** Sichtbar heißt alles AdiCode. Technisch bleiben `PlazCode-Notion.exe` (Release-Asset), Tag-Präfix `notion-desktop-v`, Repo, Datenordner `%LOCALAPPDATA%\PlazCodeNotion` und Prozess `PlazCode.exe` – sonst finden installierte Launcher keine Updates mehr.
 
-## 10. Offene Aufgaben (Stand nach 1.0.15) – im neuen Chat hier weitermachen
-**Release B = 1.0.16 „Co-Work 2.0“** (vom Nutzer freigegeben):
+## 10. Offene Aufgaben (Stand nach 1.0.16) – im neuen Chat hier weitermachen
+**Release B = 1.0.17 „Co-Work 2.0“** (vom Nutzer freigegeben):
 1. **Max. 4 Tabs, Rollen automatisch nach E-Mail-Reihenfolge:** 1 = Main (lead), 2 = Coder, 3 = Reviewer, 4 = Tester. Rollenfeld in der Co-Work-Tabelle entfernen; beim Löschen rücken die Rollen nach (notion_profiles.rs `Tab.role` aus Position ableiten, desktop.html `cwTabs`).
 2. **Start erst möglich, wenn alle 4 E-Mails eingetragen sind.** „Alle starten“ verbindet alle Tabs miteinander (cowork_start im Main, cowork_join in den anderen) und **versteckt danach alle Notion-Fenster außer Main** (z. B. Fenster per Win32 `ShowWindow(SW_HIDE)` über die PID aus sysinfo, oder Chrome `--window-position=-32000,-32000`; Knopf „Alle zeigen“ zum Wiederherstellen).
 3. **Auto-Kickoff per CDP:** jeden Tab mit `--remote-debugging-port=<9301+N>` nur auf 127.0.0.1 starten, über `http://127.0.0.1:<port>/json` die WebSocket-URL holen (tokio-tungstenite ist vorhanden) und per `Runtime.evaluate` / `Input.insertText` den Startprompt in das Notion-AI-Eingabefeld tippen + Enter. Prompt: Rolle, `cowork_join`, Arbeitsschleife (claim → arbeiten → update → cowork_wait). Main bekommt zusätzlich die Aufgabe des Nutzers (neues Eingabefeld „Aufgabe“ auf der Co-Work-Seite). Fallback-Knopf „Startprompt kopieren“ pro Tab.
@@ -111,6 +111,7 @@ Home · **Notion AI** · **Co-Work** · Tools · MCP Servers · Terminal · Sett
 **Hinweise des Nutzers:** keine `cargo test`-Läufe mehr (dauert zu lange) – nur Patch-Check (`git apply --check`), `node --check` und div-Bilanz, dann direkt releasen. Vor dem Schreiben kurz den Plan bestätigen lassen.
 
 ## 11. Changelog
+- **1.0.16** – Hotfix fuer korrekte, aber zeitweise als „nicht unterstuetzter MCP-Endpunkt“ gemeldete URLs: Der ngrok-Supervisor prueft die oeffentliche `/health`-Route alle 15 Sekunden und startet den Tunnel nach drei Fehlern automatisch neu. Release B wurde dadurch auf 1.0.17 verschoben.
 - **1.0.15** – Umbenannt in **AdiCode** (sichtbare Texte, Fenstertitel, Tray, Erweiterung, Launcher-Meldungen), neues Logo (`notion-desktop/branding/make-icon.ps1` erzeugt `plazcode.ico/png`, Dateinamen bleiben wegen Workflow). Tools `plazcode_*` → `adicode_*`. Neues dunkles Theme (`<style id="adicode-theme">` in desktop.html, ersetzt das helle Notion-Theme). Stabilität: `call_tool_guarded` in notion_mcp.rs (eigene Task, Panic-Schutz, 55-s-Timeout, Ausgabe > 120 000 Zeichen gekürzt); `AddonManager` mit eigenem Lock pro Add-on (`mcp_addons::call_shared`), Cache für Tool-Listen, Auto-Reset bei Timeout/Absturz; Co-Work speichert gebündelt im Hintergrund-Thread, max. 300 Nachrichten.
 - **1.0.14** – Neue Seite **Co-Work**: mehrere Notion-Tabs als getrennte Container, je ein Gmail-Konto, Speichern, Gmail-Login, Alle starten/stoppen, Status „läuft“. Dieses Handout neu geschrieben.
 - **1.0.13** – Server-URL direkt eintragbar (Notion AI + Karte auf MCP Servers).
