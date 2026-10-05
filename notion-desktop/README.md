@@ -14,7 +14,7 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 
 ## Start
 1. Original-PlazCode und die alte `PlazCode-Notion-Bridge.exe` beenden (Port 3000 / 8787 und ngrok-Domain werden sonst blockiert).
-2. ZIP entpacken und `PlazCode-Notion\PlazCode.exe` starten.
+2. `PlazCode-Notion.exe` herunterladen und starten (entpackt sich beim ersten Start nach `%LOCALAPPDATA%\PlazCodeNotion\app`).
 3. Seite **Notion AI** öffnen → Server-URL und Token in Notion als benutzerdefinierten MCP-Server eintragen.
    Token und Domain der alten Bridge werden beim ersten Start automatisch übernommen.
 
@@ -23,4 +23,4 @@ Einstellungen: `%LOCALAPPDATA%\PlazCodeNotion\plazcode-notion.json`
 ## Build
 GitHub Actions (`.github/workflows/build-notion-desktop.yml`) entpackt `PlazCode-source-1.19.36.zip`,
 wendet `notion-desktop/plazcode-notion.patch` an, baut `agent` mit Cargo (MSVC) und ersetzt `PlazCode.exe`
-im Original-Paket `PlazCode-1.19.36.zip`.
+im Original-Paket `PlazCode-1.19.36.zip` und packt alles in eine einzelne `PlazCode-Notion.exe`.
