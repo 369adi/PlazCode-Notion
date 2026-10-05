@@ -40,6 +40,19 @@ Notion-Design + eingebauter MCP-Server, damit Notion AI Roblox Studio, PC und Br
 
 ## Hinweise
 Inoffizieller Fork, keine Verbindung zu den PlazCode-Autoren oder Notion Labs. `LICENSE` und `BRANDING-NOTICE.txt` müssen erhalten bleiben. Tokens nie veröffentlichen.
+## Neu in 1.0.7: Co-Work mit festen Experten-Rollen + Live-Status
+
+Der Main Chat ist der Lead: Er zerlegt das Projekt, vergibt Tasks nur an die Rollen, die wirklich gebraucht werden, und fuehrt am Ende alle Ergebnisse zu EINER optimierten Antwort zusammen (cowork_results).
+
+Rollen: Prompt-Schreiber, Programmierer, Code-Bewerter, UI/UX-Kritiker, Tester, Roblox-Spezialist, Generalist (eigene Rollen moeglich).
+
+So geht's:
+1. Main Chat: "Starte ein Co-Work-Projekt: <Ziel>". Die KI nennt Projekt-ID und welche Rollen-Tabs du oeffnen sollst.
+2. Pro weiterem Tab: "Tritt Co-Work-Projekt p1 bei als Code-Bewerter" (bzw. Programmierer, UI/UX-Kritiker ...).
+3. Fertige Code-/UI-Tasks gehen automatisch in die Pruefung (Review). Fordert der Pruefer Aenderungen an (Status changes), entsteht automatisch ein Fix-Task fuer die Original-Rolle (max. 2 Runden, danach entscheidet der Lead).
+4. In der Desktop-App zeigt der Button "Co-Work" unten rechts live alle Agents, Rollen und Task-Status.
+
+Robustheit: atomare Task-Uebernahme, Datei-Sperren, niemand prueft seine eigene Arbeit, unbesetzte Rollen werden von anderen uebernommen, haengende Agents geben ihre Tasks nach einstellbarer Zeit (stale_minutes, Standard 20) frei, Lead-Uebernahme wenn der Main Chat ausfaellt, Ergebnis Pflicht bei done/changes/blocked.
 ## Neu in 1.0.6: Co-Work (mehrere Notion-AI-Chats an einem Projekt)
 
 Mehrere Notion-AI-Tabs im Browser arbeiten gleichzeitig am selben Projekt. Sie koordinieren sich ueber ein gemeinsames Board in PlazCode Notion: Tasks mit Abhaengigkeiten, atomare Uebernahme (kein Task wird doppelt bearbeitet), Datei-Sperren und Nachrichten zwischen den Chats.

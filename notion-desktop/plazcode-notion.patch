@@ -1,3 +1,143 @@
+diff --git a/agent/src/cowork_ui.js b/agent/src/cowork_ui.js
+new file mode 100644
+index 0000000..5543ac6
+--- /dev/null
++++ b/agent/src/cowork_ui.js
+@@ -0,0 +1,134 @@
++/* PlazCode Notion: live Co-Work panel (roles, agents, task status). */
++(function () {
++  try {
++    if (window.__PLAZCODE_COWORK_UI__) return;
++    window.__PLAZCODE_COWORK_UI__ = true;
++  } catch (e) { return; }
++
++  var LABEL = {
++    open: ["Offen", "#6b7280"], claimed: ["L\u00e4uft", "#2563eb"], review: ["In Pr\u00fcfung", "#7c3aed"],
++    done: ["Fertig", "#16a34a"], blocked: ["Blockiert", "#dc2626"], stale: ["H\u00e4ngt", "#ea580c"]
++  };
++  var open = false, timer = null, btn, panel, body, lastErr = "";
++
++  function esc(v) {
++    return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
++      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
++    });
++  }
++  function chip(phase) {
++    var l = LABEL[phase] || [phase, "#6b7280"];
++    return '<span class="pcw-chip" style="background:' + l[1] + '1f;color:' + l[1] + ';border-color:' + l[1] + '55">' + esc(l[0]) + "</span>";
++  }
++  function kindTag(k) { return k === "review" ? '<span class="pcw-kind">Review</span>' : k === "fix" ? '<span class="pcw-kind pcw-fix">Fix</span>' : ""; }
++
++  function render(data) {
++    var projects = (data && data.projects) || [];
++    var active = 0;
++    projects.forEach(function (p) { p.agents.forEach(function (a) { if (a.alive) active++; }); });
++    btn.querySelector(".pcw-badge").textContent = projects.length ? String(active) : "";
++    btn.classList.toggle("pcw-live", active > 0);
++    if (!open) return;
++    if (!projects.length) {
++      body.innerHTML = '<div class="pcw-empty"><b>Kein Co-Work-Projekt aktiv.</b><br>Im Main Chat schreiben: <code>Starte ein Co-Work-Projekt: &lt;Beschreibung&gt;</code><br>In weiteren Tabs: <code>Tritt Co-Work-Projekt p1 bei als Programmierer</code> (oder Code-Bewerter, UI/UX-Kritiker, Prompt-Schreiber, Tester, Roblox-Spezialist).</div>';
++      return;
++    }
++    var h = "";
++    projects.forEach(function (p) {
++      var pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
++      h += '<section class="pcw-proj"><div class="pcw-ph"><div><b>' + esc(p.title) + '</b> <span class="pcw-id">' + esc(p.id) + "</span></div><div>" + p.done + "/" + p.total + " fertig</div></div>";
++      h += '<div class="pcw-bar"><i style="width:' + pct + '%"></i></div>';
++      if (p.goal) h += '<div class="pcw-goal">' + esc(p.goal) + "</div>";
++      if (p.missing_roles && p.missing_roles.length) h += '<div class="pcw-warn">Unbesetzte Rollen: ' + esc(p.missing_roles.join(", ")) + " &ndash; Tab mit dieser Rolle \u00f6ffnen (sonst springen andere ein).</div>";
++      h += '<div class="pcw-agents">';
++      p.agents.forEach(function (a) {
++        h += '<div class="pcw-agent' + (a.alive ? "" : " pcw-off") + '"><div><span class="pcw-dot"></span><b>' + esc(a.name) + "</b>" + (a.lead ? ' <span class="pcw-kind">Main</span>' : "") + '</div><div class="pcw-role">' + esc(a.role_title) + '</div><div class="pcw-cur">' + (a.task ? "#" + a.task.id + " " + esc(a.task.title) : a.alive ? "wartet" : "inaktiv") + "</div></div>";
++      });
++      h += "</div><table class=\"pcw-t\"><thead><tr><th>#</th><th>Task</th><th>Rolle</th><th>Status</th><th>Agent</th></tr></thead><tbody>";
++      p.tasks.forEach(function (t) {
++        h += '<tr title="' + esc(t.result) + '"><td>' + t.id + "</td><td>" + kindTag(t.kind) + esc(t.title) + (t.result ? '<div class="pcw-res">' + esc(t.result) + "</div>" : "") + "</td><td>" + esc(t.role_title || "\u2013") + "</td><td>" + chip(t.phase) + "</td><td>" + esc(t.owner || "\u2013") + "</td></tr>";
++      });
++      h += "</tbody></table></section>";
++    });
++    body.innerHTML = h;
++  }
++
++  function load() {
++    var b = window.__PLAZCODE_BOOT__;
++    if (!b) return;
++    var ctl = new AbortController();
++    var to = setTimeout(function () { ctl.abort(); }, 8000);
++    fetch(b.apiUrl + "/api/cowork", { headers: { Authorization: "Bearer " + b.key }, cache: "no-store", signal: ctl.signal })
++      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
++      .then(function (d) { lastErr = ""; render(d); })
++      .catch(function (e) {
++        lastErr = (e && e.name === "AbortError") ? "Zeit\u00fcberschreitung" : String((e && e.message) || e);
++        if (open) body.innerHTML = '<div class="pcw-warn">Co-Work-Status nicht erreichbar: ' + esc(lastErr) + "</div>";
++      })
++      .then(function () { clearTimeout(to); });
++  }
++
++  function schedule() {
++    if (timer) clearInterval(timer);
++    timer = setInterval(load, open ? 1500 : 6000);
++  }
++
++  function toggle(force) {
++    open = typeof force === "boolean" ? force : !open;
++    panel.style.display = open ? "flex" : "none";
++    if (open) { body.innerHTML = '<div class="pcw-empty">Lade\u2026</div>'; load(); }
++    schedule();
++  }
++
++  function start() {
++    try {
++      var b = window.__PLAZCODE_BOOT__;
++      if (!b || !b.apiUrl || !b.key || document.getElementById("pcw-btn")) return;
++      var css = document.createElement("style");
++      css.textContent = [
++        "#pcw-btn{position:fixed;right:18px;bottom:18px;z-index:2147483000;display:flex;gap:7px;align-items:center;padding:9px 14px;border-radius:999px;border:1px solid #ffffff22;background:#1f2937;color:#fff;font:600 13px system-ui,Segoe UI,sans-serif;cursor:pointer;box-shadow:0 6px 20px #0006}",
++        "#pcw-btn.pcw-live{background:#4f46e5}",
++        "#pcw-btn .pcw-badge{min-width:18px;padding:0 5px;border-radius:9px;background:#ffffff33;font-size:11px;text-align:center}",
++        "#pcw-btn .pcw-badge:empty{display:none}",
++        "#pcw-panel{position:fixed;right:18px;bottom:66px;z-index:2147483000;width:min(760px,calc(100vw - 36px));max-height:calc(100vh - 110px);display:none;flex-direction:column;border-radius:14px;background:#111827;color:#e5e7eb;border:1px solid #374151;box-shadow:0 18px 50px #000a;font:13px system-ui,Segoe UI,sans-serif}",
++        "#pcw-panel header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid #374151;font-weight:700;font-size:14px}",
++        "#pcw-panel header button{background:none;border:0;color:#9ca3af;font-size:18px;cursor:pointer}",
++        "#pcw-body{overflow:auto;padding:12px 16px 16px}",
++        ".pcw-proj{margin-bottom:18px}.pcw-ph{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px}",
++        ".pcw-id{color:#9ca3af;font-size:11px}.pcw-goal{color:#9ca3af;margin:6px 0}",
++        ".pcw-bar{height:6px;border-radius:3px;background:#374151;overflow:hidden}.pcw-bar i{display:block;height:100%;background:linear-gradient(90deg,#6366f1,#22c55e)}",
++        ".pcw-warn{margin:8px 0;padding:8px 10px;border-radius:8px;background:#7c2d1233;border:1px solid #ea580c66;color:#fdba74}",
++        ".pcw-agents{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin:10px 0}",
++        ".pcw-agent{padding:8px 10px;border-radius:10px;background:#1f2937;border:1px solid #374151}.pcw-off{opacity:.5}",
++        ".pcw-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:6px}.pcw-off .pcw-dot{background:#6b7280}",
++        ".pcw-role{color:#a5b4fc;font-size:12px;margin-top:2px}.pcw-cur{color:#9ca3af;font-size:12px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
++        ".pcw-t{width:100%;border-collapse:collapse}.pcw-t th{text-align:left;color:#9ca3af;font-weight:600;padding:6px;border-bottom:1px solid #374151}",
++        ".pcw-t td{padding:6px;border-bottom:1px solid #1f2937;vertical-align:top}",
++        ".pcw-res{color:#9ca3af;font-size:11px;margin-top:2px;max-width:340px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
++        ".pcw-chip{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid;font-size:11px;font-weight:600;white-space:nowrap}",
++        ".pcw-kind{display:inline-block;margin-right:5px;padding:0 5px;border-radius:4px;background:#7c3aed33;color:#c4b5fd;font-size:10px;font-weight:700}.pcw-fix{background:#ea580c33;color:#fdba74}",
++        ".pcw-empty{color:#9ca3af;line-height:1.7}.pcw-empty code{background:#1f2937;padding:1px 5px;border-radius:4px;color:#e5e7eb}"
++      ].join("\n");
++      document.head.appendChild(css);
++      btn = document.createElement("button");
++      btn.id = "pcw-btn";
++      btn.type = "button";
++      btn.innerHTML = 'Co-Work <span class="pcw-badge"></span>';
++      btn.addEventListener("click", function () { toggle(); });
++      panel = document.createElement("div");
++      panel.id = "pcw-panel";
++      panel.innerHTML = '<header><span>Co-Work &ndash; Live-Status</span><button type="button" aria-label="Schlie\u00dfen">\u00d7</button></header><div id="pcw-body"></div>';
++      panel.querySelector("header button").addEventListener("click", function () { toggle(false); });
++      body = panel.querySelector("#pcw-body");
++      document.body.appendChild(panel);
++      document.body.appendChild(btn);
++      load();
++      schedule();
++    } catch (e) {
++      try { console.warn("PlazCode Co-Work panel:", e); } catch (_) {}
++    }
++  }
++
++  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
++  else start();
++})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
 index 07dc4c0..128de8c 100644
 --- a/agent/src/desktop.html
@@ -291,10 +431,17 @@ index 07dc4c0..128de8c 100644
  </body>
  </html>
 diff --git a/agent/src/gui.rs b/agent/src/gui.rs
-index 04ebefa..4b20ffb 100644
+index 04ebefa..1f582f6 100644
 --- a/agent/src/gui.rs
 +++ b/agent/src/gui.rs
-@@ -284,7 +284,7 @@ pub fn run_gui(
+@@ -279,12 +279,12 @@ pub fn run_gui(
+ ) -> anyhow::Result<()> {
+     let desktop_url = format!("http://{addr}/desktop-ui");
+     let boot = serde_json::json!({"key":pairing_key,"apiUrl":format!("http://{addr}")});
+-    let initialization = format!("if(location.href === {}) window.__PLAZCODE_BOOT__ = {};",
+-        serde_json::to_string(&desktop_url)?, boot);
++    let initialization = format!("if(location.href === {}) window.__PLAZCODE_BOOT__ = {};\n{}",
++        serde_json::to_string(&desktop_url)?, boot, include_str!("cowork_ui.js"));
  
      let mut event_loop = EventLoopBuilder::<UiEvent>::with_user_event().build();
      let window = WindowBuilder::new()
@@ -313,7 +460,7 @@ index 04ebefa..4b20ffb 100644
                  _ if body.starts_with("toolkit-store:") => toolkit_store_url(body).map(UiEvent::OpenExternal),
                  _ => supported_ai_url(body).map(|url|UiEvent::OpenExternal(url.to_owned())).or_else(|| body.strip_prefix("js-error:").map(|message| UiEvent::JsError(message.to_string()))),
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..a7265b5 100644
+index 77cc050..d2f7c16 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
 @@ -81,6 +81,9 @@ mod media;
@@ -351,7 +498,15 @@ index 77cc050..a7265b5 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -977,6 +984,8 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +955,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+         .route("/api/status", get(status_handler))
+         .route("/desktop", get(desktop_handler))
+         .route("/api/desktop/state", get(desktop_state_handler))
++        .route("/api/cowork", get(|| async { Json(crate::notion_cowork::dashboard()) }))
+         .route("/api/desktop/preferences", post(desktop_preferences_handler))
+         .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
+         .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
+@@ -977,6 +985,8 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -360,7 +515,7 @@ index 77cc050..a7265b5 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1460,6 +1469,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1470,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -368,7 +523,7 @@ index 77cc050..a7265b5 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1541,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1542,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -1607,15 +1762,20 @@ index 1a68aee..b88f112 100644
 +}
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..a84e4b3
+index 0000000..6dfdb42
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,497 @@
+@@ -0,0 +1,801 @@
 +//! PlazCode Notion (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same PlazCode Notion
-+//! server work on one project at the same time through a shared board: tasks
-+//! with atomic claims and dependencies, file locks and messages. The board is
-+//! persisted in %LOCALAPPDATA%\PlazCodeNotion\cowork.json.
++//! server work on one project at the same time through a shared board.
++//! The main chat is the lead: it splits the user's project into tasks and gives
++//! each task a role (prompt writer, coder, reviewer, UI/UX critic, tester,
++//! Roblox specialist ...). Every other chat joins with a fixed role and only
++//! picks up tasks of its role (plus unassigned tasks and tasks of roles nobody
++//! fills). Finished work can automatically get a review task; requested changes
++//! become fix tasks. At the end the lead merges everything via cowork_results.
++//! The board is persisted in %LOCALAPPDATA%\PlazCodeNotion\cowork.json.
 +
 +use once_cell::sync::Lazy;
 +use serde::{Deserialize, Serialize};
@@ -1624,6 +1784,20 @@ index 0000000..a84e4b3
 +
 +const STALE_SECS: i64 = 20 * 60;
 +const MAX_WAIT_SECS: u64 = 45;
++const MAX_FIX_ROUNDS: u32 = 2;
++
++struct Role { id: &'static str, title: &'static str, guide: &'static str }
++
++const ROLES: &[Role] = &[
++    Role { id: "lead", title: "Lead / Main Chat", guide: "Du bist der Main Chat und das Interface zum Nutzer. Projekt verstehen, mit cowork_start anlegen: Ziel in kleine, moeglichst parallele Tasks zerlegen und jedem Task die passende role geben - nur Rollen, die wirklich gebraucht werden. Fuer Code-Tasks review=reviewer setzen, fuer UI-Tasks review=uiux. Dem Nutzer sagen, welche Rollen-Tabs er oeffnen soll. Waehrenddessen cowork_wait/cowork_board: blockierte Tasks klaeren, Fragen beantworten, Tasks ergaenzen. Am Ende cowork_results lesen und daraus EINE finale, optimierte Antwort fuer den Nutzer bauen." },
++    Role { id: "prompt", title: "Prompt-Schreiber", guide: "Du formulierst praezise Prompts, Specs, System-Instructions, Texte und Akzeptanzkriterien. Liefere das Ergebnis als fertigen, direkt nutzbaren Text (im result oder als Datei) plus 1-2 Saetze Begruendung." },
++    Role { id: "coder", title: "Programmierer", guide: "Du implementierst Features (App, Backend, Skripte). Passenden Skill laden (app, debug, git), Dateien vor dem Aendern lesen, nur die Dateien des Tasks aendern, bauen/testen. result: was geaendert, welche Dateien, wie getestet." },
++    Role { id: "reviewer", title: "Code-Bewerter", guide: "Du pruefst Code auf Bugs, Sicherheit, Performance, Lesbarkeit und ob die Akzeptanzkriterien erfuellt sind. Dateien lesen, nichts selbst umschreiben. Passt alles: status=done mit kurzer Bewertung. Sonst status=changes mit nummerierten, konkreten Punkten (Datei, Stelle, gewuenschter Fix)." },
++    Role { id: "uiux", title: "UI/UX-Kritiker", guide: "Du bewertest Oberflaechen: Klarheit, Hierarchie, Abstaende, Farben/Kontrast, Barrierefreiheit, Flows und Texte. Bei Review-Tasks status=done oder status=changes mit konkreten Verbesserungen; bei eigenen Tasks lieferst du Design-Specs (Layout, Komponenten, Zustaende)." },
++    Role { id: "tester", title: "Tester", guide: "Du schreibst und fuehrst Tests aus, probierst Edge Cases und reproduzierst Bugs. result: was getestet wurde, Ergebnis, gefundene Fehler mit Repro-Schritten." },
++    Role { id: "roblox", title: "Roblox-Spezialist", guide: "Du baust in Roblox Studio: Luau, Client/Server-Trennung, RemoteEvents, DataStores. Skills roblox und roblox-studio laden, roblox_* Tools nutzen. result: welche Skripte/Instanzen geaendert und wie getestet." },
++    Role { id: "worker", title: "Generalist", guide: "Du uebernimmst Tasks ohne Rolle und Tasks, deren Rolle gerade niemand besetzt." },
++];
 +
 +#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 +#[serde(default)]
@@ -1637,6 +1811,7 @@ index 0000000..a84e4b3
 +    goal: String,
 +    created: i64,
 +    lead: String,
++    stale_minutes: u64,
 +    agents: BTreeMap<String, Agent>,
 +    tasks: Vec<Task>,
 +    messages: Vec<Msg>,
@@ -1662,6 +1837,17 @@ index 0000000..a84e4b3
 +    files: Vec<String>,
 +    result: String,
 +    updated: i64,
++    /// Role that should do this task (empty = anyone).
++    role: String,
++    /// Role that reviews the result when it is done (empty = no review).
++    review: String,
++    /// "" = normal task, "review" or "fix".
++    kind: String,
++    /// Task this review/fix refers to.
++    origin: u64,
++    /// Original work task of a review/fix chain (0 for normal tasks).
++    root: u64,
++    round: u32,
 +}
 +
 +#[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -1709,6 +1895,82 @@ index 0000000..a84e4b3
 +
 +fn norm_path(p: &str) -> String { p.trim().replace('\\', "/").trim_start_matches("./").to_ascii_lowercase() }
 +
++fn short(t: &str, n: usize) -> String {
++    if t.chars().count() <= n { t.to_string() } else { format!("{}...", t.chars().take(n).collect::<String>()) }
++}
++
++// ---------------------------------------------------------------- roles
++
++fn norm_role(raw: &str) -> String {
++    let r: String = raw.trim().to_lowercase().chars()
++        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_' || *c == '/')
++        .take(32).collect();
++    let mapped = match r.as_str() {
++        "" => "",
++        "lead" | "main" | "mainchat" | "main-chat" | "orchestrator" | "leiter" => "lead",
++        "prompt" | "prompter" | "prompt-schreiber" | "promptschreiber" | "prompt-writer" | "writer" | "texter" => "prompt",
++        "coder" | "code" | "dev" | "developer" | "programmierer" | "programmer" | "engineer" | "entwickler" => "coder",
++        "reviewer" | "review" | "code-reviewer" | "code-bewerter" | "codebewerter" | "bewerter" => "reviewer",
++        "uiux" | "ui" | "ux" | "ui/ux" | "ui-ux" | "ui_ux" | "design" | "designer" | "ui/ux-kritiker" | "ui-ux-kritiker" | "uiux-kritiker" | "ux-kritiker" | "kritiker" => "uiux",
++        "tester" | "test" | "qa" | "testing" => "tester",
++        "roblox" | "roblox-dev" | "luau" | "roblox-studio" | "roblox-spezialist" => "roblox",
++        "worker" | "any" | "generalist" | "helfer" => "worker",
++        other => return other.replace('/', "-"),
++    };
++    mapped.to_string()
++}
++
++/// Role of a task: empty stays empty, "worker" means anyone.
++fn task_role(v: &Value) -> String {
++    if v.as_bool() == Some(true) { return "reviewer".into(); }
++    let r = norm_role(v.as_str().unwrap_or(""));
++    if r == "worker" { String::new() } else { r }
++}
++
++fn role_title(id: &str) -> String {
++    if id.is_empty() { return "Generalist".into(); }
++    ROLES.iter().find(|r| r.id == id).map(|r| r.title.to_string()).unwrap_or_else(|| id.to_string())
++}
++
++fn role_guide(id: &str) -> String {
++    ROLES.iter().find(|r| r.id == id).map(|r| r.guide.to_string())
++        .unwrap_or_else(|| format!("Eigene Rolle '{id}': uebernimm Tasks mit dieser Rolle und arbeite als Experte dafuer."))
++}
++
++fn stale(p: &Project) -> i64 { if p.stale_minutes == 0 { STALE_SECS } else { p.stale_minutes as i64 * 60 } }
++
++fn alive(p: &Project, agent: &str) -> bool {
++    p.agents.get(agent).map(|a| now() - a.last_seen < stale(p)).unwrap_or(false)
++}
++
++fn agent_role(p: &Project, agent: &str) -> String { p.agents.get(agent).map(|a| a.role.clone()).unwrap_or_default() }
++
++fn specialist_alive(p: &Project, role: &str, exclude: &str) -> bool {
++    let t = now();
++    p.agents.values().any(|a| a.role == role && a.name != exclude && t - a.last_seen < stale(p))
++}
++
++fn missing_roles(p: &Project) -> Vec<String> {
++    let mut v: Vec<String> = Vec::new();
++    for t in &p.tasks {
++        if t.status != "done" && !t.role.is_empty() && !specialist_alive(p, &t.role, "") && !v.contains(&t.role) { v.push(t.role.clone()); }
++    }
++    v
++}
++
++fn role_ok(p: &Project, t: &Task, agent: &str) -> bool {
++    // Nobody reviews their own work if somebody else is around.
++    let own_work = if t.kind == "review" { p.tasks.iter().find(|x| x.id == t.origin).map(|x| x.owner.clone()).unwrap_or_default() } else { String::new() };
++    if !own_work.is_empty() && own_work == agent {
++        let others = p.agents.values().any(|a| a.name != agent && now() - a.last_seen < stale(p));
++        if others { return false; }
++    }
++    if t.role.is_empty() { return true; }
++    agent_role(p, agent) == t.role || !specialist_alive(p, &t.role, &own_work)
++}
++
++// ---------------------------------------------------------------- board helpers
++
 +fn project_id(board: &Board, args: &Value) -> Result<String, String> {
 +    let wanted = s(args, "project");
 +    if !wanted.is_empty() {
@@ -1718,14 +1980,10 @@ index 0000000..a84e4b3
 +    }
 +    let all: Vec<&Project> = board.projects.values().collect();
 +    match all.len() {
-+        0 => Err("Kein Co-Work-Projekt vorhanden. Der Lead startet eins mit cowork_start.".into()),
++        0 => Err("Kein Co-Work-Projekt vorhanden. Der Lead (Main Chat) startet eins mit cowork_start.".into()),
 +        1 => Ok(all[0].id.clone()),
 +        _ => Err("Mehrere Co-Work-Projekte vorhanden, bitte project angeben (cowork_board listet sie).".into()),
 +    }
-+}
-+
-+fn alive(p: &Project, agent: &str) -> bool {
-+    p.agents.get(agent).map(|a| now() - a.last_seen < STALE_SECS).unwrap_or(false)
 +}
 +
 +fn touch(p: &mut Project, agent: &str) -> Result<(), String> {
@@ -1738,9 +1996,10 @@ index 0000000..a84e4b3
 +fn join_agent(p: &mut Project, wanted: &str, role: &str) -> String {
 +    let mut name: String = wanted.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(32).collect();
 +    if name.is_empty() {
++        let base = if role.is_empty() || role == "worker" { "agent".to_string() } else { role.to_string() };
 +        loop {
 +            p.next_agent += 1;
-+            let candidate = format!("agent-{}", p.next_agent);
++            let candidate = format!("{base}-{}", p.next_agent);
 +            if !p.agents.contains_key(&candidate) { name = candidate; break; }
 +        }
 +    }
@@ -1759,7 +2018,11 @@ index 0000000..a84e4b3
 +        p.next_task += 1;
 +        let depends_on: Vec<u64> = item["depends_on"].as_array().into_iter().flatten().filter_map(|d| d.as_u64()).collect();
 +        let files: Vec<String> = item["files"].as_array().into_iter().flatten().filter_map(|f| f.as_str().map(|x| x.trim().to_string())).filter(|f| !f.is_empty()).collect();
-+        p.tasks.push(Task { id: p.next_task, title, detail: s(item, "detail"), status: "open".into(), depends_on, files, updated: now(), ..Default::default() });
++        p.tasks.push(Task {
++            id: p.next_task, title, detail: s(item, "detail"), status: "open".into(), depends_on, files, updated: now(),
++            role: task_role(&item["role"]), review: task_role(&item["review"]),
++            ..Default::default()
++        });
 +        ids.push(p.next_task);
 +    }
 +    ids
@@ -1771,8 +2034,11 @@ index 0000000..a84e4b3
 +    if p.messages.len() > 500 { let cut = p.messages.len() - 500; p.messages.drain(..cut); }
 +}
 +
++/// All reviews/fixes of a work task are finished.
++fn chain_done(p: &Project, id: u64) -> bool { p.tasks.iter().filter(|x| x.root == id).all(|x| x.status == "done") }
++
 +fn deps_done(p: &Project, t: &Task) -> bool {
-+    t.depends_on.iter().all(|d| p.tasks.iter().any(|x| x.id == *d && x.status == "done"))
++    t.depends_on.iter().all(|d| p.tasks.iter().any(|x| x.id == *d && x.status == "done") && chain_done(p, *d))
 +}
 +
 +fn files_free(p: &Project, t: &Task, agent: &str) -> bool {
@@ -1781,33 +2047,75 @@ index 0000000..a84e4b3
 +
 +fn claimable(p: &Project, t: &Task, agent: &str) -> bool {
 +    let free = t.status == "open" || (t.status == "claimed" && !alive(p, &t.owner));
-+    free && deps_done(p, t) && files_free(p, t, agent)
++    free && deps_done(p, t) && files_free(p, t, agent) && role_ok(p, t, agent)
++}
++
++/// open, claimed, review (done but review/fix pending), stale, blocked, done
++fn phase(p: &Project, t: &Task) -> &'static str {
++    match t.status.as_str() {
++        "done" => if chain_done(p, t.id) { "done" } else { "review" },
++        "claimed" => if alive(p, &t.owner) { "claimed" } else { "stale" },
++        "blocked" => "blocked",
++        _ => "open",
++    }
 +}
 +
 +fn summary(p: &Project) -> String {
 +    let t = now();
 +    let mut o = format!("Co-Work-Projekt {} \"{}\"\nZiel: {}\nLead: {}\n\nAgents:\n", p.id, p.title, p.goal, if p.lead.is_empty() { "-" } else { p.lead.as_str() });
 +    for a in p.agents.values() {
-+        o.push_str(&format!("- {} ({}){}\n", a.name, if a.role.is_empty() { "worker" } else { a.role.as_str() }, if t - a.last_seen < STALE_SECS { "" } else { " [inaktiv]" }));
++        let cur = p.tasks.iter().find(|x| x.owner == a.name && x.status == "claimed").map(|x| format!(" arbeitet an #{}", x.id)).unwrap_or_default();
++        o.push_str(&format!("- {} ({}){}{}\n", a.name, role_title(&a.role), cur, if t - a.last_seen < stale(p) { "" } else { " [inaktiv]" }));
++    }
++    let missing = missing_roles(p);
++    if !missing.is_empty() {
++        o.push_str(&format!("Unbesetzte Rollen: {} (der Nutzer kann Tabs mit diesen Rollen oeffnen; bis dahin uebernehmen andere Agents diese Tasks)\n", missing.iter().map(|r| role_title(r)).collect::<Vec<_>>().join(", ")));
 +    }
 +    let done = p.tasks.iter().filter(|x| x.status == "done").count();
 +    o.push_str(&format!("\nTasks ({done}/{} erledigt):\n", p.tasks.len()));
 +    for task in &p.tasks {
-+        let mut line = format!("- #{} [{}] {}", task.id, task.status, task.title);
++        let mut line = format!("- #{} [{}] {}", task.id, phase(p, task), task.title);
++        if !task.role.is_empty() { line.push_str(&format!(" {{{}}}", task.role)); }
 +        if !task.owner.is_empty() && task.status != "open" { line.push_str(&format!(" @{}", task.owner)); }
 +        if !task.depends_on.is_empty() { line.push_str(&format!(" (nach {})", task.depends_on.iter().map(|d| format!("#{d}")).collect::<Vec<_>>().join(", "))); }
++        if !task.review.is_empty() && task.kind != "review" { line.push_str(&format!(" (Review durch {})", task.review)); }
 +        if task.status == "open" && deps_done(p, task) { line.push_str(" <- frei"); }
 +        o.push_str(&line);
 +        o.push('\n');
-+        if !task.detail.is_empty() { o.push_str(&format!("    {}\n", task.detail)); }
++        if !task.detail.is_empty() { o.push_str(&format!("    {}\n", short(&task.detail, 400))); }
 +        if !task.files.is_empty() { o.push_str(&format!("    Dateien: {}\n", task.files.join(", "))); }
-+        if !task.result.is_empty() { o.push_str(&format!("    Ergebnis: {}\n", task.result)); }
++        if !task.result.is_empty() { o.push_str(&format!("    Ergebnis: {}\n", short(&task.result, 600))); }
 +    }
-+    if !p.tasks.is_empty() && done == p.tasks.len() { o.push_str("\nALLE TASKS ERLEDIGT. Lead: Endkontrolle machen und dem Nutzer berichten.\n"); }
++    if !p.tasks.is_empty() && done == p.tasks.len() { o.push_str("\nALLE TASKS ERLEDIGT. Lead: cowork_results aufrufen und alles zu EINER finalen, optimierten Antwort fuer den Nutzer zusammenfuehren.\n"); }
 +    if !p.locks.is_empty() {
 +        o.push_str("\nDatei-Locks:\n");
 +        for (f, l) in &p.locks { o.push_str(&format!("- {f} @{} (Task #{})\n", l.owner, l.task)); }
 +    }
++    o
++}
++
++fn results_text(p: &Project) -> String {
++    let mut o = format!("Ergebnisse von Co-Work-Projekt {} \"{}\"\nZiel: {}\n\n", p.id, p.title, p.goal);
++    for t in p.tasks.iter().filter(|t| t.kind.is_empty()) {
++        o.push_str(&format!("## #{} {} [{}] - {} @{}\n", t.id, t.title, phase(p, t), role_title(&t.role), if t.owner.is_empty() { "-" } else { t.owner.as_str() }));
++        o.push_str(if t.result.is_empty() { "(kein Ergebnis notiert)\n" } else { "" });
++        if !t.result.is_empty() { o.push_str(&format!("{}\n", t.result)); }
++        for x in p.tasks.iter().filter(|x| x.root == t.id) {
++            o.push_str(&format!("  - {} #{} @{} [{}]: {}\n", if x.kind == "review" { "Review" } else { "Fix" }, x.id, if x.owner.is_empty() { "-" } else { x.owner.as_str() }, x.status, if x.result.is_empty() { "-" } else { x.result.as_str() }));
++        }
++        o.push('\n');
++    }
++    let msgs: Vec<&Msg> = p.messages.iter().rev().take(15).collect();
++    if !msgs.is_empty() {
++        o.push_str("Letzte Nachrichten:\n");
++        for m in msgs.into_iter().rev() { o.push_str(&format!("- [{}] {}\n", m.from, short(&m.text, 300))); }
++    }
++    let done = !p.tasks.is_empty() && p.tasks.iter().all(|t| t.status == "done");
++    o.push_str(if done {
++        "\nAlle Tasks erledigt. Fuehre die Ergebnisse jetzt zu EINER finalen, optimierten Antwort fuer den Nutzer zusammen: Widersprueche aufloesen, Review-Feedback beruecksichtigen, nichts Doppeltes, klare naechste Schritte."
++    } else {
++        "\nNoch nicht alles erledigt - mit cowork_wait weiter warten oder offene Punkte klaeren."
++    });
 +    o
 +}
 +
@@ -1837,7 +2145,7 @@ index 0000000..a84e4b3
 +        || (!p.tasks.is_empty() && p.tasks.iter().all(|t| t.status == "done"))
 +}
 +
-+const PROTOCOL: &str = "Co-Work-Ablauf: 1) cowork_claim holt den naechsten freien Task (oder task_id). 2) Passenden Skill laden (plazcode_skill), Dateien vor dem Bearbeiten lesen, nur die Dateien des Tasks aendern; weitere Dateien vorher mit cowork_lock sperren. 3) cowork_update status=done result=<kurz: was gemacht, welche Dateien>. 4) Wieder cowork_claim. Kein freier Task: cowork_wait (mehrmals) bis neue Tasks/Nachrichten kommen. Bei Problemen: status=blocked + cowork_message an den Lead. Fertig, wenn das Board ALLE TASKS ERLEDIGT meldet.";
++const PROTOCOL: &str = "Co-Work-Ablauf: 1) cowork_claim holt den naechsten passenden Task (zuerst deine Rolle, dann Tasks ohne Rolle, dann unbesetzte Rollen). 2) Passenden Skill laden (plazcode_skill), Dateien vor dem Bearbeiten lesen, nur die Dateien des Tasks aendern; weitere Dateien vorher mit cowork_lock sperren. 3) cowork_update status=done result=<kurz und praezise: was gemacht, welche Dateien>. Review-Tasks: status=done (ok) oder status=changes mit konkreten Punkten. 4) Wieder cowork_claim. Kein freier Task: cowork_wait (mehrmals) bis neue Tasks/Nachrichten kommen. Bei Problemen: status=blocked + Grund (geht an den Lead). Fertig, wenn das Board ALLE TASKS ERLEDIGT meldet.";
 +
 +fn dispatch(board: &mut Board, name: &str, args: &Value) -> Result<(String, bool), String> {
 +    if name == "cowork_start" {
@@ -1845,18 +2153,27 @@ index 0000000..a84e4b3
 +        if title.is_empty() { return Err("title fehlt".into()); }
 +        board.next_project += 1;
 +        let id = format!("p{}", board.next_project);
-+        let mut p = Project { id: id.clone(), title, goal: s(args, "goal"), created: now(), ..Default::default() };
++        let mut p = Project { id: id.clone(), title, goal: s(args, "goal"), created: now(), stale_minutes: args["stale_minutes"].as_u64().unwrap_or(0).min(240), ..Default::default() };
 +        let agent = join_agent(&mut p, &s(args, "agent"), "lead");
 +        p.lead = agent.clone();
 +        add_tasks(&mut p, &args["tasks"]);
 +        let goal = p.goal.clone();
 +        post(&mut p, &agent, "", format!("Projekt gestartet: {goal}"));
-+        let out = format!("Co-Work-Projekt '{id}' erstellt. Du bist der Lead, dein Agent-Name ist '{agent}' (bei jedem cowork_*-Aufruf als agent mitgeben).\nSag dem Nutzer: weitere Notion-AI-Tabs oeffnen und dort schreiben: Tritt Co-Work-Projekt {id} bei.\nDu arbeitest selbst mit (cowork_claim), pruefst Ergebnisse und fuegst bei Bedarf Tasks hinzu (cowork_add_tasks).\n\n{}", summary(&p));
++        let mut roles: Vec<String> = Vec::new();
++        for t in &p.tasks {
++            for r in [&t.role, &t.review] { if !r.is_empty() && !roles.contains(r) { roles.push(r.clone()); } }
++        }
++        let tabs = if roles.is_empty() {
++            format!("Sag dem Nutzer: weitere Notion-AI-Tabs oeffnen und dort schreiben: Tritt Co-Work-Projekt {id} bei.")
++        } else {
++            format!("Benoetigte Rollen: {}.\nSag dem Nutzer: fuer jede Rolle einen Notion-AI-Tab oeffnen und dort schreiben: Tritt Co-Work-Projekt {id} bei als <Rolle> (z. B. \"Tritt Co-Work-Projekt {id} bei als {}\"). Fehlt eine Rolle, uebernehmen andere Tabs deren Tasks.", roles.iter().map(|r| format!("{} ({r})", role_title(r))).collect::<Vec<_>>().join(", "), roles[0])
++        };
++        let out = format!("Co-Work-Projekt '{id}' erstellt. Du bist der Lead (Main Chat), dein Agent-Name ist '{agent}' (bei jedem cowork_*-Aufruf als agent mitgeben).\n{tabs}\nDanach: mit cowork_wait den Fortschritt verfolgen, Fragen/blockierte Tasks klaeren, bei Bedarf cowork_add_tasks. Am Ende cowork_results lesen und die finale Antwort zusammenfuehren.\n\n{}", summary(&p));
 +        board.projects.insert(id, p);
 +        return Ok((out, true));
 +    }
 +    if name == "cowork_board" && s(args, "project").is_empty() && board.projects.len() != 1 {
-+        if board.projects.is_empty() { return Ok(("Keine Co-Work-Projekte. Der Lead startet eins mit cowork_start.".into(), false)); }
++        if board.projects.is_empty() { return Ok(("Keine Co-Work-Projekte. Der Lead (Main Chat) startet eins mit cowork_start.".into(), false)); }
 +        let mut o = String::from("Co-Work-Projekte:\n");
 +        for p in board.projects.values() {
 +            let done = p.tasks.iter().filter(|t| t.status == "done").count();
@@ -1874,18 +2191,27 @@ index 0000000..a84e4b3
 +    let agent = s(args, "agent");
 +    match name {
 +        "cowork_join" => {
-+            let role = { let r = s(args, "role"); if r.is_empty() { "worker".to_string() } else { r } };
++            let role = { let r = norm_role(&s(args, "role")); if r.is_empty() { "worker".to_string() } else { r } };
 +            let existed = p.agents.contains_key(&agent);
 +            let me = join_agent(p, &agent, &role);
-+            if !existed { post(p, &me, "", format!("{me} ist beigetreten ({role}).")); }
++            if role == "lead" {
++                let lead = p.lead.clone();
++                if lead.is_empty() || lead == me || !alive(p, &lead) { p.lead = me.clone(); }
++            }
++            if !existed { post(p, &me, "", format!("{me} ist beigetreten ({}).", role_title(&role))); }
++            let mine = p.tasks.iter().filter(|t| t.status != "done" && t.role == role).count();
 +            let news = take_unread(p, &me);
-+            Ok((format!("Beigetreten als '{me}' (bei jedem cowork_*-Aufruf als agent mitgeben).\n{PROTOCOL}\n\n{}{news}", summary(p)), true))
++            Ok((format!("Beigetreten als '{me}' mit Rolle {} (bei jedem cowork_*-Aufruf als agent mitgeben).\nDeine Rolle: {}\nOffene Tasks deiner Rolle: {mine}. Du bekommst zuerst Tasks deiner Rolle, ausserdem Tasks ohne Rolle und Tasks unbesetzter Rollen.\n{PROTOCOL}\n\n{}{news}", role_title(&role), role_guide(&role), summary(p)), true))
 +        }
 +        "cowork_board" => {
 +            let mut news = String::new();
 +            let known = !agent.is_empty() && p.agents.contains_key(&agent);
 +            if known { touch(p, &agent)?; news = take_unread(p, &agent); }
 +            Ok((format!("{}{news}", summary(p)), known))
++        }
++        "cowork_results" => {
++            if !agent.is_empty() && p.agents.contains_key(&agent) { touch(p, &agent)?; }
++            Ok((results_text(p), false))
 +        }
 +        "cowork_add_tasks" => {
 +            touch(p, &agent)?;
@@ -1897,23 +2223,29 @@ index 0000000..a84e4b3
 +        }
 +        "cowork_claim" => {
 +            touch(p, &agent)?;
++            let my_role = agent_role(p, &agent);
 +            let idx = match args["task_id"].as_u64() {
 +                Some(id) => {
 +                    let i = p.tasks.iter().position(|t| t.id == id).ok_or_else(|| format!("Task #{id} gibt es nicht."))?;
 +                    let mine = p.tasks[i].owner == agent && p.tasks[i].status == "claimed";
 +                    if !mine && !claimable(p, &p.tasks[i], &agent) {
 +                        let t = &p.tasks[i];
-+                        return Err(format!("Task #{id} ist nicht frei (Status {}, Owner {}). Abhaengigkeiten oder Datei-Locks pruefen (cowork_board).", t.status, if t.owner.is_empty() { "-" } else { t.owner.as_str() }));
++                        return Err(format!("Task #{id} ist nicht frei fuer dich (Status {}, Owner {}, Rolle {}). Abhaengigkeiten, Rolle oder Datei-Locks pruefen (cowork_board).", t.status, if t.owner.is_empty() { "-" } else { t.owner.as_str() }, role_title(&t.role)));
 +                    }
 +                    i
 +                }
-+                None => match p.tasks.iter().position(|t| claimable(p, t, &agent)) {
-+                    Some(i) => i,
-+                    None => {
-+                        let news = take_unread(p, &agent);
-+                        return Ok((format!("Gerade kein freier Task. Mit cowork_wait auf neue Tasks/Nachrichten warten.\n\n{}{news}", summary(p)), true));
++                None => {
++                    let pick = p.tasks.iter().position(|t| !t.role.is_empty() && t.role == my_role && claimable(p, t, &agent))
++                        .or_else(|| p.tasks.iter().position(|t| t.role.is_empty() && claimable(p, t, &agent)))
++                        .or_else(|| p.tasks.iter().position(|t| claimable(p, t, &agent)));
++                    match pick {
++                        Some(i) => i,
++                        None => {
++                            let news = take_unread(p, &agent);
++                            return Ok((format!("Gerade kein freier Task fuer dich ({}). Mit cowork_wait auf neue Tasks/Nachrichten warten.\n\n{}{news}", role_title(&my_role), summary(p)), true));
++                        }
 +                    }
-+                },
++                }
 +            };
 +            let t = now();
 +            let tid = p.tasks[idx].id;
@@ -1935,30 +2267,75 @@ index 0000000..a84e4b3
 +            }
 +            let deps = if deps.is_empty() { String::new() } else { format!("\nErgebnisse der Vorgaenger-Tasks:\n{deps}") };
 +            let files = if task.files.is_empty() { String::new() } else { format!("\nGesperrte Dateien fuer dich: {}", task.files.join(", ")) };
++            let how = match task.kind.as_str() {
++                "review" => format!("\nREVIEW: Ergebnis pruefen (Dateien lesen, nichts selbst umschreiben). Passt alles: cowork_update task_id={} status=done result=<kurze Bewertung>. Sonst: status=changes result=<nummerierte, konkrete Aenderungen>.", task.id),
++                "fix" => format!("\nFIX-RUNDE {}: Feedback oben umsetzen, danach cowork_update task_id={} status=done result=<was geaendert>. Danach folgt automatisch ein neues Review.", task.round, task.id),
++                _ => format!("\nWenn fertig: cowork_update task_id={} status=done result=<kurze Zusammenfassung + geaenderte Dateien>.{}", task.id, if task.review.is_empty() { String::new() } else { format!(" Danach prueft {} dein Ergebnis.", role_title(&task.review)) }),
++            };
++            let role_hint = if task.role.is_empty() || task.role == my_role { String::new() } else { format!("\nHinweis: Dieser Task gehoert eigentlich zur Rolle {} (gerade unbesetzt) - arbeite ihn als Experte dieser Rolle ab: {}", role_title(&task.role), role_guide(&task.role)) };
 +            let news = take_unread(p, &agent);
-+            Ok((format!("Du hast Task #{} uebernommen: {}\n{}{files}\nProjektziel: {}{deps}\nWenn fertig: cowork_update task_id={} status=done result=<kurze Zusammenfassung + geaenderte Dateien>.{news}", task.id, task.title, task.detail, p.goal, task.id), true))
++            Ok((format!("Du hast Task #{} uebernommen: {}\n{}{files}{role_hint}\nProjektziel: {}{deps}{how}{news}", task.id, task.title, task.detail, p.goal), true))
 +        }
 +        "cowork_update" => {
 +            touch(p, &agent)?;
 +            let id = args["task_id"].as_u64().ok_or_else(|| "task_id fehlt".to_string())?;
 +            let status = s(args, "status").to_ascii_lowercase();
-+            if !["done", "blocked", "open", "claimed"].contains(&status.as_str()) { return Err("status muss done, blocked, open oder claimed sein".into()); }
++            if !["done", "blocked", "open", "claimed", "changes"].contains(&status.as_str()) { return Err("status muss done, changes, blocked, open oder claimed sein".into()); }
 +            let i = p.tasks.iter().position(|t| t.id == id).ok_or_else(|| format!("Task #{id} gibt es nicht."))?;
 +            let owner = p.tasks[i].owner.clone();
 +            let allowed = owner.is_empty() || owner == agent || agent == p.lead || !alive(p, &owner);
 +            if !allowed { return Err(format!("Task #{id} gehoert {owner}. Nur der Owner oder der Lead darf ihn aendern.")); }
 +            let result = s(args, "result");
++            if status == "changes" && p.tasks[i].kind != "review" { return Err("status=changes gibt es nur fuer Review-Tasks. Fuer andere Tasks done, blocked oder open nutzen.".into()); }
++            if (status == "done" || status == "changes" || status == "blocked") && result.is_empty() {
++                return Err("result fehlt: kurz und praezise notieren, was gemacht wurde bzw. was fehlt (die anderen Agents und der Lead bauen darauf auf).".into());
++            }
++            let stored = if status == "changes" { "done".to_string() } else { status.clone() };
 +            {
 +                let task = &mut p.tasks[i];
-+                task.status = status.clone();
++                task.status = stored.clone();
 +                if status == "open" { task.owner.clear(); } else { task.owner = agent.clone(); }
-+                if !result.is_empty() { task.result = result.clone(); }
++                if !result.is_empty() { task.result = if status == "changes" { format!("AENDERUNGEN NOETIG: {result}") } else { result.clone() }; }
 +                task.updated = now();
 +            }
-+            if status != "claimed" { p.locks.retain(|_, l| l.task != id); }
-+            let title = p.tasks[i].title.clone();
++            if stored != "claimed" { p.locks.retain(|_, l| l.task != id); }
++            let task = p.tasks[i].clone();
++            let mut extra = String::new();
++            if status == "done" && !task.review.is_empty() && task.kind != "review" && !p.tasks.iter().any(|x| x.kind == "review" && x.origin == id) {
++                p.next_task += 1;
++                let rid = p.next_task;
++                let files = if task.files.is_empty() { String::new() } else { format!("\nBetroffene Dateien: {}", task.files.join(", ")) };
++                p.tasks.push(Task {
++                    id: rid, title: format!("Review #{id}: {}", task.title), status: "open".into(), updated: now(),
++                    detail: format!("Pruefe das Ergebnis von #{id} ({}) als {}.\nAufgabe war: {}\nErgebnis von {agent}: {}{files}", task.title, role_title(&task.review), task.detail, task.result),
++                    role: task.review.clone(), kind: "review".into(), origin: id, root: if task.root == 0 { id } else { task.root }, round: task.round,
++                    ..Default::default()
++                });
++                extra = format!(" Review-Task #{rid} fuer {} erstellt.", role_title(&task.review));
++            }
++            if status == "changes" {
++                if let Some(o) = p.tasks.iter().find(|x| x.id == task.origin).cloned() {
++                    if task.round < MAX_FIX_ROUNDS {
++                        p.next_task += 1;
++                        let fid = p.next_task;
++                        p.tasks.push(Task {
++                            id: fid, title: format!("Fix #{}: {}", o.id, o.title.trim_start_matches("Fix ")), status: "open".into(), updated: now(),
++                            detail: format!("Feedback von {agent} (Review #{id}): {result}\n\nUrspruenglicher Task #{}: {}\n{}\nBisheriges Ergebnis: {}", o.id, o.title, o.detail, o.result),
++                            role: o.role.clone(), review: o.review.clone(), kind: "fix".into(), origin: o.id, root: task.root, round: task.round + 1, files: o.files.clone(),
++                            ..Default::default()
++                        });
++                        extra = format!(" Fix-Task #{fid} fuer {} erstellt.", role_title(&o.role));
++                    } else {
++                        let lead = p.lead.clone();
++                        post(p, &agent, &lead, format!("Review #{id}: maximale Fix-Runden ({MAX_FIX_ROUNDS}) erreicht. Lead entscheidet ueber: {result}"));
++                        extra = " Maximale Fix-Runden erreicht - der Lead entscheidet.".into();
++                    }
++                }
++            }
++            let title = task.title.clone();
 +            let note = match status.as_str() {
-+                "done" => format!("#{id} erledigt ({title}): {result}"),
++                "done" => format!("#{id} erledigt ({title}): {}{extra}", short(&result, 300)),
++                "changes" => format!("#{id} Aenderungen noetig ({title}): {}{extra}", short(&result, 300)),
 +                "blocked" => format!("#{id} BLOCKIERT ({title}): {result}"),
 +                "open" => format!("#{id} wieder freigegeben ({title})."),
 +                _ => format!("#{id} in Arbeit ({title})."),
@@ -1967,13 +2344,14 @@ index 0000000..a84e4b3
 +            post(p, &agent, &to, note);
 +            let free = p.tasks.iter().filter(|t| claimable(p, t, &agent)).count();
 +            let news = take_unread(p, &agent);
-+            Ok((format!("Task #{id} -> {status}. Freie Tasks: {free}. Weiter mit cowork_claim (oder cowork_wait).\n\n{}{news}", summary(p)), true))
++            Ok((format!("Task #{id} -> {status}.{extra} Freie Tasks fuer dich: {free}. Weiter mit cowork_claim (oder cowork_wait).\n\n{}{news}", summary(p)), true))
 +        }
 +        "cowork_message" => {
 +            touch(p, &agent)?;
 +            let msg = s(args, "text");
 +            if msg.is_empty() { return Err("text fehlt".into()); }
 +            let to = s(args, "to");
++            if !to.is_empty() && !p.agents.contains_key(&to) { return Err(format!("Agent '{to}' gibt es in diesem Projekt nicht (cowork_board zeigt alle).")); }
 +            post(p, &agent, &to, msg);
 +            let news = take_unread(p, &agent);
 +            Ok((format!("Nachricht gesendet{}.{news}", if to.is_empty() { " an alle".to_string() } else { format!(" an {to}") }), true))
@@ -2010,7 +2388,7 @@ index 0000000..a84e4b3
 +    if !(has_news(p, &agent) || tokio::time::Instant::now() >= deadline) { return Ok(None); }
 +    let news = take_unread(p, &agent);
 +    let free = p.tasks.iter().filter(|t| claimable(p, t, &agent)).count();
-+    let out = format!("Freie Tasks: {free}.\n\n{}{news}", summary(p));
++    let out = format!("Freie Tasks fuer dich: {free}.\n\n{}{news}", summary(p));
 +    save(&board);
 +    Ok(Some(out))
 +}
@@ -2045,36 +2423,67 @@ index 0000000..a84e4b3
 +}
 +
 +/// Short overview for plazcode_status.
-+#[allow(dead_code)]
 +pub(crate) fn status() -> Value {
 +    let board = lock_board();
 +    Value::Array(board.projects.values().map(|p| json!({
 +        "id": p.id, "title": p.title,
-+        "agents": p.agents.values().filter(|a| now() - a.last_seen < STALE_SECS).count(),
++        "agents": p.agents.values().filter(|a| now() - a.last_seen < stale(p)).count(),
 +        "tasks_done": p.tasks.iter().filter(|t| t.status == "done").count(),
 +        "tasks_total": p.tasks.len(),
 +    })).collect())
 +}
 +
++/// Full live state for the Co-Work panel in the desktop app.
++pub(crate) fn dashboard() -> Value {
++    let board = lock_board();
++    let t = now();
++    let projects: Vec<Value> = board.projects.values().map(|p| {
++        let agents: Vec<Value> = p.agents.values().map(|a| {
++            let current = p.tasks.iter().find(|x| x.owner == a.name && x.status == "claimed");
++            json!({
++                "name": a.name, "role": a.role, "role_title": role_title(&a.role), "lead": a.name == p.lead,
++                "alive": t - a.last_seen < stale(p), "idle_secs": t - a.last_seen,
++                "task": current.map(|x| json!({"id": x.id, "title": x.title})),
++            })
++        }).collect();
++        let tasks: Vec<Value> = p.tasks.iter().map(|x| json!({
++            "id": x.id, "title": x.title, "role": x.role, "role_title": if x.role.is_empty() { String::new() } else { role_title(&x.role) },
++            "kind": x.kind, "status": x.status, "phase": phase(p, x), "owner": x.owner, "depends_on": x.depends_on,
++            "result": short(&x.result, 240), "updated": x.updated,
++        })).collect();
++        json!({
++            "id": p.id, "title": p.title, "goal": short(&p.goal, 400), "lead": p.lead,
++            "done": p.tasks.iter().filter(|x| x.status == "done").count(), "total": p.tasks.len(),
++            "missing_roles": missing_roles(p).iter().map(|r| role_title(r)).collect::<Vec<_>>(),
++            "agents": agents, "tasks": tasks,
++        })
++    }).collect();
++    json!({"ok": true, "projects": projects})
++}
++
 +pub(crate) fn tools() -> Vec<Value> {
++    let role_list = ROLES.iter().map(|r| format!("{} = {}", r.id, r.title)).collect::<Vec<_>>().join(", ");
 +    let tasks = json!({"type": "array", "description": "Tasks; IDs werden fortlaufend vergeben (erster Task eines Projekts = 1).", "items": {"type": "object", "properties": {
 +        "title": {"type": "string"},
 +        "detail": {"type": "string", "description": "Was genau zu tun ist, Akzeptanzkriterien"},
-+        "depends_on": {"type": "array", "items": {"type": "integer"}, "description": "Task-IDs, die vorher fertig sein muessen"},
++        "role": {"type": "string", "description": format!("Rolle, die den Task macht (leer = egal). Rollen: {role_list}")},
++        "review": {"type": "string", "description": "Rolle, die das Ergebnis danach prueft (z. B. reviewer fuer Code, uiux fuer Oberflaechen; leer = kein Review)"},
++        "depends_on": {"type": "array", "items": {"type": "integer"}, "description": "Task-IDs, die vorher fertig (inkl. Review) sein muessen"},
 +        "files": {"type": "array", "items": {"type": "string"}, "description": "Dateien/Skripte, die der Task aendert (werden beim Claim gesperrt)"}
 +    }, "required": ["title"]}});
 +    let project = json!({"type": "string", "description": "Projekt-ID (z. B. p1) oder Titel; optional, wenn nur ein Projekt existiert"});
 +    let agent = json!({"type": "string", "description": "Dein Agent-Name aus cowork_join/cowork_start"});
 +    vec![
-+        json!({"name": "cowork_start", "description": "PlazCode Co-Work: startet ein Projekt, an dem mehrere Notion-AI-Chats (Browser-Tabs) gleichzeitig arbeiten. Der Aufrufer wird Lead. Ziel in 4-15 kleine, moeglichst unabhaengige Tasks zerlegen (mit files und depends_on), damit mehrere Agents parallel arbeiten koennen. Vorher plazcode_skill name=cowork lesen.", "inputSchema": {"type": "object", "properties": {"title": {"type": "string"}, "goal": {"type": "string", "description": "Gesamtziel inkl. Tech-Stack, Ordner, Konventionen"}, "agent": {"type": "string", "description": "Name des Leads (optional)"}, "tasks": tasks.clone()}, "required": ["title", "goal"]}}),
-+        json!({"name": "cowork_join", "description": "PlazCode Co-Work: diesen Chat einem laufenden Co-Work-Projekt beitreten. Liefert deinen Agent-Namen, den Ablauf und das Board. Danach cowork_claim.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": {"type": "string", "description": "Wunschname (optional, sonst agent-N)"}, "role": {"type": "string", "description": "z. B. worker, reviewer, tester"}}}}),
-+        json!({"name": "cowork_board", "description": "PlazCode Co-Work: zeigt Tasks, Agents, Datei-Locks und neue Nachrichten. Ohne project: Liste aller Projekte.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone()}}, "annotations": {"readOnlyHint": true}}),
-+        json!({"name": "cowork_claim", "description": "PlazCode Co-Work: uebernimmt atomar den naechsten freien Task (Abhaengigkeiten erledigt, Dateien frei) oder task_id und sperrt seine Dateien. Liefert Details und Ergebnisse der Vorgaenger.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}}, "required": ["agent"]}}),
-+        json!({"name": "cowork_update", "description": "PlazCode Co-Work: Task-Status setzen. done (mit result: was gemacht, welche Dateien), blocked (mit Grund, geht an den Lead), open (freigeben). Gibt Datei-Locks frei.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}, "status": {"type": "string", "enum": ["done", "blocked", "open", "claimed"]}, "result": {"type": "string"}}, "required": ["agent", "task_id", "status"]}}),
-+        json!({"name": "cowork_add_tasks", "description": "PlazCode Co-Work: weitere Tasks zum Projekt hinzufuegen (z. B. Fixes, Tests, Integration).", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "tasks": tasks}, "required": ["agent", "tasks"]}}),
++        json!({"name": "cowork_start", "description": "PlazCode Co-Work: startet im Main Chat ein Projekt, an dem mehrere Notion-AI-Chats (Browser-Tabs) mit festen Rollen gleichzeitig arbeiten. Der Aufrufer wird Lead. Ziel in 4-15 kleine, moeglichst parallele Tasks zerlegen, jedem Task eine role geben (nur benoetigte Rollen) und fuer Code/UI review setzen. Vorher plazcode_skill name=cowork lesen.", "inputSchema": {"type": "object", "properties": {"title": {"type": "string"}, "goal": {"type": "string", "description": "Gesamtziel inkl. Tech-Stack, Ordner, Konventionen, Schnittstellen"}, "agent": {"type": "string", "description": "Name des Leads (optional)"}, "stale_minutes": {"type": "integer", "minimum": 1, "maximum": 240, "description": "Nach so vielen Minuten Inaktivitaet werden Tasks eines Agents wieder frei (Standard 20)"}, "tasks": tasks.clone()}, "required": ["title", "goal"]}}),
++        json!({"name": "cowork_join", "description": format!("PlazCode Co-Work: diesen Chat mit einer festen Rolle einem Co-Work-Projekt beitreten. Liefert Agent-Namen, Rollen-Anleitung, Ablauf und Board. Danach cowork_claim. Rollen: {role_list} (eigene Rollen erlaubt)."), "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": {"type": "string", "description": "Wunschname (optional, sonst <rolle>-N)"}, "role": {"type": "string", "description": "Rolle dieses Chats, z. B. coder, reviewer, uiux, prompt, tester, roblox"}}}}),
++        json!({"name": "cowork_board", "description": "PlazCode Co-Work: zeigt Tasks (mit Rolle und Phase), Agents, unbesetzte Rollen, Datei-Locks und neue Nachrichten. Ohne project: Liste aller Projekte.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone()}}, "annotations": {"readOnlyHint": true}}),
++        json!({"name": "cowork_claim", "description": "PlazCode Co-Work: uebernimmt atomar den naechsten passenden Task (zuerst eigene Rolle, dann ohne Rolle, dann unbesetzte Rollen; Abhaengigkeiten erledigt, Dateien frei) oder task_id und sperrt seine Dateien. Liefert Details und Ergebnisse der Vorgaenger.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}}, "required": ["agent"]}}),
++        json!({"name": "cowork_update", "description": "PlazCode Co-Work: Task-Status setzen. done (result: was gemacht, welche Dateien; erzeugt ggf. automatisch einen Review-Task), changes (nur Review-Tasks: result = konkrete Aenderungen, erzeugt einen Fix-Task), blocked (Grund, geht an den Lead), open (freigeben). Gibt Datei-Locks frei.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}, "status": {"type": "string", "enum": ["done", "changes", "blocked", "open", "claimed"]}, "result": {"type": "string"}}, "required": ["agent", "task_id", "status"]}}),
++        json!({"name": "cowork_add_tasks", "description": "PlazCode Co-Work: weitere Tasks (mit role/review) zum Projekt hinzufuegen, z. B. Fixes, Tests, Integration.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "tasks": tasks}, "required": ["agent", "tasks"]}}),
 +        json!({"name": "cowork_message", "description": "PlazCode Co-Work: Nachricht an alle Agents oder an einen (to). Fuer Absprachen zu Schnittstellen, Namen, Problemen.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "text": {"type": "string"}, "to": {"type": "string", "description": "Agent-Name (leer = alle)"}}, "required": ["agent", "text"]}}),
 +        json!({"name": "cowork_lock", "description": "PlazCode Co-Work: zusaetzliche Datei sperren (oder release=true freigeben), bevor du sie bearbeitest, damit kein anderer Agent sie gleichzeitig aendert.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "path": {"type": "string"}, "task_id": {"type": "integer"}, "release": {"type": "boolean"}}, "required": ["agent", "path"]}}),
-+        json!({"name": "cowork_wait", "description": "PlazCode Co-Work: wartet bis zu 45 s auf neue freie Tasks oder Nachrichten und liefert dann das Board. Nutzen, wenn cowork_claim nichts Freies findet.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "seconds": {"type": "integer", "minimum": 1, "maximum": 45}}, "required": ["agent"]}, "annotations": {"readOnlyHint": true}}),
++        json!({"name": "cowork_wait", "description": "PlazCode Co-Work: wartet bis zu 45 s auf neue passende Tasks oder Nachrichten (reagiert sofort, sobald sich etwas aendert) und liefert dann das Board.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "seconds": {"type": "integer", "minimum": 1, "maximum": 45}}, "required": ["agent"]}, "annotations": {"readOnlyHint": true}}),
++        json!({"name": "cowork_results", "description": "PlazCode Co-Work: alle Ergebnisse des Projekts gesammelt (pro Task inkl. Reviews und Fixes) - fuer den Lead, um im Main Chat die finale Antwort zusammenzufuehren.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone()}}, "annotations": {"readOnlyHint": true}}),
 +        json!({"name": "cowork_close", "description": "PlazCode Co-Work: Projekt schliessen und vom Board entfernen (nur auf Wunsch des Nutzers).", "inputSchema": {"type": "object", "properties": {"project": project}, "required": ["project"]}, "annotations": {"destructiveHint": true}}),
 +    ]
 +}
@@ -2100,12 +2509,62 @@ index 0000000..a84e4b3
 +        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "b"}))).contains("#3"));
 +        assert!(dispatch(&mut b, "cowork_claim", &json!({"agent": "b", "task_id": 1})).is_err());
 +        assert!(dispatch(&mut b, "cowork_lock", &json!({"agent": "b", "path": "src\\api.ts"})).is_err());
++        assert!(dispatch(&mut b, "cowork_update", &json!({"agent": "a", "task_id": 1, "status": "done"})).is_err(), "done needs a result");
 +        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "a", "task_id": 1, "status": "done", "result": "api fertig"})));
 +        let c = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "b"})));
 +        assert!(c.contains("#2") && c.contains("api fertig"));
 +        assert!(dispatch(&mut b, "cowork_claim", &json!({"agent": "ghost"})).is_err());
 +        assert!(ok(dispatch(&mut b, "cowork_message", &json!({"agent": "a", "text": "hi", "to": "b"}))).contains("an b"));
 +        assert!(ok(dispatch(&mut b, "cowork_board", &json!({"agent": "b"}))).contains("hi"));
++    }
++
++    #[test]
++    fn roles_review_and_fix_loop() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "App", "goal": "G", "agent": "main", "tasks": [
++            {"title": "api", "role": "Programmierer", "review": "Code-Bewerter", "files": ["api.rs"]},
++            {"title": "screen", "role": "ui/ux", "depends_on": [1]}
++        ]})));
++        assert_eq!(b.projects["p1"].tasks[0].role, "coder");
++        assert_eq!(b.projects["p1"].tasks[0].review, "reviewer");
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "c", "role": "coder"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "r", "role": "reviewer"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "u", "role": "uiux"})));
++        // the reviewer may not take the coder task while a coder is online
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"}))).contains("kein freier Task"));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "c"}))).contains("#1"));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "c", "task_id": 1, "status": "done", "result": "v1"})));
++        // review #3 exists, #2 still waits for the review chain
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "u"}))).contains("kein freier Task"));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"}))).contains("#3"));
++        assert!(dispatch(&mut b, "cowork_update", &json!({"agent": "c", "task_id": 1, "status": "changes", "result": "x"})).is_err());
++        assert!(ok(dispatch(&mut b, "cowork_update", &json!({"agent": "r", "task_id": 3, "status": "changes", "result": "1. null check"}))).contains("Fix-Task #4"));
++        assert_eq!(phase(&b.projects["p1"], &b.projects["p1"].tasks[0]), "review");
++        let fix = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "c"})));
++        assert!(fix.contains("#4") && fix.contains("null check"));
++        assert!(ok(dispatch(&mut b, "cowork_update", &json!({"agent": "c", "task_id": 4, "status": "done", "result": "v2"}))).contains("Review-Task #5"));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"}))).contains("#5"));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "r", "task_id": 5, "status": "done", "result": "ok"})));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "u"}))).contains("#2"));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "u", "task_id": 2, "status": "done", "result": "screen fertig"})));
++        let res = ok(dispatch(&mut b, "cowork_results", &json!({"agent": "main"})));
++        assert!(res.contains("Alle Tasks erledigt") && res.contains("null check") && res.contains("screen fertig"));
++        let dash = dashboard_of(&b);
++        assert_eq!(dash["projects"][0]["done"], 5);
++    }
++
++    #[test]
++    fn unfilled_role_falls_back() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "T", "goal": "G", "agent": "main", "tasks": [{"title": "tests", "role": "tester"}]})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "w"})));
++        let c = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "w"})));
++        assert!(c.contains("#1") && c.contains("gerade unbesetzt"));
++    }
++
++    fn dashboard_of(b: &Board) -> Value {
++        *lock_board() = b.clone();
++        dashboard()
 +    }
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
@@ -2726,10 +3185,10 @@ index 0000000..14686d1
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
 new file mode 100644
-index 0000000..9887a9b
+index 0000000..81d25a2
 --- /dev/null
 +++ b/agent/src/notion_skills.rs
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,141 @@
 +//! PlazCode Notion (unofficial fork): built-in coding skills and control tools
 +//! for Notion AI. Skills are short, opinionated checklists the agent loads
 +//! before it writes code (Roblox/Luau and general app development).
@@ -2808,19 +3267,21 @@ index 0000000..9887a9b
 +- Before pushing: run build/tests, review git diff --staged.
 +- Do not force-push shared branches or rewrite published history without explicit user confirmation.
 +- Releases: bump version file, tag (vX.Y.Z), write release notes."# },
-+    Skill { id: "cowork", title: "Co-Work: several Notion AI chats on one project", body: r#"Co-Work lets several Notion AI chats (browser tabs) build one project in parallel via a shared board (cowork_* tools).
-+LEAD (the chat where the user starts the project):
-+1. Clarify the goal briefly, inspect the existing code/project (files, git, Roblox tree) so tasks are concrete.
-+2. cowork_start with title, goal (stack, folders, naming conventions, interfaces) and 4-15 small tasks. Each task: clear title, detail with acceptance criteria, files it will touch, depends_on for real ordering only. Prefer tasks that touch different files so they can run in parallel; put shared interfaces/types first.
-+3. Tell the user: open more Notion AI tabs and write in each "Tritt Co-Work-Projekt <id> bei".
-+4. Work along yourself (cowork_claim), review finished results (cowork_board), add fix/test/integration tasks with cowork_add_tasks, answer blocked tasks.
-+5. When the board says all tasks are done: final check (build/tests/playtest), then report to the user. Close the project only if the user wants.
-+WORKER (any other chat):
-+1. cowork_join (project id from the user) and remember your agent name; pass it as agent on every cowork call.
-+2. Loop: cowork_claim -> load the matching skill (roblox, roblox-studio, app, debug, git) -> read files before editing -> change only the task files (lock extra files with cowork_lock first) -> verify -> cowork_update status=done with a short result (what changed, which files, how to use it).
-+3. No free task: cowork_wait (repeat a few times). Problems or unclear interface: cowork_message to the lead or status=blocked with the reason.
-+4. Stop when the board reports all tasks done and tell the user briefly what you did.
-+RULES: never edit a file locked by another agent; keep results short but precise so dependent tasks can build on them; do not redo tasks owned by others; do not close the project."# },
++    Skill { id: "cowork", title: "Co-Work: several Notion AI chats with fixed expert roles on one project", body: r#"Co-Work lets several Notion AI chats (browser tabs) build one project in parallel via a shared board (cowork_* tools). The MAIN CHAT is the lead and the only interface to the user; every other tab joins with ONE fixed expert role.
++ROLES: lead = Main Chat, prompt = Prompt-Schreiber, coder = Programmierer, reviewer = Code-Bewerter, uiux = UI/UX-Kritiker, tester = Tester, roblox = Roblox-Spezialist, worker = Generalist. Custom roles are allowed. German names work too ("Programmierer", "Code-Bewerter", "UI/UX-Kritiker" ...).
++LEAD (the chat where the user describes the project):
++1. Understand the goal, inspect the existing code/project (files, git, Roblox tree) so tasks are concrete.
++2. cowork_start with title, goal (stack, folders, conventions, interfaces) and 4-15 small tasks. Each task: clear title, detail with acceptance criteria, role (ONLY roles that are really needed for that task), files it touches, depends_on for real ordering only. Set review=reviewer for code tasks and review=uiux for UI tasks; a review task is then created automatically when the task is done, and requested changes become fix tasks (max 2 rounds, then you decide).
++3. Tell the user which role tabs to open and the exact sentence per tab: "Tritt Co-Work-Projekt <id> bei als <Rolle>". Missing roles are covered by other tabs automatically.
++4. Orchestrate: cowork_wait / cowork_board, answer blocked tasks and messages, add tasks with cowork_add_tasks. Only do tasks yourself if nobody else can.
++5. When the board says ALLE TASKS ERLEDIGT: cowork_results, then merge everything into ONE final, optimized answer for the user (resolve contradictions, include review feedback, no duplicates, clear next steps). Close the project only if the user wants.
++ROLE TAB (any other chat, e.g. "Tritt Co-Work-Projekt p1 bei als Code-Bewerter"):
++1. cowork_join with project and role; remember your agent name and pass it as agent on every cowork call. Act strictly as the expert of your role (the join answer contains the role guide).
++2. Loop: cowork_claim (you get tasks of your role first, then unassigned ones, then tasks of unfilled roles) -> load the matching skill (roblox, roblox-studio, app, debug, git) -> read files before editing -> change only the task files (lock extra files with cowork_lock) -> verify -> cowork_update status=done with a short, precise result (what, which files, how tested).
++3. Review tasks: read, do not rewrite. status=done if good (short verdict) or status=changes with numbered concrete points (file, place, fix).
++4. No free task: cowork_wait (repeat; it wakes up immediately on changes). Problems or unclear interface: cowork_message to the lead or status=blocked with the reason.
++5. Stop when the board reports all tasks done and tell the user briefly what you did.
++RULES: never edit a file locked by another agent; results are required for done/changes/blocked; do not redo tasks owned by others; do not close the project. The PlazCode desktop app shows the live status of all roles and tasks (Co-Work button bottom right)."# },
 +];
 +
 +fn list_text() -> String {
