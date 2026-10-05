@@ -12,6 +12,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.21
+- Echte automatische MCP-Einrichtung an die aktuelle Notion-Oberfläche angepasst: Workspace-Menü → Settings → Connections → Installed/Discover → Custom MCP, zweistufiger URL-/Bearer-Dialog und echte CDP-Mausklicks für Notions sicherheitsrelevanten Connect-Knopf.
+- Beim Chatstart wird pro Account bevorzugt der vorhandene Verlauf **Welcome to Notion / Willkommen bei Notion** geöffnet. Fehlt er, wird bewusst ein neuer Chat benutzt – nie mehr versehentlich ein anderes laufendes Projektgespräch.
+- Worker-Prompts werden über den echten „Submit AI message“-Knopf gesendet; Ctrl+Enter bleibt Fallback. Dadurch funktioniert der Kickoff auch bei der Notion-Einstellung „Enter fügt eine neue Zeile ein“.
+
 ## Neu in 1.0.20
 - Co-Work-Hotfix aus dem echten Vier-Account-Test: Der Worker-Startprompt bleibt im zuvor geöffneten „Willkommen in Notion“-Chat und findet den Composer jetzt anhand Sichtbarkeit, Position und Notion-AI-Platzhalter statt einer falschen Bildschirmhöhen-Grenze.
 - Damit funktionieren auch mittig platzierte Eingabefelder und unterschiedliche Notion-Onboarding-Layouts; der Kopier-Button bleibt Fallback.
