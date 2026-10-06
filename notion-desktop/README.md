@@ -12,6 +12,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.26
+- **Usage-Dashboard (live)** auf der Seite Co-Work: zeigt fuer alle Konten das KI-Kontingent (alle 30 s, auch ohne laufendes Co-Work). Usage kommt jetzt direkt aus der Notion-API des eingeloggten Kontos (Fallback Seitentext); aufgebrauchte Konten werden rot markiert.
+- **Selbst schreiben** pro Co-Work-Tab: stoppt den laufenden Worker-Lauf, zeigt das Fenster und pausiert die automatischen Erinnerungen, damit du in Worker-Chats selbst tippen kannst. **Freigeben** gibt den Tab zurueck an Co-Work. Hat ein Worker-Fenster den Fokus, schickt AdiCode keine Erinnerung hinein.
+- **MCP-Connector** auf der Seite Notion AI: Tab auswaehlen und **AdiCode eintragen** (Settings -> Connections -> Custom MCP) oder **Fuer neue Tabs automatisch eintragen** aktivieren - jeder laufende, eingeloggte Tab ohne Verbindung bekommt AdiCode dann automatisch.
 ## Neu in 1.0.25
 - Co-Work: Der Main-Agent bittet dich nicht mehr, selbst weitere Notion-AI-Tabs zu öffnen. Die Worker-Tabs von AdiCode treten automatisch bei. Nur wenn nach 2 Minuten niemand beigetreten ist, kommt ein Hinweis.
 ## Neu in 1.0.24
