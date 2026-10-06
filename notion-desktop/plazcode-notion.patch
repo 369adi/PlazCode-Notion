@@ -1169,10 +1169,10 @@ index 04ebefa..16ffb12 100644
                  _ if body.starts_with("toolkit-store:") => toolkit_store_url(body).map(UiEvent::OpenExternal),
                  _ => supported_ai_url(body).map(|url|UiEvent::OpenExternal(url.to_owned())).or_else(|| body.strip_prefix("js-error:").map(|message| UiEvent::JsError(message.to_string()))),
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..830c13f 100644
+index 77cc050..1f074e8 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,16 @@ mod media;
+@@ -81,6 +81,17 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -1186,10 +1186,11 @@ index 77cc050..830c13f 100644
 +mod notion_project_memory;
 +mod notion_updates;
 +mod notion_chat;
++mod notion_live;
  
  #[cfg(windows)]
  mod win_msg {
-@@ -726,13 +736,13 @@ fn main() {
+@@ -726,13 +737,13 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -1205,7 +1206,7 @@ index 77cc050..830c13f 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +841,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +842,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -1215,7 +1216,7 @@ index 77cc050..830c13f 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +891,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +892,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -1227,7 +1228,7 @@ index 77cc050..830c13f 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -937,6 +952,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -937,6 +953,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
      updater::start_checker();
@@ -1235,7 +1236,7 @@ index 77cc050..830c13f 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +964,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +965,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -1243,14 +1244,14 @@ index 77cc050..830c13f 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +994,16 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +995,16 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
 +        .route("/api/notion/state", get(notion_mcp::state_handler))
 +        .route("/api/notion/action", post(notion_mcp::action_handler))
 +        .route("/api/notion/updates", get(notion_updates::updates_handler))
-+        .route("/api/notion/cowork-tabs", get(notion_profiles::tabs_handler))
++        .route("/api/notion/cowork-tabs", get(notion_profiles::tabs_handler)).route("/api/notion/live", get(notion_live::handler))
 +        .route("/api/notion/cowork-view", post(notion_profiles::view_handler))
 +        .route("/api/notion/chat/state", get(notion_chat::state_handler))
 +        .route("/api/notion/chat/history", get(notion_chat::history_handler))
@@ -1260,7 +1261,7 @@ index 77cc050..830c13f 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1215,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1216,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -1268,7 +1269,7 @@ index 77cc050..830c13f 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1231,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1232,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -1276,7 +1277,7 @@ index 77cc050..830c13f 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1489,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1490,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -1284,7 +1285,7 @@ index 77cc050..830c13f 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1561,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1562,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -1292,7 +1293,7 @@ index 77cc050..830c13f 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1570,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1571,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -2148,10 +2149,10 @@ index 0000000..88d4724
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..03cd439
+index 0000000..b0734fa
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,738 @@
+@@ -0,0 +1,787 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -2388,6 +2389,25 @@ index 0000000..03cd439
 +@keyframes acV2Border{50%{border-color:#22d3ee}}
 +@media (prefers-reduced-motion:reduce){#page-chat *,#page-chat *:before,#page-chat *:after{animation:none!important;transition:none!important}}
 +</style>
++<style id="adicode-live">
++.ac-live{display:none;margin:0 0 8px;border:1px solid rgba(124,140,255,.28);background:rgba(124,140,255,.08);border-radius:12px;font-size:12.5px;overflow:hidden;animation:acLiveIn .25s ease;cursor:pointer}
++.ac-live.on{display:block}
++.ac-live-head{display:flex;align-items:center;gap:8px;padding:7px 11px;min-width:0}
++.ac-live-head b{white-space:nowrap}
++.ac-live-txt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
++.ac-live-tool{opacity:.55;font-size:11px;white-space:nowrap}
++.ac-live-dot{width:8px;height:8px;border-radius:50%;background:#7c8cff;flex:none;opacity:.6}
++.ac-live-dot.run{background:#4ade80;opacity:1;animation:acLivePulse 1.1s ease-in-out infinite}
++.ac-live-list{border-top:1px solid rgba(124,140,255,.2);max-height:200px;overflow:auto;padding:4px 0}
++.ac-live-row{display:flex;gap:8px;padding:4px 11px;line-height:1.35;animation:acLiveIn .2s ease}
++.ac-live-row .t{opacity:.5;font-size:11px;white-space:nowrap;min-width:54px}
++.ac-live-row .x{flex:1;min-width:0}
++.ac-live-row .g{opacity:.45;font-size:11px;white-space:nowrap}
++.ac-live-row.blk .x{color:#f87171}
++@keyframes acLivePulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}50%{box-shadow:0 0 0 5px rgba(74,222,128,0)}}
++@keyframes acLiveIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
++@media (prefers-reduced-motion:reduce){.ac-live,.ac-live-row,.ac-live-dot.run{animation:none}}
++</style>
 +<section class="page" id="page-chat">
 +  <div class="ac-wrap">
 +    <aside class="ac-side">
@@ -2410,7 +2430,7 @@ index 0000000..03cd439
 +      <div class="ac-cw" id="acCw"></div>
 +      <div class="ac-scroll" id="acScroll"><div class="ac-msgs" id="acMsgs"></div></div>
 +      <div class="ac-foot">
-+        <div class="ac-toast" id="acToast"></div>
++        <div class="ac-live" id="acLive" title="Klicken: Verlauf auf-/zuklappen"></div><div class="ac-toast" id="acToast"></div>
 +        <div class="ac-box" id="acBox">
 +          <div class="ac-att" id="acAtt"></div>
 +          <div class="ac-row">
@@ -2887,15 +2907,45 @@ index 0000000..03cd439
 +  function markHist() { var items = $("acHist").children; for (var i = 0; i < items.length && i < S.hist.length; i++) items[i].classList.toggle("on", sameChat(S.hist[i].url, S.url)); }
 +
 +  render([]);
++  /* ---------- Live: was die KI gerade macht (auf Deutsch) ---------- */
++  var Live = { last: 0, items: [], t: null, open: false, off: 0 };
++  function liveAgo(ts) { var s = Math.max(0, Math.round(Date.now() / 1000 + Live.off - ts)); return s < 60 ? "vor " + s + " s" : "vor " + Math.round(s / 60) + " min"; }
++  function liveRender() {
++    var box = $("acLive"); if (!box) return;
++    var now = Date.now() / 1000 + Live.off, items = Live.items.filter(function (e) { return now - e.ts < 900; });
++    if (!items.length) { box.classList.remove("on"); box.innerHTML = ""; return; }
++    var cur = items[items.length - 1], run = S.gen && now - cur.ts < 180;
++    var h = '<div class="ac-live-head"><span class="ac-live-dot' + (run ? " run" : "") + '"></span><b>' + (run ? "Gerade:" : "Zuletzt:") + '</b><span class="ac-live-txt">' + esc(cur.text) + '</span><span class="ac-live-tool">' + esc(cur.tab + " \u00b7 " + cur.tool + " \u00b7 " + liveAgo(cur.ts)) + ' ' + (Live.open ? "\u25B4" : "\u25BE") + '</span></div>';
++    if (Live.open) {
++      h += '<div class="ac-live-list">' + items.slice(-15).reverse().map(function (e) {
++        return '<div class="ac-live-row' + (/^Blockiert/.test(e.text) ? " blk" : "") + '"><span class="t">' + esc(liveAgo(e.ts)) + '</span><span class="x">' + esc(e.text) + '</span><span class="g">' + esc(e.tab + " \u00b7 " + e.tool) + '</span></div>';
++      }).join("") + '</div>';
++    }
++    box.innerHTML = h; box.classList.add("on");
++  }
++  function livePoll() {
++    clearTimeout(Live.t);
++    if (!active()) { Live.t = setTimeout(livePoll, 2500); return; }
++    api("/api/notion/live?since=" + Live.last).then(function (r) {
++      if (!r) return;
++      if (typeof r.now === "number") Live.off = r.now - Date.now() / 1000;
++      if (typeof r.last === "number" && r.last < Live.last) { Live.last = 0; Live.items = []; return; }
++      (r.items || []).forEach(function (e) { if (e.id > Live.last) Live.items.push(e); });
++      if (Live.items.length > 60) Live.items = Live.items.slice(-60);
++      if (typeof r.last === "number") Live.last = r.last;
++    }).catch(function () {}).then(function () { liveRender(); Live.t = setTimeout(livePoll, S.gen ? 700 : 1600); });
++  }
++  $("acLive").addEventListener("click", function () { Live.open = !Live.open; liveRender(); });
++  livePoll();
 +  if (active()) { poll(); loadHist(); }
 +})();
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..31c1647
+index 0000000..8e00f40
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1324 @@
+@@ -0,0 +1,1339 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -3815,7 +3865,7 @@ index 0000000..31c1647
 +        r
 +    };
 +    Some(match result {
-+        Ok((out, changed)) => { if changed { CHANGED.notify_waiters(); } text(out) }
++        Ok((out, changed)) => { if changed { CHANGED.notify_waiters(); } let out = if name == "cowork_board" { format!("{out}{}", crate::notion_live::tabs_text()) } else { out }; text(out) }
 +        Err(e) => err(e),
 +    })
 +}
@@ -4220,12 +4270,307 @@ index 0000000..31c1647
 +        dashboard()
 +    }
 +}
++
++// ---------------------------------------------------------------- Live-Bridge helpers (notion_live, immer an)
++pub(crate) fn ps_writes(cmd_lower: &str) -> bool { PS_WRITE.iter().any(|w| cmd_lower.contains(w)) }
++
++pub(crate) fn live_write_paths(name: &str, args: &Value) -> Option<Vec<String>> {
++    if matches!(name, "files_create_directory" | "git_git_checkout" | "git_git_reset" | "git_git_add") { return None; }
++    let v: Vec<String> = write_targets(name, args)?
++        .iter()
++        .map(|t| norm_path(t).trim_end_matches('/').to_string())
++        .filter(|t| !t.is_empty() && t != ".")
++        .collect();
++    if v.is_empty() { None } else { Some(v) }
++}
++
++pub(crate) fn live_same(a: &str, b: &str) -> bool { path_hits(a, b) || path_hits(b, a) }
+\ No newline at end of file
+diff --git a/agent/src/notion_live.rs b/agent/src/notion_live.rs
+new file mode 100644
+index 0000000..4c87c6f
+--- /dev/null
++++ b/agent/src/notion_live.rs
+@@ -0,0 +1,273 @@
++//! Live-Bridge (immer an): Alle Notion-AI-Tabs (MCP-Sessions) sehen sich gegenseitig - auch ohne
++//! "Co-Work starten". Jeder Tool-Aufruf landet mit deutscher Klartext-Beschreibung im Live-Feed,
++//! den der AdiCode-Chat live anzeigt. Dateien, die ein Tab gerade schreibt, sind fuer die anderen
++//! Tabs kurz reserviert. AdiCode schreibt dabei nie selbst in einen Chat.
++use axum::{extract::Query, response::IntoResponse, Json};
++use once_cell::sync::Lazy;
++use regex::Regex;
++use serde::Deserialize;
++use serde_json::{json, Value};
++use std::{collections::{BTreeMap, VecDeque}, sync::Mutex};
++
++const MAX_FEED: usize = 300;
++/// Eine geschriebene Datei bleibt so lange fuer den schreibenden Tab reserviert.
++const LOCK_SECS: i64 = 300;
++/// Tabs ohne Aufruf seit dieser Zeit gelten als inaktiv.
++const ACTIVE_SECS: i64 = 900;
++
++#[derive(Clone)]
++struct Entry { id: u64, ts: i64, tab: String, tool: String, text: String }
++
++struct TabInfo { label: String, seen: i64, last: String }
++
++#[derive(Default)]
++struct Live {
++    next: u64,
++    count: u64,
++    feed: VecDeque<Entry>,
++    tabs: BTreeMap<String, TabInfo>,
++    locks: BTreeMap<String, (String, i64)>,
++}
++
++static LIVE: Lazy<Mutex<Live>> = Lazy::new(|| Mutex::new(Live::default()));
++static FILE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"([A-Za-z0-9_\-][A-Za-z0-9_.\-]*\.(?:rs|html|md|ps1|json|log|toml|lua|luau|js|ts|py|txt|patch|css|bak\d*))\b").unwrap());
++static PAT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?i)-pattern\s+['"]([^'"]{1,80})['"]"#).unwrap());
++static SLEEP_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)start-sleep\s+(?:-s(?:econds)?\s+)?(\d+)").unwrap());
++
++fn live() -> std::sync::MutexGuard<'static, Live> { LIVE.lock().unwrap_or_else(|e| e.into_inner()) }
++fn now() -> i64 { chrono::Utc::now().timestamp() }
++fn arg(a: &Value, k: &str) -> String { a[k].as_str().unwrap_or("").trim().to_string() }
++fn file_name(p: &str) -> String {
++    let p = p.trim().trim_matches(|c: char| c == '"' || c == '\'');
++    p.rsplit(|c: char| c == '\\' || c == '/').find(|x| !x.is_empty()).unwrap_or(p).to_string()
++}
++fn cut(s: &str, n: usize) -> String {
++    let s: String = s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
++    let s = s.trim();
++    if s.chars().count() > n { format!("{}\u{2026}", s.chars().take(n).collect::<String>()) } else { s.to_string() }
++}
++fn push(parts: &mut Vec<String>, s: String) { if !parts.contains(&s) && parts.len() < 4 { parts.push(s); } }
++fn upper_first(s: &str) -> String {
++    let mut c = s.chars();
++    match c.next() { Some(f) => f.to_uppercase().collect::<String>() + c.as_str(), None => String::new() }
++}
++fn tidy(name: &str, prefix: &str) -> String { name.trim_start_matches(prefix).replace('_', " ") }
++
++/// Uebersetzt einen PowerShell-Befehl in einen kurzen deutschen Satz.
++pub(crate) fn describe_ps(cmd: &str) -> String {
++    let l = cmd.to_ascii_lowercase();
++    let mut files: Vec<String> = Vec::new();
++    for c in FILE_RE.captures_iter(cmd) {
++        let f = c[1].to_string();
++        if !files.contains(&f) && files.len() < 3 { files.push(f); }
++    }
++    let fl = if files.is_empty() { String::new() } else { format!(" ({})", files.join(", ")) };
++    let mut parts: Vec<String> = Vec::new();
++    if l.contains("cargo test") { push(&mut parts, "führt die automatischen Tests aus".into()); }
++    if l.contains("cargo build") { push(&mut parts, "baut (kompiliert) die App".into()); }
++    if l.contains("git fetch") || l.contains("git pull") { push(&mut parts, "holt den neuesten Stand von GitHub".into()); }
++    if ["git status", "git diff", "git log", "git show"].iter().any(|w| l.contains(w)) { push(&mut parts, "schaut sich den Git-Stand an".into()); }
++    if l.contains("git commit") { push(&mut parts, "speichert die Änderungen als Git-Commit".into()); }
++    if l.contains("git push") { push(&mut parts, "lädt die Änderungen zu GitHub hoch".into()); }
++    if let Some(c) = PAT_RE.captures(cmd) { push(&mut parts, format!("durchsucht Dateien nach „{}“", cut(&c[1], 40))); }
++    else if l.contains("select-string") { push(&mut parts, format!("durchsucht Dateien{fl}")); }
++    if l.contains("get-content") || l.contains("readalltext") { push(&mut parts, format!("liest Datei-Inhalt{fl}")); }
++    if ["set-content", "add-content", "out-file", "writealltext", "writeallbytes", "writealllines", "appendalltext"].iter().any(|w| l.contains(w)) {
++        push(&mut parts, format!("schreibt/ändert Dateien{fl}"));
++    }
++    if l.contains("copy-item") { push(&mut parts, "legt eine Kopie/Backup an".into()); }
++    if l.contains("remove-item") { push(&mut parts, "löscht Dateien".into()); }
++    if l.contains("get-childitem") { push(&mut parts, "listet Dateien im Ordner auf".into()); }
++    if l.contains("websocket") || l.contains("runtime.evaluate") { push(&mut parts, "schaut live in die Notion-Fenster (Browser-Steuerung)".into()); }
++    else if l.contains("invoke-restmethod") || l.contains("invoke-webrequest") { push(&mut parts, "fragt einen lokalen Dienst ab".into()); }
++    if l.contains("start-process") { push(&mut parts, "startet ein Skript/Programm im Hintergrund".into()); }
++    if l.contains("get-process") || l.contains("get-nettcpconnection") { push(&mut parts, "prüft laufende Programme und Ports".into()); }
++    if let Some(c) = SLEEP_RE.captures(&l) { push(&mut parts, format!("wartet {} Sekunden", &c[1])); }
++    if parts.is_empty() {
++        return format!("Führt einen PowerShell-Befehl aus: {}", cut(cmd.lines().next().unwrap_or(""), 70));
++    }
++    upper_first(&parts.join(", dann "))
++}
++
++/// Deutscher Klartext fuer einen Tool-Aufruf (was die KI gerade macht).
++pub(crate) fn describe(name: &str, args: &Value) -> String {
++    let p = |k: &str| file_name(&arg(args, k));
++    let sub = |prefix: &str| tidy(name, prefix);
++    let s: String = match name {
++        "pc_PowerShell" => describe_ps(&arg(args, "command")),
++        "files_read_file" | "safe_read_file" => format!("Liest Datei {}", p("path")),
++        "files_read_multiple_files" => "Liest mehrere Dateien".into(),
++        "files_write_file" | "safe_write_file" => format!("Schreibt Datei {}", p("path")),
++        "files_edit_file" => format!("Ändert Datei {}", p("path")),
++        "files_create_directory" => format!("Legt den Ordner {} an", p("path")),
++        "files_move_file" => format!("Verschiebt {} nach {}", p("source"), p("destination")),
++        "files_list_directory" | "files_directory_tree" | "files_list_directory_with_sizes" => format!("Schaut in den Ordner {}", p("path")),
++        "files_search_files" => format!("Sucht Dateien nach „{}“", cut(&arg(args, "pattern"), 40)),
++        "files_get_file_info" => format!("Prüft Datei {}", p("path")),
++        "project_memory_open" => "Öffnet das Projektgedächtnis".into(),
++        "project_memory_search" => "Durchsucht das Projektgedächtnis".into(),
++        "project_memory_update" => "Speichert den Fortschritt im Projektgedächtnis".into(),
++        "adicode_skill" => {
++            let a = arg(args, "name");
++            let n = if a.is_empty() { arg(args, "skill") } else { a };
++            if n.is_empty() { "Lädt eine AdiCode-Anleitung".into() } else { format!("Lädt die Anleitung „{n}“") }
++        }
++        "adicode_status" => "Prüft, was in AdiCode gerade läuft".into(),
++        "adicode_restart_server" => "Startet ein AdiCode-Add-on neu".into(),
++        "cowork_start" => "Co-Work: teilt das Projekt in Aufgaben auf und startet es".into(),
++        "cowork_join" => "Co-Work: tritt dem Projekt bei".into(),
++        "cowork_board" => "Co-Work: schaut aufs Aufgaben-Board".into(),
++        "cowork_claim" => "Co-Work: übernimmt die nächste Aufgabe".into(),
++        "cowork_update" => "Co-Work: meldet den Stand einer Aufgabe".into(),
++        "cowork_prompt" => "Co-Work: gibt deine neue Nachricht an alle Tabs weiter".into(),
++        "cowork_add_tasks" => "Co-Work: fügt neue Aufgaben hinzu".into(),
++        "cowork_message" => "Co-Work: schreibt den anderen Tabs eine Nachricht".into(),
++        "cowork_lock" => "Co-Work: reserviert eine Datei".into(),
++        "cowork_wait" => "Co-Work: wartet auf die anderen Tabs".into(),
++        "cowork_results" => "Co-Work: sammelt alle Ergebnisse ein".into(),
++        "cowork_close" => "Co-Work: schließt das Projekt ab".into(),
++        "roblox_execute_luau" => "Führt Luau-Code in Roblox Studio aus".into(),
++        "roblox_studio" => format!("Roblox Studio: {}", arg(args, "action").replace('_', " ")),
++        _ if name.starts_with("git_") => format!("Git: {}", sub("git_")),
++        _ if name.starts_with("github_") => format!("GitHub: {}", sub("github_")),
++        _ if name.starts_with("browser_") => format!("Steuert den Browser: {}", sub("browser_")),
++        _ if name.starts_with("roblox_") => format!("Roblox Studio: {}", sub("roblox_")),
++        _ if name.starts_with("context7_") => "Liest aktuelle Library-Dokumentation".into(),
++        _ if name.starts_with("thinking_") => "Plant die nächsten Schritte".into(),
++        _ if name.starts_with("memory_") => "Nutzt das Projektgedächtnis".into(),
++        _ if name.starts_with("web_") => "Steuert freigegebene KI-Chat-Tabs".into(),
++        _ if name.starts_with("files_") => format!("Dateien: {}", sub("files_")),
++        _ if name.starts_with("pc_") => format!("Steuert den PC: {}", sub("pc_")),
++        _ => format!("Nutzt das Werkzeug {name}"),
++    };
++    cut(&s, 160)
++}
++
++/// Jeder Tool-Aufruf: Tab merken und Klartext in den Live-Feed schreiben.
++pub(crate) fn record(session: &str, name: &str, args: &Value) {
++    let text = describe(name, args);
++    let t = now();
++    let l = &mut *live();
++    let key = if session.is_empty() { "-".to_string() } else { session.to_string() };
++    if !l.tabs.contains_key(&key) {
++        l.count += 1;
++        let label = format!("Chat {}", l.count);
++        l.tabs.insert(key.clone(), TabInfo { label, seen: t, last: String::new() });
++    }
++    let label = match l.tabs.get_mut(&key) {
++        Some(x) => { x.seen = t; x.last = text.clone(); x.label.clone() }
++        None => String::new(),
++    };
++    l.next += 1;
++    let id = l.next;
++    l.feed.push_back(Entry { id, ts: t, tab: label, tool: name.to_string(), text });
++    while l.feed.len() > MAX_FEED { l.feed.pop_front(); }
++    l.tabs.retain(|_, x| t - x.seen < 86_400);
++}
++
++/// Immer aktive Bridge: blockiert Schreibzugriffe auf Dateien, die ein anderer Tab gerade schreibt,
++/// und reserviert freie Dateien automatisch fuer den schreibenden Tab.
++pub(crate) fn guard(session: &str, name: &str, args: &Value) -> Option<String> {
++    if session.is_empty() || name.starts_with("cowork_") { return None; }
++    let t = now();
++    let l = &mut *live();
++    l.locks.retain(|_, (_, ts)| t - *ts < LOCK_SECS);
++    let hit: Option<(String, String, i64)> = if name == "pc_PowerShell" {
++        let cmd = arg(args, "command").to_ascii_lowercase().replace('\\', "/");
++        if !crate::notion_cowork::ps_writes(&cmd) { return None; }
++        l.locks.iter()
++            .find(|(k, (o, _))| {
++                let ks = k.as_str();
++                let f = ks.rsplit('/').next().unwrap_or(ks);
++                o.as_str() != session && (cmd.contains(ks) || (f.len() >= 4 && cmd.contains(f)))
++            })
++            .map(|(k, (o, ts))| (k.clone(), o.clone(), *ts))
++    } else {
++        let targets = crate::notion_cowork::live_write_paths(name, args)?;
++        let hit = targets.iter().find_map(|tg| {
++            l.locks.iter()
++                .find(|(k, (o, _))| o.as_str() != session && crate::notion_cowork::live_same(tg, k.as_str()))
++                .map(|(k, (o, ts))| (k.clone(), o.clone(), *ts))
++        });
++        if hit.is_none() {
++            for tg in targets { l.locks.insert(tg, (session.to_string(), t)); }
++        }
++        hit
++    };
++    let (path, owner, ts) = hit?;
++    let who = l.tabs.get(&owner).map(|x| x.label.clone()).unwrap_or_else(|| "ein anderer Chat".into());
++    let me = l.tabs.get(session).map(|x| x.label.clone()).unwrap_or_else(|| "Chat".into());
++    l.next += 1;
++    let id = l.next;
++    l.feed.push_back(Entry { id, ts: t, tab: me, tool: name.to_string(), text: format!("Blockiert: wollte {} ändern, aber {who} bearbeitet die Datei gerade", file_name(&path)) });
++    while l.feed.len() > MAX_FEED { l.feed.pop_front(); }
++    Some(format!(
++        "[AdiCode Live-Bridge] {path} wird gerade von {who} bearbeitet (letzte Änderung vor {} s). Nicht ändern, sonst geht dessen Arbeit kaputt. Kurz warten, eine andere Aufgabe machen oder per cowork_message abstimmen. Die Reservierung läuft {} Minuten nach der letzten Änderung ab.",
++        t - ts, LOCK_SECS / 60
++    ))
++}
++
++/// Text fuer cowork_board: welche Chats gerade aktiv sind und was sie tun.
++pub(crate) fn tabs_text() -> String {
++    let t = now();
++    let l = live();
++    let act: Vec<&TabInfo> = l.tabs.values().filter(|x| t - x.seen < ACTIVE_SECS).collect();
++    if act.is_empty() { return String::new(); }
++    let mut s = String::from("\n\nLive-Bridge (immer an) - aktive Chats:");
++    for x in act { s.push_str(&format!("\n- {}: {} (vor {} s)", x.label, x.last, t - x.seen)); }
++    for (k, (o, ts)) in l.locks.iter().filter(|(_, (_, ts))| t - *ts < LOCK_SECS) {
++        let who = l.tabs.get(o).map(|x| x.label.as_str()).unwrap_or("?");
++        s.push_str(&format!("\n  Datei {k} reserviert von {who} (vor {} s)", t - ts));
++    }
++    s
++}
++
++pub(crate) fn feed(since: u64) -> Value {
++    let t = now();
++    let l = live();
++    let mut items: Vec<Value> = l.feed.iter().rev().take_while(|e| e.id > since).take(40)
++        .map(|e| json!({"id": e.id, "ts": e.ts, "tab": e.tab, "tool": e.tool, "text": e.text}))
++        .collect();
++    items.reverse();
++    let tabs: Vec<Value> = l.tabs.values().filter(|x| t - x.seen < ACTIVE_SECS)
++        .map(|x| json!({"tab": x.label, "ago": t - x.seen, "text": x.last}))
++        .collect();
++    json!({"ok": true, "now": t, "last": l.next, "items": items, "tabs": tabs, "locks": l.locks.len()})
++}
++
++#[derive(Deserialize)]
++pub struct FeedQuery { since: Option<u64> }
++
++pub async fn handler(Query(q): Query<FeedQuery>) -> impl IntoResponse { Json(feed(q.since.unwrap_or(0))) }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn notion_live_translates_tool_calls() {
++        let d = describe("pc_PowerShell", &json!({"command": "cd src; Select-String -Path *.rs -Pattern 'Senden-Knopf'; Start-Sleep 20"}));
++        assert!(d.starts_with("Durchsucht Dateien nach „Senden-Knopf“"), "{d}");
++        assert!(d.contains("wartet 20 Sekunden"), "{d}");
++        assert!(describe("pc_PowerShell", &json!({"command": "cargo test --release"})).contains("Tests"));
++        assert!(describe("pc_PowerShell", &json!({"command": "Get-Content src\\notion_chat.rs"})).contains("notion_chat.rs"));
++        assert_eq!(describe("files_read_file", &json!({"path": "a/b/notion_chat.rs"})), "Liest Datei notion_chat.rs");
++        assert!(describe("cowork_claim", &json!({})).starts_with("Co-Work"));
++        assert!(describe("pc_PowerShell", &json!({"command": "whoami"})).contains("whoami"));
++    }
++
++    #[test]
++    fn notion_live_bridge_blocks_other_tab() {
++        let (a, b) = ("live-test-a", "live-test-b");
++        let w = json!({"path": "zz_live_test/x.txt", "content": "1"});
++        record(a, "files_write_file", &w);
++        record(b, "files_write_file", &w);
++        assert!(guard(a, "files_write_file", &w).is_none());
++        let m = guard(b, "files_write_file", &w).expect("zweiter Tab muss blockiert werden");
++        assert!(m.contains("Live-Bridge"), "{m}");
++        assert!(guard(a, "files_write_file", &w).is_none());
++        assert!(guard(b, "files_write_file", &json!({"path": "zz_live_test/y.txt", "content": "1"})).is_none());
++        assert!(feed(0)["items"].as_array().map(|v| !v.is_empty()).unwrap_or(false));
++        assert!(tabs_text().contains("aktive Chats"));
++    }
++}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..8c3f01f
+index 0000000..29122c1
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1003 @@
+@@ -0,0 +1,1007 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -4503,10 +4848,14 @@ index 0000000..8c3f01f
 +    let args = params.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
 +    *lock(&SHARED.last_request) = Some((chrono::Local::now(), name.clone()));
 +    let session = params["_session"].as_str().unwrap_or("").to_string();
++    crate::notion_live::record(&session, &name, &args);
 +    if let Some(out) = crate::notion_cowork::call(&name, &args, &session).await {
 +        return out;
 +    }
 +    if let Some(msg) = crate::notion_cowork::bridge_guard(&name, &args, &session) {
++        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
++    }
++    if let Some(msg) = crate::notion_live::guard(&session, &name, &args) {
 +        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
 +    }
 +    if let Some(msg) = crate::notion_safety::guard_tool(&name, &args) {

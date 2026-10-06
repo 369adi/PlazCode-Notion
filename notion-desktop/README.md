@@ -164,6 +164,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.86
 - **Fix: "Senden-Knopf von Notion nicht gefunden"**: Notion hat die internen Namen von Senden- und Stopp-Knopf geaendert. AdiCode erkennt jetzt alte und neue Namen (Senden, Stoppen, "KI schreibt gerade"). Damit funktionieren Chat-Senden und Co-Work-Erkennung wieder.
 - **Chat-Design v2**: uebersichtlichere Seitenleiste, Kopfzeile, Nachrichten, Code-Bloecke und Eingabefeld mit sanften Animationen (respektiert reduzierte Animationen).
+## Neu in 1.0.87
+- **Live-Anzeige auf Deutsch im AdiCode-Chat**: Ueber dem Eingabefeld steht live, was die KI gerade macht - nicht nur "pc_PowerShell", sondern uebersetzt (z. B. "Durchsucht Dateien nach ...", "Liest Datei notion_chat.rs", "Fuehrt die Tests aus", "Wartet 20 Sekunden"). Klick klappt den Verlauf der letzten Schritte auf.
+- **Tabs sehen sich immer gegenseitig**: Die Co-Work-Bridge ist jetzt immer an, auch ohne "Co-Work starten". Schreibt ein Chat eine Datei, ist sie 5 Minuten fuer die anderen Chats reserviert; cowork_board zeigt alle aktiven Chats und was sie gerade tun.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

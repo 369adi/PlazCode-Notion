@@ -142,6 +142,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - **1.0.82**: MAX_TABS 8, prompt_for Basisrolle, action cowork_check_one, account-cache.json
 - **1.0.83**: STUCK_LOAD_JS meldet layout, load_watchdog navigiert bei Stuck
 - **1.0.86**: notion_chat.rs Helper __q mit Alias-Tabelle __A: agent-chat-send-button -> agent-send-message-button, agent-chat-stop-button -> agent-stop-inference-button. notion_profiles.rs: Stopp-Selektoren um agent-stop-inference-button erweitert. Chat-v2-Style (adicode-chat-v2) in notion_chat_ui.html + render() ac-upd. Backups bugtest\*.bak185/.bak186.
+- **1.0.87**: neues Modul notion_live.rs (Live-Feed + deutsche Uebersetzung describe()/describe_ps(), immer aktive Datei-Reservierung guard() pro MCP-Session, Route /api/notion/live). notion_mcp.rs call_tool: record() + guard(). notion_cowork.rs: ps_writes/live_write_paths/live_same, cowork_board haengt tabs_text() an. notion_chat_ui.html: Live-Leiste #acLive. Backups bugtest\*.bak187.
 
 ## 12. Arbeitsstand
 - Releases bei GitHub-Actions-Störung: `C:\Users\liket\PlazCode-Shared\work\rel.ps1` + `work\pub.ps1`.
