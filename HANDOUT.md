@@ -234,6 +234,12 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - Kollege: seine Domain liefert ERR_NGROK_3200 (Endpoint offline) -> Notion: 'URL doesn't point to a supported MCP endpoint'. Ursache = sein ngrok-Tunnel startet nicht, NICHT der Token. Verdacht: Adrians ngrok-Authtoken in seiner ngrok.yml (Domain gehoert nicht zum Konto / ERR_NGROK_108). Loesung: eigener Authtoken (dashboard.ngrok.com > Your Authtoken) auf Notion AI > Tunnel eintragen, eigene Domain, Tunnel muss 'online' zeigen. Pruefen: curl -i https://<domain>/mcp -> 401 = ok, Header Ngrok-Error-Code = Tunnel-Problem.
 - 1.0.70: ngrok-stderr wird gesammelt (vorher nur 'ERROR:'), neue Fehlertexte 8012/121/105/107. Fenster-Waechter in notion_profiles.rs windows (WANT/PIDCACHE/APPLY, guard 0,9 s) versteckt neue Fenster versteckter Worker; Zeigen nur Hauptfenster. Backups bugtest\*.bak170.
 
+## STAND 1.0.75
+- setup_mcp/check_usage_ui nutzen open_settings(port): Konto-Menue oben ODER unten links, trusted CDP-Klicks, Escape, Fallback Strg+,.
+- wait_ready/poll_js statt fester Sleeps (Seite darf laden).
+- FILL_JS: Name AdiCode + Bearer-Token (auch deutscher Dialog 'Individueller MCP-Server'), Auth ggf. auf Bearer, wartet auf aktiven Verbinden-Knopf.
+- Ungetestet live: Kollegen-Layout mit Menue unten.
+
 ## STAND 1.0.74 (released)
 - ngrok-Schnellstart (Aktion ngrok_quick_start, Knopf nQuickStart): Authtoken einfuegen -> Start. Installiert eigenes ngrok (base_dir), add-authtoken, killt alle ngrok, ermittelt Gratis-Domain (ngrok ohne --url, url= aus Log), startet Tunnel, testet POST /mcp = 401 ohne Ngrok-Error-Code.
 - 'ngrok ist zu alt' beim Kollegen: find_ngrok nahm altes ngrok aus PATH, Neu-installieren landete in base_dir und wurde ignoriert. Jetzt: eigenes ngrok zuerst, install killt alte Prozesse + setzt ngrok_path, Schnellstart reinstalliert bei 'zu alt'.
