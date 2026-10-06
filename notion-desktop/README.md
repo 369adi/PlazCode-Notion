@@ -133,6 +133,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.75
 - **Einstellungen oeffnen zuverlaessiger**: klappt jetzt auch, wenn das Konto-Menue in Notion unten statt oben ist; Seiten duerfen fertig laden.
 - **MCP-Auto-Einrichtung**: traegt Name (AdiCode) und Bearer-Token automatisch ein, auch im deutschen Dialog.
+## Neu in 1.0.76
+- **Notion immer auf Englisch**: AdiCode stellt jedes Konto automatisch auf English (US) um (Einstellungen > Sprache), damit es keine Sprachprobleme gibt.
+- **MCP schon vorhanden**: meldet Notion bereits hinzugefuegt, gilt das jetzt als verbunden statt als Fehler.
+- **Chat-Anzeige**: erkennt die offenen Chats zuverlaessiger (nur Seitenleiste, offene Dialoge werden vorher geschlossen).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

@@ -148,6 +148,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.73**: find_ngrok bevorzugt base_dir\ngrok.exe, install_ngrok killt alle ngrok + setzt ngrok_path, quick_start nutzt eigenes ngrok + Reinstall bei zu alt, authtoken_mask im State/UI, Install-Knopf mit Feedback
 - **1.0.74**: ensure_real_ngrok_config (Store-ngrok.yml -> %LOCALAPPDATA%\ngrok)
 - **1.0.75**: open_settings (Menue oben/unten, trusted CDP-Klicks, Strg+, Fallback), FILL_JS Name+Bearer-Token, wait_ready/poll_js
+- **1.0.76**: set_english (LANG_*_JS, Aktion cowork_set_english, in check_one+setup_mcp), ALREADY_JS/mcp_already, SETTINGS_ITEM_JS nur im Menue, CHATS_JS nur Seitenleiste
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.
