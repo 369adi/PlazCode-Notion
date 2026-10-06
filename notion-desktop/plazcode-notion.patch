@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..eb460fc 100644
+index 07dc4c0..0d20a2f 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -424,7 +424,7 @@ index 07dc4c0..eb460fc 100644
        </section>
        <section class="page" id="page-terminal">
          <div class="page-head"><div><div class="page-title">Terminal</div><div class="page-sub">Live bridge, Studio, MCP, and AgentScript logs.</div></div><div style="margin-left:auto;display:flex;gap:8px"><button class="softbtn" id="restartMcp">Restart MCP</button><button class="clearbtn" id="clearTerminal">Clear</button></div></div>
-@@ -382,24 +557,153 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -382,24 +557,163 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
        <section class="page" id="page-models"><div class="page-head"><div><h1>Model Builder</h1><p>Describe a model, review the preview, then add it to Roblox Studio.</p></div></div><div id="modelWorkspace"></div></section>
        <section class="page" id="page-ui"><div class="page-head"><div><h1>UI Builder</h1><p>Describe a menu or HUD, check its layout, then add it to Roblox Studio.</p></div></div><div id="uiWorkspace"></div></section>
        <section class="page" id="page-toolkit"><div class="page-head"><div><h1>Toolkit</h1><p>Start game systems with AI, run Studio tools, and keep saved place backups.</p></div></div><div id="toolkitWorkspace"></div></section>
@@ -528,6 +528,15 @@ index 07dc4c0..eb460fc 100644
 +          #page-cowork .cwrow .cwacts button{min-width:48px;height:46px;padding:4px 5px 3px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
 +          #page-cowork .cwrow .cwacts button svg{width:17px;height:17px;margin:0}
 +          #page-cowork .cwrow .cwacts .lbl,#page-cowork .cwrow .cwacts button.wide .lbl{display:block;font-size:10px;line-height:1;margin:0;opacity:.85;white-space:nowrap}
++          #page-cowork .cwprog{display:flex;align-items:center;gap:10px;margin-top:8px;min-width:260px}
++          #page-cowork .cwprog[hidden]{display:none}
++          #page-cowork .cwpbar{flex:1;height:8px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden}
++          #page-cowork .cwpbar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,#6c5cff,#4aa8ff);transition:width .5s}
++          #page-cowork .cwprog.done .cwpbar i{background:#31e0a4}
++          #page-cowork .cwprog.done b{color:#31e0a4}
++          #page-cowork .cwprog.fail .cwpbar i{background:#ff5c7a}
++          #page-cowork .cwprog.fail b{color:#ff5c7a}
++          #page-cowork .cwprog b{font-size:13px;white-space:nowrap}
 +          #page-cowork .cwchk{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-left:48px}
 +          #page-cowork .cwchip{font-size:13px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);white-space:nowrap}
 +          #page-cowork .cwchip.ok{color:#31e0a4;border-color:rgba(49,224,164,.45);background:rgba(49,224,164,.1)}
@@ -546,6 +555,7 @@ index 07dc4c0..eb460fc 100644
 +            <div class="cwsess-k">Session</div>
 +            <div id="cwUsageSum" class="cwsum">&ndash;</div>
 +            <div class="cwstatus"><span id="cwMsg"></span> <span id="cwBrowserMsg"></span></div>
++          <div class="cwprog" id="cwProg" hidden><div class="cwpbar"><i id="cwProgBar"></i></div><b id="cwProgTxt"></b></div>
 +          </div>
 +          <div class="cwsess-r">
 +            <div class="cwbrow"><select id="cwBrowserSel"><option value="">Browser ausw&auml;hlen &hellip;</option></select><span id="cwBrowser" hidden></span><button class="softbtn cwbpick" id="cwBrowserBtn" type="button"></button><div class="cwbmenu" id="cwBrowserMenu" hidden></div></div>
@@ -585,7 +595,7 @@ index 07dc4c0..eb460fc 100644
              <div class="settingrow"><label>Permissions</label><select data-pref="rsPermMode"><option value="sandbox">Sandbox</option><option value="ask">Ask</option><option value="full">Full</option></select></div><p class="settinghelp"><strong>Sandbox:</strong> AgentScript stays inside the connected project folder. <strong>Ask:</strong> request approval for writes and command execution. <strong>Full:</strong> allow AgentScript to work outside the project folder and run PC commands. Roblox actions still use the connected Studio bridge.</p>
            </div>
            <div class="settingcard"><h3>Reasoning</h3><p>Matches the extension work and thinking controls.</p>
-@@ -408,7 +712,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -408,7 +722,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="settingrow"><label>Extra Thinking</label><div class="toggle" data-pref="rsExtraThinking"></div></div>
              <div class="settingrow"><label>Plan Mode</label><div class="toggle" data-pref="rsPlanMode"></div></div>
            </div>
@@ -594,7 +604,7 @@ index 07dc4c0..eb460fc 100644
              <div class="settingrow"><label>Forge UI</label><div class="toggle" data-pref="rsForgeMode"></div></div>
              <div class="settingrow"><label>Auto Fix</label><div class="toggle" data-pref="rsAutoFix"></div></div>
              <div class="settingrow"><label>Background Mode</label><div class="toggle" data-pref="rsBgMode"></div></div>
-@@ -419,10 +723,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -419,10 +733,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="instructions-actions"><button class="softbtn" id="saveInstructions">Save</button><span class="instructions-status" id="instructionsStatus" role="status"></span></div>
  
            </div>
@@ -607,7 +617,7 @@ index 07dc4c0..eb460fc 100644
            </div>
          </div>
        </section>
-@@ -480,7 +784,7 @@ __PLAZCODE_VERSION_UI__
+@@ -480,7 +794,7 @@ __PLAZCODE_VERSION_UI__
          window.ipc.postMessage(String(Message));
        }
      } catch (Error) {
@@ -616,7 +626,7 @@ index 07dc4c0..eb460fc 100644
      }
    }
  
-@@ -520,7 +824,7 @@ __PLAZCODE_VERSION_UI__
+@@ -520,7 +834,7 @@ __PLAZCODE_VERSION_UI__
  
    function Showerror(Error) {
      var Message = Error && Error.message ? Error.message : String(Error);
@@ -625,7 +635,7 @@ index 07dc4c0..eb460fc 100644
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
-@@ -538,7 +842,7 @@ __PLAZCODE_VERSION_UI__
+@@ -538,7 +852,7 @@ __PLAZCODE_VERSION_UI__
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
@@ -634,7 +644,7 @@ index 07dc4c0..eb460fc 100644
      }
    }
  
-@@ -573,7 +877,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +887,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -643,7 +653,7 @@ index 07dc4c0..eb460fc 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -655,7 +959,7 @@ __PLAZCODE_VERSION_UI__
+@@ -655,7 +969,7 @@ __PLAZCODE_VERSION_UI__
          Live[Server.id] = Server;
        });
  
@@ -652,7 +662,7 @@ index 07dc4c0..eb460fc 100644
  
        var Catalogservers = Catalog && Catalog.servers ? Catalog.servers : [];
        Html += Catalogservers.map(function (Server) {
-@@ -892,7 +1196,7 @@ __PLAZCODE_VERSION_UI__
+@@ -892,7 +1206,7 @@ __PLAZCODE_VERSION_UI__
      var List = Byid('updateReleaseNotes'); List.replaceChildren();
      (Notes || []).forEach(function (Release, Index) {
        var Card = document.createElement('details'); Card.className='settingcard release-note'; Card.open=Index === 0;
@@ -661,7 +671,7 @@ index 07dc4c0..eb460fc 100644
        var Summary=document.createElement('p'); Summary.textContent=Release.summary; Card.appendChild(Summary);
        [['added','New additions'],['improved','Improvements'],['fixed','Bug fixes']].forEach(function (Section) {
          if (!Array.isArray(Release[Section[0]]) || !Release[Section[0]].length) return;
-@@ -905,12 +1209,12 @@ __PLAZCODE_VERSION_UI__
+@@ -905,12 +1219,12 @@ __PLAZCODE_VERSION_UI__
    function Refreshupdates() {
      if (Updatepolling) return Promise.resolve(); Updatepolling = true;
      return Api('/api/desktop/update').then(function (Value) {
@@ -676,7 +686,7 @@ index 07dc4c0..eb460fc 100644
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
-@@ -919,18 +1223,18 @@ __PLAZCODE_VERSION_UI__
+@@ -919,18 +1233,18 @@ __PLAZCODE_VERSION_UI__
        Byid('installUpdate').disabled = Updating || Value.available !== true;
        Byid('checkUpdates').disabled = Updating;
        Byid('updateOverlay').hidden = (!Updating || Value.background === true) && (!Value.error || UpdateerrorDismissed);
@@ -698,7 +708,7 @@ index 07dc4c0..eb460fc 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1510,330 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1520,346 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -820,6 +830,21 @@ index 07dc4c0..eb460fc 100644
 +      B.classList.toggle("warn", !Cur);
 +      Mn.innerHTML = L.length ? L.map(function (N) { return '<button type="button" data-br="' + CEsc(N) + '" class="' + (N === Cur ? "on" : "") + '">' + CBrIcon(N) + '<span>' + CEsc(N) + '</span>' + (N === Cur ? '<span class="cwchkm">\u2713</span>' : '') + '</button>'; }).join("") : '<div class="cwbnone">Kein Chrome, Edge oder Brave installiert</div>';
 +    };
++    var CProg = function (R) {
++      var P = $("cwProg"), Bar = $("cwProgBar"), Tx = $("cwProgTxt"); if (!P) return;
++      var Ts = R.tabs || [], St = R.stage || 0, Sum = 0, Any = false;
++      Ts.forEach(function (T) { var N = (T.account && T.account.step) || 0; Sum += N; if (N > 0 && N < 7) Any = true; });
++      var Pct = 0, Txt = "", Cls = "";
++      var Chk = Ts.length ? Math.round(Sum / (Ts.length * 7) * 60) : 0;
++      if (St === 1 || (St === 0 && Any)) { Pct = Chk; Txt = "Pr\u00fcfe Konten " + Pct + " %"; }
++      else if (St === 2) { Pct = 70; Txt = "Main-Chat startet \u2026"; }
++      else if (St === 3) { Pct = 80; Txt = "Warte auf Projekt \u2026"; }
++      else if (St === 4) { Pct = 92; Txt = "Worker treten bei \u2026"; }
++      else if (St === 5) { Pct = 100; Txt = "Aktiv \u2713"; Cls = "done"; }
++      else if (St === 6) { Pct = Math.max(Chk, 30); Txt = "Fehlgeschlagen"; Cls = "fail"; }
++      else { P.hidden = true; return; }
++      P.hidden = false; P.className = "cwprog " + Cls; Bar.style.width = Pct + "%"; Tx.textContent = Txt;
++    };
 +    var CChk = function (T, I) {
 +      var A = T.account || {}, M = T.memory || {};
 +      var Tgt = I === 0 ? "Opus 5.5" : "Sonnet 5.5", TId = I === 0 ? "albuquerque-quinn" : "achira-donut";
@@ -835,6 +860,7 @@ index 07dc4c0..eb460fc 100644
 +        Chip(ModOk ? "ok" : (ModBad ? "bad" : "wait"), "Modell: " + Tgt, A.model_state || "Noch nicht gepr\u00fcft") +
 +        Chip(ChatOk ? "ok" : (ChatBad ? "bad" : "wait"), ChatBad ? "Chat fehlt" : "Chat \u201aWillkommen\u2018", A.chat || "") +
 +        (ChatBad ? '<button class="cwgo" data-a="chat" title="Tab \u00f6ffnen und zum Chat Willkommen bei Notion springen">Zum Chat \u2192</button>' : '') +
++        Chip(A.trial === true ? "ok" : (A.trial === false ? "warn" : "wait"), A.trial === true ? "Trial aktiv" : (A.trial === false ? "Kein Trial" : "Trial ?"), A.trial_state || "Noch nicht gepr\u00fcft") +
 +        Chip(USt, "Usage " + (A.exhausted ? "aufgebraucht" : (P == null ? "\u2013" : P + " %")), A.usage_source || "") +
 +        ((McpOk || ModOk) ? '<button class="cwforget" data-a="forget" title="Gemerkte MCP-/Modell-Checks l\u00f6schen; der n\u00e4chste Check pr\u00fcft neu">neu pr\u00fcfen</button>' : '') +
 +        '</div>';
@@ -862,7 +888,7 @@ index 07dc4c0..eb460fc 100644
 +      var Sb = $("cwShowAll"); if (Sb) { Sb.textContent = CW.hidden ? "Worker zeigen" : "Worker verstecken"; Sb.title = CW.hidden ? "Coder, Reviewer und Tester sind versteckt" : "Coder, Reviewer und Tester sind sichtbar"; }
 +    };
 +    var CBrowser = function (R) {
-+      CW.browsers = R.browsers || []; CW.browser = R.browser || null; CW.hidden = !!R.hidden; CBrRender();
++      CW.browsers = R.browsers || []; CW.browser = R.browser || null; CW.hidden = !!R.hidden; CBrRender(); CProg(R);
 +      var Sel = $("cwBrowserSel"), Bd = $("cwBrowser");
 +      if (Sel && document.activeElement !== Sel) {
 +        Sel.innerHTML = '<option value="">' + (CW.browsers.length ? 'Browser ausw\u00e4hlen \u2026' : 'Kein Chrome, Edge oder Brave installiert') + '</option>' + CW.browsers.map(function (N) { return '<option value="' + CEsc(N) + '">' + CEsc(N) + '</option>'; }).join("");
@@ -4454,10 +4480,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..7011f1d
+index 0000000..7e9b1f1
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,487 @@
+@@ -0,0 +1,502 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4481,6 +4507,21 @@ index 0000000..7011f1d
 +pub(crate) fn auto_mcp_on() -> bool { auto_mcp_file().exists() }
 +pub(crate) fn is_paused(id: u32) -> bool { lock(&PAUSED).contains(&id) }
 +/// Dauerhaftes Gedaechtnis pro Gmail-Konto: einmal bestaetigter MCP/Modell-Check wird nicht wiederholt.
++static STAGE:std::sync::atomic::AtomicU32=std::sync::atomic::AtomicU32::new(0);
++fn stage(n:u32){STAGE.store(n,std::sync::atomic::Ordering::SeqCst);}
++fn step(id:u32,n:u32){mark_account(id,"step",json!(n));}
++const TRIAL_JS:&str=r#"(async()=>{const post=(p,b)=>fetch('/api/v3/'+p,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.ok?r.json():null).catch(()=>null);const sp=await post('getSpaces',{});if(!sp)return {ok:false};const uid=Object.keys(sp)[0];const sid=Object.keys((sp[uid]||{}).space||{})[0];if(!sid)return {ok:false};const v=sp[uid].space[sid];const sv=(v.value&&v.value.value)||v.value||v;const d=await post('getSubscriptionData',{spaceId:sid});if(!d)return {ok:false};const cd=d.customerData||{};const sub=!!(cd.isSubscribed||/subscribed/.test(d.type||''));const paid=!!(d.hasPaidNonzero||cd.hasPaidNonzero);return {ok:true,sub,paid,tier:d.subscriptionTier||sv.subscription_tier||null,plan:sv.plan_type||null}})()"#;
++/// Trial-Check: Abo aktiv, aber noch nie etwas bezahlt = Trial.
++async fn check_trial(t:&Tab,i:usize){
++    match js_eval(cdp_port(i),TRIAL_JS).await{
++        Ok(r) if r["ok"].as_bool().unwrap_or(false)=>{let sub=r["sub"].as_bool().unwrap_or(false);let paid=r["paid"].as_bool().unwrap_or(false);
++            let tier=r["tier"].as_str().unwrap_or("");
++            if sub&&!paid{mark_account(t.id,"trial",json!(true));mark_account(t.id,"trial_state",json!(format!("Trial aktiv ({tier})")));}
++            else if sub{mark_account(t.id,"trial",json!(false));mark_account(t.id,"trial_state",json!(format!("Bezahlter Plan ({tier}) - kein Trial")));}
++            else{mark_account(t.id,"trial",json!(false));mark_account(t.id,"trial_state",json!("Kein Trial (Free-Plan)"));}}
++        _=>{mark_account(t.id,"trial",Value::Null);mark_account(t.id,"trial_state",json!("Trial-Status nicht lesbar"));}
++    }
++}
 +fn accounts_file()->PathBuf{base().join("accounts.json")}
 +fn mem_all()->Value{std::fs::read_to_string(accounts_file()).ok().and_then(|s|serde_json::from_str::<Value>(&s).ok()).filter(Value::is_object).unwrap_or_else(||json!({}))}
 +fn mem_get(email:&str,k:&str)->Value{mem_all().get(email.to_lowercase().as_str()).and_then(|e|e.get(k)).cloned().unwrap_or(Value::Null)}
@@ -4732,17 +4773,17 @@ index 0000000..7011f1d
 +    if !wait_cdp(port).await{mark_account(t.id,"check",json!("Tab nicht erreichbar"));mark_account(t.id,"usage_error",json!("Tab nicht erreichbar"));return Err(format!("{}: Tab nicht erreichbar",t.role));}
 +    let mut ok=false;for _ in 0..25{if logged_in(port).await{ok=true;break;}tokio::time::sleep(Duration::from_secs(1)).await;}
 +    if !ok{mark_account(t.id,"check",json!("Nicht eingeloggt \u{2013} Gmail-Login nutzen"));return Err(format!("{}: nicht in Notion eingeloggt",t.role));}
-+    let mut missing:Vec<&str>=Vec::new();let mut errs:Vec<String>=Vec::new();
++    step(t.id,1);let mut missing:Vec<&str>=Vec::new();let mut errs:Vec<String>=Vec::new();
 +    if mem_get(&t.email,"mcp_ok").as_bool()==Some(true){mark_account(t.id,"mcp",json!("Bereits verbunden"));mark_account(t.id,"mcp_saved",json!(true));}
 +    else{mark_account(t.id,"check",json!("Pr\u{fc}fe AdiCode-MCP \u{2026}"));match setup_mcp(&t,i).await{Ok(_)=>{mem_set(&t.email,"mcp_ok",json!(true));mark_account(t.id,"mcp_saved",json!(true));}Err(e)=>{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));missing.push("MCP");errs.push(format!("{}: MCP {e}",t.role));}}}
-+    mark_account(t.id,"check",json!("Pr\u{fc}fe Modelle \u{2026}"));
-+    if let Err(e)=ensure_models(&t,i).await{missing.push("Modell");errs.push(e);}
++    step(t.id,2);mark_account(t.id,"check",json!("Pr\u{fc}fe Modelle \u{2026}"));
++    if let Err(e)=ensure_models(&t,i).await{missing.push("Modell");errs.push(e);}step(t.id,3);check_trial(&t,i).await;step(t.id,4);
 +    mark_account(t.id,"check",json!("Pr\u{fc}fe Usage \u{2026}"));
-+    inspect_account(&t,i).await;
++    inspect_account(&t,i).await;step(t.id,5);
 +    mark_account(t.id,"check",json!("\u{d6}ffne \u{201a}Willkommen bei Notion\u{2018} \u{2026}"));
 +    match prepare_chat(&t,i).await{Ok(())=>mark_account(t.id,"chat_ok",json!(true)),Err(e)=>{mark_account(t.id,"chat_ok",json!(false));missing.push("Chat");errs.push(e);}}
-+    if !errs.is_empty(){mark_account(t.id,"check",json!(format!("{} fehlt",missing.join(", "))));return Err(errs.join("; "));}
-+    let ex=lock(&ACCOUNT).get(&t.id).map(|a|a["exhausted"].as_bool().unwrap_or(false)).unwrap_or(false);
++    step(t.id,6);if !errs.is_empty(){mark_account(t.id,"check",json!(format!("{} fehlt",missing.join(", "))));return Err(errs.join("; "));}
++    step(t.id,7);let ex=lock(&ACCOUNT).get(&t.id).map(|a|a["exhausted"].as_bool().unwrap_or(false)).unwrap_or(false);
 +    mark_account(t.id,"check",json!(if ex{"OK \u{2013} aber KI-Kontingent aufgebraucht"}else{"OK"}));
 +    Ok(())
 +}
@@ -4813,23 +4854,23 @@ index 0000000..7011f1d
 +/// Hat der Nutzer das Worker-Fenster gerade selbst im Fokus, schickt AdiCode keine Erinnerung hinein.
 +async fn user_present(port:u16)->bool{cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":"document.hasFocus()","returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false)}async fn keep_alive(tabs:Vec<Tab>){loop{for(i,t)in tabs.iter().enumerate(){let _=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":"(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));return document.visibilityState})()"}})]).await;let _=t;}tokio::time::sleep(Duration::from_secs(20)).await;}}
 +async fn kickoff(tabs:Vec<Tab>, baseline:usize){
-+    let errors=full_check(&tabs).await;
-+    if !errors.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Start angehalten \u{2013} Account-Check: {}",errors.join("; ")));return;}
++    stage(1);for t in &tabs{step(t.id,0);}let errors=full_check(&tabs).await;
++    if !errors.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Start angehalten \u{2013} Account-Check: {}",errors.join("; ")));return;}
 +    if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}set_status("Account-Check ok: alle Konten im Chat \u{201a}Willkommen bei Notion\u{2018}, Worker-Fenster automatisch versteckt.");
-+    let _=open_main(cdp_port(0)).await;
++    stage(2);let _=open_main(cdp_port(0)).await;
 +    if let Some(main)=tabs.first(){let _=insert_prompt(cdp_port(0),prompt_for(main)).await;}
 +    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
 +    if !NUDGER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(nudger(tabs.clone()));}
-+    loop{if crate::notion_cowork::project_count()>baseline{break;}tokio::time::sleep(Duration::from_secs(3)).await;}
-+    set_status("Projekt erkannt. Coder, Reviewer und Tester treten bei …");
++    stage(3);loop{if crate::notion_cowork::project_count()>baseline{break;}tokio::time::sleep(Duration::from_secs(3)).await;}
++    stage(4);set_status("Projekt erkannt. Coder, Reviewer und Tester treten bei …");
 +    let mut prompt_errors=Vec::new();
 +    for(i,t)in tabs.iter().enumerate().skip(1){if let Err(e)=insert_prompt(cdp_port(i),prompt_for(t)).await{prompt_errors.push(format!("{}: {e}",t.role));}tokio::time::sleep(Duration::from_secs(2)).await;}
 +    let failed:Vec<String>=prompt_errors.iter().map(|e|e.split(':').next().unwrap_or("").to_ascii_lowercase()).collect();
 +    let note=if prompt_errors.is_empty(){String::new()}else{format!(" Nicht gestartet: {} - die anderen übernehmen diese Aufgaben mit.",prompt_errors.join("; "))};
 +    let wanted:Vec<&str>=["coder","reviewer","tester"].into_iter().filter(|r|!failed.iter().any(|f|f==r)).collect();
-+    if wanted.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Worker-Kickoff fehlgeschlagen:{note}"));return;}
-+    for _ in 0..45 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){set_status(format!("Co-Work aktiv: {} mit Main verbunden. Jeder bewertet neue Aufträge aus seiner Rollen-Sicht und hilft dann bei allem mit.{note}",wanted.join(", ")));let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(2)).await;}
-+    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.{note}",missing.join(", ")));
++    if wanted.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Worker-Kickoff fehlgeschlagen:{note}"));return;}
++    for _ in 0..45 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){stage(5);set_status(format!("Co-Work aktiv: {} mit Main verbunden. Jeder bewertet neue Aufträge aus seiner Rollen-Sicht und hilft dann bei allem mit.{note}",wanted.join(", ")));let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(2)).await;}
++    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);stage(6);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.{note}",missing.join(", ")));
 +}
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
 +fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
@@ -4917,7 +4958,7 @@ index 0000000..7011f1d
 +    }
 +}
 +pub async fn view_handler(Json(req):Json<Value>)->impl IntoResponse{match view_op(req).await{Ok(v)=>(axum::http::StatusCode::OK,Json(v)),Err(e)=>(axum::http::StatusCode::BAD_REQUEST,Json(json!({"ok":false,"error":e})))}}
-+pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();let mem=mem_all();json!({"ok":true,"hidden":windows::any_hidden(),"auto_mcp":auto_mcp_on(),"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v["memory"]=mem.get(t.email.to_lowercase().as_str()).cloned().unwrap_or(Value::Null);v}).collect::<Vec<_>>()})}
++pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();let mem=mem_all();json!({"ok":true,"stage":if running.is_empty(){0}else{STAGE.load(std::sync::atomic::Ordering::SeqCst)},"hidden":windows::any_hidden(),"auto_mcp":auto_mcp_on(),"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v["memory"]=mem.get(t.email.to_lowercase().as_str()).cloned().unwrap_or(Value::Null);v}).collect::<Vec<_>>()})}
 +pub async fn tabs_handler()->impl IntoResponse{ensure_monitors();Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e|json!({"ok":false,"error":e.to_string()})))}
 +pub fn action(name:&str,v:&Value)->Option<Result<String,String>>{
 +    let id=v.as_u64().or_else(||v.get("id").and_then(Value::as_u64)).and_then(|n|u32::try_from(n).ok());

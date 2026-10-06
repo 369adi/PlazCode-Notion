@@ -12,6 +12,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.32
+- **Fortschrittsbalken beim Start**: Alle starten zeigt einen Balken (Konten pruefen, Main-Chat, Projekt, Worker beitreten) und am Ende gruen "Aktiv".
+- **Trial-Check**: Der Check erkennt pro Konto, ob ein Trial laeuft (Abo aktiv, noch nichts bezahlt) und zeigt es als Chip.
 ## Neu in 1.0.31
 - **Modell-Check pro Rolle**: Der Account-Check stellt unter Notion KI -> Model controls -> Allowed models for Notion Agent automatisch genau ein Modell ein - Main = Opus 5.5 (Orchestrator), Coder/Reviewer/Tester = Sonnet 5.5 (deutlich guenstiger). Alle anderen Anbieter werden abgeschaltet.
 - **Checkliste pro Konto**: gruene/rote Chips fuer MCP configured, Modell, Chat und Usage. Fehlt der Chat, erscheint rot "Chat fehlt" mit Button "Zum Chat".
