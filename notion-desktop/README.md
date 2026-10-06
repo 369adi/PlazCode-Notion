@@ -105,6 +105,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.66
 - **Tab aussetzen**: Knopf aussetzen/mitmachen pro Tab. Ausgesetzte Tabs werden nicht gecheckt, nicht gestartet, bekommen keine Prompts und ihr Fenster wird nie versteckt.
 - **Zeitprotokoll** profiles\timeline.log: jeder Check-/Refresh-/Co-Work-Schritt mit Uhrzeit (fuer Messungen).
+## Neu in 1.0.67
+- **Refresh komplett**: nach dem Login laeuft automatisch der volle Check (Trial starten + kuendigen, MCP, Modelle, Chat-Modell).
+- **Onboarding-Fix**: der unsichtbare Link Skip to content wird nie mehr angeklickt (Team-Schritt blieb haengen); Google-Kontoauswahl klickt das sichtbare Konto.
+- **Trial vor MCP**: eigene MCP-Verbindungen brauchen den Business-Plan, daher zuerst Trial.
+- **Frischer Willkommen-Chat**: offene Freigaben des Willkommen-Agents werden abgelehnt bzw. gestoppt, damit der Modell-Knopf erscheint (nur ohne AdiCode-Inhalt im Chat).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
