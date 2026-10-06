@@ -55,6 +55,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Auto-Login**: Notion oeffnet Google in einem Popup, das Edge blockiert hat. Popups sind jetzt erlaubt, AdiCode bedient das Google-Fenster selbst (Konto waehlen, Weiter).
 ## Neu in 1.0.49
 - **Auto-Login**: Erkennt der Check ein nicht eingeloggtes Konto, meldet AdiCode es jetzt selbst per Google an (Google klicken, Konto zur E-Mail waehlen, Weiter).
+## Neu in 1.0.50
+- **Haengende Notion-Tabs**: Leere Seite nach dem Login wird nach 15 s automatisch neu geladen, Cookie-Banner wird abgelehnt.
+- **Chat**: Neue Buttons 'Verlauf kuerzen' (blendet alte Nachrichten aus, weniger Lag) und 'Neu + Zusammenfassung'.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
