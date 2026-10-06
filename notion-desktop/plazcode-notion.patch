@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..4731364 100644
+index 07dc4c0..aee7b84 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -712,7 +712,7 @@ index 07dc4c0..4731364 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1524,354 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1524,355 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -769,7 +769,8 @@ index 07dc4c0..4731364 100644
 +    Badge($("mTunnel"), S.ngrok && S.ngrok.state, S.ngrok && S.ngrok.error);
 +    var P = $("nNgrokPath"); if (P && document.activeElement !== P && !P.dataset.dirty) P.value = S.ngrok_path || "";
 +    if ($("nNgrokFound")) { Badge($("nNgrokFound"), S.ngrok_found ? "online" : "fehlt", ""); $("nNgrokFound").textContent = S.ngrok_found ? "gefunden" : "fehlt"; } if ($("nInstallNgrok")) $("nInstallNgrok").textContent = S.ngrok_found ? "Neu installieren" : "ngrok installieren";
-+    if ($("nAuthState")) { Badge($("nAuthState"), S.ngrok_authtoken ? "online" : "fehlt", ""); $("nAuthState").textContent = S.ngrok_authtoken ? "eingerichtet" : "fehlt"; }
++    if ($("nAuthState")) { Badge($("nAuthState"), S.ngrok_authtoken ? "online" : "fehlt", ""); $("nAuthState").textContent = S.ngrok_authtoken ? ("gespeichert " + (S.ngrok_authtoken_mask || "")) : "fehlt"; var AT = $("nAuthtoken"); if (AT) AT.placeholder = S.ngrok_authtoken ? ("gespeichert: " + (S.ngrok_authtoken_mask || "") + " – zum Ändern neuen einfügen") : "von dashboard.ngrok.com → Your Authtoken"; }
++  if ($("nNgrokFound") && S.ngrok_exe) $("nNgrokFound").title = S.ngrok_exe;
 +    var C = $("nEnabled"); if (C) C.checked = !!S.ngrok_enabled;
 +    var Tools = S.tools || [];
 +    if ($("nToolCount")) $("nToolCount").textContent = String(Tools.length);
@@ -1033,7 +1034,7 @@ index 07dc4c0..4731364 100644
 +    ULoad();
 +    On("nMcpSetup", function () { var Sel = $("nMcpTab"); if (!Sel || !Sel.value) { UMsg("Erst unter Co-Work einen Tab anlegen."); return; } UMsg("..."); Call("/api/notion/action", { action: "cowork_setup_mcp", value: Number(Sel.value) }).then(function (R) { UMsg((R.message || "Gestartet.") + " Der Tab muss laufen und eingeloggt sein."); setTimeout(ULoad, 6000); setTimeout(ULoad, 15000); }).catch(function (E) { UMsg(E.message || String(E)); }); });
 +    On("nMcpOpen", function () { var Sel = $("nMcpTab"); if (!Sel || !Sel.value) { UMsg("Erst unter Co-Work einen Tab anlegen."); return; } Call("/api/notion/action", { action: "open_notion_window", value: Number(Sel.value) }).then(function (R) { UMsg(R.message || "Ge\u00f6ffnet."); ULoad(); }).catch(function (E) { UMsg(E.message || String(E)); }); });
-+    (function () { var El = $("nMcpAuto"); if (El) El.addEventListener("change", function () { Call("/api/notion/action", { action: "cowork_auto_mcp", value: El.checked }).then(function (R) { UMsg(R.message || ""); ULoad(); }).catch(function (E) { UMsg(E.message || String(E)); El.checked = !El.checked; }); }); })();    On("nInstallNgrok", function () { Msg("ngrok wird heruntergeladen …"); Act("install_ngrok"); });
++    (function () { var El = $("nMcpAuto"); if (El) El.addEventListener("change", function () { Call("/api/notion/action", { action: "cowork_auto_mcp", value: El.checked }).then(function (R) { UMsg(R.message || ""); ULoad(); }).catch(function (E) { UMsg(E.message || String(E)); El.checked = !El.checked; }); }); })();    On("nInstallNgrok", function () { var B = $("nInstallNgrok"); B.disabled = true; B.textContent = "Wird installiert …"; Msg("ngrok wird heruntergeladen und installiert …"); Call("/api/notion/action", { action: "install_ngrok", value: null }).then(function (R) { Msg(R.message || "ngrok installiert."); }).catch(function (E) { Msg("Installation fehlgeschlagen: " + (E.message || String(E))); }).then(function () { B.disabled = false; Poll(); }); });
 +    On("nQuickStart", function () { var A = $("nAuthtoken"), D = $("nDomain"), B = $("nQuickStart"), H = $("nQuickHint"); B.disabled = true; H.textContent = "Läuft … ngrok, Token, Domain, Tunnel, Test (bis 1 Min)"; Msg("Schnellstart läuft …"); Call("/api/notion/action", { action: "ngrok_quick_start", value: { authtoken: A.value || "", domain: D.dataset.dirty ? D.value : "" } }).then(function (R) { H.textContent = R.message || "Fertig"; Msg(R.message || "Fertig"); A.value = ""; delete A.dataset.dirty; delete D.dataset.dirty; Poll(); }).catch(function (E) { H.textContent = "Fehler: " + (E.message || String(E)); Msg(E.message || String(E)); Poll(); }).then(function () { B.disabled = false; }); });
 +  On("nSaveAuth", function () { var A = $("nAuthtoken"); if (!A.value.trim()) { Msg("Bitte zuerst den Authtoken einfügen."); return; } Act("set_ngrok_authtoken", A.value).then(function () { A.value = ""; delete A.dataset.dirty; }); });
 +    var UEsc = function (X) { return String(X).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
@@ -3758,10 +3759,10 @@ index 0000000..ffbc6b7
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..9ed7e19
+index 0000000..8a10cde
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,974 @@
+@@ -0,0 +1,988 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -4351,6 +4352,9 @@ index 0000000..9ed7e19
 +
 +pub(crate) fn ngrok_exe() -> Option<PathBuf> { find_ngrok(&settings()) }
 +pub(crate) fn restart_tunnel() { SHARED.restart.notify_one(); }
++/// Nach der Installation: neues ngrok fest eintragen und alle alten ngrok-Prozesse beenden.
++pub(crate) fn use_ngrok_exe(p: &std::path::Path) { let mut s = lock(&SHARED.settings); s.ngrok_path = p.display().to_string(); let _ = save_settings(&s); }
++pub(crate) fn stop_all_ngrok() { kill_all_ngrok(); }
 +
 +fn find_ngrok(s: &NotionSettings) -> Option<PathBuf> {
 +    if !s.ngrok_path.trim().is_empty() {
@@ -4358,6 +4362,9 @@ index 0000000..9ed7e19
 +        if p.is_file() { return Some(p); }
 +    }
 +    let exe = if cfg!(windows) { "ngrok.exe" } else { "ngrok" };
++    // Von AdiCode installiertes ngrok zuerst - sonst gewinnt ein altes ngrok aus PATH ("ngrok ist zu alt").
++    let own = crate::notion_updates::base_dir().join(exe);
++    if own.is_file() { return Some(own); }
 +    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
 +    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
 +    if let Some(la) = env("LOCALAPPDATA") {
@@ -4582,7 +4589,9 @@ index 0000000..9ed7e19
 +    let typed = clean_domain(v["domain"].as_str().unwrap_or(""));
 +    set_ngrok("einrichten", "Schnellstart: ngrok wird vorbereitet ...");
 +    let fail = |e: String| { set_ngrok("Fehler", &e); e };
-+    if ngrok_exe().is_none() { set_ngrok("einrichten", "Schnellstart: ngrok wird installiert ..."); crate::notion_updates::install_ngrok().await.map_err(fail)?; }
++    let own = crate::notion_updates::base_dir().join(if cfg!(windows) { "ngrok.exe" } else { "ngrok" });
++    if !own.is_file() { set_ngrok("einrichten", "Schnellstart: aktuelles ngrok wird installiert ..."); crate::notion_updates::install_ngrok().await.map_err(fail)?; }
++    use_ngrok_exe(&own);
 +    let exe = ngrok_exe().ok_or_else(|| fail("ngrok.exe fehlt auch nach der Installation.".into()))?;
 +    if !auth.is_empty() { crate::notion_updates::set_authtoken(&auth).await.map_err(fail)?; }
 +    let old = settings().domain;
@@ -4594,7 +4603,11 @@ index 0000000..9ed7e19
 +    tokio::time::sleep(Duration::from_millis(600)).await;
 +    let domain = if !typed.is_empty() { typed } else {
 +        set_ngrok("einrichten", "Schnellstart: Domain deines ngrok-Kontos wird ermittelt ...");
-+        match detect_domain(&exe, settings().port).await {
++        let first = match detect_domain(&exe, settings().port).await {
++            Err(e) if e.contains("zu alt") => { set_ngrok("einrichten", "Schnellstart: ngrok ist zu alt - wird neu installiert ..."); crate::notion_updates::install_ngrok().await.map_err(fail)?; detect_domain(&exe, settings().port).await }
++            r => r,
++        };
++        match first {
 +            Ok(d) => d,
 +            Err(e) => { { let mut s = lock(&SHARED.settings); s.domain = old; let _ = save_settings(&s); } SHARED.restart.notify_one(); return Err(fail(e)); }
 +        }
@@ -4649,6 +4662,8 @@ index 0000000..9ed7e19
 +        "browser": crate::notion_profiles::browser_name(),
 +        "ngrok_found": find_ngrok(&s).is_some(),
 +        "ngrok_authtoken": crate::notion_updates::has_authtoken(),
++        "ngrok_authtoken_mask": crate::notion_updates::authtoken_mask(),
++        "ngrok_exe": find_ngrok(&s).map(|p| p.display().to_string()).unwrap_or_default(),
 +        "version": crate::notion_updates::current_version(),
 +        "listener": {"state": listener.0, "error": listener.1},
 +        "ngrok": {"state": ngrok.0, "error": ngrok.1},
@@ -6788,10 +6803,10 @@ index 0000000..49aacb6
 \ No newline at end of file
 diff --git a/agent/src/notion_updates.rs b/agent/src/notion_updates.rs
 new file mode 100644
-index 0000000..ab07952
+index 0000000..662a8f5
 --- /dev/null
 +++ b/agent/src/notion_updates.rs
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,211 @@
 +//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
 +//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
 +//! und kann per Datei `update-now` eine sofortige Pruefung anstossen.
@@ -6900,7 +6915,10 @@ index 0000000..ab07952
 +
 +// ---------- ngrok-Ersteinrichtung ----------
 +
-+pub fn has_authtoken() -> bool {
++pub fn has_authtoken() -> bool { !authtoken_mask().is_empty() }
++
++/// Gespeicherter Authtoken maskiert (z. B. "2abc...wxyz"), leer = keiner.
++pub fn authtoken_mask() -> String {
 +    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
 +    let mut files = Vec::new();
 +    if let Some(la) = env("LOCALAPPDATA") {
@@ -6914,7 +6932,17 @@ index 0000000..ab07952
 +        files.push(up.join(".ngrok2").join("ngrok.yml"));
 +    }
 +    if let Some(ad) = env("APPDATA") { files.push(ad.join("ngrok").join("ngrok.yml")); }
-+    files.iter().any(|f| std::fs::read_to_string(f).map(|t| t.lines().any(|l| l.trim_start().starts_with("authtoken:") && l.trim().len() > 15)).unwrap_or(false))
++    for f in &files {
++        if let Ok(t) = std::fs::read_to_string(f) {
++            for l in t.lines() {
++                if let Some(v) = l.trim_start().strip_prefix("authtoken:") {
++                    let v = v.trim().trim_matches(|c| c == '"' || c == '\'');
++                    if v.len() > 15 && v.is_ascii() { return format!("{}…{}", &v[..4], &v[v.len() - 4..]); }
++                }
++            }
++        }
++    }
++    String::new()
 +}
 +
 +fn hidden(cmd: &mut tokio::process::Command) -> &mut tokio::process::Command {
@@ -6933,11 +6961,15 @@ index 0000000..ab07952
 +    if bytes.len() < 1_000_000 { return Err("Download unvollständig. Bitte nochmal versuchen.".into()); }
 +    tokio::fs::write(&zip, &bytes).await.map_err(|e| e.to_string())?;
 +    let tar = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join("System32").join("tar.exe")).filter(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("tar"));
++    let _ = tokio::task::spawn_blocking(crate::notion_mcp::stop_all_ngrok).await;
++    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
++    let _ = std::fs::remove_file(dir.join("ngrok.exe"));
 +    let mut cmd = tokio::process::Command::new(tar);
 +    let st = hidden(cmd.arg("-xf").arg(&zip).arg("-C").arg(&dir)).status().await.map_err(|e| format!("Entpacken fehlgeschlagen: {e}"))?;
 +    let _ = tokio::fs::remove_file(&zip).await;
 +    let exe = dir.join("ngrok.exe");
 +    if !st.success() || !exe.is_file() { return Err("ngrok konnte nicht entpackt werden.".into()); }
++    crate::notion_mcp::use_ngrok_exe(&exe);
 +    crate::notion_mcp::restart_tunnel();
 +    Ok(format!("ngrok installiert ({}). Jetzt den Authtoken eintragen.", exe.display()))
 +}

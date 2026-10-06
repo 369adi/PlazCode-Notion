@@ -125,6 +125,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **ngrok-Schnellstart**: Auf Notion AI > Tunnel nur noch den ngrok-Authtoken einfuegen und Start druecken. AdiCode installiert ngrok, speichert den Token, ermittelt automatisch die Gratis-Domain deines ngrok-Kontos, startet den Tunnel und testet die oeffentliche URL.
 ## Neu in 1.0.72
 - **Schnellstart-Fix**: ngrok aus dem Microsoft Store wird richtig erkannt (Authtoken-Status), Start klappt auch ohne erneute Token-Eingabe.
+## Neu in 1.0.73
+- **ngrok zu alt behoben**: AdiCode nutzt immer sein eigenes, frisch installiertes ngrok statt einer alten Version aus PATH. ngrok installieren beendet vorher laufende ngrok-Prozesse, zeigt Fortschritt und traegt das neue ngrok fest ein. Schnellstart installiert bei zu altem ngrok automatisch neu.
+- **Authtoken sichtbar**: gespeicherter Token wird maskiert angezeigt (z. B. gespeichert 2abc...wxyz).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

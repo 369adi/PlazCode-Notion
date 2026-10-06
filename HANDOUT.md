@@ -145,6 +145,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.70**: Fenster-Waechter fuer versteckte Worker (alle Chrome_WidgetWin-Fenster der Tab-Prozesse, 0,9 s; Zeigen nur Hauptfenster), ngrok-stderr wird gesammelt (ERROR:-Mehrzeiler)
 - **1.0.71**: ngrok-Schnellstart (Aktion ngrok_quick_start, quick_start/detect_domain in notion_mcp.rs: install -> add-authtoken -> alle ngrok beenden -> Domain aus ngrok-Log ohne --url -> Tunnel -> POST /mcp muss 401 ohne Ngrok-Error-Code geben), Knopf nQuickStart
 - **1.0.72**: has_authtoken findet Store-ngrok (Packages\ngrok.ngrok_*\LocalCache\Local\ngrok\ngrok.yml), Schnellstart ohne Token-Vorabsperre
+- **1.0.73**: find_ngrok bevorzugt base_dir\ngrok.exe, install_ngrok killt alle ngrok + setzt ngrok_path, quick_start nutzt eigenes ngrok + Reinstall bei zu alt, authtoken_mask im State/UI, Install-Knopf mit Feedback
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.
