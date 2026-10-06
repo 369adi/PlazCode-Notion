@@ -167,6 +167,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.87
 - **Live-Anzeige auf Deutsch im AdiCode-Chat**: Ueber dem Eingabefeld steht live, was die KI gerade macht - nicht nur "pc_PowerShell", sondern uebersetzt (z. B. "Durchsucht Dateien nach ...", "Liest Datei notion_chat.rs", "Fuehrt die Tests aus", "Wartet 20 Sekunden"). Klick klappt den Verlauf der letzten Schritte auf.
 - **Tabs sehen sich immer gegenseitig**: Die Co-Work-Bridge ist jetzt immer an, auch ohne "Co-Work starten". Schreibt ein Chat eine Datei, ist sie 5 Minuten fuer die anderen Chats reserviert; cowork_board zeigt alle aktiven Chats und was sie gerade tun.
+## Neu in 1.0.88
+- **Datei-Reservierung ohne 5-Minuten-Timer**: Eine Datei ist fuer einen Chat genau so lange belegt, wie er live daran arbeitet - solange sein Co-Work-Task laeuft oder sein Tab gerade generiert. Ist die Aufgabe fertig oder der Chat still, ist die Datei sofort frei.
+- **Tabs werden am Namen erkannt** (Main, AdiCode-Coder ...) statt an der Notion-Verbindung: keine 15 Geister-Chats mehr, und ein Chat blockiert sich nicht mehr selbst. Chats ohne Namen werden nie gesperrt.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

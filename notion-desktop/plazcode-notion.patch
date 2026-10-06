@@ -2942,10 +2942,10 @@ index 0000000..b0734fa
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..8e00f40
+index 0000000..87ede40
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1339 @@
+@@ -0,0 +1,1354 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -4285,17 +4285,32 @@ index 0000000..8e00f40
 +}
 +
 +pub(crate) fn live_same(a: &str, b: &str) -> bool { path_hits(a, b) || path_hits(b, a) }
-\ No newline at end of file
++
++/// Live-Bridge: Agent zu einer MCP-Session (nur wenn eindeutig).
++pub(crate) fn agent_of_session(session: &str) -> Option<String> { session_agent(session) }
++
++/// Live-Bridge: Agents, die gerade einen Task bearbeiten (claimed, aktiv).
++pub(crate) fn busy_agents() -> Vec<String> {
++    let b = lock_board();
++    let mut v: Vec<String> = Vec::new();
++    for p in b.projects.values() {
++        for t in &p.tasks {
++            if t.status == "claimed" && !t.owner.is_empty() && alive(p, &t.owner) && !v.contains(&t.owner) { v.push(t.owner.clone()); }
++        }
++    }
++    v
++}
 diff --git a/agent/src/notion_live.rs b/agent/src/notion_live.rs
 new file mode 100644
-index 0000000..4c87c6f
+index 0000000..f59f972
 --- /dev/null
 +++ b/agent/src/notion_live.rs
-@@ -0,0 +1,273 @@
-+//! Live-Bridge (immer an): Alle Notion-AI-Tabs (MCP-Sessions) sehen sich gegenseitig - auch ohne
+@@ -0,0 +1,305 @@
++//! Live-Bridge (immer an): Alle Notion-AI-Tabs sehen sich gegenseitig - auch ohne
 +//! "Co-Work starten". Jeder Tool-Aufruf landet mit deutscher Klartext-Beschreibung im Live-Feed,
-+//! den der AdiCode-Chat live anzeigt. Dateien, die ein Tab gerade schreibt, sind fuer die anderen
-+//! Tabs kurz reserviert. AdiCode schreibt dabei nie selbst in einen Chat.
++//! den der AdiCode-Chat live anzeigt. Eine Datei ist fuer einen Chat genau so lange reserviert,
++//! wie er live daran arbeitet: solange sein Co-Work-Task "claimed" ist oder sein Tab gerade
++//! generiert (Stopp-Knopf sichtbar). Kein Timer. Chats ohne Namen werden nie geraten/gesperrt.
 +use axum::{extract::Query, response::IntoResponse, Json};
 +use once_cell::sync::Lazy;
 +use regex::Regex;
@@ -4304,9 +4319,9 @@ index 0000000..4c87c6f
 +use std::{collections::{BTreeMap, VecDeque}, sync::Mutex};
 +
 +const MAX_FEED: usize = 300;
-+/// Eine geschriebene Datei bleibt so lange fuer den schreibenden Tab reserviert.
-+const LOCK_SECS: i64 = 300;
-+/// Tabs ohne Aufruf seit dieser Zeit gelten als inaktiv.
++/// Herzschlag des Tab-Monitors (prueft alle 4 s). Kommt so lange kein Signal, gilt der Tab als fertig.
++const GEN_BEAT: i64 = 15;
++/// Chats ohne Aufruf seit dieser Zeit werden in der Uebersicht nicht mehr gezeigt.
 +const ACTIVE_SECS: i64 = 900;
 +
 +#[derive(Clone)]
@@ -4317,13 +4332,17 @@ index 0000000..4c87c6f
 +#[derive(Default)]
 +struct Live {
 +    next: u64,
-+    count: u64,
 +    feed: VecDeque<Entry>,
 +    tabs: BTreeMap<String, TabInfo>,
++    /// Datei -> (Agent, seit)
 +    locks: BTreeMap<String, (String, i64)>,
++    /// Agents mit laufendem (claimed) Co-Work-Task, beim letzten Aufruf.
++    busy: Vec<String>,
 +}
 +
 +static LIVE: Lazy<Mutex<Live>> = Lazy::new(|| Mutex::new(Live::default()));
++/// Agent -> letzter Zeitpunkt, an dem sein Tab sichtbar generiert hat (vom Tab-Monitor).
++static GEN: Lazy<Mutex<BTreeMap<String, i64>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
 +static FILE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"([A-Za-z0-9_\-][A-Za-z0-9_.\-]*\.(?:rs|html|md|ps1|json|log|toml|lua|luau|js|ts|py|txt|patch|css|bak\d*))\b").unwrap());
 +static PAT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?i)-pattern\s+['"]([^'"]{1,80})['"]"#).unwrap());
 +static SLEEP_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)start-sleep\s+(?:-s(?:econds)?\s+)?(\d+)").unwrap());
@@ -4437,21 +4456,40 @@ index 0000000..4c87c6f
 +    cut(&s, 160)
 +}
 +
-+/// Jeder Tool-Aufruf: Tab merken und Klartext in den Live-Feed schreiben.
++/// Wer ruft? Explizites agent-Argument, sonst die Co-Work-Zuordnung der Session. Leer = unbekannt.
++fn ident(session: &str, args: &Value) -> String {
++    let a = arg(args, "agent");
++    if !a.is_empty() { return a; }
++    crate::notion_cowork::agent_of_session(session).unwrap_or_default()
++}
++
++/// Vom Tab-Monitor: Tab des Agents generiert gerade (true) oder ist fertig (false).
++pub(crate) fn set_generating(agent: &str, on: bool) {
++    if agent.is_empty() { return; }
++    let mut g = GEN.lock().unwrap_or_else(|e| e.into_inner());
++    if on { g.insert(agent.to_string(), now()); } else { g.remove(agent); }
++}
++
++fn generating(agent: &str) -> bool {
++    GEN.lock().unwrap_or_else(|e| e.into_inner()).get(agent).map(|ts| now() - *ts < GEN_BEAT).unwrap_or(false)
++}
++
++/// Arbeitet der Agent gerade live? (laufender Co-Work-Task oder Tab generiert)
++fn holds(busy: &[String], agent: &str) -> bool { busy.iter().any(|b| b == agent) || generating(agent) }
++
++/// Jeder Tool-Aufruf: Chat merken und Klartext in den Live-Feed schreiben.
 +pub(crate) fn record(session: &str, name: &str, args: &Value) {
 +    let text = describe(name, args);
++    let who = ident(session, args);
++    let busy = crate::notion_cowork::busy_agents();
 +    let t = now();
 +    let l = &mut *live();
-+    let key = if session.is_empty() { "-".to_string() } else { session.to_string() };
-+    if !l.tabs.contains_key(&key) {
-+        l.count += 1;
-+        let label = format!("Chat {}", l.count);
-+        l.tabs.insert(key.clone(), TabInfo { label, seen: t, last: String::new() });
-+    }
-+    let label = match l.tabs.get_mut(&key) {
-+        Some(x) => { x.seen = t; x.last = text.clone(); x.label.clone() }
-+        None => String::new(),
-+    };
++    l.locks.retain(|_, (o, _)| holds(&busy, o));
++    l.busy = busy;
++    let (key, label) = if who.is_empty() { ("?".to_string(), "Chat ohne Namen".to_string()) } else { (who.clone(), who) };
++    let x = l.tabs.entry(key).or_insert(TabInfo { label: label.clone(), seen: t, last: String::new() });
++    x.seen = t;
++    x.last = text.clone();
 +    l.next += 1;
 +    let id = l.next;
 +    l.feed.push_back(Entry { id, ts: t, tab: label, tool: name.to_string(), text });
@@ -4459,13 +4497,18 @@ index 0000000..4c87c6f
 +    l.tabs.retain(|_, x| t - x.seen < 86_400);
 +}
 +
-+/// Immer aktive Bridge: blockiert Schreibzugriffe auf Dateien, die ein anderer Tab gerade schreibt,
-+/// und reserviert freie Dateien automatisch fuer den schreibenden Tab.
++/// Immer aktive Bridge: blockiert Schreibzugriffe auf Dateien, an denen ein anderer Chat gerade
++/// live arbeitet, und reserviert freie Dateien fuer den schreibenden Chat, solange er live arbeitet.
 +pub(crate) fn guard(session: &str, name: &str, args: &Value) -> Option<String> {
-+    if session.is_empty() || name.starts_with("cowork_") { return None; }
++    if name.starts_with("cowork_") { return None; }
++    let who = ident(session, args);
++    if who.is_empty() { return None; }
++    let busy = crate::notion_cowork::busy_agents();
 +    let t = now();
 +    let l = &mut *live();
-+    l.locks.retain(|_, (_, ts)| t - *ts < LOCK_SECS);
++    l.locks.retain(|_, (o, _)| holds(&busy, o));
++    let mine = holds(&busy, &who);
++    l.busy = busy;
 +    let hit: Option<(String, String, i64)> = if name == "pc_PowerShell" {
 +        let cmd = arg(args, "command").to_ascii_lowercase().replace('\\', "/");
 +        if !crate::notion_cowork::ps_writes(&cmd) { return None; }
@@ -4473,35 +4516,33 @@ index 0000000..4c87c6f
 +            .find(|(k, (o, _))| {
 +                let ks = k.as_str();
 +                let f = ks.rsplit('/').next().unwrap_or(ks);
-+                o.as_str() != session && (cmd.contains(ks) || (f.len() >= 4 && cmd.contains(f)))
++                o.as_str() != who.as_str() && (cmd.contains(ks) || (f.len() >= 4 && cmd.contains(f)))
 +            })
 +            .map(|(k, (o, ts))| (k.clone(), o.clone(), *ts))
 +    } else {
 +        let targets = crate::notion_cowork::live_write_paths(name, args)?;
 +        let hit = targets.iter().find_map(|tg| {
 +            l.locks.iter()
-+                .find(|(k, (o, _))| o.as_str() != session && crate::notion_cowork::live_same(tg, k.as_str()))
++                .find(|(k, (o, _))| o.as_str() != who.as_str() && crate::notion_cowork::live_same(tg, k.as_str()))
 +                .map(|(k, (o, ts))| (k.clone(), o.clone(), *ts))
 +        });
-+        if hit.is_none() {
-+            for tg in targets { l.locks.insert(tg, (session.to_string(), t)); }
++        if hit.is_none() && mine {
++            for tg in targets { l.locks.entry(tg).or_insert((who.clone(), t)); }
 +        }
 +        hit
 +    };
 +    let (path, owner, ts) = hit?;
-+    let who = l.tabs.get(&owner).map(|x| x.label.clone()).unwrap_or_else(|| "ein anderer Chat".into());
-+    let me = l.tabs.get(session).map(|x| x.label.clone()).unwrap_or_else(|| "Chat".into());
 +    l.next += 1;
 +    let id = l.next;
-+    l.feed.push_back(Entry { id, ts: t, tab: me, tool: name.to_string(), text: format!("Blockiert: wollte {} ändern, aber {who} bearbeitet die Datei gerade", file_name(&path)) });
++    l.feed.push_back(Entry { id, ts: t, tab: who.clone(), tool: name.to_string(), text: format!("Blockiert: wollte {} ändern, aber {owner} arbeitet gerade daran", file_name(&path)) });
 +    while l.feed.len() > MAX_FEED { l.feed.pop_front(); }
 +    Some(format!(
-+        "[AdiCode Live-Bridge] {path} wird gerade von {who} bearbeitet (letzte Änderung vor {} s). Nicht ändern, sonst geht dessen Arbeit kaputt. Kurz warten, eine andere Aufgabe machen oder per cowork_message abstimmen. Die Reservierung läuft {} Minuten nach der letzten Änderung ab.",
-+        t - ts, LOCK_SECS / 60
++        "[AdiCode Live-Bridge] {path} wird gerade live von {owner} bearbeitet (seit {} s). Nicht ändern, sonst geht dessen Arbeit kaputt. Eine andere Aufgabe machen oder per cowork_message abstimmen. Die Datei wird automatisch frei, sobald {owner} die Aufgabe abschliesst bzw. der Chat fertig ist.",
++        t - ts
 +    ))
 +}
 +
-+/// Text fuer cowork_board: welche Chats gerade aktiv sind und was sie tun.
++/// Text fuer cowork_board: welche Chats gerade aktiv sind, was sie tun und welche Dateien live belegt sind.
 +pub(crate) fn tabs_text() -> String {
 +    let t = now();
 +    let l = live();
@@ -4509,9 +4550,8 @@ index 0000000..4c87c6f
 +    if act.is_empty() { return String::new(); }
 +    let mut s = String::from("\n\nLive-Bridge (immer an) - aktive Chats:");
 +    for x in act { s.push_str(&format!("\n- {}: {} (vor {} s)", x.label, x.last, t - x.seen)); }
-+    for (k, (o, ts)) in l.locks.iter().filter(|(_, (_, ts))| t - *ts < LOCK_SECS) {
-+        let who = l.tabs.get(o).map(|x| x.label.as_str()).unwrap_or("?");
-+        s.push_str(&format!("\n  Datei {k} reserviert von {who} (vor {} s)", t - ts));
++    for (k, (o, ts)) in l.locks.iter().filter(|(_, (o, _))| holds(&l.busy, o)) {
++        s.push_str(&format!("\n  Datei {k} live belegt von {o} (seit {} s)", t - ts));
 +    }
 +    s
 +}
@@ -4526,7 +4566,8 @@ index 0000000..4c87c6f
 +    let tabs: Vec<Value> = l.tabs.values().filter(|x| t - x.seen < ACTIVE_SECS)
 +        .map(|x| json!({"tab": x.label, "ago": t - x.seen, "text": x.last}))
 +        .collect();
-+    json!({"ok": true, "now": t, "last": l.next, "items": items, "tabs": tabs, "locks": l.locks.len()})
++    let locks = l.locks.values().filter(|(o, _)| holds(&l.busy, o)).count();
++    json!({"ok": true, "now": t, "last": l.next, "items": items, "tabs": tabs, "locks": locks})
 +}
 +
 +#[derive(Deserialize)]
@@ -4551,16 +4592,21 @@ index 0000000..4c87c6f
 +    }
 +
 +    #[test]
-+    fn notion_live_bridge_blocks_other_tab() {
-+        let (a, b) = ("live-test-a", "live-test-b");
-+        let w = json!({"path": "zz_live_test/x.txt", "content": "1"});
-+        record(a, "files_write_file", &w);
-+        record(b, "files_write_file", &w);
-+        assert!(guard(a, "files_write_file", &w).is_none());
-+        let m = guard(b, "files_write_file", &w).expect("zweiter Tab muss blockiert werden");
-+        assert!(m.contains("Live-Bridge"), "{m}");
-+        assert!(guard(a, "files_write_file", &w).is_none());
-+        assert!(guard(b, "files_write_file", &json!({"path": "zz_live_test/y.txt", "content": "1"})).is_none());
++    fn notion_live_lock_only_while_live() {
++        let wa = json!({"path": "zz_live_test/x.txt", "content": "1", "agent": "live-test-a"});
++        let wb = json!({"path": "zz_live_test/x.txt", "content": "1", "agent": "live-test-b"});
++        // Chats ohne Namen: nie raten, nie sperren (jeder Notion-Aufruf kann eine neue Session sein).
++        assert!(guard("s1", "files_write_file", &json!({"path": "zz_live_test/x.txt", "content": "1"})).is_none());
++        set_generating("live-test-a", true);
++        record("s1", "files_write_file", &wa);
++        record("s2", "files_write_file", &wb);
++        assert!(guard("s1", "files_write_file", &wa).is_none());
++        let m = guard("s2", "files_write_file", &wb).expect("anderer Chat muss blockiert werden, solange A live arbeitet");
++        assert!(m.contains("Live-Bridge") && m.contains("live-test-a"), "{m}");
++        assert!(guard("s9", "files_write_file", &wa).is_none(), "gleicher Agent in neuer Session ist nicht blockiert");
++        assert!(tabs_text().contains("live belegt von live-test-a"));
++        set_generating("live-test-a", false);
++        assert!(guard("s2", "files_write_file", &wb).is_none(), "A fertig -> Datei sofort frei");
 +        assert!(feed(0)["items"].as_array().map(|v| !v.is_empty()).unwrap_or(false));
 +        assert!(tabs_text().contains("aktive Chats"));
 +    }
@@ -5580,10 +5626,10 @@ index 0000000..29122c1
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..72cac8e
+index 0000000..7b3bdec
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,717 @@
+@@ -0,0 +1,718 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -5848,8 +5894,8 @@ index 0000000..72cac8e
 +async fn trusted_click(port:u16,point:&Value)->Result<(),String>{let x=point["x"].as_f64().ok_or("Klickposition X fehlt")?;let y=point["y"].as_f64().ok_or("Klickposition Y fehlt")?;cdp(port,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}})]).await?;Ok(())}
 +fn prompt_for(t:&Tab)->String {
 +    const CONN:&str="Die Tools kommen von meinem AdiCode-MCP-Server (in Notion als Verbindung \"asf\" oder \"AdiCode\" eingetragen).";
-+    if t.role=="Main" { format!("Hallo! AdiCode Co-Work: Drei Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel ueber cowork_*-Tools mit dir. {CONN} Du bist Main/Lead und mein einziger Ansprechpartner.\n1. Neue Aufgabe/Projekt: project_memory oeffnen, Skill cowork lesen, cowork_start mit 4-12 parallelen Tasks (role, review=reviewer fuer Code, files). Kleine Fragen selbst beantworten.\n2. Bewertungen der Worker per cowork_wait einarbeiten; Neues waehrend des Projekts zuerst per cowork_prompt.\n3. Ende: cowork_results, mir EINE kurze Antwort, HANDOUT.md und project_memory aktualisieren.\nTempo: Tasks so schneiden, dass alle Worker sofort parallel starten; unabhaengige Tool-Calls in EINER Antwort parallel ausfuehren; nicht auf langsame Worker warten, sondern selbst mitarbeiten. Spare Token: knapp antworten, Diffs statt Volltext, nichts wiederholen. AdiCode schickt kurze Erinnerungen in meinem Namen. Antworte jetzt nur: Co-Work bereit.") }
-+    else { let role=t.role.split_whitespace().next().unwrap_or("coder").to_ascii_lowercase();format!("Hallo! AdiCode Co-Work: Mehrere Notion-AI-Chats arbeiten ueber cowork_*-Tools gemeinsam. {CONN} Du bist mein {r} (Schwerpunkt, hilf bei allem).\n1. cowork_join mit role \"{role}\" und agent \"AdiCode-{r}\" (neuestes Projekt aus cowork_board).\n2. Loop: cowork_claim, erledigen, cowork_update mit 1-Satz-Ergebnis, wieder cowork_claim. safe_write_file immer mit agent \"AdiCode-{r}\".\n3. Bewertungs-Tasks zuerst, knapp aus Sicht deiner Rolle.\n   Tempo: unabhaengige Tool-Calls (Dateien lesen/schreiben/suchen) in EINER Antwort parallel ausfuehren, keine Zwischenberichte, nach cowork_update sofort wieder cowork_claim.\n4. Nichts frei: cowork_wait.\nIch bin nicht am Rechner: arbeite selbststaendig, antworte knapp, Diffs statt Volltext. Fragen per cowork_message an Main. Kurze automatische Erinnerungen von AdiCode sind von mir.",r=t.role.replace(' ',"")) }
++    if t.role=="Main" { format!("Hallo! AdiCode Co-Work: Drei Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel ueber cowork_*-Tools mit dir. {CONN} Du bist Main/Lead und mein einziger Ansprechpartner.\n1. Neue Aufgabe/Projekt: project_memory oeffnen, Skill cowork lesen, cowork_start mit 4-12 parallelen Tasks (role, review=reviewer fuer Code, files). Kleine Fragen selbst beantworten.\n2. Bewertungen der Worker per cowork_wait einarbeiten; Neues waehrend des Projekts zuerst per cowork_prompt.\n3. Ende: cowork_results, mir EINE kurze Antwort, HANDOUT.md und project_memory aktualisieren.\nTempo: Tasks so schneiden, dass alle Worker sofort parallel starten; unabhaengige Tool-Calls in EINER Antwort parallel ausfuehren; nicht auf langsame Worker warten, sondern selbst mitarbeiten. Spare Token: knapp antworten, Diffs statt Volltext, nichts wiederholen. Bei schreibenden Tools agent \"Main\" mitgeben. AdiCode schickt kurze Erinnerungen in meinem Namen. Antworte jetzt nur: Co-Work bereit.") }
++    else { let role=t.role.split_whitespace().next().unwrap_or("coder").to_ascii_lowercase();format!("Hallo! AdiCode Co-Work: Mehrere Notion-AI-Chats arbeiten ueber cowork_*-Tools gemeinsam. {CONN} Du bist mein {r} (Schwerpunkt, hilf bei allem).\n1. cowork_join mit role \"{role}\" und agent \"AdiCode-{r}\" (neuestes Projekt aus cowork_board).\n2. Loop: cowork_claim, erledigen, cowork_update mit 1-Satz-Ergebnis, wieder cowork_claim. Bei JEDEM schreibenden Tool (safe_write_file, files_*, pc_PowerShell, git_*) agent \"AdiCode-{r}\" mitgeben, sonst kann die Bridge deine Dateien nicht schuetzen.\n3. Bewertungs-Tasks zuerst, knapp aus Sicht deiner Rolle.\n   Tempo: unabhaengige Tool-Calls (Dateien lesen/schreiben/suchen) in EINER Antwort parallel ausfuehren, keine Zwischenberichte, nach cowork_update sofort wieder cowork_claim.\n4. Nichts frei: cowork_wait.\nIch bin nicht am Rechner: arbeite selbststaendig, antworte knapp, Diffs statt Volltext. Fragen per cowork_message an Main. Kurze automatische Erinnerungen von AdiCode sind von mir.",r=t.role.replace(' ',"")) }
 +}
 +/// Chat is idle: Notion AI is not generating/recording and the composer is empty.
 +async fn chat_idle(port:u16)->bool{
@@ -5875,9 +5921,10 @@ index 0000000..72cac8e
 +        tokio::time::sleep(Duration::from_secs(4)).await;
 +        for(i,t)in tabs.iter().enumerate(){
 +            if is_paused(t.id){stuck.remove(&t.id);continue;}
++            let gen_agent=if i==0{crate::notion_cowork::latest_lead()}else{format!("AdiCode-{}",t.role)};
 +            match gen_snapshot(cdp_port(i)).await{
-+                Some(s)=>{let e=stuck.entry(t.id).or_insert((s.clone(),std::time::Instant::now()));if e.0!=s{*e=(s,std::time::Instant::now());}else if e.1.elapsed()>Duration::from_secs(STUCK_SECS){stop_generation(cdp_port(i)).await;stuck.remove(&t.id);last.remove(&t.id);tracing::warn!("Co-Work: Chat {} hing {STUCK_SECS}s ohne Fortschritt - gestoppt",t.role);}continue;}
-+                None=>{stuck.remove(&t.id);}
++                Some(s)=>{crate::notion_live::set_generating(&gen_agent,true);let e=stuck.entry(t.id).or_insert((s.clone(),std::time::Instant::now()));if e.0!=s{*e=(s,std::time::Instant::now());}else if e.1.elapsed()>Duration::from_secs(STUCK_SECS){stop_generation(cdp_port(i)).await;stuck.remove(&t.id);last.remove(&t.id);tracing::warn!("Co-Work: Chat {} hing {STUCK_SECS}s ohne Fortschritt - gestoppt",t.role);}continue;}
++                None=>{crate::notion_live::set_generating(&gen_agent,false);stuck.remove(&t.id);}
 +            }
 +            let agent=if i==0{crate::notion_cowork::latest_lead()}else{format!("AdiCode-{}",t.role)};
 +            let Some((sig,text))=crate::notion_cowork::nudge_for(&agent) else {continue};
