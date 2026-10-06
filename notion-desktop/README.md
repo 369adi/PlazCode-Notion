@@ -12,7 +12,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
-## Neu in 1.0.34
+## Neu in 1.0.35
+- **Usage-Fix**: Der Check klickt jetzt den richtigen Notion-KI-Tab und liest den echten Monatsverbrauch (z.B. 16 %). Auch der Chat-Check war durch falsche Escapes defekt.## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.## Neu in 1.0.33
 - **Echte Usage**: Der Check liest den Verbrauch direkt aus Einstellungen -> Notion KI -> Usage (Monthly, "x% used", Reset-Datum) und zeigt ihn im Balken.
