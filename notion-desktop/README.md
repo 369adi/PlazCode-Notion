@@ -67,6 +67,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Schneller**: Einrichtung prueft alle 1,5 s statt alle 3 s.
 ## Neu in 1.0.54
 - **Google-Fehler beim Refresh**: Zeigt das Google-Fenster einen Fehler (400), wird es geschlossen und der Login startet erneut (alle 8 s ein neuer Versuch).
+## Neu in 1.0.55
+- **E-Mail aendern speichert jetzt automatisch** (kein extra Klick auf Speichern noetig).
+- **Notion laedt nach dem Google-Login neu**, damit die Seite nicht haengen bleibt.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
