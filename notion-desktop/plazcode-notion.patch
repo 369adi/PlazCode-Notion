@@ -2148,10 +2148,10 @@ index 0000000..5c536fa
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..2d7d31c
+index 0000000..03cd439
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,641 @@
+@@ -0,0 +1,738 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -2290,6 +2290,103 @@ index 0000000..2d7d31c
 +@keyframes acIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}@keyframes acSpin{to{transform:rotate(360deg)}}
 +@keyframes acShine{to{background-position:-200% 0}}@keyframes acBreath{50%{transform:scale(.9);filter:brightness(.85)}}@keyframes acSpeak{from{transform:scale(1)}to{transform:scale(1.08)}}
 +@media (max-width:1100px){.ac-side{display:none}}
++</style>
++<style id="adicode-chat-v2">
++#page-chat{--ac-panel:#131826;--ac-line:#232a3d;--ac-soft:#1a2031;--ac-acc:#7c5cff;--ac-acc2:#22d3ee;--ac-glow:rgba(124,92,255,.35)}
++.ac-wrap{background:radial-gradient(1200px 600px at 70% -10%,rgba(124,92,255,.09),transparent 60%),radial-gradient(900px 500px at 10% 110%,rgba(34,211,238,.06),transparent 60%),var(--bg,#0a0c12)}
++.ac-side{background:linear-gradient(180deg,rgba(14,17,26,.94),rgba(10,12,18,.94));backdrop-filter:blur(10px)}
++.ac-new{transition:background .2s,border-color .2s,transform .15s,box-shadow .2s}
++.ac-new:hover{border-color:#3a4366;background:rgba(124,92,255,.08)}
++.ac-new:active{transform:scale(.98)}
++#acNew{background:linear-gradient(135deg,rgba(124,92,255,.22),rgba(34,211,238,.10));border-color:rgba(124,92,255,.45)}
++#acNew:hover{box-shadow:0 0 0 1px rgba(124,92,255,.35),0 6px 20px rgba(124,92,255,.25)}
++.ac-hitem{position:relative;transition:background .18s,color .18s,transform .18s}
++.ac-hitem:hover{transform:translateX(3px)}
++.ac-hitem.on{background:linear-gradient(90deg,rgba(124,92,255,.24),rgba(124,92,255,.05));box-shadow:inset 0 0 0 1px rgba(124,92,255,.22)}
++.ac-hitem.on:before{content:"";position:absolute;left:0;top:7px;bottom:7px;width:3px;border-radius:3px;background:linear-gradient(var(--ac-acc),var(--ac-acc2));box-shadow:0 0 10px var(--ac-glow)}
++.ac-hitem .ac-x{transition:opacity .15s,color .15s}.ac-hitem .ac-x:hover{color:#f87171}
++.ac-cwbtn{position:relative;overflow:hidden;box-shadow:0 8px 24px rgba(124,92,255,.3);transition:transform .15s,box-shadow .2s,filter .2s}
++.ac-cwbtn:hover{transform:translateY(-1px);box-shadow:0 12px 30px rgba(124,92,255,.42)}
++.ac-cwbtn:after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.32),transparent);transform:skewX(-20deg);animation:acV2Shine 4.5s ease-in-out infinite;pointer-events:none}
++.ac-head{background:rgba(10,12,18,.6);backdrop-filter:blur(14px) saturate(1.2);position:relative;z-index:3}
++.ac-head:after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,rgba(124,92,255,.55),rgba(34,211,238,.4),transparent);opacity:.7}
++.ac-title{letter-spacing:-.2px}
++.ac-pill{border:1px solid var(--ac-line);transition:background .25s,border-color .25s}
++.ac-pill.ok{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.08)}
++.ac-pill.busy{border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.08)}
++.ac-pill.err{border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.08)}
++.ac-pill.ok i{animation:acV2Ping 2.4s ease-out infinite}
++.ac-hbtn{transition:background .15s,color .15s,border-color .15s}.ac-hbtn:hover{border-color:#3a4366}
++.ac-cw{background:linear-gradient(90deg,rgba(124,92,255,.12),rgba(34,211,238,.05))}
++.ac-scroll::-webkit-scrollbar,.ac-hist::-webkit-scrollbar{width:10px}
++.ac-scroll::-webkit-scrollbar-thumb,.ac-hist::-webkit-scrollbar-thumb{background:#262d42;border-radius:10px;border:3px solid transparent;background-clip:padding-box}
++.ac-scroll::-webkit-scrollbar-thumb:hover,.ac-hist::-webkit-scrollbar-thumb:hover{background:#343d5a;border:3px solid transparent;background-clip:padding-box}
++.ac-scroll::-webkit-scrollbar-track,.ac-hist::-webkit-scrollbar-track{background:transparent}
++.ac-empty .ac-logo{position:relative;animation:acV2Float 5s ease-in-out infinite}
++.ac-empty .ac-logo:after{content:"";position:absolute;inset:-6px;border-radius:22px;border:1px solid rgba(124,92,255,.4);animation:acV2Ring 3s ease-out infinite}
++.ac-empty h2{background:linear-gradient(90deg,#fff,#c9bdff 45%,#8be9fb);-webkit-background-clip:text;background-clip:text;color:transparent;animation:acV2Rise .5s cubic-bezier(.2,.8,.2,1) .05s backwards}
++.ac-empty p{animation:acV2Rise .5s cubic-bezier(.2,.8,.2,1) .12s backwards}
++.ac-sugg button{position:relative;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01)),var(--ac-panel);transition:transform .2s cubic-bezier(.2,.8,.2,1),border-color .2s,box-shadow .2s,background .2s;animation:acV2Rise .5s cubic-bezier(.2,.8,.2,1) backwards}
++.ac-sugg button:nth-child(1){animation-delay:.18s}.ac-sugg button:nth-child(2){animation-delay:.24s}.ac-sugg button:nth-child(3){animation-delay:.30s}.ac-sugg button:nth-child(4){animation-delay:.36s}.ac-sugg button:nth-child(5){animation-delay:.42s}.ac-sugg button:nth-child(6){animation-delay:.48s}
++.ac-sugg button:hover{transform:translateY(-2px);border-color:rgba(124,92,255,.5);box-shadow:0 10px 28px rgba(0,0,0,.35),0 0 0 1px rgba(124,92,255,.2);background:linear-gradient(180deg,rgba(124,92,255,.10),rgba(124,92,255,.02)),var(--ac-panel)}
++.ac-sugg button b{color:#fff}
++.ac-msg{animation:acV2Msg .36s cubic-bezier(.2,.8,.2,1) backwards}
++.ac-msg.ac-upd{animation:none}
++.ac-bubble{background:linear-gradient(135deg,#5b45d6,#3b5bdb);color:#fff;border-radius:20px 20px 6px 20px;box-shadow:0 6px 20px rgba(91,69,214,.28)}
++.ac-msg.pending .ac-bubble{opacity:.7;animation:acPulse 1.6s ease-in-out infinite}
++.ac-av{box-shadow:0 0 0 3px rgba(124,92,255,.16),0 4px 14px rgba(124,92,255,.35)}
++.ac-md a{color:#a5b8ff;text-decoration-color:rgba(165,184,255,.4);transition:color .15s,text-decoration-color .15s}.ac-md a:hover{color:#c7d3ff;text-decoration-color:currentColor}
++.ac-md h1,.ac-md h2{letter-spacing:-.3px}.ac-md h2{padding-bottom:.3em;border-bottom:1px solid var(--ac-line)}
++.ac-md li::marker{color:#a993ff}
++.ac-md code{background:rgba(124,92,255,.12);border-color:rgba(124,92,255,.25);color:#e3dcff}
++.ac-md pre{background:linear-gradient(#141927,#141927) top/100% 30px no-repeat,#0b0e15;border-color:#262d42;box-shadow:0 6px 20px rgba(0,0,0,.25)}
++.ac-md pre:before{content:"";position:absolute;top:11px;left:14px;width:8px;height:8px;border-radius:50%;background:#f87171;box-shadow:14px 0 #fbbf24,28px 0 #34d399;opacity:.75}
++.ac-md pre code{color:#d7dcec}
++.ac-md pre .ac-copy{transition:background .15s,color .15s}.ac-md pre .ac-copy:hover{background:#2a3150;color:#fff}
++.ac-md blockquote{border-left:3px solid #7c5cff;background:rgba(124,92,255,.06);padding:.5em .9em;border-radius:0 10px 10px 0}
++.ac-md th{background:#1a1f30;font-weight:600}.ac-md tr:nth-child(even) td{background:rgba(255,255,255,.02)}
++.ac-md hr{border-top:0;height:1px;background:linear-gradient(90deg,transparent,#343d5a,transparent)}
++.ac-md img{box-shadow:0 8px 24px rgba(0,0,0,.35)}
++.ac-steps .ac-sh{padding:4px 11px;border-radius:99px;background:rgba(255,255,255,.03);border:1px solid var(--ac-line);transition:background .15s,border-color .15s}
++.ac-steps .ac-sh:hover{background:rgba(124,92,255,.08);border-color:rgba(124,92,255,.3)}
++.ac-steps.open .ac-sl{animation:acV2Fade .25s ease-out;border-left-color:rgba(124,92,255,.4)}
++.ac-typing i{background:linear-gradient(135deg,var(--ac-acc),var(--ac-acc2))}
++.ac-ib{transition:background .15s,color .15s,transform .12s}.ac-ib:active{transform:scale(.88)}
++.ac-tools{transition:opacity .2s}
++.ac-acts button{border-color:rgba(124,92,255,.35);transition:transform .15s,border-color .15s,background .15s,box-shadow .2s}
++.ac-acts button:hover{transform:translateY(-1px);background:rgba(124,92,255,.15);box-shadow:0 6px 18px rgba(124,92,255,.2)}
++.ac-acts button:disabled{opacity:.5;transform:none}
++.ac-thumb{transition:transform .2s,box-shadow .2s}.ac-files .ac-thumb:hover{transform:scale(1.03);box-shadow:0 8px 22px rgba(0,0,0,.4)}
++.ac-chip b{background:linear-gradient(135deg,var(--ac-acc),#4f7cff)}
++.ac-foot{padding-top:6px}
++.ac-foot:before{content:"";position:absolute;left:0;right:0;bottom:100%;height:26px;background:linear-gradient(transparent,var(--bg,#0a0c12));pointer-events:none}
++.ac-box{background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,0)),var(--ac-panel);transition:border-color .2s,box-shadow .25s}
++.ac-box:focus-within{border-color:rgba(124,92,255,.55);box-shadow:0 0 0 4px rgba(124,92,255,.12),0 14px 40px rgba(0,0,0,.45),0 0 40px rgba(124,92,255,.12)}
++.ac-cb{transition:background .15s,color .15s,transform .12s,box-shadow .2s}.ac-cb:active{transform:scale(.9)}
++.ac-cb.ac-send{background:linear-gradient(135deg,#7c5cff,#3b82f6);color:#fff;box-shadow:0 4px 14px rgba(124,92,255,.4)}
++.ac-cb.ac-send:hover{background:linear-gradient(135deg,#8b6dff,#4f8dff);box-shadow:0 6px 20px rgba(124,92,255,.55)}
++.ac-cb.ac-send:not(:disabled){animation:acV2Pop .25s cubic-bezier(.2,.8,.2,1)}
++.ac-cb.ac-send:disabled{background:#2a3044;color:#8a92aa;box-shadow:none;opacity:.6}
++.ac-cb.ac-voice{background:rgba(124,92,255,.14);color:#cfc4ff}.ac-cb.ac-voice:hover{background:rgba(124,92,255,.26);color:#fff}
++.ac-a{animation:acV2Pop .25s cubic-bezier(.2,.8,.2,1)}
++.ac-toast{backdrop-filter:blur(10px)}
++.ac-toast.show{animation:acV2Toast .28s cubic-bezier(.2,.8,.2,1)}
++.ac-drop{backdrop-filter:blur(6px)}
++.ac-drop.show{animation:acV2Fade .2s ease-out,acV2Border 1.4s ease-in-out infinite}
++.ac-vui.show{animation:acV2Fade .3s ease-out}
++.ac-orb:hover{box-shadow:0 0 120px rgba(124,92,255,.65),inset 0 -14px 40px rgba(0,0,0,.35)}
++.ac-vbtns button{transition:background .15s,transform .15s}.ac-vbtns button:hover{transform:scale(1.06)}
++@keyframes acV2Msg{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
++@keyframes acV2Rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
++@keyframes acV2Fade{from{opacity:0}to{opacity:1}}
++@keyframes acV2Pop{0%{transform:scale(.8);opacity:.4}100%{transform:scale(1);opacity:1}}
++@keyframes acV2Float{50%{transform:translateY(-6px)}}
++@keyframes acV2Ring{0%{transform:scale(.92);opacity:.9}100%{transform:scale(1.25);opacity:0}}
++@keyframes acV2Ping{0%{box-shadow:0 0 0 0 rgba(52,211,153,.6)}70%,100%{box-shadow:0 0 0 7px rgba(52,211,153,0)}}
++@keyframes acV2Shine{0%,70%{left:-60%}100%{left:130%}}
++@keyframes acV2Toast{from{opacity:0;transform:translate(-50%,8px) scale(.97)}to{opacity:1;transform:translate(-50%,0)}}
++@keyframes acV2Border{50%{border-color:#22d3ee}}
++@media (prefers-reduced-motion:reduce){#page-chat *,#page-chat *:before,#page-chat *:after{animation:none!important;transition:none!important}}
 +</style>
 +<section class="page" id="page-chat">
 +  <div class="ac-wrap">
@@ -2525,7 +2622,7 @@ index 0000000..2d7d31c
 +      var sig = JSON.stringify(m) + (m.last && S.gen ? "g" : "") + (S.open[m.id] === undefined ? "u" : (S.open[m.id] ? "o" : "c"));
 +      if (S.sigs[i] === sig && box.children[i]) continue;
 +      var el = msgEl(m);
-+      if (box.children[i]) box.replaceChild(el, box.children[i]); else box.appendChild(el);
++      if (box.children[i]) { el.classList.add("ac-upd"); box.replaceChild(el, box.children[i]); } else box.appendChild(el);
 +      S.sigs[i] = sig;
 +    }
 +    while (box.children.length > list.length) box.removeChild(box.lastChild);
@@ -2795,10 +2892,10 @@ index 0000000..2d7d31c
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..ffbc6b7
+index 0000000..31c1647
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1049 @@
+@@ -0,0 +1,1324 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -2819,7 +2916,7 @@ index 0000000..ffbc6b7
 +use once_cell::sync::Lazy;
 +use serde::{Deserialize, Serialize};
 +use serde_json::{json, Value};
-+use std::{collections::BTreeMap, path::PathBuf, sync::Mutex, time::Duration};
++use std::{collections::{BTreeMap, HashMap}, path::PathBuf, sync::Mutex, time::Duration};
 +
 +const STALE_SECS: i64 = 20 * 60;
 +const MAX_WAIT_SECS: u64 = 45;
@@ -2830,11 +2927,13 @@ index 0000000..ffbc6b7
 +const STEAL_SECS: i64 = 25;
 +/// Late joiners still evaluate a prompt that is younger than this.
 +const ASSESS_WINDOW_SECS: i64 = 15 * 60;
++/// Another tab may take an open task of a foreign Arbeitspaket (lane) only after it waited this long.
++const LANE_STEAL_SECS: i64 = 10 * 60;
 +
 +struct Role { id: &'static str, title: &'static str, guide: &'static str }
 +
 +const ROLES: &[Role] = &[
-+    Role { id: "lead", title: "Lead / Main Chat", guide: "Du bist der Main Chat und das Interface zum Nutzer. Projekt verstehen, mit cowork_start anlegen: Ziel in kleine, moeglichst parallele Tasks zerlegen (so, dass ALLE Agents gleichzeitig etwas zu tun haben) und jedem Task als role den passenden Schwerpunkt geben. Fuer Code-Tasks review=reviewer setzen, fuer UI-Tasks review=uiux. Jede weitere Nutzer-Nachricht waehrend des Projekts sofort mit cowork_prompt ans Board geben - die Worker bewerten sie aus ihrer Rollen-Sicht und schlagen Teilaufgaben vor. Waehrenddessen cowork_wait/cowork_board: Bewertungen einarbeiten, blockierte Tasks klaeren, Tasks ergaenzen und selbst Tasks uebernehmen, wenn nichts zu koordinieren ist. Am Ende cowork_results lesen und daraus EINE finale, optimierte Antwort fuer den Nutzer bauen." },
++    Role { id: "lead", title: "Lead / Main Chat", guide: "Du bist der Main Chat und das Interface zum Nutzer. Projekt verstehen, mit cowork_start anlegen: Das ganze Projekt nach Funktionsbereichen in Tasks zerlegen (jeder Task mit area + files, damit jeder Tab ein eigenes Arbeitspaket bekommt und ALLE gleichzeitig an verschiedenen Teilen arbeiten), role optional als Schwerpunkt. Fuer Code-Tasks review=reviewer setzen, fuer UI-Tasks review=uiux. Jede weitere Nutzer-Nachricht waehrend des Projekts sofort mit cowork_prompt ans Board geben - die Worker bewerten sie aus ihrer Rollen-Sicht und schlagen Teilaufgaben vor. Waehrenddessen cowork_wait/cowork_board: Bewertungen einarbeiten, blockierte Tasks klaeren, Tasks ergaenzen und selbst Tasks uebernehmen, wenn nichts zu koordinieren ist. Am Ende cowork_results lesen und daraus EINE finale, optimierte Antwort fuer den Nutzer bauen." },
 +    Role { id: "prompt", title: "Prompt-Schreiber", guide: "Du formulierst praezise Prompts, Specs, System-Instructions, Texte und Akzeptanzkriterien. Liefere das Ergebnis als fertigen, direkt nutzbaren Text (im result oder als Datei) plus 1-2 Saetze Begruendung." },
 +    Role { id: "coder", title: "Programmierer", guide: "Du implementierst Features (App, Backend, Skripte). Passenden Skill laden (app, debug, git), Dateien vor dem Aendern lesen, nur die Dateien des Tasks aendern, bauen/testen. result: was geaendert, welche Dateien, wie getestet." },
 +    Role { id: "reviewer", title: "Code-Bewerter", guide: "Du pruefst Code auf Bugs, Sicherheit, Performance, Lesbarkeit und ob die Akzeptanzkriterien erfuellt sind. Dateien lesen, nichts selbst umschreiben. Passt alles: status=done mit kurzer Bewertung. Sonst status=changes mit nummerierten, konkreten Punkten (Datei, Stelle, gewuenschter Fix)." },
@@ -2869,7 +2968,7 @@ index 0000000..ffbc6b7
 +
 +#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 +#[serde(default)]
-+struct Agent { name: String, role: String, joined: i64, last_seen: i64, last_read: u64 }
++struct Agent { name: String, role: String, joined: i64, last_seen: i64, last_read: u64, lane: u64 }
 +
 +#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 +#[serde(default)]
@@ -2898,6 +2997,10 @@ index 0000000..ffbc6b7
 +    assignee: String,
 +    /// Prompt wave this task belongs to (0 = none, never gated).
 +    wave: u64,
++    /// Functional area of the project (e.g. "Login"), used to build Arbeitspakete.
++    area: String,
++    /// Arbeitspaket (lane): tasks that share files/area; one tab does a lane (0 = anyone).
++    lane: u64,
 +}
 +
 +/// One user prompt (project start or a new prompt mid-project).
@@ -2915,6 +3018,10 @@ index 0000000..ffbc6b7
 +
 +static BOARD: Lazy<Mutex<Board>> = Lazy::new(|| Mutex::new(load()));
 +static CHANGED: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
++/// MCP session -> (agent, ambiguous). Notion sends the mcp-session-id header with every call.
++static SESSIONS: Lazy<Mutex<HashMap<String, (String, bool)>>> = Lazy::new(|| Mutex::new(HashMap::new()));
++/// Agent name of the last successful cowork_start/cowork_join (set inside the board lock).
++static LAST_AGENT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 +pub(crate) fn project_count() -> usize { BOARD.lock().unwrap_or_else(|e| e.into_inner()).projects.len() }
 +pub(crate) fn latest_lead() -> String { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.lead.clone()).unwrap_or_default() }
 +pub(crate) fn latest_agent_roles() -> Vec<String> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.agents.values().map(|a|a.role.clone()).collect()).unwrap_or_default() }
@@ -3151,7 +3258,7 @@ index 0000000..ffbc6b7
 +        }
 +    }
 +    let t = now();
-+    let entry = p.agents.entry(name.clone()).or_insert_with(|| Agent { name: name.clone(), role: role.to_string(), joined: t, last_seen: t, last_read: 0 });
++    let entry = p.agents.entry(name.clone()).or_insert_with(|| Agent { name: name.clone(), role: role.to_string(), joined: t, last_seen: t, last_read: 0, lane: 0 });
 +    entry.last_seen = t;
 +    if !role.is_empty() { entry.role = role.to_string(); }
 +    name
@@ -3169,11 +3276,85 @@ index 0000000..ffbc6b7
 +        p.tasks.push(Task {
 +            id: p.next_task, title, detail: s(item, "detail"), status: "open".into(), depends_on, files, updated: now(),
 +            role: task_role(&item["role"]), review: task_role(&item["review"]), wave,
++            area: s(item, "area"), lane: item["lane"].as_u64().unwrap_or(0), assignee: s(item, "assignee"),
 +            ..Default::default()
 +        });
-+        ids.push(p.next_task);
++        let id = p.next_task;
++        if p.tasks.last().map(|t| t.lane == 0).unwrap_or(false) { auto_lane(p, id); }
++        ids.push(id);
 +    }
 +    ids
++}
++
++fn same_file(a: &str, b: &str) -> bool {
++    !a.is_empty() && !b.is_empty() && (a == b || a.ends_with(&format!("/{b}")) || b.ends_with(&format!("/{a}")))
++}
++
++/// Puts a new work task into an Arbeitspaket (lane): tasks that share files or the same
++/// area belong together, so ONE tab does them one after another and no two tabs edit
++/// the same file at the same time. Tasks without files and area stay lane 0 (anyone).
++fn auto_lane(p: &mut Project, id: u64) {
++    let Some(i) = p.tasks.iter().position(|t| t.id == id) else { return };
++    let me = p.tasks[i].clone();
++    if !me.kind.is_empty() || (me.files.is_empty() && me.area.is_empty()) { return; }
++    let mine: Vec<String> = me.files.iter().map(|f| norm_path(f)).collect();
++    let area = me.area.to_ascii_lowercase();
++    let mut lanes: Vec<u64> = p.tasks.iter()
++        .filter(|t| t.id != id && t.lane > 0 && (t.kind.is_empty() || t.kind == "fix"))
++        .filter(|t| (!area.is_empty() && t.area.to_ascii_lowercase() == area) || t.files.iter().any(|f| { let f = norm_path(f); mine.iter().any(|m| same_file(m, &f)) }))
++        .map(|t| t.lane).collect();
++    lanes.sort_unstable();
++    lanes.dedup();
++    let lane = match lanes.first() { Some(l) => *l, None => p.tasks.iter().map(|t| t.lane).max().unwrap_or(0) + 1 };
++    // The new task connects two lanes: merge them (tasks somebody already works on stay).
++    for other in lanes.iter().skip(1) {
++        for t in p.tasks.iter_mut() { if t.lane == *other && t.status != "claimed" { t.lane = lane; } }
++    }
++    p.tasks[i].lane = lane;
++}
++
++fn agent_lane(p: &Project, agent: &str) -> u64 { p.agents.get(agent).map(|a| a.lane).unwrap_or(0) }
++
++/// Alive agent (other than exclude) that owns this lane.
++fn lane_owner(p: &Project, lane: u64, exclude: &str) -> Option<String> {
++    p.agents.values().find(|a| a.lane == lane && a.name != exclude && alive(p, &a.name)).map(|a| a.name.clone())
++}
++
++/// Gives a worker its own Arbeitspaket: keeps its lane while it has open work, otherwise
++/// the lowest open lane nobody alive holds that fits its role. The lead coordinates (no lane).
++fn ensure_lane(p: &mut Project, agent: &str) -> u64 {
++    if agent.is_empty() || p.lead == agent || !p.agents.contains_key(agent) { return 0; }
++    let cur = agent_lane(p, agent);
++    if cur > 0 && p.tasks.iter().any(|t| t.lane == cur && t.status != "done") { return cur; }
++    let role = agent_role(p, agent);
++    let mut lanes: Vec<u64> = p.tasks.iter().filter(|t| t.lane > 0 && t.status != "done" && (t.role.is_empty() || t.role == role)).map(|t| t.lane).collect();
++    lanes.sort_unstable();
++    lanes.dedup();
++    let next = lanes.into_iter().find(|l| lane_owner(p, *l, agent).is_none()).unwrap_or(0);
++    if let Some(a) = p.agents.get_mut(agent) { a.lane = next; }
++    next
++}
++
++/// Tasks of a foreign, active Arbeitspaket wait for its owner (unless they waited long).
++fn lane_ok(p: &Project, t: &Task, agent: &str) -> bool {
++    if t.lane == 0 || !t.assignee.is_empty() { return true; }
++    match lane_owner(p, t.lane, "") { None => true, Some(o) => o == agent || now() - t.updated >= LANE_STEAL_SECS }
++}
++
++fn lane_text(p: &Project, agent: &str) -> String {
++    let lane = agent_lane(p, agent);
++    if lane == 0 { return String::new(); }
++    let tasks: Vec<&Task> = p.tasks.iter().filter(|t| t.lane == lane && t.status != "done").collect();
++    let mut areas: Vec<String> = Vec::new();
++    let mut files: Vec<String> = Vec::new();
++    for t in &tasks {
++        if !t.area.is_empty() && !areas.contains(&t.area) { areas.push(t.area.clone()); }
++        for f in &t.files { if !files.contains(f) { files.push(f.clone()); } }
++    }
++    format!("\nDein Arbeitspaket: P{lane}{} - Tasks {}{}. Diese Tasks bekommst du zuerst; die anderen Tabs haben eigene Pakete und aendern deine Dateien nicht.",
++        if areas.is_empty() { String::new() } else { format!(" ({})", areas.join(", ")) },
++        tasks.iter().map(|t| format!("#{}", t.id)).collect::<Vec<_>>().join(", "),
++        if files.is_empty() { String::new() } else { format!("; Dateien: {}", files.join(", ")) })
 +}
 +
 +fn post(p: &mut Project, from: &str, to: &str, text: String) {
@@ -3207,7 +3388,8 @@ index 0000000..ffbc6b7
 +
 +fn claimable(p: &Project, t: &Task, agent: &str) -> bool {
 +    let free = t.status == "open" || (t.status == "claimed" && !alive(p, &t.owner));
-+    free && deps_done(p, t) && files_free(p, t, agent) && role_ok(p, t, agent) && (!t.kind.is_empty() || gate_open(p, t.wave))
++    let my_lane = t.lane > 0 && t.assignee.is_empty() && agent_lane(p, agent) == t.lane;
++    free && deps_done(p, t) && files_free(p, t, agent) && (my_lane || (role_ok(p, t, agent) && lane_ok(p, t, agent))) && (!t.kind.is_empty() || gate_open(p, t.wave))
 +}
 +
 +/// open, claimed, review (done but review/fix pending), stale, blocked, done
@@ -3225,7 +3407,8 @@ index 0000000..ffbc6b7
 +    let mut o = format!("Co-Work-Projekt {} \"{}\"\nZiel: {}\nLead: {}\n\nAgents:\n", p.id, p.title, p.goal, if p.lead.is_empty() { "-" } else { p.lead.as_str() });
 +    for a in p.agents.values() {
 +        let cur = p.tasks.iter().find(|x| x.owner == a.name && x.status == "claimed").map(|x| format!(" arbeitet an #{}", x.id)).unwrap_or_default();
-+        o.push_str(&format!("- {} ({}){}{}\n", a.name, role_title(&a.role), cur, if t - a.last_seen < stale(p) { "" } else { " [inaktiv]" }));
++        let lane = if a.lane > 0 { format!(" [Paket P{}]", a.lane) } else { String::new() };
++        o.push_str(&format!("- {} ({}){}{}{}\n", a.name, role_title(&a.role), lane, cur, if t - a.last_seen < stale(p) { "" } else { " [inaktiv]" }));
 +    }
 +    let missing = missing_roles(p);
 +    if !missing.is_empty() {
@@ -3235,6 +3418,7 @@ index 0000000..ffbc6b7
 +    o.push_str(&format!("\nTasks ({done}/{} erledigt):\n", p.tasks.len()));
 +    for task in &p.tasks {
 +        let mut line = format!("- #{} [{}] {}", task.id, phase(p, task), task.title);
++        if task.lane > 0 { line.push_str(&format!(" [P{}{}]", task.lane, if task.area.is_empty() { String::new() } else { format!(": {}", task.area) })); }
 +        if !task.role.is_empty() { line.push_str(&format!(" {{{}}}", task.role)); }
 +        if !task.owner.is_empty() && task.status != "open" { line.push_str(&format!(" @{}", task.owner)); }
 +        if !task.depends_on.is_empty() { line.push_str(&format!(" (nach {})", task.depends_on.iter().map(|d| format!("#{d}")).collect::<Vec<_>>().join(", "))); }
@@ -3305,7 +3489,7 @@ index 0000000..ffbc6b7
 +        || (!p.tasks.is_empty() && p.tasks.iter().all(|t| t.status == "done"))
 +}
 +
-+const PROTOCOL: &str = "Co-Work: Rolle = Schwerpunkt, du hilfst bei allem. Loop: cowork_claim -> Task erledigen (Skill per adicode_skill, nur Task-Dateien, weitere vorher cowork_lock; zu gross: cowork_update tasks=[..]) -> cowork_update status=done result=<1 Satz + Dateien> (Review: done oder changes + Punkte) -> sofort wieder cowork_claim. Bewertungen neuer Prompts zuerst, fehlende Teilaufgaben als tasks. Nichts frei: cowork_wait. Blockiert: status=blocked + Grund. Antworten knapp: Diffs und Dateinamen statt Volltext, nichts wiederholen. Nachrichten mit Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): sind Systemweckrufe: weitermachen. Fertig bei ALLE TASKS ERLEDIGT.";
++const PROTOCOL: &str = "Co-Work: Rolle = Schwerpunkt, du hilfst bei allem. Loop: cowork_claim -> Task erledigen (Skill per adicode_skill, nur Task-Dateien, weitere vorher cowork_lock; zu gross: cowork_update tasks=[..]) -> cowork_update status=done result=<1 Satz + Dateien> (Review: done oder changes + Punkte) -> sofort wieder cowork_claim. Bewertungen neuer Prompts zuerst, fehlende Teilaufgaben als tasks. Nichts frei: cowork_wait. Blockiert: status=blocked + Grund. Antworten knapp: Diffs und Dateinamen statt Volltext, nichts wiederholen. Nachrichten mit Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): sind Systemweckrufe: weitermachen. Fertig bei ALLE TASKS ERLEDIGT. Arbeitspaket (P<n>): deine Tasks und Dateien zuerst. Bridge: Schreib-Tools (files_*, pc_PowerShell, git_*) sperren Dateien automatisch fuer dich und blockieren Dateien, die ein anderer Tab bearbeitet - dann anderen Task nehmen oder per cowork_message abstimmen; bei Schreib-Tools agent=<dein Name> mitgeben.";
 +
 +fn dispatch(board: &mut Board, name: &str, args: &Value) -> Result<(String, bool), String> {
 +    if name == "cowork_start" {
@@ -3316,6 +3500,7 @@ index 0000000..ffbc6b7
 +        let mut p = Project { id: id.clone(), title, goal: s(args, "goal"), created: now(), stale_minutes: args["stale_minutes"].as_u64().unwrap_or(0).min(240), ..Default::default() };
 +        let agent = join_agent(&mut p, &s(args, "agent"), "lead");
 +        p.lead = agent.clone();
++        *LAST_AGENT.lock().unwrap_or_else(|e| e.into_inner()) = agent.clone();
 +        let assess = args["assess"].as_bool().unwrap_or(true);
 +        let brief = format!("{}\n{}", p.title, p.goal);
 +        let w = if assess { open_wave(&mut p, &agent, &brief) } else { 0 };
@@ -3358,17 +3543,19 @@ index 0000000..ffbc6b7
 +            let role = { let r = norm_role(&s(args, "role")); if r.is_empty() { "worker".to_string() } else { r } };
 +            let existed = p.agents.contains_key(&agent);
 +            let me = join_agent(p, &agent, &role);
++            *LAST_AGENT.lock().unwrap_or_else(|e| e.into_inner()) = me.clone();
 +            if role == "lead" {
 +                let lead = p.lead.clone();
 +                if lead.is_empty() || lead == me || !alive(p, &lead) { p.lead = me.clone(); }
 +            }
++            ensure_lane(p, &me);
 +            if !existed { post(p, &me, "", format!("{me} ist beigetreten ({}).", role_title(&role))); }
 +            if let Some(w) = p.waves.last().cloned() {
 +                if now() - w.ts < ASSESS_WINDOW_SECS && !gate_open(p, w.id) { add_assess(p, w.id, &me); }
 +            }
 +            let mine = p.tasks.iter().filter(|t| t.status != "done" && t.role == role).count();
 +            let news = take_unread(p, &me);
-+            Ok((format!("Beigetreten als '{me}' mit Rolle {} (bei jedem cowork_*-Aufruf als agent mitgeben).\nDeine Rolle: {}\nOffene Tasks deiner Rolle: {mine}. Deine Rolle ist dein Schwerpunkt: du bekommst zuerst Bewertungen und Tasks deiner Rolle, hilfst danach aber bei allem anderen mit.\n{PROTOCOL}\n\n{}{news}", role_title(&role), role_guide(&role), summary(p)), true))
++            Ok((format!("Beigetreten als '{me}' mit Rolle {} (bei jedem cowork_*-Aufruf als agent mitgeben).\nDeine Rolle: {}\nOffene Tasks deiner Rolle: {mine}. Deine Rolle ist dein Schwerpunkt: du bekommst zuerst Bewertungen und Tasks deiner Rolle, hilfst danach aber bei allem anderen mit.\n{PROTOCOL}{}\n\n{}{news}", role_title(&role), role_guide(&role), lane_text(p, &me), summary(p)), true))
 +        }
 +        "cowork_board" => {
 +            let mut news = String::new();
@@ -3403,6 +3590,7 @@ index 0000000..ffbc6b7
 +        "cowork_claim" => {
 +            touch(p, &agent)?;
 +            let my_role = agent_role(p, &agent);
++            let my_lane = ensure_lane(p, &agent);
 +            let idx = match args["task_id"].as_u64() {
 +                Some(id) => {
 +                    let i = p.tasks.iter().position(|t| t.id == id).ok_or_else(|| format!("Task #{id} gibt es nicht."))?;
@@ -3415,6 +3603,7 @@ index 0000000..ffbc6b7
 +                }
 +                None => {
 +                    let pick = p.tasks.iter().position(|t| t.assignee == agent && claimable(p, t, &agent))
++                        .or_else(|| p.tasks.iter().position(|t| my_lane > 0 && t.lane == my_lane && claimable(p, t, &agent)))
 +                        .or_else(|| p.tasks.iter().position(|t| !t.role.is_empty() && t.role == my_role && claimable(p, t, &agent)))
 +                        .or_else(|| p.tasks.iter().position(|t| t.kind == "review" && claimable(p, t, &agent)))
 +                        .or_else(|| p.tasks.iter().position(|t| t.role.is_empty() && claimable(p, t, &agent)))
@@ -3485,7 +3674,7 @@ index 0000000..ffbc6b7
 +                if !result.is_empty() { task.result = if status == "changes" { format!("AENDERUNGEN NOETIG: {result}") } else { result.clone() }; }
 +                task.updated = now();
 +            }
-+            if stored != "claimed" { p.locks.retain(|_, l| l.task != id); }
++            if stored != "claimed" { p.locks.retain(|_, l| l.task != id && !(l.task == 0 && l.owner == agent)); }
 +            let task = p.tasks[i].clone();
 +            let mut extra = String::new();
 +            if status == "done" && !task.review.is_empty() && task.kind != "review" && !p.tasks.iter().any(|x| x.kind == "review" && x.origin == id) {
@@ -3508,7 +3697,7 @@ index 0000000..ffbc6b7
 +                        p.tasks.push(Task {
 +                            id: fid, title: format!("Fix #{}: {}", o.id, o.title.trim_start_matches("Fix ")), status: "open".into(), updated: now(),
 +                            detail: format!("Feedback von {agent} (Review #{id}): {result}\n\nUrspruenglicher Task #{}: {}\n{}\nBisheriges Ergebnis: {}", o.id, o.title, o.detail, o.result),
-+                            role: o.role.clone(), review: o.review.clone(), kind: "fix".into(), origin: o.id, root: task.root, round: task.round + 1, files: o.files.clone(),
++                            role: o.role.clone(), review: o.review.clone(), kind: "fix".into(), origin: o.id, root: task.root, round: task.round + 1, files: o.files.clone(), area: o.area.clone(), lane: o.lane,
 +                            ..Default::default()
 +                        });
 +                        extra = format!(" Fix-Task #{fid} fuer {} erstellt.", role_title(&o.role));
@@ -3606,19 +3795,147 @@ index 0000000..ffbc6b7
 +}
 +
 +/// Handle a cowork_* tool call. Returns None for other tool names.
-+pub(crate) async fn call(name: &str, args: &Value) -> Option<Value> {
++pub(crate) async fn call(name: &str, args: &Value, session: &str) -> Option<Value> {
 +    if !name.starts_with("cowork_") { return None; }
++    let mut args = args.clone();
++    let joining = name == "cowork_start" || name == "cowork_join";
++    if !joining && args.is_object() && s(&args, "agent").is_empty() {
++        if let Some(a) = session_agent(session) { args["agent"] = Value::String(a); }
++    }
++    let args = &args;
 +    if name == "cowork_wait" { return Some(wait(args).await); }
 +    let result = {
 +        let mut board = lock_board();
 +        let r = dispatch(&mut board, name, args);
 +        if let Ok((_, true)) = &r { save(&board); }
++        if r.is_ok() && joining {
++            let me = LAST_AGENT.lock().unwrap_or_else(|e| e.into_inner()).clone();
++            bind_session(&board, session, &me);
++        }
 +        r
 +    };
 +    Some(match result {
 +        Ok((out, changed)) => { if changed { CHANGED.notify_waiters(); } text(out) }
 +        Err(e) => err(e),
 +    })
++}
++
++// ---------------------------------------------------------------- Bridge: tabs see each other's files
++
++fn bind_session(board: &Board, session: &str, agent: &str) {
++    if session.is_empty() || agent.is_empty() { return; }
++    let mut m = SESSIONS.lock().unwrap_or_else(|e| e.into_inner());
++    // Several chats on ONE session (e.g. one shared Notion connection): never guess who is who.
++    let shared = m.get(session).map(|(old, amb)| *amb || (old != agent && board.projects.values().any(|p| alive(p, old)))).unwrap_or(false);
++    m.insert(session.to_string(), (agent.to_string(), shared));
++}
++
++fn session_agent(session: &str) -> Option<String> {
++    if session.is_empty() { return None; }
++    SESSIONS.lock().unwrap_or_else(|e| e.into_inner()).get(session).filter(|(_, amb)| !*amb).map(|(a, _)| a.clone())
++}
++
++/// Shell words that (may) change files.
++const PS_WRITE: &[&str] = &["set-content", "add-content", "out-file", "new-item", "remove-item", "move-item", "copy-item", "rename-item", "clear-content", "writealltext", "writeallbytes", "writealllines", "appendalltext", ">", "git checkout", "git reset", "git restore", "git apply", "git stash", "git clean", "git merge", "git rebase", "git pull", "node ", "python ", "sc ", "ac ", "del ", "rm ", "mv ", "cp ", "ren ", "-replace"];
++
++/// Paths a file-changing tool touches (None = the tool does not write files).
++fn write_targets(name: &str, args: &Value) -> Option<Vec<String>> {
++    let get = |k: &str| args[k].as_str().map(|x| x.trim().to_string()).filter(|x| !x.is_empty());
++    let v: Vec<String> = match name {
++        "files_write_file" | "files_edit_file" | "files_create_directory" | "safe_write_file" => get("path").into_iter().collect(),
++        "files_move_file" => get("source").into_iter().chain(get("destination")).collect(),
++        "pc_FileSystem" => {
++            let mode = s(args, "mode").to_ascii_lowercase();
++            if ["read", "list", "search", "find", "info", "exists", "tree", "stat", "get"].iter().any(|m| mode.starts_with(m)) { return None; }
++            ["path", "source", "destination", "target", "new_path"].iter().filter_map(|k| get(*k)).collect()
++        }
++        "git_git_add" => {
++            let repo = get("repo_path").unwrap_or_default();
++            args["files"].as_array().into_iter().flatten().filter_map(|f| f.as_str()).map(|f| if repo.is_empty() || f.contains(':') { f.to_string() } else { format!("{repo}/{f}") }).collect()
++        }
++        "git_git_checkout" | "git_git_reset" => get("repo_path").into_iter().collect(),
++        _ => return None,
++    };
++    Some(v)
++}
++
++fn path_hits(target: &str, lock: &str) -> bool { same_file(target, lock) || lock.starts_with(&format!("{target}/")) }
++
++/// Core of the bridge: block text if agent would change a file another active tab holds;
++/// otherwise free files get locked for agent. Returns (block message, board changed).
++fn guard_on(board: &mut Board, name: &str, args: &Value, agent: &str) -> (Option<String>, bool) {
++    let mut hit: Option<(String, String, u64, String)> = None;
++    let mut targets: Vec<String> = Vec::new();
++    if name == "pc_PowerShell" {
++        let cmd = s(args, "command").to_ascii_lowercase().replace('\\', "/");
++        if !PS_WRITE.iter().any(|w| cmd.contains(w)) { return (None, false); }
++        'ps: for p in board.projects.values() {
++            for (k, l) in &p.locks {
++                if l.owner == agent || !alive(p, &l.owner) { continue; }
++                let f = k.rsplit('/').next().unwrap_or(k);
++                if cmd.contains(k.as_str()) || (f.len() >= 4 && cmd.contains(f)) { hit = Some((p.id.clone(), l.owner.clone(), l.task, k.clone())); break 'ps; }
++            }
++        }
++    } else {
++        let Some(list) = write_targets(name, args) else { return (None, false) };
++        targets = list.iter().map(|t| norm_path(t).trim_end_matches("/.").trim_end_matches('/').to_string()).filter(|t| !t.is_empty()).collect();
++        'files: for t in &targets {
++            for p in board.projects.values() {
++                for (k, l) in &p.locks {
++                    if l.owner != agent && alive(p, &l.owner) && path_hits(t, k) { hit = Some((p.id.clone(), l.owner.clone(), l.task, k.clone())); break 'files; }
++                }
++            }
++        }
++    }
++    if let Some((pid, owner, task, path)) = hit {
++        let Some(p) = board.projects.get_mut(&pid) else { return (None, false) };
++        let title = p.tasks.iter().find(|t| task > 0 && t.id == task).map(|t| format!(" (Task #{task}: {})", short(&t.title, 80))).unwrap_or_default();
++        let who = if agent.is_empty() { "Ein Chat ohne Agent-Namen".to_string() } else { agent.to_string() };
++        let note = format!("[Bridge] {who} wollte {path} aendern ({name}) und wurde blockiert, weil du die Datei gerade bearbeitest. Kurz per cowork_message melden, wenn du fertig bist oder er etwas uebernehmen soll.");
++        let fresh = !p.messages.iter().rev().take(8).any(|m| m.to == owner && m.text == note);
++        if fresh { post(p, &who, &owner, note); }
++        let me = if agent.is_empty() { " Bist du selbst dieser Agent, gib agent=<dein Agent-Name> mit." } else { "" };
++        return (Some(format!("[AdiCode Bridge] {path} wird gerade von '{owner}' bearbeitet{title}. Nicht aendern, sonst geht seine Arbeit kaputt - {owner} wurde benachrichtigt. Stattdessen: anderen Task nehmen (cowork_claim), mit cowork_message to={owner} abstimmen oder mit cowork_wait warten.{me}")), fresh);
++    }
++    let lockable = !matches!(name, "files_create_directory" | "git_git_checkout" | "git_git_reset" | "git_git_add");
++    if agent.is_empty() || targets.is_empty() || !lockable { return (None, false); }
++    let Some(pid) = board.projects.values().filter(|p| p.agents.contains_key(agent)).max_by_key(|p| p.created).map(|p| p.id.clone()) else { return (None, false) };
++    let Some(p) = board.projects.get_mut(&pid) else { return (None, false) };
++    if !alive(p, agent) { return (None, false); }
++    if let Some(a) = p.agents.get_mut(agent) { a.last_seen = now(); }
++    let task = p.tasks.iter().find(|t| t.owner == agent && t.status == "claimed").map(|t| t.id).unwrap_or(0);
++    let mut changed = false;
++    for t in targets {
++        if let Some((k, o)) = p.locks.iter().find(|(k, _)| same_file(k, &t)).map(|(k, l)| (k.clone(), l.owner.clone())) {
++            if o == agent || alive(p, &o) { continue; }
++            p.locks.remove(&k);
++        }
++        p.locks.insert(t, Lock { owner: agent.to_string(), task, since: now() });
++        changed = true;
++    }
++    (None, changed)
++}
++
++/// Bridge between all tabs (MCP sessions): blocks file changes on files another active
++/// Co-Work agent is working on, tells that agent, and locks free files for the writer.
++pub(crate) fn bridge_guard(name: &str, args: &Value, session: &str) -> Option<String> {
++    if name.starts_with("cowork_") { return None; }
++    let explicit = s(args, "agent");
++    let agent = if explicit.is_empty() { session_agent(session).unwrap_or_default() } else { explicit };
++    let mut board = lock_board();
++    if board.projects.values().all(|p| p.locks.is_empty() && !p.agents.contains_key(&agent)) { return None; }
++    let (msg, changed) = guard_on(&mut board, name, args, &agent);
++    if changed { save(&board); drop(board); CHANGED.notify_waiters(); }
++    msg
++}
++
++/// Adds the optional agent field to file-changing tools so a tab can say who it is.
++pub(crate) fn extend_write_schema(name: &str, schema: &mut Value) {
++    let writes = matches!(name, "files_write_file" | "files_edit_file" | "files_move_file" | "files_create_directory" | "pc_FileSystem" | "pc_PowerShell" | "git_git_add" | "git_git_commit" | "git_git_checkout" | "git_git_reset");
++    if !writes { return; }
++    if let Some(props) = schema.get_mut("inputSchema").and_then(|x| x.get_mut("properties")).and_then(|x| x.as_object_mut()) {
++        props.entry("agent").or_insert_with(|| json!({"type": "string", "description": "Co-Work: dein Agent-Name (optional). Die AdiCode-Bridge sperrt damit Dateien fuer dich und blockiert Dateien, die ein anderer Tab bearbeitet."}));
++    }
 +}
 +
 +/// Short overview for adicode_status.
@@ -3640,13 +3957,13 @@ index 0000000..ffbc6b7
 +        let agents: Vec<Value> = p.agents.values().map(|a| {
 +            let current = p.tasks.iter().find(|x| x.owner == a.name && x.status == "claimed");
 +            json!({
-+                "name": a.name, "role": a.role, "role_title": role_title(&a.role), "lead": a.name == p.lead,
++                "name": a.name, "lane": a.lane, "role": a.role, "role_title": role_title(&a.role), "lead": a.name == p.lead,
 +                "alive": t - a.last_seen < stale(p), "idle_secs": t - a.last_seen,
 +                "task": current.map(|x| json!({"id": x.id, "title": x.title})),
 +            })
 +        }).collect();
 +        let tasks: Vec<Value> = p.tasks.iter().map(|x| json!({
-+            "id": x.id, "title": x.title, "role": x.role, "role_title": if x.role.is_empty() { String::new() } else { role_title(&x.role) },
++            "id": x.id, "title": x.title, "lane": x.lane, "area": x.area, "role": x.role, "role_title": if x.role.is_empty() { String::new() } else { role_title(&x.role) },
 +            "kind": x.kind, "status": x.status, "phase": phase(p, x), "owner": x.owner, "depends_on": x.depends_on,
 +            "result": short(&x.result, 240), "updated": x.updated,
 +        })).collect();
@@ -3704,12 +4021,15 @@ index 0000000..ffbc6b7
 +        "role": {"type": "string", "description": format!("Rolle, die den Task macht (leer = egal). Rollen: {role_list}")},
 +        "review": {"type": "string", "description": "Rolle, die das Ergebnis danach prueft (z. B. reviewer fuer Code, uiux fuer Oberflaechen; leer = kein Review)"},
 +        "depends_on": {"type": "array", "items": {"type": "integer"}, "description": "Task-IDs, die vorher fertig (inkl. Review) sein muessen"},
-+        "files": {"type": "array", "items": {"type": "string"}, "description": "Dateien/Skripte, die der Task aendert (werden beim Claim gesperrt)"}
++        "files": {"type": "array", "items": {"type": "string"}, "description": "Dateien/Skripte, die der Task aendert (werden beim Claim gesperrt)"},
++        "area": {"type": "string", "description": "Funktionsbereich der App (z. B. Login, Warenkorb, Einstellungen). Tasks mit gleichem Bereich oder gemeinsamen Dateien bilden ein Arbeitspaket, das EIN Tab erledigt"},
++        "lane": {"type": "integer", "description": "Optional: Arbeitspaket-Nummer selbst festlegen (sonst automatisch aus area/files)"},
++        "assignee": {"type": "string", "description": "Optional: Agent-Name, der den Task machen soll"}
 +    }, "required": ["title"]}});
 +    let project = json!({"type": "string", "description": "Projekt-ID (z. B. p1) oder Titel; optional, wenn nur ein Projekt existiert"});
 +    let agent = json!({"type": "string", "description": "Dein Agent-Name aus cowork_join/cowork_start"});
 +    vec![
-+        json!({"name": "cowork_start", "description": "AdiCode Co-Work: startet im Main Chat ein Projekt, an dem mehrere Notion-AI-Chats (Browser-Tabs) gleichzeitig arbeiten. Der Aufrufer wird Lead. Ziel in 4-15 kleine, moeglichst parallele Tasks zerlegen (alle Agents sollen gleichzeitig arbeiten koennen), jedem Task als role den Schwerpunkt geben und fuer Code/UI review setzen. Rollen sind Schwerpunkte, keine Grenzen: jeder Worker bewertet den Auftrag zuerst aus seiner Rollen-Sicht und hilft danach bei allen Tasks. Vorher adicode_skill name=cowork lesen.", "inputSchema": {"type": "object", "properties": {"title": {"type": "string"}, "goal": {"type": "string", "description": "Gesamtziel inkl. Nutzer-Auftrag, Tech-Stack, Ordner, Konventionen, Schnittstellen"}, "assess": {"type": "boolean", "description": "Rollen-Bewertung durch alle Worker vor dem Start (Standard true; nur fuer winzige Auftraege false)"}, "agent": {"type": "string", "description": "Name des Leads (optional)"}, "stale_minutes": {"type": "integer", "minimum": 1, "maximum": 240, "description": "Nach so vielen Minuten Inaktivitaet werden Tasks eines Agents wieder frei (Standard 20)"}, "tasks": tasks.clone()}, "required": ["title", "goal"]}}),
++        json!({"name": "cowork_start", "description": "AdiCode Co-Work: startet im Main Chat ein Projekt, an dem mehrere Notion-AI-Chats (Browser-Tabs) gleichzeitig arbeiten. Der Aufrufer wird Lead. Das GANZE Projekt nach Funktionsbereichen in 4-15 Tasks zerlegen: jeder Task bekommt area (Bereich) und files (Dateien, die er aendert). AdiCode bildet daraus Arbeitspakete - Tasks mit gleichem Bereich oder gemeinsamen Dateien landen im selben Paket - und gibt jedem Tab ein eigenes Paket, damit alle gleichzeitig an verschiedenen Teilen derselben App arbeiten, ohne sich Dateien kaputt zu machen. role (Schwerpunkt) ist optional; fuer Code/UI review setzen. Rollen sind Schwerpunkte, keine Grenzen: jeder Worker bewertet den Auftrag zuerst aus seiner Rollen-Sicht und hilft danach bei allen Tasks. Vorher adicode_skill name=cowork lesen.", "inputSchema": {"type": "object", "properties": {"title": {"type": "string"}, "goal": {"type": "string", "description": "Gesamtziel inkl. Nutzer-Auftrag, Tech-Stack, Ordner, Konventionen, Schnittstellen"}, "assess": {"type": "boolean", "description": "Rollen-Bewertung durch alle Worker vor dem Start (Standard true; nur fuer winzige Auftraege false)"}, "agent": {"type": "string", "description": "Name des Leads (optional)"}, "stale_minutes": {"type": "integer", "minimum": 1, "maximum": 240, "description": "Nach so vielen Minuten Inaktivitaet werden Tasks eines Agents wieder frei (Standard 20)"}, "tasks": tasks.clone()}, "required": ["title", "goal"]}}),
 +        json!({"name": "cowork_join", "description": format!("AdiCode Co-Work: diesen Chat mit einer Rolle (Schwerpunkt + Bewertungs-Sicht, hilft aber bei allem) einem Co-Work-Projekt beitreten. Liefert Agent-Namen, Rollen-Anleitung, Ablauf und Board. Danach cowork_claim. Rollen: {role_list} (eigene Rollen erlaubt)."), "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": {"type": "string", "description": "Wunschname (optional, sonst <rolle>-N)"}, "role": {"type": "string", "description": "Rolle dieses Chats, z. B. coder, reviewer, uiux, prompt, tester, roblox"}}}}),
 +        json!({"name": "cowork_board", "description": "AdiCode Co-Work: zeigt Tasks (mit Rolle und Phase), Agents, unbesetzte Rollen, Datei-Locks und neue Nachrichten. Ohne project: Liste aller Projekte.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone()}}, "annotations": {"readOnlyHint": true}}),
 +        json!({"name": "cowork_claim", "description": "AdiCode Co-Work: uebernimmt atomar den naechsten passenden Task (zuerst eigene Bewertungen, dann eigene Rolle, dann Reviews, dann ohne Rolle, dann Tasks beschaeftigter oder fehlender Experten; Abhaengigkeiten erledigt, Dateien frei) oder task_id und sperrt seine Dateien. Liefert Details und Ergebnisse der Vorgaenger.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}}, "required": ["agent"]}}),
@@ -3729,6 +4049,58 @@ index 0000000..ffbc6b7
 +    use super::*;
 +
 +    fn ok(r: Result<(String, bool), String>) -> String { r.expect("call failed").0 }
++
++    #[test]
++    fn lanes_split_project_by_files_and_area() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "App", "goal": "G", "agent": "main", "assess": false, "tasks": [
++            {"title": "login api", "area": "Login", "files": ["src/login.rs"]},
++            {"title": "login ui", "area": "login", "files": ["ui/login.html"]},
++            {"title": "shop api", "files": ["src/shop.rs"]},
++            {"title": "shop fix", "files": ["SRC\\shop.rs"]},
++            {"title": "docs"}
++        ]})));
++        let lane = |b: &Board, id: u64| b.projects["p1"].tasks.iter().find(|t| t.id == id).unwrap().lane;
++        assert_eq!(lane(&b, 1), lane(&b, 2));
++        assert_eq!(lane(&b, 3), lane(&b, 4));
++        assert_ne!(lane(&b, 1), lane(&b, 3));
++        assert_eq!(lane(&b, 5), 0);
++        assert!(ok(dispatch(&mut b, "cowork_join", &json!({"agent": "a", "role": "coder"}))).contains("Dein Arbeitspaket: P1"));
++        assert!(ok(dispatch(&mut b, "cowork_join", &json!({"agent": "c", "role": "coder"}))).contains("Dein Arbeitspaket: P2"));
++        let a1 = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "a"})));
++        let c1 = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "c"})));
++        assert!(a1.contains("Task #1 "), "{a1}");
++        assert!(c1.contains("Task #3 "), "{c1}");
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "a", "task_id": 1, "status": "done", "result": "ok"})));
++        let a2 = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "a"})));
++        assert!(a2.contains("Task #2 "), "{a2}");
++        assert!(ok(dispatch(&mut b, "cowork_board", &json!({"agent": "a"}))).contains("[Paket P1]"));
++    }
++
++    #[test]
++    fn bridge_blocks_foreign_writes_and_autolocks() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "T", "goal": "G", "agent": "main", "assess": false, "tasks": [{"title": "api", "files": ["agent/src/api.rs"]}]})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "a"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "c"})));
++        ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "a"})));
++        let abs = json!({"path": "C:\\work\\repo\\agent\\src\\api.rs", "content": "x"});
++        assert!(guard_on(&mut b, "files_write_file", &abs, "c").0.unwrap().contains("'a'"));
++        assert!(guard_on(&mut b, "files_write_file", &abs, "a").0.is_none());
++        assert!(guard_on(&mut b, "files_write_file", &abs, "").0.is_some());
++        assert!(guard_on(&mut b, "files_read_text_file", &abs, "c").0.is_none());
++        assert!(guard_on(&mut b, "pc_PowerShell", &json!({"command": "Set-Content agent\\src\\api.rs 'x'"}), "c").0.is_some());
++        assert!(guard_on(&mut b, "pc_PowerShell", &json!({"command": "Get-Content agent\\src\\api.rs"}), "c").0.is_none());
++        assert!(guard_on(&mut b, "git_git_checkout", &json!({"repo_path": "agent", "branch_name": "x"}), "c").0.is_some());
++        let other = json!({"path": "agent/src/ui.rs", "content": "x"});
++        assert!(guard_on(&mut b, "files_edit_file", &other, "c").0.is_none());
++        assert!(guard_on(&mut b, "files_edit_file", &other, "a").0.unwrap().contains("'c'"));
++        assert!(ok(dispatch(&mut b, "cowork_board", &json!({"agent": "a"}))).contains("[Bridge]"));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "c", "task_id": 1, "status": "open"})).or_else(|_| Ok::<_, String>((String::new(), false))));
++        let mut schema = json!({"name": "files_write_file", "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}}});
++        extend_write_schema("files_write_file", &mut schema);
++        assert!(schema["inputSchema"]["properties"]["agent"].is_object());
++    }
 +
 +    #[test]
 +    fn claim_flow() {
@@ -3850,10 +4222,10 @@ index 0000000..ffbc6b7
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..19ba213
+index 0000000..8c3f01f
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,989 @@
+@@ -0,0 +1,1003 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -4100,6 +4472,7 @@ index 0000000..19ba213
 +    }
 +    let mut seen = std::collections::HashSet::new();
 +    out.retain(|t| seen.insert(t.exposed.clone()));
++    for t in out.iter_mut() { crate::notion_cowork::extend_write_schema(&t.exposed, &mut t.schema); }
 +    *lock(&SHARED.tools) = (out, Some(Instant::now()));
 +}
 +
@@ -4129,8 +4502,12 @@ index 0000000..19ba213
 +    let name = params["name"].as_str().unwrap_or("").to_string();
 +    let args = params.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
 +    *lock(&SHARED.last_request) = Some((chrono::Local::now(), name.clone()));
-+    if let Some(out) = crate::notion_cowork::call(&name, &args).await {
++    let session = params["_session"].as_str().unwrap_or("").to_string();
++    if let Some(out) = crate::notion_cowork::call(&name, &args, &session).await {
 +        return out;
++    }
++    if let Some(msg) = crate::notion_cowork::bridge_guard(&name, &args, &session) {
++        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
 +    }
 +    if let Some(msg) = crate::notion_safety::guard_tool(&name, &args) {
 +        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
@@ -4180,6 +4557,10 @@ index 0000000..19ba213
 +            return json!({"isError": true, "content": [{"type": "text", "text": e}]});
 +        }
 +        snapshot = crate::notion_roblox_plus::before_native_write(state, &route.internal, &args).await;
++    }
++    let mut args = args;
++    if name.starts_with("files_") || name.starts_with("pc_") || name.starts_with("git_") {
++        if let Some(o) = args.as_object_mut() { o.remove("agent"); }
 +    }
 +    let record_args = args.clone();
 +    match crate::roblox_tool(state, &route.internal, args).await {
@@ -4405,7 +4786,12 @@ index 0000000..19ba213
 +        *lock(&SHARED.last_request) = Some((chrono::Local::now(), msgs.first().and_then(|m| m["method"].as_str()).unwrap_or("").to_string()));
 +    }
 +    let mut out = Vec::new();
-+    for m in &msgs { if let Some(r) = handle_one(&state, m).await { out.push(r); } }
++    let session = headers.get("mcp-session-id").and_then(|v| v.to_str().ok()).unwrap_or("").trim().to_string();
++    for m in &msgs {
++        let mut m = m.clone();
++        if !session.is_empty() && m["method"] == "tools/call" && m["params"].is_object() { m["params"]["_session"] = Value::String(session.clone()); }
++        if let Some(r) = handle_one(&state, &m).await { out.push(r); }
++    }
 +    if out.is_empty() { return StatusCode::ACCEPTED.into_response(); }
 +    let mut response = if batch { Json(Value::Array(out)).into_response() } else { Json(out.remove(0)).into_response() };
 +    if has_init {

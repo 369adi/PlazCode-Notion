@@ -158,6 +158,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Notion ohne Chat-Leiste**: laedt Notion manchmal die Ansicht ohne Chat-Leiste (nur Teamspaces/New task), oeffnet AdiCode nach 8 s automatisch wieder den Chat Willkommen bei Notion (bzw. laedt neu). Die Chat-Suche laedt in dem Fall direkt neu statt 10 s zu warten.
 ## Neu in 1.0.84
 - **Neues UI-Design (UI v2)**: uebersichtlicher und schoener - weiche Seitenwechsel-Animation, Karten erscheinen gestaffelt, Hover-Glow auf Karten, animierte Navigation mit leuchtendem aktiven Eintrag, Ueberschriften mit Farbverlauf, Buttons mit Glanz-Effekt, pulsierende Status-Punkte. Respektiert die Windows-Einstellung fuer reduzierte Animationen.
+## Neu in 1.0.85
+- **Co-Work Bridge**: Alle Tabs sehen, wer gerade welche Datei bearbeitet. Schreibzugriffe (Dateien, PowerShell, git) auf Dateien, die ein anderer Tab bearbeitet, werden blockiert und der andere Tab bekommt eine Nachricht. Freie Dateien werden automatisch fuer den schreibenden Tab gesperrt.
+- **Arbeitspakete im Co-Work**: Der Main Chat teilt das ganze Projekt nach Funktionsbereichen auf. Tasks mit gleichem Bereich oder gemeinsamen Dateien bilden ein Paket, jeder Tab bekommt sein eigenes Paket - so arbeiten alle gleichzeitig an verschiedenen Teilen derselben App.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
