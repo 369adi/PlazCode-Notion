@@ -237,6 +237,11 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - Kollege: seine Domain liefert ERR_NGROK_3200 (Endpoint offline) -> Notion: 'URL doesn't point to a supported MCP endpoint'. Ursache = sein ngrok-Tunnel startet nicht, NICHT der Token. Verdacht: Adrians ngrok-Authtoken in seiner ngrok.yml (Domain gehoert nicht zum Konto / ERR_NGROK_108). Loesung: eigener Authtoken (dashboard.ngrok.com > Your Authtoken) auf Notion AI > Tunnel eintragen, eigene Domain, Tunnel muss 'online' zeigen. Pruefen: curl -i https://<domain>/mcp -> 401 = ok, Header Ngrok-Error-Code = Tunnel-Problem.
 - 1.0.70: ngrok-stderr wird gesammelt (vorher nur 'ERROR:'), neue Fehlertexte 8012/121/105/107. Fenster-Waechter in notion_profiles.rs windows (WANT/PIDCACHE/APPLY, guard 0,9 s) versteckt neue Fenster versteckter Worker; Zeigen nur Hauptfenster. Backups bugtest\*.bak170.
 
+## STAND 1.0.78
+- load_watchdog (einmal gestartet in launch()): alle 5 s pro Tab STUCK_LOAD_JS (Notion-Host, <25 Zeichen Text, <2 beschriftete Bedienelemente) -> nach 20 s Page.reload(ignoreCache), beim 3. Mal Navigate NOTION_URL; Feld load_state. Gleiche Schleife: COOKIE_JS lehnt Cookie-Banner ab (Reject all/Alle ablehnen/Nur notwendige ...), Feld cookie.
+- READY_JS verlangt >25 Zeichen Text (Skelett gilt nicht als fertig).
+- Checks einmal pro Konto (accounts.json): lang_en (english_once), mcp_ok2 (setup_mcp uebersprungen, 'Verbunden (gemerkt)'), models_ok==tid, chat_model==tname, usage_ui_ok. Trial-Schritt unveraendert. mem_forget (Vergessen + Refresh) loescht alles ausser lang_en.
+
 ## STAND 1.0.77
 - Notion hat mehrere Layouts: (a) Chat-App app.notion.com/chat (Tabs Home/Chat/Meetings/Inbox), (b) klassisch mit Chat als Seitenleiste/Floating rechts (Ansicht-Menue Sidebar/Floating/Full screen). prepare_chat ruft nach FIND_WELCOME ensure_fullscreen (FS_BTN_JS: Knopf oben rechts mit view/sidebar/..-Label, nicht close/new/share/pin; FS_ITEM_JS: Full screen/Vollbild). welcome_url wird nur genutzt, wenn sie /chat enthaelt.
 - Verbindungen-Seite: Tabs 'Browse Connections | Connected N | Manage' (EN) bzw. 'Verbindungen durchsuchen | Verwalten' (DE). Existing-Check jetzt Connected/Verbunden, sonst Manage > All connections. Add-Knopf: Add connection, sonst Configure/Konfigurieren, sonst Add; abwechselnd click und Pointer-Events.
