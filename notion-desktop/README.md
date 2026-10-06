@@ -150,6 +150,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Alles gruen = Fenster weg**: sind alle Checks ok, werden alle Notion-Fenster versteckt (auch Main).
 ## Neu in 1.0.80
 - **Nie ein neuer Notion-Chat**: Neuer Chat im AdiCode-Chat startet keinen Notion-Chat mehr, sondern eine neue Unterhaltung im Chat Willkommen bei Notion. Links erscheint sie mit Namen aus deiner ersten Nachricht; alte Unterhaltungen lassen sich wieder anklicken.
+## Neu in 1.0.81
+- **Co-Work starten im Chat**: der Knopf unten links oeffnet im AdiCode-Chat eine neue Unterhaltung Co-Work (im Chat Willkommen bei Notion, kein neuer Notion-Chat) und startet Co-Work. Alles, was du dort schreibst, verteilt Main an Coder, Reviewer und Tester.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

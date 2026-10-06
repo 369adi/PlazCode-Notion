@@ -1565,10 +1565,10 @@ index 1a68aee..c63d1e2 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
-index 0000000..c529d0d
+index 0000000..5c536fa
 --- /dev/null
 +++ b/agent/src/notion_chat.rs
-@@ -0,0 +1,505 @@
+@@ -0,0 +1,506 @@
 +//! AdiCode Chat: ChatGPT-aehnliche Chatbox direkt in AdiCode.
 +//! Sie steuert den Co-Work-Main-Tab (Notion AI, CDP-Port 9301): Text, Fotos, Videos und
 +//! Dateien, Notion-Diktat (Sprechbox), Stopp, neuer Chat, Verlauf und Freigabe-Knoepfe.
@@ -1760,11 +1760,12 @@ index 0000000..c529d0d
 +    let url = clean_url(v["url"].as_str().unwrap_or(""));
 +    if !(url.contains("/chat") && url.contains("t=")) { return; }
 +    let url = if base.is_empty() { url } else { format!("{url}#b={base}") };
-+    let first = v["messages"].as_array().and_then(|m| m.iter().find(|x| x["role"] == "user")).and_then(|m| m["text"].as_str()).unwrap_or("").trim().to_string();
++    let cw = v["messages"].as_array().map(|m| m.iter().any(|x| x["role"] == "user" && x["text"].as_str().unwrap_or("").starts_with("Hallo! AdiCode Co-Work"))).unwrap_or(false);
++    let first = v["messages"].as_array().and_then(|m| m.iter().find(|x| x["role"] == "user" && !x["text"].as_str().unwrap_or("").starts_with("Hallo! AdiCode Co-Work"))).and_then(|m| m["text"].as_str()).unwrap_or("").trim().to_string();
 +    let nt = v["ntitle"].as_str().unwrap_or("").trim().to_string();
 +    let generic = matches!(nt.to_lowercase().as_str(), "" | "new chat" | "neuer chat" | "notion ai" | "notion-ki" | "notion" | "untitled" | "ohne titel");
 +    let short = |s: &str| { let line = s.lines().next().unwrap_or("").trim(); let w: Vec<&str> = line.split_whitespace().take(7).collect(); let mut t = w.join(" "); if t.chars().count() > 48 { t = t.chars().take(47).collect::<String>() + "\u{2026}"; } else if line.split_whitespace().count() > 7 { t.push_str(" \u{2026}"); } t };
-+    let title: String = if !first.is_empty() { short(&first) } else if !generic && base.is_empty() { nt.chars().take(70).collect() } else { return; };
++    let title: String = if !first.is_empty() { if cw { format!("Co-Work: {}", short(&first)) } else { short(&first) } } else if cw { "Co-Work".into() } else if !generic && base.is_empty() { nt.chars().take(70).collect() } else { return; };
 +    let _g = HISTORY.lock().unwrap_or_else(|e| e.into_inner());
 +    let mut list = read_history();
 +    if let Some(pos) = list.iter().position(|x| x["url"] == json!(url)) {
@@ -2076,10 +2077,10 @@ index 0000000..c529d0d
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..28305a9
+index 0000000..2d7d31c
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,640 @@
+@@ -0,0 +1,641 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -2345,8 +2346,8 @@ index 0000000..28305a9
 +    }
 +    S.msgs = msgs;
 +    render(msgs);
-+    var first = null; for (var i = 0; i < msgs.length; i++) if (msgs[i].role === "user") { first = msgs[i]; break; }
-+    $("acTitle").textContent = first ? (first.text || "Chat mit Anhang").split("\n")[0].slice(0, 90) : (S.pending ? S.pending.text.slice(0, 90) || "Neuer Chat" : "Neuer Chat");
++    var first = null, cwp = false; for (var i = 0; i < msgs.length; i++) if (msgs[i].role === "user") { if (/^Hallo! AdiCode Co-Work/.test(msgs[i].text || "")) { cwp = true; continue; } first = msgs[i]; break; }
++    $("acTitle").textContent = (cwp && !first) ? "Co-Work" : (cwp && first) ? ("Co-Work: " + (first.text || "").split("\n")[0].slice(0, 80)) : first ? (first.text || "Chat mit Anhang").split("\n")[0].slice(0, 90) : (S.pending ? S.pending.text.slice(0, 90) || "Neuer Chat" : "Neuer Chat");
 +    updateSend(); markHist();
 +    if (Voice.on) Voice.tick(msgs);
 +    if (S.histDirty || (S.url.indexOf("t=") > 0 && Date.now() - (S.histAt || 0) > 4000) || (first && S.url.indexOf("t=") > 0 && !S.hist.some(function (h) { return sameChat(h.url, S.url); }))) { S.histDirty = false; loadHist(); }
@@ -2691,7 +2692,8 @@ index 0000000..28305a9
 +  $("acWin").onclick = function () { var show = S.hidden || !S.running; ctl("window", { show: show }).then(function (r) { S.hidden = r.hidden; poll(); }).catch(function (e) { toast(e.message); }); };
 +  $("acCowork").onclick = function () {
 +    var b = this; b.disabled = true;
-+    api("/api/notion/action", { action: "cowork_start_all", value: null }).then(function (r) { toast(r.message || "Co-Work startet \u2026", true, 8000); })
++    $("acMsgs").innerHTML = ""; S.pending = null; S.sigs = []; render([]); $("acTitle").textContent = "Co-Work"; setPill("busy", "Co-Work startet \u2026");
++    ctl("new").then(function (r) { setBase((r && r.base) || ""); S.histDirty = true; }).catch(function () {}).then(function () { return api("/api/notion/action", { action: "cowork_start_all", value: null }); }).then(function (r) { toast(r.message || "Co-Work startet \u2026", true, 8000); })
 +      .catch(function (e) { toast(e.message + " \u2013 Konten auf der Seite Co-Work eintragen."); }).then(function () { b.disabled = false; poll(); });
 +  };
 +  function curBase() { if (S.base == null) { try { S.base = localStorage.getItem("acBase") || ""; } catch (e) { S.base = ""; } } return S.base; }
