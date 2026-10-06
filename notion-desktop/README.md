@@ -95,6 +95,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Aufwecken-Button** (nur auf Klick): weckt ruhende Chats mit offener Arbeit, ausschliesslich im Chat Willkommen bei Notion.
 - **Google-Login schneller**: nach dem Konto-Klick wartet AdiCode nicht mehr 30 s auf das geschlossene Popup, sondern 8 s.
 - **Projekt-Memory antwortet kurz** (spart Token): project_memory_update gibt nur noch eine Zeile zurueck statt das ganze Handout.
+## Neu in 1.0.64
+- **Token-Modus sichtbar**: das Auswahlfeld Token: wenig / Token: viel (alle Opus) steht jetzt neben der Browser-Auswahl auf der Co-Work-Seite (war vorher per CSS ausgeblendet).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
