@@ -242,6 +242,10 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - Kollege: seine Domain liefert ERR_NGROK_3200 (Endpoint offline) -> Notion: 'URL doesn't point to a supported MCP endpoint'. Ursache = sein ngrok-Tunnel startet nicht, NICHT der Token. Verdacht: Adrians ngrok-Authtoken in seiner ngrok.yml (Domain gehoert nicht zum Konto / ERR_NGROK_108). Loesung: eigener Authtoken (dashboard.ngrok.com > Your Authtoken) auf Notion AI > Tunnel eintragen, eigene Domain, Tunnel muss 'online' zeigen. Pruefen: curl -i https://<domain>/mcp -> 401 = ok, Header Ngrok-Error-Code = Tunnel-Problem.
 - 1.0.70: ngrok-stderr wird gesammelt (vorher nur 'ERROR:'), neue Fehlertexte 8012/121/105/107. Fenster-Waechter in notion_profiles.rs windows (WANT/PIDCACHE/APPLY, guard 0,9 s) versteckt neue Fenster versteckter Worker; Zeigen nur Hauptfenster. Backups bugtest\*.bak170.
 
+## STAND 1.0.83
+- Notion laedt manchmal eine Ansicht ohne Chat-Leiste (kein #sidebar-tab-chats, nur Teamspaces/New task). STUCK_LOAD_JS liefert dann layout; load_watchdog navigiert nach 8 s zu welcome_url bzw. reload (max. 3x pro Phase). FIND_WELCOME bricht ohne Tabs nach ca. 3 s ab; prepare_chat 4 Versuche (reload / NOTION_URL im Wechsel).
+- Abgelehnt: Google-Login-Bug im Konto-Refresh-Ablauf (post_refresh_setup/google_close).
+
 ## STAND 1.0.82
 - Co-Work bis 8 Konten (MAX_TABS 8, ROLES: Main, Coder, Reviewer, Tester, Coder 2, Reviewer 2, Tester 2, Coder 3); prompt_for nutzt Basisrolle (erstes Wort), kickoff nur vorhandene Rollen; Start ab 2 Tabs.
 - Aktion cowork_check_one (Check-Knopf pro Karte, data-a=check1): startet Tab, check_one, bei allen OK hide_all_tabs, sonst nur diesen Tab verstecken.
