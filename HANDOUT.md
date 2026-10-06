@@ -232,3 +232,9 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 ## STAND 1.0.70 (released)
 - Kollege: seine Domain liefert ERR_NGROK_3200 (Endpoint offline) -> Notion: 'URL doesn't point to a supported MCP endpoint'. Ursache = sein ngrok-Tunnel startet nicht, NICHT der Token. Verdacht: Adrians ngrok-Authtoken in seiner ngrok.yml (Domain gehoert nicht zum Konto / ERR_NGROK_108). Loesung: eigener Authtoken (dashboard.ngrok.com > Your Authtoken) auf Notion AI > Tunnel eintragen, eigene Domain, Tunnel muss 'online' zeigen. Pruefen: curl -i https://<domain>/mcp -> 401 = ok, Header Ngrok-Error-Code = Tunnel-Problem.
 - 1.0.70: ngrok-stderr wird gesammelt (vorher nur 'ERROR:'), neue Fehlertexte 8012/121/105/107. Fenster-Waechter in notion_profiles.rs windows (WANT/PIDCACHE/APPLY, guard 0,9 s) versteckt neue Fenster versteckter Worker; Zeigen nur Hauptfenster. Backups bugtest\*.bak170.
+
+## STAND 1.0.74 (released)
+- ngrok-Schnellstart (Aktion ngrok_quick_start, Knopf nQuickStart): Authtoken einfuegen -> Start. Installiert eigenes ngrok (base_dir), add-authtoken, killt alle ngrok, ermittelt Gratis-Domain (ngrok ohne --url, url= aus Log), startet Tunnel, testet POST /mcp = 401 ohne Ngrok-Error-Code.
+- 'ngrok ist zu alt' beim Kollegen: find_ngrok nahm altes ngrok aus PATH, Neu-installieren landete in base_dir und wurde ignoriert. Jetzt: eigenes ngrok zuerst, install killt alte Prozesse + setzt ngrok_path, Schnellstart reinstalliert bei 'zu alt'.
+- Authtoken-Feld leert sich nach Speichern (Absicht) - jetzt Anzeige 'gespeichert abcd...wxyz' (authtoken_mask). Store-ngrok: Config liegt unter Packages\ngrok.ngrok_*\LocalCache\Local\ngrok, wird erkannt und nach %LOCALAPPDATA%\ngrok kopiert.
+- Offen: Schnellstart live auf Adrians PC testen (trennt Tunnel kurz), Kollege 1.0.74 Start druecken.
