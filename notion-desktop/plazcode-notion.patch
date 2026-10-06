@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..124feb4 100644
+index 07dc4c0..eb460fc 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -424,7 +424,7 @@ index 07dc4c0..124feb4 100644
        </section>
        <section class="page" id="page-terminal">
          <div class="page-head"><div><div class="page-title">Terminal</div><div class="page-sub">Live bridge, Studio, MCP, and AgentScript logs.</div></div><div style="margin-left:auto;display:flex;gap:8px"><button class="softbtn" id="restartMcp">Restart MCP</button><button class="clearbtn" id="clearTerminal">Clear</button></div></div>
-@@ -382,24 +557,135 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -382,24 +557,153 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
        <section class="page" id="page-models"><div class="page-head"><div><h1>Model Builder</h1><p>Describe a model, review the preview, then add it to Roblox Studio.</p></div></div><div id="modelWorkspace"></div></section>
        <section class="page" id="page-ui"><div class="page-head"><div><h1>UI Builder</h1><p>Describe a menu or HUD, check its layout, then add it to Roblox Studio.</p></div></div><div id="uiWorkspace"></div></section>
        <section class="page" id="page-toolkit"><div class="page-head"><div><h1>Toolkit</h1><p>Start game systems with AI, run Studio tools, and keep saved place backups.</p></div></div><div id="toolkitWorkspace"></div></section>
@@ -494,8 +494,17 @@ index 07dc4c0..124feb4 100644
 +          #page-cowork .cwstatus{font-size:13px;opacity:.75;min-height:16px}
 +          #page-cowork .cwsess-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 +          #page-cowork .cwsess-r button{height:40px;padding:0 16px;font-size:14px}
-+          #page-cowork .cwbrow{display:flex;align-items:center;gap:8px;margin-right:6px}
-+          #page-cowork .cwbrow select{height:40px;min-width:130px;font-size:14px}
++          #page-cowork .cwbrow{position:relative;display:flex;align-items:center;margin-right:2px}
++          #page-cowork .cwbpick{height:40px;display:inline-flex;align-items:center;gap:7px;padding:0 10px;font-size:14px}
++          #page-cowork .cwbpick.warn{border-color:rgba(255,179,71,.6);color:#ffb347}
++          #page-cowork .cwcaret{opacity:.6;font-size:11px}
++          #page-cowork .cwbmenu{position:absolute;top:46px;left:0;z-index:50;min-width:160px;padding:6px;border-radius:12px;background:#151824;border:1px solid rgba(255,255,255,.12);box-shadow:0 12px 30px rgba(0,0,0,.45);display:flex;flex-direction:column;gap:2px}
++          #page-cowork .cwbmenu[hidden]{display:none}
++          #page-cowork .cwbmenu button{display:flex;align-items:center;gap:9px;height:36px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:inherit;font-size:14px;cursor:pointer;text-align:left}
++          #page-cowork .cwbmenu button:hover,#page-cowork .cwbmenu button.on{background:rgba(255,255,255,.07)}
++          #page-cowork .cwchkm{margin-left:auto;color:#31e0a4}
++          #page-cowork .cwbnone{padding:8px 10px;font-size:13px;opacity:.7}
++          #page-cowork .cwbrow select{display:none}
 +          #page-cowork .cwprimary{height:46px!important;padding:0 26px!important;font-size:16px!important;background:linear-gradient(90deg,#7c5cff,#5a8cff)!important;color:#fff!important;border-color:transparent!important;font-weight:800;box-shadow:0 6px 22px rgba(124,92,255,.35)}
 +          #page-cowork .cwacc{padding:16px 20px}
 +          #page-cowork .cwacc-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
@@ -516,9 +525,18 @@ index 07dc4c0..124feb4 100644
 +          #page-cowork .cwbarw i{display:block;height:100%}
 +          #page-cowork .cwpct{min-width:42px;text-align:right}
 +          #page-cowork .cwrow .cwacts{margin:0;gap:6px;flex-wrap:nowrap}
-+          #page-cowork .cwrow .cwacts button{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center}
++          #page-cowork .cwrow .cwacts button{min-width:48px;height:46px;padding:4px 5px 3px;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
 +          #page-cowork .cwrow .cwacts button svg{width:17px;height:17px;margin:0}
-+          #page-cowork .cwrow .cwacts .lbl,#page-cowork .cwacts button.wide .lbl{display:none}
++          #page-cowork .cwrow .cwacts .lbl,#page-cowork .cwrow .cwacts button.wide .lbl{display:block;font-size:10px;line-height:1;margin:0;opacity:.85;white-space:nowrap}
++          #page-cowork .cwchk{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-left:48px}
++          #page-cowork .cwchip{font-size:13px;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);white-space:nowrap}
++          #page-cowork .cwchip.ok{color:#31e0a4;border-color:rgba(49,224,164,.45);background:rgba(49,224,164,.1)}
++          #page-cowork .cwchip.bad{color:#ff5c7a;border-color:rgba(255,92,122,.55);background:rgba(255,92,122,.12);font-weight:600}
++          #page-cowork .cwchip.warn{color:#ffb347;border-color:rgba(255,179,71,.45);background:rgba(255,179,71,.1)}
++          #page-cowork .cwchip.wait{opacity:.6}
++          #page-cowork .cwgo{height:30px;padding:0 13px;border-radius:8px;background:#ff5c7a;color:#fff;border:0;font-weight:700;font-size:13px;cursor:pointer}
++          #page-cowork .cwgo:hover{filter:brightness(1.1)}
++          #page-cowork .cwforget{height:28px;padding:0 10px;font-size:12px;background:transparent;border:1px solid rgba(255,255,255,.15);color:inherit;border-radius:8px;opacity:.65;cursor:pointer;margin-left:auto}
 +          #page-cowork .cwrow .cwacts button.dangerbtn{margin-left:8px}
 +          @media (max-width:1100px){#page-cowork .cwrow{grid-template-columns:34px 150px 1fr auto}#page-cowork .cwuse{grid-column:2/4}}
 +        </style>
@@ -530,7 +548,7 @@ index 07dc4c0..124feb4 100644
 +            <div class="cwstatus"><span id="cwMsg"></span> <span id="cwBrowserMsg"></span></div>
 +          </div>
 +          <div class="cwsess-r">
-+            <div class="cwbrow"><select id="cwBrowserSel"><option value="">Browser ausw&auml;hlen &hellip;</option></select><span id="cwBrowser" class="nbadge warn">nicht gew&auml;hlt</span></div>
++            <div class="cwbrow"><select id="cwBrowserSel"><option value="">Browser ausw&auml;hlen &hellip;</option></select><span id="cwBrowser" hidden></span><button class="softbtn cwbpick" id="cwBrowserBtn" type="button"></button><div class="cwbmenu" id="cwBrowserMenu" hidden></div></div>
 +            <button class="softbtn cwi" id="cwCheck" data-ic="refresh" title="Startet fehlende Tabs, pr&uuml;ft AdiCode-MCP (auch asf), Usage und &ouml;ffnet den Chat Willkommen bei Notion">Check</button>
 +            <button class="softbtn" id="cwShowAll">Worker zeigen</button>
 +            <button class="softbtn cwi solid" id="cwStopAll" data-ic="stop">Stoppen</button>
@@ -567,7 +585,7 @@ index 07dc4c0..124feb4 100644
              <div class="settingrow"><label>Permissions</label><select data-pref="rsPermMode"><option value="sandbox">Sandbox</option><option value="ask">Ask</option><option value="full">Full</option></select></div><p class="settinghelp"><strong>Sandbox:</strong> AgentScript stays inside the connected project folder. <strong>Ask:</strong> request approval for writes and command execution. <strong>Full:</strong> allow AgentScript to work outside the project folder and run PC commands. Roblox actions still use the connected Studio bridge.</p>
            </div>
            <div class="settingcard"><h3>Reasoning</h3><p>Matches the extension work and thinking controls.</p>
-@@ -408,7 +694,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -408,7 +712,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="settingrow"><label>Extra Thinking</label><div class="toggle" data-pref="rsExtraThinking"></div></div>
              <div class="settingrow"><label>Plan Mode</label><div class="toggle" data-pref="rsPlanMode"></div></div>
            </div>
@@ -576,7 +594,7 @@ index 07dc4c0..124feb4 100644
              <div class="settingrow"><label>Forge UI</label><div class="toggle" data-pref="rsForgeMode"></div></div>
              <div class="settingrow"><label>Auto Fix</label><div class="toggle" data-pref="rsAutoFix"></div></div>
              <div class="settingrow"><label>Background Mode</label><div class="toggle" data-pref="rsBgMode"></div></div>
-@@ -419,10 +705,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -419,10 +723,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="instructions-actions"><button class="softbtn" id="saveInstructions">Save</button><span class="instructions-status" id="instructionsStatus" role="status"></span></div>
  
            </div>
@@ -589,7 +607,7 @@ index 07dc4c0..124feb4 100644
            </div>
          </div>
        </section>
-@@ -480,7 +766,7 @@ __PLAZCODE_VERSION_UI__
+@@ -480,7 +784,7 @@ __PLAZCODE_VERSION_UI__
          window.ipc.postMessage(String(Message));
        }
      } catch (Error) {
@@ -598,7 +616,7 @@ index 07dc4c0..124feb4 100644
      }
    }
  
-@@ -520,7 +806,7 @@ __PLAZCODE_VERSION_UI__
+@@ -520,7 +824,7 @@ __PLAZCODE_VERSION_UI__
  
    function Showerror(Error) {
      var Message = Error && Error.message ? Error.message : String(Error);
@@ -607,7 +625,7 @@ index 07dc4c0..124feb4 100644
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
-@@ -538,7 +824,7 @@ __PLAZCODE_VERSION_UI__
+@@ -538,7 +842,7 @@ __PLAZCODE_VERSION_UI__
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
@@ -616,7 +634,7 @@ index 07dc4c0..124feb4 100644
      }
    }
  
-@@ -573,7 +859,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +877,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -625,7 +643,7 @@ index 07dc4c0..124feb4 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -655,7 +941,7 @@ __PLAZCODE_VERSION_UI__
+@@ -655,7 +959,7 @@ __PLAZCODE_VERSION_UI__
          Live[Server.id] = Server;
        });
  
@@ -634,7 +652,7 @@ index 07dc4c0..124feb4 100644
  
        var Catalogservers = Catalog && Catalog.servers ? Catalog.servers : [];
        Html += Catalogservers.map(function (Server) {
-@@ -892,7 +1178,7 @@ __PLAZCODE_VERSION_UI__
+@@ -892,7 +1196,7 @@ __PLAZCODE_VERSION_UI__
      var List = Byid('updateReleaseNotes'); List.replaceChildren();
      (Notes || []).forEach(function (Release, Index) {
        var Card = document.createElement('details'); Card.className='settingcard release-note'; Card.open=Index === 0;
@@ -643,7 +661,7 @@ index 07dc4c0..124feb4 100644
        var Summary=document.createElement('p'); Summary.textContent=Release.summary; Card.appendChild(Summary);
        [['added','New additions'],['improved','Improvements'],['fixed','Bug fixes']].forEach(function (Section) {
          if (!Array.isArray(Release[Section[0]]) || !Release[Section[0]].length) return;
-@@ -905,12 +1191,12 @@ __PLAZCODE_VERSION_UI__
+@@ -905,12 +1209,12 @@ __PLAZCODE_VERSION_UI__
    function Refreshupdates() {
      if (Updatepolling) return Promise.resolve(); Updatepolling = true;
      return Api('/api/desktop/update').then(function (Value) {
@@ -658,7 +676,7 @@ index 07dc4c0..124feb4 100644
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
-@@ -919,18 +1205,18 @@ __PLAZCODE_VERSION_UI__
+@@ -919,18 +1223,18 @@ __PLAZCODE_VERSION_UI__
        Byid('installUpdate').disabled = Updating || Value.available !== true;
        Byid('checkUpdates').disabled = Updating;
        Byid('updateOverlay').hidden = (!Updating || Value.background === true) && (!Value.error || UpdateerrorDismissed);
@@ -680,7 +698,7 @@ index 07dc4c0..124feb4 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1492,288 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1510,330 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -787,6 +805,40 @@ index 07dc4c0..124feb4 100644
 +    var CMsg = function (T) { var M = $("cwMsg"); if (M) M.textContent = T || ""; };
 +    var CDirty = function (D) { CW.dirty = D; var B = $("cwDirty"); if (B) B.style.display = D ? "" : "none"; };
 +    var CBtn = function (A, Ic, Label, Cls) { return '<button class="' + (Cls || "softbtn") + ' cwi' + (Ic === "stop" ? " solid" : "") + (A === "login" ? " wide" : "") + '" data-a="' + A + '" title="' + Label + '">' + CI(Ic) + '<span class="lbl">' + (A === "login" ? "Login" : Label) + '</span></button>'; };
++    var CBrIcon = function (N) {
++      N = String(N || "").toLowerCase();
++      if (N.indexOf("edge") >= 0) return '<svg viewBox="0 0 24 24" width="18" height="18"><defs><linearGradient id="bgEdge" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#35c1f1"/><stop offset=".6" stop-color="#1b7fd6"/><stop offset="1" stop-color="#0c59a4"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="url(#bgEdge)"/><path d="M5.5 14.5c1.2 3.2 4.6 4.8 7.8 4.3 2.4-.4 4.3-2 5-3.6-1.6 1-4.2 1.1-5.8.1-1.4-.9-1.6-2.6-.4-3.7 1.5-1.4 5.3-.6 6.9 1.3.4-3.5-2.8-7.4-7.2-7.4-3.6 0-6.4 2.4-6.9 5.4" fill="#5fe08a" opacity=".9"/></svg>';
++      if (N.indexOf("brave") >= 0) return '<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2l3 1.5 3-.5 2 2.5-1 2 1 6-3.5 5L12 22l-4.5-3.5L4 13.5l1-6-1-2L6 3l3 .5z" fill="#fb542b"/><path d="M9 9.5l3 1 3-1-1 4-2 2-2-2z" fill="#fff"/></svg>';
++      if (N.indexOf("chrome") >= 0) return '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" fill="#db4437"/><path d="M12 12L3.3 7A10 10 0 0 0 10.9 21.9z" fill="#0f9d58"/><path d="M12 12L20.7 7A10 10 0 0 1 10.9 21.9z" fill="#ffcd40"/><circle cx="12" cy="12" r="4.6" fill="#fff"/><circle cx="12" cy="12" r="3.6" fill="#4285f4"/></svg>';
++      return '<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>';
++    };
++    var CBrRender = function () {
++      var B = $("cwBrowserBtn"), Mn = $("cwBrowserMenu"); if (!B || !Mn) return;
++      var Cur = CW.browser, L = CW.browsers || [];
++      B.innerHTML = CBrIcon(Cur) + '<span>' + CEsc(Cur || "Browser") + '</span><span class="cwcaret">\u25BE</span>';
++      B.title = Cur ? "Browser f\u00fcr alle Tabs: " + Cur : "Browser ausw\u00e4hlen";
++      B.classList.toggle("warn", !Cur);
++      Mn.innerHTML = L.length ? L.map(function (N) { return '<button type="button" data-br="' + CEsc(N) + '" class="' + (N === Cur ? "on" : "") + '">' + CBrIcon(N) + '<span>' + CEsc(N) + '</span>' + (N === Cur ? '<span class="cwchkm">\u2713</span>' : '') + '</button>'; }).join("") : '<div class="cwbnone">Kein Chrome, Edge oder Brave installiert</div>';
++    };
++    var CChk = function (T, I) {
++      var A = T.account || {}, M = T.memory || {};
++      var Tgt = I === 0 ? "Opus 5.5" : "Sonnet 5.5", TId = I === 0 ? "albuquerque-quinn" : "achira-donut";
++      var Chip = function (St, Txt, Tip) { return '<span class="cwchip ' + St + '" title="' + CEsc(Tip || "") + '">' + (St === "ok" ? "\u2713 " : (St === "bad" ? "\u2715 " : "\u2022 ")) + CEsc(Txt) + '</span>'; };
++      var McpBad = /fehlt|fallback/i.test(A.mcp || "");
++      var McpOk = !McpBad && (A.mcp_saved === true || M.mcp_ok === true || /verbunden/i.test(A.mcp || ""));
++      var ModOk = A.model_ok === true || M.models_ok === TId, ModBad = A.model_ok === false;
++      var ChatBad = A.chat_ok === false || (/chat/i.test(A.check || "") && /fehlt/i.test(A.check || "")) || /nicht gefunden|nicht bereit/i.test(A.chat || "");
++      var ChatOk = !ChatBad && (A.chat_ok === true || /bereit/i.test(A.chat || ""));
++      var P = A.usage, USt = A.exhausted ? "bad" : (P == null ? "wait" : (P >= 80 ? "warn" : "ok"));
++      return '<div class="cwchk">' +
++        Chip(McpOk ? "ok" : (McpBad ? "bad" : "wait"), "MCP configured", A.mcp || "Noch nicht gepr\u00fcft") +
++        Chip(ModOk ? "ok" : (ModBad ? "bad" : "wait"), "Modell: " + Tgt, A.model_state || "Noch nicht gepr\u00fcft") +
++        Chip(ChatOk ? "ok" : (ChatBad ? "bad" : "wait"), ChatBad ? "Chat fehlt" : "Chat \u201aWillkommen\u2018", A.chat || "") +
++        (ChatBad ? '<button class="cwgo" data-a="chat" title="Tab \u00f6ffnen und zum Chat Willkommen bei Notion springen">Zum Chat \u2192</button>' : '') +
++        Chip(USt, "Usage " + (A.exhausted ? "aufgebraucht" : (P == null ? "\u2013" : P + " %")), A.usage_source || "") +
++        ((McpOk || ModOk) ? '<button class="cwforget" data-a="forget" title="Gemerkte MCP-/Modell-Checks l\u00f6schen; der n\u00e4chste Check pr\u00fcft neu">neu pr\u00fcfen</button>' : '') +
++        '</div>';
++    };
 +    var CRow = function (T, I) {
 +      var A = T.account || {}, P = A.usage;
 +      var Col = A.exhausted ? "#ff5c7a" : (P != null && P >= 80 ? "#ffb347" : "#7c5cff");
@@ -795,10 +847,10 @@ index 07dc4c0..124feb4 100644
 +      var St = T.paused ? "du schreibst" : (A.check || (T.running ? "l\u00e4uft" : "aus"));
 +      return '<div class="cwrow' + (T.running ? " on" : "") + '" data-i="' + I + '" title="' + CEsc(Tip) + '">' +
 +        '<span class="cwnum">' + (I + 1) + '</span>' +
-+        '<div class="cwwho"><b>' + CEsc(T.role) + '</b><small>' + CEsc(St) + '</small></div>' +
++        '<div class="cwwho"><b>' + CEsc(T.role) + '</b><small' + (/fehlt|nicht/i.test(St) ? ' style="color:#ff5c7a;opacity:1"' : '') + '>' + CEsc(St) + '</small></div>' +
 +        '<div><input data-f="email" type="email" value="' + CEsc(T.email) + '" placeholder="name@gmail.com"><input data-f="label" type="hidden" value="' + CEsc(T.label) + '"></div>' +
 +        '<div class="cwuse">' + Use + '</div>' +
-+        '<div class="cwacts">' + CBtn("login", "login", "Gmail-Login") + CBtn("mcp", "mcp", "MCP einrichten") + CBtn("prompt", "copy", "Prompt kopieren") + CBtn("take", T.paused ? "release" : "edit", T.paused ? "Freigeben" : "Selbst schreiben") + (T.running ? CBtn("stop", "stop", "Stoppen") : CBtn("open", "open", "\u00d6ffnen")) + CBtn("del", "trash", "Entfernen", "dangerbtn") + '</div></div>';
++        '<div class="cwacts">' + CBtn("login", "login", "Gmail-Login") + CBtn("mcp", "mcp", "MCP") + CBtn("prompt", "copy", "Prompt") + CBtn("take", T.paused ? "release" : "edit", T.paused ? "Freigeben" : "Schreiben") + (T.running ? CBtn("stop", "stop", "Stopp") : CBtn("open", "open", "\u00d6ffnen")) + CBtn("del", "trash", "Entfernen", "dangerbtn") + '</div>' + CChk(T, I) + '</div>';
 +    };
 +    var CRender = function () {
 +      var Box = $("cwTabs"); if (!Box) return;
@@ -807,10 +859,10 @@ index 07dc4c0..124feb4 100644
 +      var Ready = !!CW.browser && CW.tabs.length === 4 && CW.tabs.every(function (T) { return String(T.email || "").trim(); });
 +      var S = $("cwStartAll"); if (S) { S.disabled = !Ready; S.title = !CW.browser ? "Erst oben einen Browser w\u00e4hlen" : (Ready ? "" : "Vier Tabs mit Gmail-Konto n\u00f6tig"); }
 +      if ($("cwAdd")) $("cwAdd").disabled = CW.tabs.length >= 4;
-+      var Sb = $("cwShowAll"); if (Sb) Sb.textContent = CW.shown ? "Worker verstecken" : "Worker zeigen";
++      var Sb = $("cwShowAll"); if (Sb) { Sb.textContent = CW.hidden ? "Worker zeigen" : "Worker verstecken"; Sb.title = CW.hidden ? "Coder, Reviewer und Tester sind versteckt" : "Coder, Reviewer und Tester sind sichtbar"; }
 +    };
 +    var CBrowser = function (R) {
-+      CW.browsers = R.browsers || []; CW.browser = R.browser || null;
++      CW.browsers = R.browsers || []; CW.browser = R.browser || null; CW.hidden = !!R.hidden; CBrRender();
 +      var Sel = $("cwBrowserSel"), Bd = $("cwBrowser");
 +      if (Sel && document.activeElement !== Sel) {
 +        Sel.innerHTML = '<option value="">' + (CW.browsers.length ? 'Browser ausw\u00e4hlen \u2026' : 'Kein Chrome, Edge oder Brave installiert') + '</option>' + CW.browsers.map(function (N) { return '<option value="' + CEsc(N) + '">' + CEsc(N) + '</option>'; }).join("");
@@ -882,6 +934,12 @@ index 07dc4c0..124feb4 100644
 +    On("cwLoginClose", LVClose);
 +    On("cwLoginBack", function () { LVSend({ op: "back" }); });
 +    On("cwLoginShow", function () { if (LV.id != null) CAct("cowork_show_tab", LV.id).catch(function () {}); });
++    var CBB = $("cwBrowserBtn"), CBM = $("cwBrowserMenu");
++    if (CBB && CBM) {
++      CBB.addEventListener("click", function (E) { E.stopPropagation(); CBM.hidden = !CBM.hidden; });
++      CBM.addEventListener("click", function (E) { E.stopPropagation(); var X = E.target.closest("[data-br]"); if (!X) return; CBM.hidden = true; var N = X.getAttribute("data-br"); CAct("cowork_set_browser", N).then(function (R) { CW.browser = N; CBrRender(); var M = $("cwBrowserMsg"); if (M) M.textContent = R.message || ""; CLoad(true); }).catch(function (Er) { var M = $("cwBrowserMsg"); if (M) M.textContent = Er.message || String(Er); }); });
++      document.addEventListener("click", function () { CBM.hidden = true; });
++    }
 +    var CSel = $("cwBrowserSel");
 +    if (CSel) CSel.addEventListener("change", function () { if (!CSel.value) return; CAct("cowork_set_browser", CSel.value).then(function (R) { var M = $("cwBrowserMsg"); if (M) M.textContent = R.message || ""; }).catch(function (E) { var M = $("cwBrowserMsg"); if (M) M.textContent = E.message || String(E); CSel.blur(); CLoad(true); }); });
 +    var CBox = $("cwTabs");
@@ -896,6 +954,8 @@ index 07dc4c0..124feb4 100644
 +        if (A === "mcp") CAct("cowork_setup_mcp", T.id).then(function(){setTimeout(function(){CLoad(true);},4000);}).catch(function () {});
 +        if (A === "prompt") { var P = T.role === "Main" ? "Du bist der Main Chat. Warte auf meine Aufgabe; lade zuerst die passende Projekt-Memory und starte dann cowork_start." : ("Du bist " + T.role + ". Warte auf das aktive Projekt, cowork_join als " + T.role + ", dann claim \u2192 arbeiten \u2192 update \u2192 wait."); Copy(P); CMsg("Startprompt kopiert."); }
 +        if (A === "login") LVOpen(T);
++        if (A === "chat") CAct("cowork_goto_chat", T.id).then(function(){setTimeout(function(){CLoad(true);},8000);}).catch(function () {});
++        if (A === "forget") CAct("cowork_forget", T.id).then(function(){CLoad(true);}).catch(function () {});
 +        if (A === "open") { if (!CW.browser) { CMsg("Erst oben einen Browser w\u00e4hlen."); return; } CSaveIf().then(function () { return CAct("open_notion_window", T.id); }).catch(function () {}); }
 +        if (A === "stop") CAct("cowork_stop", T.id).catch(function () {});
 +        if (A === "take") CAct(T.paused ? "cowork_release" : "cowork_takeover", T.id).catch(function () {});
@@ -905,7 +965,7 @@ index 07dc4c0..124feb4 100644
 +    On("cwAdd", function () { CSaveIf().then(function () { return CAct("cowork_add_tab"); }).then(function () { return CLoad(true); }).catch(function () {}); });
 +    On("cwSave", function () { CSave().catch(function () {}); });
 +    On("cwStartAll", function () { if (!CW.browser) { CMsg("Erst oben einen Browser w\u00e4hlen."); return; } CSaveIf().then(function () { return CAct("cowork_start_all"); }).catch(function () {}); });
-+    On("cwShowAll", function () { var Next = !CW.shown; CAct(Next ? "cowork_show_all" : "cowork_hide_all").then(function () { CW.shown = Next; CRender(); }).catch(function () {}); });
++    On("cwShowAll", function () { var Show = !!CW.hidden; CAct(Show ? "cowork_show_all" : "cowork_hide_all").then(function () { CW.hidden = !Show; CRender(); CLoad(true); }).catch(function () {}); });
 +    On("cwCheck", function () { CAct("cowork_check_accounts").then(function(){[3000,10000,25000,50000].forEach(function(ms){setTimeout(function(){CLoad(true);},ms);});}).catch(function () {}); });
 +    On("cwStopAll", function () { if (confirm("Alle Co-Work-Tabs schlie\u00dfen?")) CAct("cowork_stop_all").then(function () { CW.shown = false; CRender(); }).catch(function () {}); });
 +    document.querySelectorAll("[data-page=cowork]").forEach(function (B) { B.addEventListener("click", function () { CLoad(false); }); });
@@ -4394,10 +4454,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..d890941
+index 0000000..7011f1d
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,456 @@
+@@ -0,0 +1,487 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4420,6 +4480,12 @@ index 0000000..d890941
 +fn auto_mcp_file() -> PathBuf { base().join("auto-mcp") }
 +pub(crate) fn auto_mcp_on() -> bool { auto_mcp_file().exists() }
 +pub(crate) fn is_paused(id: u32) -> bool { lock(&PAUSED).contains(&id) }
++/// Dauerhaftes Gedaechtnis pro Gmail-Konto: einmal bestaetigter MCP/Modell-Check wird nicht wiederholt.
++fn accounts_file()->PathBuf{base().join("accounts.json")}
++fn mem_all()->Value{std::fs::read_to_string(accounts_file()).ok().and_then(|s|serde_json::from_str::<Value>(&s).ok()).filter(Value::is_object).unwrap_or_else(||json!({}))}
++fn mem_get(email:&str,k:&str)->Value{mem_all().get(email.to_lowercase().as_str()).and_then(|e|e.get(k)).cloned().unwrap_or(Value::Null)}
++fn mem_set(email:&str,k:&str,v:Value){if email.is_empty(){return;}let mut all=mem_all();let key=email.to_lowercase();if !all[key.as_str()].is_object(){all[key.as_str()]=json!({});}all[key.as_str()][k]=v;let _=std::fs::create_dir_all(base());let _=std::fs::write(accounts_file(),serde_json::to_vec_pretty(&all).unwrap_or_default());}
++fn mem_forget(email:&str){let mut all=mem_all();if let Some(o)=all.as_object_mut(){o.remove(&email.to_lowercase());}let _=std::fs::write(accounts_file(),serde_json::to_vec_pretty(&all).unwrap_or_default());}
 +fn mark_account(id: u32, k: &str, v: Value) { let mut a = lock(&ACCOUNT); a.entry(id).or_insert_with(|| json!({"usage": null, "models": []}))[k] = v; }
 +
 +#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
@@ -4531,13 +4597,14 @@ index 0000000..d890941
 +        else if IsWindowVisible(hwnd)!=0 && real_window(hwnd) { h.insert(hwnd); ShowWindowAsync(hwnd,0); }
 +        1
 +    }
++    pub fn any_hidden()->bool{!lock(&HIDDEN).is_empty()}
 +    pub fn set_hidden(tabs:&[Tab], hidden:bool){
 +        let cmds=browser_cmds(); let mut p=HashSet::new();
 +        for t in tabs { let d=dir(t.id).display().to_string(); for(pid,c) in &cmds { if cmd_uses(c,&d){p.insert(pid.as_u32());} } }
 +        *lock(&PIDS)=(p,!hidden); unsafe{EnumWindows(visit,0);}
 +    }
 +}
-+#[cfg(not(windows))] pub(crate) mod windows { use super::*; pub fn set_hidden(_: &[Tab],_:bool){} }
++#[cfg(not(windows))] pub(crate) mod windows { use super::*; pub fn set_hidden(_: &[Tab],_:bool){} pub fn any_hidden()->bool{false} }
 +
 +fn start_url(t:&Tab)->String{if t.url.is_empty(){NOTION_URL.to_string()}else{t.url.clone()}}
 +fn tab_index(id:u32)->usize{load().iter().position(|t|t.id==id).unwrap_or(0)}
@@ -4607,16 +4674,19 @@ index 0000000..d890941
 +}
 +fn set_status(s:impl Into<String>){*lock(&COWORK_STATUS)=s.into();}
 +pub(crate) fn status_text()->String{lock(&COWORK_STATUS).clone()}
-+pub(crate) fn mcp_ok(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)}
++pub(crate) fn mcp_ok(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)||load().iter().find(|t|t.id==id).map(|t|mem_get(&t.email,"mcp_ok").as_bool()==Some(true)).unwrap_or(false)}
 +static CHECKING: AtomicBool = AtomicBool::new(false);
 +async fn js_eval(port:u16,expr:&str)->Result<Value,String>{Ok(cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null))}
 +async fn wait_cdp(port:u16)->bool{for _ in 0..40{if target(port).await.is_ok(){return true;}tokio::time::sleep(Duration::from_secs(1)).await;}false}
 +const FIND_WELCOME:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const re=/^(welcome to notion|willkommen (bei|in|zu) notion)/i;for(let k=0;k<20;k++){const tab=document.querySelector('#sidebar-tab-chats,[role="tab"][aria-label="Chat"],[role="tab"][aria-label="Chats"]');if(tab&&tab.getAttribute('aria-selected')!=='true')tab.click();const item=[...document.querySelectorAll('[role="menuitem"]')].filter(vis).find(e=>re.test((e.innerText||'').trim()));if(item){item.click();await sleep(1500);return {found:true}}if(k%5===4){const sc=[...document.querySelectorAll('[role="menu"],[role="tabpanel"],[role="list"]')].find(e=>vis(e)&&e.scrollHeight>e.clientHeight+20);if(sc)sc.scrollTop+=500;}await sleep(500);}return {found:false}})()"#;
 +const CHAT_READY:&str=r#"(()=>{const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&s.visibility!=='hidden'&&s.display!=='none'};const composer=[...document.querySelectorAll('textarea,[contenteditable="true"]')].filter(vis)[0];const p=location.pathname;return {ready:(p==='/ai'||p.startsWith('/ai/')||p==='/chat'||p.startsWith('/chat/'))&&!!composer,href:location.href}})()"#;
 +/// Oeffnet IMMER den bestehenden Chat "Willkommen bei Notion" - es wird nie ein neuer Chat angelegt.
++/// Schliesst offene Notion-Einstellungen (z. B. nach dem MCP-Check) per X bzw. Escape.
++const CLOSE_SETTINGS:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const q=()=>document.querySelector('input[aria-label="Search settings"],input[placeholder="Search settings"],input[aria-label="Einstellungen durchsuchen"]');for(let k=0;k<5;k++){const s=q();if(!s)return true;const dlg=s.closest('[role="dialog"]')||document.body;const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const b=[...dlg.querySelectorAll('[aria-label="Close"],[aria-label="Schließen"],[aria-label="Schliessen"]')].filter(vis)[0];if(b)b.click();else document.activeElement&&document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',keyCode:27,bubbles:true}));await sleep(700);}return !q()})()"#;
++async fn close_settings(port:u16){let ok=js_eval(port,CLOSE_SETTINGS).await.ok().and_then(|v|v.as_bool()).unwrap_or(false);if !ok{let k=|t:&str|json!({"method":"Input.dispatchKeyEvent","params":{"type":t,"key":"Escape","code":"Escape","windowsVirtualKeyCode":27}});let _=cdp(port,vec![k("keyDown"),k("keyUp")]).await;tokio::time::sleep(Duration::from_millis(500)).await;}}
 +async fn prepare_chat(t:&Tab,i:usize)->Result<(),String>{
-+    let port=cdp_port(i);
-+    let known=lock(&ACCOUNT).get(&t.id).and_then(|a|a["welcome_url"].as_str().map(String::from));
++    let port=cdp_port(i);close_settings(port).await;
++    let known=lock(&ACCOUNT).get(&t.id).and_then(|a|a["welcome_url"].as_str().map(String::from)).or_else(||mem_get(&t.email,"welcome_url").as_str().map(String::from));
 +    let mut found=false;
 +    if let Some(u)=known.as_ref(){
 +        let here=js_eval(port,"location.href").await?;
@@ -4634,12 +4704,27 @@ index 0000000..d890941
 +    for _ in 0..25{
 +        tokio::time::sleep(Duration::from_secs(1)).await;
 +        let v=js_eval(port,CHAT_READY).await?;
-+        if v["ready"].as_bool().unwrap_or(false){let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!("Willkommen bei Notion bereit");e["url"]=v["href"].clone();e["welcome_url"]=v["href"].clone();return Ok(());}
++        if v["ready"].as_bool().unwrap_or(false){let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!("Willkommen bei Notion bereit");e["url"]=v["href"].clone();e["welcome_url"]=v["href"].clone();drop(a);mem_set(&t.email,"welcome_url",v["href"].clone());return Ok(());}
 +    }
 +    mark_account(t.id,"chat",json!("Chat nicht bereit"));
 +    Err(format!("{}: Notion-Chatbox wurde nicht bereit",t.role))
 +}
-+/// Ein einziger Check pro Konto: Tab erreichbar -> eingeloggt -> AdiCode-MCP (auch "asf") pruefen/einrichten -> Usage -> Chat "Willkommen bei Notion".
++/// Claude-Modelle in "Allowed models for Notion Agent" (interne Notion-Codenamen -> Anzeigename).
++const CLAUDE_MODELS:[(&str,&str);8]=[("albuquerque-quinn","Opus 5.5"),("achira-donut","Sonnet 5.5"),("agave-flan","Opus 5"),("ambrosia-tart-high","Opus 4.8"),("apricot-sorbet-high","Opus 4.7"),("angel-cake-high","Sonnet 5"),("almond-croissant-low","Sonnet 4.6"),("anthropic-haiku-4.5","Haiku 4.5")];
++/// Main = Opus 5.5 (Orchestrator), alle Worker = Sonnet 5.5.
++fn target_model(i:usize)->(&'static str,&'static str){if i==0{CLAUDE_MODELS[0]}else{CLAUDE_MODELS[1]}}
++const MODELS_JS:&str=r#"(async()=>{const T='__T__';const ALL=__ALL__;const OTHER=['openai','gemini','xai','deepseek','kimi','glm'];const post=async(u,b)=>{const r=await fetch('/api/v3/'+u,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b)});if(!r.ok)throw new Error(u+' HTTP '+r.status);return r.json()};const read=async()=>{const j=await post('getSpaces',{});const uid=Object.keys(j)[0];const sid=Object.keys((j[uid]||{}).space||{})[0];if(!sid)throw new Error('Workspace nicht gefunden');const v=j[uid].space[sid].value;const s=((v&&v.value)||v||{}).settings||{};return {sid,pol:s.personal_agent_model_policy||{}}};const allowed=p=>ALL.filter(m=>!(p.disabledModels||[]).includes(m));const good=p=>{const a=allowed(p);return a.length===1&&a[0]===T&&OTHER.every(x=>(p.disabledProviders||[]).includes(x))};try{let {sid,pol}=await read();if(good(pol))return {ok:true,changed:false,allowed:allowed(pol)};const np={disabledModels:ALL.filter(m=>m!==T),disabledProviders:OTHER};await post('saveTransactionsFanout',{requestId:crypto.randomUUID(),transactions:[{id:crypto.randomUUID(),spaceId:sid,debug:{userAction:'ModelControls.save'},operations:[{pointer:{table:'space',id:sid,spaceId:sid},path:['settings','personal_agent_model_policy'],command:'set',args:np}]}]});await new Promise(r=>setTimeout(r,1500));pol=(await read()).pol;return {ok:good(pol),changed:true,allowed:allowed(pol)}}catch(e){return {ok:false,error:String(e&&e.message||e)}}})()"#;
++/// Prueft und setzt Notion AI -> Model controls -> Allowed models for Notion Agent auf genau das Rollenmodell. Wird gemerkt.
++async fn ensure_models(t:&Tab,i:usize)->Result<(),String>{
++    let (tid,tname)=target_model(i);
++    mark_account(t.id,"model_target",json!(tname));
++    if mem_get(&t.email,"models_ok").as_str()==Some(tid){mark_account(t.id,"model_ok",json!(true));mark_account(t.id,"model_state",json!(format!("{tname} (gemerkt)")));return Ok(());}
++    let all=serde_json::to_string(&CLAUDE_MODELS.iter().map(|(k,_)|*k).collect::<Vec<_>>()).unwrap_or_default();
++    let r=js_eval(cdp_port(i),&MODELS_JS.replace("__T__",tid).replace("__ALL__",&all)).await?;
++    if r["ok"].as_bool().unwrap_or(false){mem_set(&t.email,"models_ok",json!(tid));mark_account(t.id,"model_ok",json!(true));mark_account(t.id,"model_state",json!(if r["changed"].as_bool().unwrap_or(false){format!("{tname} gesetzt")}else{tname.to_string()}));Ok(())}
++    else{let e=r["error"].as_str().map(String::from).unwrap_or_else(||format!("erlaubt: {}",r["allowed"]));mark_account(t.id,"model_ok",json!(false));mark_account(t.id,"model_state",json!(format!("Nicht {tname}: {e}")));Err(format!("{}: Modell {e}",t.role))}
++}
++/// Ein einziger Check pro Konto: Tab -> Login -> AdiCode-MCP (gemerkt) -> Modelle (gemerkt) -> Usage -> Chat "Willkommen bei Notion". Laeuft immer komplett durch.
 +async fn check_one(t:Tab,i:usize)->Result<(),String>{
 +    if t.email.is_empty(){mark_account(t.id,"check",json!("Keine E-Mail eingetragen"));return Err(format!("{}: keine E-Mail",t.role));}
 +    let port=cdp_port(i);
@@ -4647,12 +4732,16 @@ index 0000000..d890941
 +    if !wait_cdp(port).await{mark_account(t.id,"check",json!("Tab nicht erreichbar"));mark_account(t.id,"usage_error",json!("Tab nicht erreichbar"));return Err(format!("{}: Tab nicht erreichbar",t.role));}
 +    let mut ok=false;for _ in 0..25{if logged_in(port).await{ok=true;break;}tokio::time::sleep(Duration::from_secs(1)).await;}
 +    if !ok{mark_account(t.id,"check",json!("Nicht eingeloggt \u{2013} Gmail-Login nutzen"));return Err(format!("{}: nicht in Notion eingeloggt",t.role));}
-+    mark_account(t.id,"check",json!("Pr\u{fc}fe AdiCode-MCP \u{2026}"));
-+    if let Err(e)=setup_mcp(&t,i).await{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));mark_account(t.id,"check",json!("MCP fehlt"));return Err(format!("{}: MCP {e}",t.role));}
++    let mut missing:Vec<&str>=Vec::new();let mut errs:Vec<String>=Vec::new();
++    if mem_get(&t.email,"mcp_ok").as_bool()==Some(true){mark_account(t.id,"mcp",json!("Bereits verbunden"));mark_account(t.id,"mcp_saved",json!(true));}
++    else{mark_account(t.id,"check",json!("Pr\u{fc}fe AdiCode-MCP \u{2026}"));match setup_mcp(&t,i).await{Ok(_)=>{mem_set(&t.email,"mcp_ok",json!(true));mark_account(t.id,"mcp_saved",json!(true));}Err(e)=>{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));missing.push("MCP");errs.push(format!("{}: MCP {e}",t.role));}}}
++    mark_account(t.id,"check",json!("Pr\u{fc}fe Modelle \u{2026}"));
++    if let Err(e)=ensure_models(&t,i).await{missing.push("Modell");errs.push(e);}
 +    mark_account(t.id,"check",json!("Pr\u{fc}fe Usage \u{2026}"));
 +    inspect_account(&t,i).await;
 +    mark_account(t.id,"check",json!("\u{d6}ffne \u{201a}Willkommen bei Notion\u{2018} \u{2026}"));
-+    if let Err(e)=prepare_chat(&t,i).await{mark_account(t.id,"check",json!("Chat fehlt"));return Err(e);}
++    match prepare_chat(&t,i).await{Ok(())=>mark_account(t.id,"chat_ok",json!(true)),Err(e)=>{mark_account(t.id,"chat_ok",json!(false));missing.push("Chat");errs.push(e);}}
++    if !errs.is_empty(){mark_account(t.id,"check",json!(format!("{} fehlt",missing.join(", "))));return Err(errs.join("; "));}
 +    let ex=lock(&ACCOUNT).get(&t.id).map(|a|a["exhausted"].as_bool().unwrap_or(false)).unwrap_or(false);
 +    mark_account(t.id,"check",json!(if ex{"OK \u{2013} aber KI-Kontingent aufgebraucht"}else{"OK"}));
 +    Ok(())
@@ -4726,7 +4815,7 @@ index 0000000..d890941
 +async fn kickoff(tabs:Vec<Tab>, baseline:usize){
 +    let errors=full_check(&tabs).await;
 +    if !errors.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Start angehalten \u{2013} Account-Check: {}",errors.join("; ")));return;}
-+    set_status("Account-Check ok: alle Konten im Chat \u{201a}Willkommen bei Notion\u{2018}. Worker bleiben sichtbar, bis du \u{201a}Worker verstecken\u{2018} dr\u{fc}ckst.");
++    if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}set_status("Account-Check ok: alle Konten im Chat \u{201a}Willkommen bei Notion\u{2018}, Worker-Fenster automatisch versteckt.");
 +    let _=open_main(cdp_port(0)).await;
 +    if let Some(main)=tabs.first(){let _=insert_prompt(cdp_port(0),prompt_for(main)).await;}
 +    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
@@ -4828,7 +4917,7 @@ index 0000000..d890941
 +    }
 +}
 +pub async fn view_handler(Json(req):Json<Value>)->impl IntoResponse{match view_op(req).await{Ok(v)=>(axum::http::StatusCode::OK,Json(v)),Err(e)=>(axum::http::StatusCode::BAD_REQUEST,Json(json!({"ok":false,"error":e})))}}
-+pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();json!({"ok":true,"auto_mcp":auto_mcp_on(),"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v}).collect::<Vec<_>>()})}
++pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();let mem=mem_all();json!({"ok":true,"hidden":windows::any_hidden(),"auto_mcp":auto_mcp_on(),"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v["memory"]=mem.get(t.email.to_lowercase().as_str()).cloned().unwrap_or(Value::Null);v}).collect::<Vec<_>>()})}
 +pub async fn tabs_handler()->impl IntoResponse{ensure_monitors();Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e|json!({"ok":false,"error":e.to_string()})))}
 +pub fn action(name:&str,v:&Value)->Option<Result<String,String>>{
 +    let id=v.as_u64().or_else(||v.get("id").and_then(Value::as_u64)).and_then(|n|u32::try_from(n).ok());
@@ -4837,6 +4926,8 @@ index 0000000..d890941
 +        "cowork_stop_all"=>{let ids:Vec<u32>=load().iter().map(|t|t.id).collect();Ok(format!("{} Browser-Prozesse beendet.",stop_ids(&ids)))},
 +        "cowork_show_all"=>{show_all_windows();Ok("Alle Co-Work-Fenster angezeigt.".into())},
 +        "cowork_check_accounts"|"cowork_check"=>check_action(),
++        "cowork_goto_chat"=>find(id).and_then(|t|{if !running_ids(std::slice::from_ref(&t)).contains(&t.id){launch(&t,&start_url(&t))?;}windows::set_hidden(std::slice::from_ref(&t),false);let i=tab_index(t.id);let msg=format!("Tab {} ({}) wird zum Chat \u{201a}Willkommen bei Notion\u{2018} gebracht.",t.id,t.role);tokio::spawn(async move{let port=cdp_port(i);if !wait_cdp(port).await{return;}let _=cdp(port,vec![json!({"method":"Page.bringToFront"})]).await;let ok=prepare_chat(&t,i).await.is_ok();mark_account(t.id,"chat_ok",json!(ok));let st=lock(&ACCOUNT).get(&t.id).and_then(|a|a["check"].as_str().map(String::from)).unwrap_or_default();if ok&&st=="Chat fehlt"{mark_account(t.id,"check",json!("OK"));}});Ok(msg)}),
++        "cowork_forget"=>find(id).map(|t|{mem_forget(&t.email);mark_account(t.id,"mcp_saved",json!(false));mark_account(t.id,"model_ok",Value::Null);format!("Gemerkte Checks f\u{fc}r {} gel\u{f6}scht \u{2013} n\u{e4}chster Check pr\u{fc}ft MCP und Modelle neu.",t.email)}),
 +        "cowork_setup_mcp"=>find(id).map(|t|{let i=tab_index(t.id);tokio::spawn(async move{let _=setup_mcp(&t,i).await;});"MCP-Einrichtung gestartet.".into()}),
 +        "cowork_takeover"=>find(id).map(|t|{lock(&PAUSED).insert(t.id);windows::set_hidden(std::slice::from_ref(&t),false);let i=tab_index(t.id);tokio::spawn(async move{stop_generation(cdp_port(i)).await;let _=cdp(cdp_port(i),vec![json!({"method":"Page.bringToFront"})]).await;});format!("Tab {} ({}) \u{fc}bernommen: AdiCode schickt keine Erinnerungen mehr, du kannst dort selbst schreiben.",t.id,t.role)}),
 +        "cowork_release"=>find(id).map(|t|{lock(&PAUSED).remove(&t.id);format!("Tab {} ({}) wieder an Co-Work \u{fc}bergeben.",t.id,t.role)}),

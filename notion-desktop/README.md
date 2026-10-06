@@ -12,6 +12,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.31
+- **Modell-Check pro Rolle**: Der Account-Check stellt unter Notion KI -> Model controls -> Allowed models for Notion Agent automatisch genau ein Modell ein - Main = Opus 5.5 (Orchestrator), Coder/Reviewer/Tester = Sonnet 5.5 (deutlich guenstiger). Alle anderen Anbieter werden abgeschaltet.
+- **Checkliste pro Konto**: gruene/rote Chips fuer MCP configured, Modell, Chat und Usage. Fehlt der Chat, erscheint rot "Chat fehlt" mit Button "Zum Chat".
+- **Gemerkte Checks**: MCP und Modelle werden pro Gmail-Konto gespeichert (accounts.json) und nicht erneut geprueft; "neu pruefen" setzt das zurueck.
+- **Nach dem Check zurueck zum Chat**: offene Einstellungen werden per X geschlossen, jedes Konto landet im Chat "Willkommen bei Notion"; Worker-Fenster werden nach erfolgreichem Start automatisch versteckt.
+- **UI**: kleine Beschriftungen unter allen Icons, Worker zeigen/verstecken erkennt den echten Zustand, kompakter Browser-Waehler mit Browser-Icons.
 ## Neu in 1.0.30
 - **Co-Work neu gedacht**: oben eine Session-Leiste mit Status (x von 4 bereit), Browser, Check, Worker zeigen, Stoppen und dem grossen Alle-starten-Button rechts daneben. Die Konten sind kompakte Zeilen (Rolle + Status, E-Mail, Usage-Balken, Icon-Buttons) - das separate Usage-Dashboard ist darin aufgegangen.
 - **Keine schwarzen Fenster mehr**: Zeigen/Verstecken fasst nur noch echte Notion-Fenster an statt aller unsichtbaren Browser-Hilfsfenster.
