@@ -128,6 +128,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.73
 - **ngrok zu alt behoben**: AdiCode nutzt immer sein eigenes, frisch installiertes ngrok statt einer alten Version aus PATH. ngrok installieren beendet vorher laufende ngrok-Prozesse, zeigt Fortschritt und traegt das neue ngrok fest ein. Schnellstart installiert bei zu altem ngrok automatisch neu.
 - **Authtoken sichtbar**: gespeicherter Token wird maskiert angezeigt (z. B. gespeichert 2abc...wxyz).
+## Neu in 1.0.74
+- **ngrok-Token bleibt erhalten**: beim Wechsel vom Store-ngrok auf das eigene ngrok wird der gespeicherte Authtoken uebernommen.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

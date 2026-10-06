@@ -3759,10 +3759,10 @@ index 0000000..ffbc6b7
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..8a10cde
+index 0000000..19ba213
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,988 @@
+@@ -0,0 +1,989 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -4591,6 +4591,7 @@ index 0000000..8a10cde
 +    let fail = |e: String| { set_ngrok("Fehler", &e); e };
 +    let own = crate::notion_updates::base_dir().join(if cfg!(windows) { "ngrok.exe" } else { "ngrok" });
 +    if !own.is_file() { set_ngrok("einrichten", "Schnellstart: aktuelles ngrok wird installiert ..."); crate::notion_updates::install_ngrok().await.map_err(fail)?; }
++    crate::notion_updates::ensure_real_ngrok_config();
 +    use_ngrok_exe(&own);
 +    let exe = ngrok_exe().ok_or_else(|| fail("ngrok.exe fehlt auch nach der Installation.".into()))?;
 +    if !auth.is_empty() { crate::notion_updates::set_authtoken(&auth).await.map_err(fail)?; }
@@ -6803,10 +6804,10 @@ index 0000000..49aacb6
 \ No newline at end of file
 diff --git a/agent/src/notion_updates.rs b/agent/src/notion_updates.rs
 new file mode 100644
-index 0000000..662a8f5
+index 0000000..cb6b07c
 --- /dev/null
 +++ b/agent/src/notion_updates.rs
-@@ -0,0 +1,211 @@
+@@ -0,0 +1,226 @@
 +//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
 +//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
 +//! und kann per Datei `update-now` eine sofortige Pruefung anstossen.
@@ -6915,6 +6916,20 @@ index 0000000..662a8f5
 +
 +// ---------- ngrok-Ersteinrichtung ----------
 +
++/// Liegt die ngrok.yml nur virtualisiert beim Store-ngrok, in %LOCALAPPDATA%\ngrok kopieren (sonst fehlt dem eigenen ngrok der Token).
++pub fn ensure_real_ngrok_config() {
++    let Some(la) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) else { return };
++    let real = la.join("ngrok").join("ngrok.yml");
++    if real.is_file() { return; }
++    if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
++        for e in rd.flatten() {
++            if !e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { continue; }
++            let f = e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml");
++            if f.is_file() { let _ = std::fs::create_dir_all(la.join("ngrok")); let _ = std::fs::copy(&f, &real); return; }
++        }
++    }
++}
++
 +pub fn has_authtoken() -> bool { !authtoken_mask().is_empty() }
 +
 +/// Gespeicherter Authtoken maskiert (z. B. "2abc...wxyz"), leer = keiner.
@@ -6969,6 +6984,7 @@ index 0000000..662a8f5
 +    let _ = tokio::fs::remove_file(&zip).await;
 +    let exe = dir.join("ngrok.exe");
 +    if !st.success() || !exe.is_file() { return Err("ngrok konnte nicht entpackt werden.".into()); }
++    ensure_real_ngrok_config();
 +    crate::notion_mcp::use_ngrok_exe(&exe);
 +    crate::notion_mcp::restart_tunnel();
 +    Ok(format!("ngrok installiert ({}). Jetzt den Authtoken eintragen.", exe.display()))
