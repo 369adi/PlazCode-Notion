@@ -152,6 +152,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.77**: ensure_fullscreen (FS_BTN_JS/FS_ITEM_JS) in prepare_chat, welcome_url nur mit /chat, open-Skript: Connected/Manage/All connections, Add-Knopf auch Configure (click+Pointer-Events), mehr Custom-MCP-Bezeichnungen
 - **1.0.78**: load_watchdog (STUCK_LOAD_JS, Reload nach 20 s, 3. Mal Navigate) + COOKIE_JS alle 5 s, gestartet in launch(); READY_JS braucht Text; english_once/mem lang_en; Check-Schritte gemerkt (mcp_ok2, models_ok, chat_model, usage_ui_ok); mem_forget behaelt lang_en
 - **1.0.79**: Chat-Verlauf alle 4 s neu laden, Titel aus document.title (ntitle) bzw. 7 Woerter, STATE erkennt DE-Labels, cowork_main_context in send() bei neuem Chat, hide_all_tabs nach gruenem Check/Kickoff (set_main_hidden)
+- **1.0.80**: Chat-Tab nie neuer Notion-Chat: ensure_welcome (prepare_chat), new = Startmarke base (letzte Nachrichten-ID), state?base= filtert, Verlauf-Schluessel url#b=base, open/wait_composer nur Willkommen-URL
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.

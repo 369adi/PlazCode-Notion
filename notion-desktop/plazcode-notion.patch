@@ -1565,10 +1565,10 @@ index 1a68aee..c63d1e2 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
-index 0000000..d2b4423
+index 0000000..c529d0d
 --- /dev/null
 +++ b/agent/src/notion_chat.rs
-@@ -0,0 +1,494 @@
+@@ -0,0 +1,505 @@
 +//! AdiCode Chat: ChatGPT-aehnliche Chatbox direkt in AdiCode.
 +//! Sie steuert den Co-Work-Main-Tab (Notion AI, CDP-Port 9301): Text, Fotos, Videos und
 +//! Dateien, Notion-Diktat (Sprechbox), Stopp, neuer Chat, Verlauf und Freigabe-Knoepfe.
@@ -1691,7 +1691,7 @@ index 0000000..d2b4423
 +            np::windows::set_hidden(std::slice::from_ref(t), false);
 +            return Err("Das Main-Konto ist nicht bei Notion angemeldet. Bitte im geoeffneten Fenster anmelden und dann erneut senden.".into());
 +        }
-+        if i == 12 && v["onchat"].as_bool() != Some(true) { let _ = s.navigate(np::NOTION_URL).await; }
++        if i == 12 && v["onchat"].as_bool() != Some(true) { if let Some(w) = np::welcome_url(t) { let _ = s.navigate(&w).await; } }
 +        sleep(500).await;
 +    }
 +    np::windows::set_hidden(std::slice::from_ref(t), false);
@@ -1700,6 +1700,14 @@ index 0000000..d2b4423
 +
 +/// Startet bei Bedarf den Main-Tab (Konto 1 aus Co-Work), wartet auf Notion AI und
 +/// verbindet einmalig den AdiCode-MCP, damit Co-Work-Tools im Chat verfuegbar sind.
++/// Harte Regel: niemals einen neuen Notion-Chat starten. Main schreibt immer in "Willkommen bei Notion".
++fn tid_of(u: &str) -> String { u.split(|c| c == '?' || c == '&').find_map(|p| p.strip_prefix("t=")).unwrap_or("").to_string() }
++async fn ensure_welcome(s: &mut Session, t: &np::Tab) -> Result<(), String> {
++    let here = s.eval("return location.href;").await?.as_str().unwrap_or("").to_string();
++    if let Some(w) = np::welcome_url(t) { if !tid_of(&w).is_empty() && tid_of(&w) == tid_of(&here) { return Ok(()); } }
++    np::prepare_chat(t, 0).await.map_err(|e| format!("Chat Willkommen bei Notion nicht gefunden - es wird bewusst kein neuer Chat gestartet ({e})."))?;
++    wait_composer(s, t).await
++}
 +async fn ensure_main() -> Result<(), String> {
 +    CHAT_USED.store(true, Ordering::SeqCst);
 +    let _guard = ENSURE.lock().await;
@@ -1726,10 +1734,11 @@ index 0000000..d2b4423
 +        drop(s);
 +        let _ = np::setup_mcp(&t, 0).await;
 +        let mut s2 = Session::page().await?;
-+        let _ = s2.navigate(np::NOTION_URL).await;
++        if let Some(w) = np::welcome_url(&t) { let _ = s2.navigate(&w).await; }
 +        sleep(1500).await;
 +        wait_composer(&mut s2, &t).await?;
 +    }
++    { let mut s3 = Session::page().await?; ensure_welcome(&mut s3, &t).await?; }
 +    if launched && HIDE_MAIN.load(Ordering::SeqCst) { np::windows::set_hidden(std::slice::from_ref(&t), true); }
 +    Ok(())
 +}
@@ -1747,14 +1756,15 @@ index 0000000..d2b4423
 +fn read_history() -> Vec<Value> {
 +    std::fs::read_to_string(history_file()).ok().and_then(|s| serde_json::from_str::<Vec<Value>>(&s).ok()).unwrap_or_default()
 +}
-+fn remember(v: &Value) {
++fn remember(v: &Value, base: &str) {
 +    let url = clean_url(v["url"].as_str().unwrap_or(""));
 +    if !(url.contains("/chat") && url.contains("t=")) { return; }
++    let url = if base.is_empty() { url } else { format!("{url}#b={base}") };
 +    let first = v["messages"].as_array().and_then(|m| m.iter().find(|x| x["role"] == "user")).and_then(|m| m["text"].as_str()).unwrap_or("").trim().to_string();
 +    let nt = v["ntitle"].as_str().unwrap_or("").trim().to_string();
 +    let generic = matches!(nt.to_lowercase().as_str(), "" | "new chat" | "neuer chat" | "notion ai" | "notion-ki" | "notion" | "untitled" | "ohne titel");
 +    let short = |s: &str| { let line = s.lines().next().unwrap_or("").trim(); let w: Vec<&str> = line.split_whitespace().take(7).collect(); let mut t = w.join(" "); if t.chars().count() > 48 { t = t.chars().take(47).collect::<String>() + "\u{2026}"; } else if line.split_whitespace().count() > 7 { t.push_str(" \u{2026}"); } t };
-+    let title: String = if !generic { nt.chars().take(70).collect() } else if first.is_empty() { "Chat mit Anhang".into() } else { short(&first) };
++    let title: String = if !first.is_empty() { short(&first) } else if !generic && base.is_empty() { nt.chars().take(70).collect() } else { return; };
 +    let _g = HISTORY.lock().unwrap_or_else(|e| e.into_inner());
 +    let mut list = read_history();
 +    if let Some(pos) = list.iter().position(|x| x["url"] == json!(url)) {
@@ -1767,7 +1777,8 @@ index 0000000..d2b4423
 +    let _ = std::fs::write(history_file(), serde_json::to_string_pretty(&list).unwrap_or_default());
 +}
 +
-+pub async fn state_handler() -> Response {
++pub async fn state_handler(Query(q): Query<std::collections::HashMap<String, String>>) -> Response {
++    let base = q.get("base").cloned().unwrap_or_default();
 +    let cowork = np::status_text();
 +    let hidden = HIDE_MAIN.load(Ordering::SeqCst);
 +    if !browser_up().await {
@@ -1776,7 +1787,8 @@ index 0000000..d2b4423
 +    let r = async { let mut s = Session::page().await?; s.eval(STATE).await }.await;
 +    match r {
 +        Ok(mut v) => {
-+            remember(&v);
++            if !base.is_empty() { if let Some(arr) = v["messages"].as_array() { if let Some(p) = arr.iter().position(|m| m["id"].as_str() == Some(base.as_str())) { let rest: Vec<Value> = arr[p + 1..].to_vec(); v["messages"] = json!(rest); } } }
++            remember(&v, &base);
 +            v["ok"] = json!(true); v["running"] = json!(true); v["cowork"] = json!(cowork); v["hidden"] = json!(hidden);
 +            ok(v)
 +        }
@@ -1986,10 +1998,10 @@ index 0000000..d2b4423
 +            ensure_main().await?;
 +            let t = main_tab()?;
 +            let mut s = Session::page().await?;
-+            s.navigate(np::NOTION_URL).await?;
-+            sleep(1200).await;
-+            wait_composer(&mut s, &t).await?;
-+            Ok(json!({"ok": true}))
++            ensure_welcome(&mut s, &t).await?;
++            let v = s.eval(STATE).await?;
++            let base = v["messages"].as_array().and_then(|m| m.last()).and_then(|m| m["id"].as_str()).unwrap_or("").to_string();
++            Ok(json!({"ok": true, "base": base}))
 +        }
 +        "trim" => {
 +            let keep = b["keep"].as_u64().unwrap_or(12);
@@ -2001,12 +2013,11 @@ index 0000000..d2b4423
 +        "open" => {
 +            let url = b["url"].as_str().unwrap_or("");
 +            if !(url.starts_with("https://app.notion.com/") || url.starts_with("https://www.notion.so/")) { return Err("Nur Notion-Chats koennen geoeffnet werden.".into()); }
++            let _ = url;
 +            ensure_main().await?;
 +            let t = main_tab()?;
 +            let mut s = Session::page().await?;
-+            s.navigate(url).await?;
-+            sleep(1500).await;
-+            wait_composer(&mut s, &t).await?;
++            ensure_welcome(&mut s, &t).await?;
 +            Ok(json!({"ok": true}))
 +        }
 +        "forget" => {
@@ -2065,10 +2076,10 @@ index 0000000..d2b4423
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..6ff120d
+index 0000000..28305a9
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,638 @@
+@@ -0,0 +1,640 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -2309,7 +2320,7 @@ index 0000000..6ff120d
 +  function schedule() { clearTimeout(timer); if (!active() && !Voice.on) return; timer = setTimeout(poll, (S.gen || S.pending || Voice.on) ? 650 : 1800); }
 +  function poll() {
 +    if (polling) return; polling = true;
-+    api("/api/notion/chat/state").then(apply).catch(function (e) { setPill("err", "AdiCode-Fehler"); S.lastErr = e.message; })
++    api("/api/notion/chat/state" + (curBase() ? "?base=" + encodeURIComponent(curBase()) : "")).then(apply).catch(function (e) { setPill("err", "AdiCode-Fehler"); S.lastErr = e.message; })
 +      .then(function () { polling = false; schedule(); });
 +  }
 +  new MutationObserver(function () { if (active()) { poll(); loadHist(); setTimeout(function () { $("acInput").focus(); }, 50); } }).observe(page, { attributes: true, attributeFilter: ["class"] });
@@ -2335,7 +2346,7 @@ index 0000000..6ff120d
 +    S.msgs = msgs;
 +    render(msgs);
 +    var first = null; for (var i = 0; i < msgs.length; i++) if (msgs[i].role === "user") { first = msgs[i]; break; }
-+    var nt = (st.ntitle || "").trim(); if (nt && !/^(new chat|neuer chat|notion ai|notion-ki|notion|untitled|ohne titel)$/i.test(nt)) $("acTitle").textContent = nt.slice(0, 90); else $("acTitle").textContent = first ? (first.text || "Chat mit Anhang").split("\n")[0].slice(0, 90) : (S.pending ? S.pending.text.slice(0, 90) || "Neuer Chat" : "Neuer Chat");
++    $("acTitle").textContent = first ? (first.text || "Chat mit Anhang").split("\n")[0].slice(0, 90) : (S.pending ? S.pending.text.slice(0, 90) || "Neuer Chat" : "Neuer Chat");
 +    updateSend(); markHist();
 +    if (Voice.on) Voice.tick(msgs);
 +    if (S.histDirty || (S.url.indexOf("t=") > 0 && Date.now() - (S.histAt || 0) > 4000) || (first && S.url.indexOf("t=") > 0 && !S.hist.some(function (h) { return sameChat(h.url, S.url); }))) { S.histDirty = false; loadHist(); }
@@ -2667,7 +2678,7 @@ index 0000000..6ff120d
 +    if (S.gen) { toast("Bitte erst warten oder stoppen.", true); return; }
 +    S.pending = null; S.msgs = []; S.sigs = []; $("acMsgs").innerHTML = ""; render([]); $("acTitle").textContent = "Neuer Chat";
 +    setPill("busy", "Neuer Chat \u2026");
-+    ctl("new").then(poll).catch(function (e) { toast(e.message); poll(); }); ta.focus();
++    ctl("new").then(function (r) { setBase((r && r.base) || ""); S.histDirty = true; }).then(poll).catch(function (e) { toast(e.message); poll(); }); ta.focus();
 +  }
 +  $("acNew").onclick = newChat;
 +  $("acTrim").onclick = function () { ctl("trim", { keep: 12 }).then(function (r) { toast("Ältere Nachrichten ausgeblendet: " + (r.hidden || 0), true); }).catch(function (e) { toast(e.message); }); };
@@ -2683,8 +2694,10 @@ index 0000000..6ff120d
 +    api("/api/notion/action", { action: "cowork_start_all", value: null }).then(function (r) { toast(r.message || "Co-Work startet \u2026", true, 8000); })
 +      .catch(function (e) { toast(e.message + " \u2013 Konten auf der Seite Co-Work eintragen."); }).then(function () { b.disabled = false; poll(); });
 +  };
++  function curBase() { if (S.base == null) { try { S.base = localStorage.getItem("acBase") || ""; } catch (e) { S.base = ""; } } return S.base; }
++  function setBase(b) { S.base = b || ""; try { localStorage.setItem("acBase", S.base); } catch (e) {} }
 +  function tid(u) { var m = /[?&]t=([0-9a-f]+)/i.exec(u || ""); return m ? m[1] : ""; }
-+  function sameChat(a, b) { return !!tid(a) && tid(a) === tid(b); }
++  function sameChat(a, b) { var m = /#b=(.*)$/.exec(a || ""); return !!tid(a) && tid(a) === tid(b) && (m ? m[1] : "") === curBase(); }
 +  function loadHist() { S.histAt = Date.now(); api("/api/notion/chat/history").then(function (r) { S.hist = r.items || []; renderHist(); }).catch(function () {}); }
 +  function renderHist() {
 +    var box = $("acHist"); box.innerHTML = "";
@@ -2696,7 +2709,7 @@ index 0000000..6ff120d
 +        if (e.target.classList.contains("ac-x")) { e.stopPropagation(); ctl("forget", { url: h.url }).then(loadHist); return; }
 +        if (S.gen) { toast("Bitte erst warten oder stoppen.", true); return; }
 +        S.pending = null; S.sigs = []; $("acMsgs").innerHTML = ""; $("acTitle").textContent = h.title; setPill("busy", "\u00d6ffne Chat \u2026");
-+        ctl("open", { url: h.url }).then(poll).catch(function (er) { toast(er.message); poll(); });
++        setBase((/#b=(.*)$/.exec(h.url) || [0, ""])[1]); ctl("open", { url: h.url }).then(poll).catch(function (er) { toast(er.message); poll(); });
 +      };
 +      box.appendChild(it);
 +    });
@@ -4759,10 +4772,10 @@ index 0000000..19ba213
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..3d125eb
+index 0000000..edea9b4
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,708 @@
+@@ -0,0 +1,710 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -5181,7 +5194,9 @@ index 0000000..3d125eb
 +const CLOSE_SETTINGS:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const q=()=>document.querySelector('input[aria-label="Search settings"],input[placeholder="Search settings"],input[aria-label="Einstellungen durchsuchen"]');for(let k=0;k<5;k++){const s=q();if(!s)return true;const dlg=s.closest('[role="dialog"]')||document.body;const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const b=[...dlg.querySelectorAll('[aria-label="Close"],[aria-label="Schließen"],[aria-label="Schliessen"]')].filter(vis)[0];if(b)b.click();else document.activeElement&&document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',keyCode:27,bubbles:true}));await sleep(700);}return !q()})()"#;
 +async fn close_settings(port:u16){let ok=js_eval(port,CLOSE_SETTINGS).await.ok().and_then(|v|v.as_bool()).unwrap_or(false);if !ok{let k=|t:&str|json!({"method":"Input.dispatchKeyEvent","params":{"type":t,"key":"Escape","code":"Escape","windowsVirtualKeyCode":27}});let _=cdp(port,vec![k("keyDown"),k("keyUp")]).await;tokio::time::sleep(Duration::from_millis(500)).await;}}
 +const GUARD_JS:&str=r#"(()=>{if(window.__acg)return 1;window.__acg=1;const re=/^(new chat|neuer chat|start a new chat|neuen chat starten|new agent|neuer agent)$/i;document.addEventListener('click',e=>{const el=e.target.closest&&e.target.closest('a,button,[role=button],[role=menuitem]');if(!el)return;const raw=(el.innerText||el.getAttribute('aria-label')||'').trim().replace(/\s+/g,' ');const t=raw.replace(/ ctrl.o$/i,'');if(re.test(t)){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}},true);document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&(e.key==='o'||e.key==='O')){e.preventDefault();e.stopPropagation()}},true);return 1})()"#;
-+async fn prepare_chat(t:&Tab,i:usize)->Result<(),String>{
++/// Gemerkte URL des Chats Willkommen bei Notion (nur echte Chat-URLs).
++pub(crate) fn welcome_url(t:&Tab)->Option<String>{lock(&ACCOUNT).get(&t.id).and_then(|a|a["welcome_url"].as_str().map(String::from)).or_else(||mem_get(&t.email,"welcome_url").as_str().map(String::from)).filter(|u|u.contains("/chat")&&u.contains("t="))}
++pub(crate) async fn prepare_chat(t:&Tab,i:usize)->Result<(),String>{
 +    let port=cdp_port(i);close_settings(port).await;let _=js_eval(port,GUARD_JS).await;
 +    let known=lock(&ACCOUNT).get(&t.id).and_then(|a|a["welcome_url"].as_str().map(String::from)).or_else(||mem_get(&t.email,"welcome_url").as_str().map(String::from)).filter(|u|u.contains("/chat"));
 +    let mut found=false;

@@ -148,6 +148,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Chat-Liste wie bei ChatGPT**: neue Chats erscheinen sofort links und werden nach dem Inhalt benannt (Notion-Chatname bzw. kurzer Anfang der ersten Nachricht).
 - **Co-Work mit dem Main-Chat**: ein neuer Chat bekommt bei laufendem Co-Work automatisch den Co-Work-Kontext, damit Main die Worker einbindet; Nachrichten werden auch in deutschem Notion erkannt.
 - **Alles gruen = Fenster weg**: sind alle Checks ok, werden alle Notion-Fenster versteckt (auch Main).
+## Neu in 1.0.80
+- **Nie ein neuer Notion-Chat**: Neuer Chat im AdiCode-Chat startet keinen Notion-Chat mehr, sondern eine neue Unterhaltung im Chat Willkommen bei Notion. Links erscheint sie mit Namen aus deiner ersten Nachricht; alte Unterhaltungen lassen sich wieder anklicken.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
