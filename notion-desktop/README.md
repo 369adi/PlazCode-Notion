@@ -12,6 +12,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.27
+- **Browser zuerst waehlen**: Co-Work hat oben Schritt 1 "Browser waehlen" (Chrome, Edge oder Brave - nur installierte werden angeboten). Alle Tabs starten in diesem Browser; ohne Auswahl ist "Alle starten" gesperrt. Wechsel nur, wenn alle Tabs gestoppt sind.
+- **Co-Work neu gestaltet**: drei Schritte (Browser -> Konten & Tabs -> Starten), Tabs als Karten statt Tabelle, alle Buttons mit Icons (Play, Stop, Speichern, Login, MCP, Kopieren ...). "Worker zeigen / verstecken" ist jetzt ein echter Umschalter.
+- **Gmail-Login direkt in AdiCode**: "Gmail-Login" oeffnet ein Login-Fenster in AdiCode. Der echte Tab-Browser laedt die Google-Anmeldung versteckt im Hintergrund, AdiCode zeigt ihn live und leitet Klicks, Tippen, Einfuegen und Scrollen weiter. Die Cookies landen im Container des Tabs. Fallback: "Echtes Fenster zeigen".
 ## Neu in 1.0.26
 - **Usage-Dashboard (live)** auf der Seite Co-Work: zeigt fuer alle Konten das KI-Kontingent (alle 30 s, auch ohne laufendes Co-Work). Usage kommt jetzt direkt aus der Notion-API des eingeloggten Kontos (Fallback Seitentext); aufgebrauchte Konten werden rot markiert.
 - **Selbst schreiben** pro Co-Work-Tab: stoppt den laufenden Worker-Lauf, zeigt das Fenster und pausiert die automatischen Erinnerungen, damit du in Worker-Chats selbst tippen kannst. **Freigeben** gibt den Tab zurueck an Co-Work. Hat ein Worker-Fenster den Fokus, schickt AdiCode keine Erinnerung hinein.

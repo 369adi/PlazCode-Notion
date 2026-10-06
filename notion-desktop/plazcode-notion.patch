@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..f5823b4 100644
+index 07dc4c0..19b783b 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -424,7 +424,7 @@ index 07dc4c0..f5823b4 100644
        </section>
        <section class="page" id="page-terminal">
          <div class="page-head"><div><div class="page-title">Terminal</div><div class="page-sub">Live bridge, Studio, MCP, and AgentScript logs.</div></div><div style="margin-left:auto;display:flex;gap:8px"><button class="softbtn" id="restartMcp">Restart MCP</button><button class="clearbtn" id="clearTerminal">Clear</button></div></div>
-@@ -382,24 +557,47 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -382,24 +557,91 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
        <section class="page" id="page-models"><div class="page-head"><div><h1>Model Builder</h1><p>Describe a model, review the preview, then add it to Roblox Studio.</p></div></div><div id="modelWorkspace"></div></section>
        <section class="page" id="page-ui"><div class="page-head"><div><h1>UI Builder</h1><p>Describe a menu or HUD, check its layout, then add it to Roblox Studio.</p></div></div><div id="uiWorkspace"></div></section>
        <section class="page" id="page-toolkit"><div class="page-head"><div><h1>Toolkit</h1><p>Start game systems with AI, run Studio tools, and keep saved place backups.</p></div></div><div id="toolkitWorkspace"></div></section>
@@ -452,14 +452,58 @@ index 07dc4c0..f5823b4 100644
 +        <div class="settingcard notion-card"><h3>Was ist neu?</h3><div id="uList" class="ureleases"><p class="nhint">Lädt …</p></div></div>
 +        <div class="settingcard notion-card"><h3>Launcher-Protokoll</h3><pre id="uLog" class="nhint" style="white-space:pre-wrap;margin:0;font-size:12px"></pre></div>
 +      </section>      <section class="page" id="page-cowork">
-+        <div class="page-head"><div><div class="page-title">Co-Work 2.0</div><div class="page-sub">Main ist deine einzige Chat-Oberfläche; drei Worker laufen dauerhaft versteckt im Hintergrund.</div></div></div>
-+        <div class="notion-callout"><span class="ico">🧱</span><div>Vier Gmail-Konten eintragen und einmal anmelden. <b>Alle starten</b> öffnet zuerst in jedem Konto die Chat-Startseite „Willkommen in Notion“ und prüft alle vier Eingabefelder. Erst danach bleiben Coder, Reviewer und Tester versteckt aktiv; Main bleibt sichtbar. Rollen: <b>Main · Coder · Reviewer · Tester</b>.</div></div>
-+        <div class="settingcard notion-card"><h3>Usage-Dashboard (live)</h3><div class="nrow" style="margin:0 0 6px"><span id="cwUsageSum" class="nhint"></span></div><div id="cwUsage"><p class="nhint">L&auml;dt ...</p></div><p class="nhint">Aktualisiert sich alle 30 s f&uuml;r jeden laufenden Tab (Notion-API des eingeloggten Kontos, sonst Seitentext). Aufgebrauchte Konten sind rot &ndash; Co-Work braucht alle vier.</p></div>        <div class="settingcard notion-card">
-+          <div class="nrow" style="margin:0 0 10px"><button class="softbtn" id="cwAdd">+ Tab hinzufügen</button><button class="softbtn" id="cwSave">Speichern</button><button class="softbtn" id="cwStartAll">▶ Alle starten</button><button class="softbtn" id="cwShowAll">Alle zeigen</button><button class="softbtn" id="cwCheck">Accounts prüfen</button><button class="softbtn" id="cwStopAll">■ Alle stoppen</button><span id="cwDirty" class="nbadge warn" style="display:none">Nicht gespeichert</span><span id="cwMsg" class="nhint"></span></div>
-+          <div class="nrow" style="margin:0 0 6px"><span class="nlabel">Browser</span><span id="cwBrowser" class="nvalue">–</span></div>
-+          <div id="cwTabs" style="overflow-x:auto"><p class="nhint">Lädt …</p></div>
-+          <p class="nhint" style="margin-top:10px">Projekt-Memory synchronisiert HANDOUT.md automatisch und hält Aurelune, PlazCode usw. getrennt – auch bei sehr langen Chats. Die Logins liegen in <code>%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N</code>; „Entfernen“ löscht den Tab inklusive Login.</p>
++        <style>
++          #page-cowork .cwi svg{width:15px;height:15px;vertical-align:-3px;margin-right:6px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
++          #page-cowork .cwi.solid svg{fill:currentColor}
++          #page-cowork .cwbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
++          #page-cowork .cwsep{width:1px;height:24px;background:rgba(255,255,255,.12);margin:0 4px}
++          #page-cowork .cwgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
++          #page-cowork .cwcard{border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px;background:rgba(255,255,255,.025)}
++          #page-cowork .cwcard.off{opacity:.85}
++          #page-cowork .cwhead{display:flex;align-items:center;gap:8px;margin-bottom:8px}
++          #page-cowork .cwnum{width:24px;height:24px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(124,92,255,.25);font-weight:700;font-size:12px}
++          #page-cowork .cwcard input{width:100%;box-sizing:border-box;margin:3px 0}
++          #page-cowork .cwmeta{font-size:12px;opacity:.75;margin:6px 0;line-height:1.5}
++          #page-cowork .cwacts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
++          #page-cowork .cwacts button{padding:5px 9px;font-size:12px}
++          #page-cowork button:disabled{opacity:.45;cursor:not-allowed}
++          #page-cowork .cwstep{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#7c5cff;color:#fff;font-size:12px;font-weight:700;margin-right:8px}
++          #cwLogin{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9999}
++          #cwLogin .box{background:#151824;border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px;width:min(1100px,94vw);max-height:94vh;display:flex;flex-direction:column;gap:8px}
++          #cwLoginView{outline:none;border-radius:8px;overflow:hidden;background:#000;text-align:center;flex:1;min-height:200px}
++          #cwLoginView:focus{box-shadow:0 0 0 2px #7c5cff}
++          #cwLoginImg{max-width:100%;max-height:72vh;cursor:pointer;display:block;margin:0 auto}
++        </style>
++        <div class="page-head"><div><div class="page-title">Co-Work</div><div class="page-sub">Main ist dein Chat. Coder, Reviewer und Tester arbeiten versteckt im Hintergrund mit.</div></div></div>
++        <div class="settingcard notion-card">
++          <h3><span class="cwstep">1</span>Browser w&auml;hlen</h3>
++          <div class="cwbar"><select id="cwBrowserSel"><option value="">Browser ausw&auml;hlen &hellip;</option></select><span id="cwBrowser" class="nbadge warn">nicht gew&auml;hlt</span><span id="cwBrowserMsg" class="nhint"></span></div>
++          <p class="nhint">Alle Tabs starten in diesem Browser (eigener Container pro Konto). Wechseln geht nur, wenn alle Tabs gestoppt sind &ndash; danach musst du dich neu einloggen.</p>
 +        </div>
++        <div class="settingcard notion-card">
++          <h3><span class="cwstep">2</span>Konten &amp; Tabs</h3>
++          <div class="cwbar" style="margin:0 0 12px">
++            <button class="softbtn cwi" id="cwAdd" data-ic="plus">Tab hinzuf&uuml;gen</button>
++            <button class="softbtn cwi" id="cwSave" data-ic="save">Speichern</button>
++            <span class="cwsep"></span>
++            <button class="softbtn cwi" id="cwCheck" data-ic="refresh">Accounts pr&uuml;fen</button>
++            <button class="softbtn" id="cwShowAll">Worker zeigen</button>
++            <span id="cwDirty" class="nbadge warn" style="display:none">Nicht gespeichert</span>
++          </div>
++          <div id="cwTabs"><p class="nhint">L&auml;dt &hellip;</p></div>
++        </div>
++        <div class="settingcard notion-card">
++          <h3><span class="cwstep">3</span>Starten</h3>
++          <div class="cwbar"><button class="softbtn cwi solid" id="cwStartAll" data-ic="play">Alle starten</button><button class="softbtn cwi solid" id="cwStopAll" data-ic="stop">Alle stoppen</button><span id="cwMsg" class="nhint"></span></div>
++          <p class="nhint">Geht erst, wenn ein Browser gew&auml;hlt ist und vier Tabs mit Gmail-Konto gespeichert sind. Danach werden die Worker-Fenster versteckt.</p>
++        </div>
++        <div class="settingcard notion-card"><h3>Usage-Dashboard (live)</h3><div class="nrow" style="margin:0 0 6px"><span id="cwUsageSum" class="nhint"></span></div><div id="cwUsage"><p class="nhint">L&auml;dt &hellip;</p></div><p class="nhint">Aktualisiert sich alle 30 s. Ist ein Account leer, sind Co-Work-Starts blockiert.</p></div>
++        <p class="nhint">Logins liegen in <code>%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N</code>; &bdquo;Entfernen&ldquo; l&ouml;scht den Tab inklusive Login.</p>
++        <div id="cwLogin"><div class="box">
++          <div class="cwbar"><b id="cwLoginTitle">Gmail-Login</b><span id="cwLoginState" class="nbadge"></span><span style="flex:1"></span><button class="softbtn cwi" id="cwLoginBack" data-ic="back">Zur&uuml;ck</button><button class="softbtn cwi" id="cwLoginShow" data-ic="open">Echtes Fenster zeigen</button><button class="softbtn cwi" id="cwLoginClose" data-ic="x">Schlie&szlig;en</button></div>
++          <div id="cwLoginView" tabindex="0"><img id="cwLoginImg" alt=""></div>
++          <div class="cwbar"><span class="nhint" id="cwLoginUrl"></span><span style="flex:1"></span><span class="nhint">Klicken = klicken, tippen = tippen, Strg+V = einf&uuml;gen. Eingaben gehen direkt in den Browser-Container des Tabs.</span></div>
++        </div></div>
 +      </section>
        <section class="page" id="page-settings">
          <div class="page-head"><div><div class="page-title">Settings</div><div class="page-sub">Changes autosave immediately and stay synced with the extension.</div></div></div>
@@ -479,7 +523,7 @@ index 07dc4c0..f5823b4 100644
              <div class="settingrow"><label>Permissions</label><select data-pref="rsPermMode"><option value="sandbox">Sandbox</option><option value="ask">Ask</option><option value="full">Full</option></select></div><p class="settinghelp"><strong>Sandbox:</strong> AgentScript stays inside the connected project folder. <strong>Ask:</strong> request approval for writes and command execution. <strong>Full:</strong> allow AgentScript to work outside the project folder and run PC commands. Roblox actions still use the connected Studio bridge.</p>
            </div>
            <div class="settingcard"><h3>Reasoning</h3><p>Matches the extension work and thinking controls.</p>
-@@ -408,7 +606,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -408,7 +650,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="settingrow"><label>Extra Thinking</label><div class="toggle" data-pref="rsExtraThinking"></div></div>
              <div class="settingrow"><label>Plan Mode</label><div class="toggle" data-pref="rsPlanMode"></div></div>
            </div>
@@ -488,7 +532,7 @@ index 07dc4c0..f5823b4 100644
              <div class="settingrow"><label>Forge UI</label><div class="toggle" data-pref="rsForgeMode"></div></div>
              <div class="settingrow"><label>Auto Fix</label><div class="toggle" data-pref="rsAutoFix"></div></div>
              <div class="settingrow"><label>Background Mode</label><div class="toggle" data-pref="rsBgMode"></div></div>
-@@ -419,10 +617,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -419,10 +661,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="instructions-actions"><button class="softbtn" id="saveInstructions">Save</button><span class="instructions-status" id="instructionsStatus" role="status"></span></div>
  
            </div>
@@ -501,7 +545,7 @@ index 07dc4c0..f5823b4 100644
            </div>
          </div>
        </section>
-@@ -480,7 +678,7 @@ __PLAZCODE_VERSION_UI__
+@@ -480,7 +722,7 @@ __PLAZCODE_VERSION_UI__
          window.ipc.postMessage(String(Message));
        }
      } catch (Error) {
@@ -510,7 +554,7 @@ index 07dc4c0..f5823b4 100644
      }
    }
  
-@@ -520,7 +718,7 @@ __PLAZCODE_VERSION_UI__
+@@ -520,7 +762,7 @@ __PLAZCODE_VERSION_UI__
  
    function Showerror(Error) {
      var Message = Error && Error.message ? Error.message : String(Error);
@@ -519,7 +563,7 @@ index 07dc4c0..f5823b4 100644
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
-@@ -538,7 +736,7 @@ __PLAZCODE_VERSION_UI__
+@@ -538,7 +780,7 @@ __PLAZCODE_VERSION_UI__
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
@@ -528,7 +572,7 @@ index 07dc4c0..f5823b4 100644
      }
    }
  
-@@ -573,7 +771,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +815,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -537,7 +581,7 @@ index 07dc4c0..f5823b4 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -655,7 +853,7 @@ __PLAZCODE_VERSION_UI__
+@@ -655,7 +897,7 @@ __PLAZCODE_VERSION_UI__
          Live[Server.id] = Server;
        });
  
@@ -546,7 +590,7 @@ index 07dc4c0..f5823b4 100644
  
        var Catalogservers = Catalog && Catalog.servers ? Catalog.servers : [];
        Html += Catalogservers.map(function (Server) {
-@@ -892,7 +1090,7 @@ __PLAZCODE_VERSION_UI__
+@@ -892,7 +1134,7 @@ __PLAZCODE_VERSION_UI__
      var List = Byid('updateReleaseNotes'); List.replaceChildren();
      (Notes || []).forEach(function (Release, Index) {
        var Card = document.createElement('details'); Card.className='settingcard release-note'; Card.open=Index === 0;
@@ -555,7 +599,7 @@ index 07dc4c0..f5823b4 100644
        var Summary=document.createElement('p'); Summary.textContent=Release.summary; Card.appendChild(Summary);
        [['added','New additions'],['improved','Improvements'],['fixed','Bug fixes']].forEach(function (Section) {
          if (!Array.isArray(Release[Section[0]]) || !Release[Section[0]].length) return;
-@@ -905,12 +1103,12 @@ __PLAZCODE_VERSION_UI__
+@@ -905,12 +1147,12 @@ __PLAZCODE_VERSION_UI__
    function Refreshupdates() {
      if (Updatepolling) return Promise.resolve(); Updatepolling = true;
      return Api('/api/desktop/update').then(function (Value) {
@@ -570,7 +614,7 @@ index 07dc4c0..f5823b4 100644
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
-@@ -919,18 +1117,18 @@ __PLAZCODE_VERSION_UI__
+@@ -919,18 +1161,18 @@ __PLAZCODE_VERSION_UI__
        Byid('installUpdate').disabled = Updating || Value.available !== true;
        Byid('checkUpdates').disabled = Updating;
        Byid('updateOverlay').hidden = (!Updating || Value.background === true) && (!Value.error || UpdateerrorDismissed);
@@ -592,7 +636,7 @@ index 07dc4c0..f5823b4 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1404,219 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1448,286 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -691,55 +735,122 @@ index 07dc4c0..f5823b4 100644
 +        delete El.dataset.dirty;
 +        Call("/api/notion/action", { action: "set_domain", value: V }).then(function (R) { var M = $("mUrlMsg"); if (M) M.textContent = R.message || "Gespeichert."; Msg(R.message || "Gespeichert."); Poll(); }).catch(function (E) { var M = $("mUrlMsg"); if (M) M.textContent = E.message || String(E); Msg(E.message || String(E)); });
 +      };
-+    });    var CW = { tabs: [], dirty: false, sig: "" };
++    });    var CW = { tabs: [], dirty: false, sig: "", shown: false, browsers: [], browser: null };
++    var CIC = { plus: '<path d="M12 5v14M5 12h14"/>', save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>', refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>', play: '<polygon points="7 4 20 12 7 20 7 4"/>', stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>', login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5M15 12H3"/>', mcp: '<path d="M9 2v6M15 2v6M6 8h12v3a6 6 0 0 1-12 0zM12 17v5"/>', copy: '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>', edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>', release: '<path d="M9 14l-5-5 5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>', trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>', back: '<path d="M15 18l-6-6 6-6"/>', x: '<path d="M18 6L6 18M6 6l12 12"/>', open: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14L21 3"/>' };
++    var CI = function (N) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + (CIC[N] || "") + '</svg>'; };
++    document.querySelectorAll("#page-cowork [data-ic]").forEach(function (B) { B.insertAdjacentHTML("afterbegin", CI(B.getAttribute("data-ic"))); });
 +    var CEsc = function (X) { return String(X == null ? "" : X).replace(/[&<>\"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
 +    var CMsg = function (T) { var M = $("cwMsg"); if (M) M.textContent = T || ""; };
 +    var CDirty = function (D) { CW.dirty = D; var B = $("cwDirty"); if (B) B.style.display = D ? "" : "none"; };
-+    var CPct = function (A) { var P = A && A.usage; if (A && A.exhausted) return "<b style=\"color:#ff5c7a\">aufgebraucht</b>"; return P == null ? "<span class=\"nhint\">–</span>" : "<div style=\"min-width:90px\"><div style=\"height:7px;background:#252a39;border-radius:4px;overflow:hidden\"><i style=\"display:block;height:100%;width:" + P + "%;background:linear-gradient(90deg,#7c5cff,#21d4fd)\"></i></div><small>" + P + "%</small></div>"; };
++    var CBtn = function (A, Ic, Label, Cls) { return '<button class="' + (Cls || "softbtn") + ' cwi' + (Ic === "stop" ? " solid" : "") + '" data-a="' + A + '">' + CI(Ic) + Label + '</button>'; };
 +    var CRow = function (T, I) {
-+      var A = T.account || {}, Models = (A.models || []).join(", ") || "–";
-+      return "<tr data-i=\"" + I + "\"><td><b>" + (I + 1) + "</b></td>" +
-+        "<td><b>" + CEsc(T.role) + "</b><br><input data-f=\"label\" value=\"" + CEsc(T.label) + "\" placeholder=\"Name\"></td>" +
-+        "<td><input data-f=\"email\" type=\"email\" value=\"" + CEsc(T.email) + "\" placeholder=\"name@gmail.com\"></td>" +
-+        "<td>" + CPct(A) + "</td><td style=\"max-width:210px\">" + CEsc(Models) + (A.mcp ? ("<br><small class=\"nhint\">MCP: " + CEsc(A.mcp) + "</small>") : "") + (A.chat ? ("<br><small class=\"nhint\">Chat: " + CEsc(A.chat) + "</small>") : "") + "</td>" +
-+        "<td><span class=\"nbadge" + (T.running ? " ok" : "") + "\" data-run=\"" + T.id + "\">" + (T.running ? "läuft" : "aus") + "</span></td>" +
-+        "<td class=\"cwbtns\"><button class=\"softbtn\" data-a=\"login\">Gmail-Login</button><button class=\"softbtn\" data-a=\"mcp\">MCP einrichten</button><button class=\"softbtn\" data-a=\"prompt\">Startprompt kopieren</button><button class=\"softbtn\" data-a=\"take\">" + (T.paused ? "Freigeben" : "Selbst schreiben") + "</button><button class=\"softbtn\" data-a=\"stop\">Stoppen</button><button class=\"dangerbtn\" data-a=\"del\">Entfernen</button></td></tr>";
++      var A = T.account || {}, P = A.usage, Models = (A.models || []).join(", ");
++      var Bar = A.exhausted ? '<b style="color:#ff5c7a">KI-Kontingent aufgebraucht</b>' : (P == null ? '<span class="nhint">Usage unbekannt</span>' : '<div style="height:6px;background:#252a39;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:' + P + '%;background:linear-gradient(90deg,#7c5cff,#21d4fd)"></i></div><small class="nhint">Usage ' + P + '%</small>');
++      var Meta = [A.mcp ? "MCP: " + A.mcp : "", A.chat ? "Chat: " + A.chat : "", Models ? "Modelle: " + Models : ""].filter(Boolean).map(CEsc).join("<br>");
++      return '<div class="cwcard' + (T.running ? "" : " off") + '" data-i="' + I + '">' +
++        '<div class="cwhead"><span class="cwnum">' + (I + 1) + '</span><b>' + CEsc(T.role) + '</b><span style="flex:1"></span>' + (T.paused ? '<span class="nbadge warn">du schreibst</span>' : '') + '<span class="nbadge' + (T.running ? ' ok' : '') + '">' + (T.running ? 'l\u00e4uft' : 'aus') + '</span></div>' +
++        '<input data-f="label" value="' + CEsc(T.label) + '" placeholder="Name (optional)">' +
++        '<input data-f="email" type="email" value="' + CEsc(T.email) + '" placeholder="name@gmail.com">' +
++        '<div style="margin-top:6px">' + Bar + '</div>' + (Meta ? '<div class="cwmeta">' + Meta + '</div>' : '') +
++        '<div class="cwacts">' + CBtn("login", "login", "Gmail-Login") + CBtn("mcp", "mcp", "MCP") + CBtn("prompt", "copy", "Prompt") + CBtn("take", T.paused ? "release" : "edit", T.paused ? "Freigeben" : "Selbst schreiben") + (T.running ? CBtn("stop", "stop", "Stoppen") : CBtn("open", "open", "\u00d6ffnen")) + CBtn("del", "trash", "Entfernen", "dangerbtn") + '</div></div>';
 +    };
 +    var CRender = function () {
 +      var Box = $("cwTabs"); if (!Box) return;
-+      if (!CW.tabs.length) { Box.innerHTML = "<p class=\"nhint\">Noch keine Tabs.</p>"; return; }
-+      Box.innerHTML = "<table class=\"cwtable\"><thead><tr><th>#</th><th>Rolle / Name</th><th>Gmail-Konto</th><th>Usage</th><th>Modelle</th><th>Status</th><th></th></tr></thead><tbody>" + CW.tabs.map(CRow).join("") + "</tbody></table>";
-+      var Ready = CW.tabs.length === 4 && CW.tabs.every(function (T) { return String(T.email || "").trim(); });
-+      if ($("cwStartAll")) $("cwStartAll").disabled = !Ready;
++      var Ae = document.activeElement;
++      if (!(Ae && Box.contains(Ae) && Ae.tagName === "INPUT")) Box.innerHTML = CW.tabs.length ? '<div class="cwgrid">' + CW.tabs.map(CRow).join("") + '</div>' : '<p class="nhint">Noch keine Tabs \u2013 mit \u201eTab hinzuf\u00fcgen\u201c anlegen.</p>';
++      var Ready = !!CW.browser && CW.tabs.length === 4 && CW.tabs.every(function (T) { return String(T.email || "").trim(); });
++      var S = $("cwStartAll"); if (S) { S.disabled = !Ready; S.title = !CW.browser ? "Erst oben einen Browser w\u00e4hlen" : (Ready ? "" : "Vier Tabs mit Gmail-Konto n\u00f6tig"); }
 +      if ($("cwAdd")) $("cwAdd").disabled = CW.tabs.length >= 4;
++      var Sb = $("cwShowAll"); if (Sb) Sb.textContent = CW.shown ? "Worker verstecken" : "Worker zeigen";
++    };
++    var CBrowser = function (R) {
++      CW.browsers = R.browsers || []; CW.browser = R.browser || null;
++      var Sel = $("cwBrowserSel"), Bd = $("cwBrowser");
++      if (Sel && document.activeElement !== Sel) {
++        Sel.innerHTML = '<option value="">' + (CW.browsers.length ? 'Browser ausw\u00e4hlen \u2026' : 'Kein Chrome, Edge oder Brave installiert') + '</option>' + CW.browsers.map(function (N) { return '<option value="' + CEsc(N) + '">' + CEsc(N) + '</option>'; }).join("");
++        Sel.value = CW.browser || "";
++      }
++      if (Bd) { Bd.textContent = CW.browser || "nicht gew\u00e4hlt"; Bd.className = "nbadge " + (CW.browser ? "ok" : "warn"); }
 +    };
 +    var CLoad = function (Full) {
 +      return Call("/api/notion/cowork-tabs").then(function (R) {
-+        if ($("cwBrowser")) $("cwBrowser").textContent = R.browser || "Kein Chrome/Edge/Brave gefunden"; if (R.status) CMsg(R.status);
++        CBrowser(R); if (R.status) CMsg(R.status);
 +        var Tabs = R.tabs || [], Sig = Tabs.map(function (T) { return T.id; }).join(",");
 +        if (Full || !CW.dirty) { CW.tabs = Tabs; CW.sig = Sig; CDirty(false); CRender(); return; }
 +        Tabs.forEach(function (T, I) { if (CW.tabs[I] && CW.tabs[I].id === T.id) CW.tabs[I] = Object.assign({}, CW.tabs[I], { running: T.running, paused: T.paused, account: T.account, role: T.role }); }); CRender();
 +      }).catch(function (E) { CMsg(E.message || String(E)); });
 +    };
 +    var CAct = function (Action, Value) {
-+      CMsg("…"); return Call("/api/notion/action", { action: Action, value: Value === undefined ? null : Value }).then(function (R) { CMsg(R.message || "OK"); return CLoad(!CW.dirty).then(function(){return R;}); }).catch(function (E) { CMsg(E.message || String(E)); throw E; });
++      CMsg("\u2026"); return Call("/api/notion/action", { action: Action, value: Value === undefined ? null : Value }).then(function (R) { CMsg(R.message || "OK"); return CLoad(!CW.dirty).then(function(){return R;}); }).catch(function (E) { CMsg(E.message || String(E)); throw E; });
 +    };
 +    var CSave = function () {
 +      var Data = CW.tabs.map(function (T) { return { id: T.id, label: T.label || "", email: T.email || "", url: T.url || "", autostart: true }; });
 +      return Call("/api/notion/action", { action: "cowork_save_tabs", value: Data }).then(function (R) { CDirty(false); CMsg(R.message || "Gespeichert."); return CLoad(true); }).catch(function (E) { CMsg(E.message || String(E)); throw E; });
-+    };    var CSaveIf = function () { return CW.dirty ? CSave() : Promise.resolve(); };
++    };
++    var CSaveIf = function () { return CW.dirty ? CSave() : Promise.resolve(); };
++    var LV = { id: null, w: 0, h: 0, busy: false, q: Promise.resolve(), err: 0, timer: null };
++    var LVSet = function (T, Cls) { var S = $("cwLoginState"); if (S) { S.textContent = T; S.className = "nbadge" + (Cls ? " " + Cls : ""); } };
++    var LVCall = function (Body) { Body.id = LV.id; return Call("/api/notion/cowork-view", Body); };
++    var LVShot = function () {
++      if (LV.id == null || LV.busy) return; LV.busy = true;
++      LVCall({ op: "shot" }).then(function (R) {
++        LV.err = 0; LV.w = R.w || 0; LV.h = R.h || 0;
++        var Img = $("cwLoginImg"); if (Img && R.img) Img.src = "data:image/jpeg;base64," + R.img;
++        var U = $("cwLoginUrl"); if (U) U.textContent = R.url || "";
++        if (R.logged_in) LVSet("In Notion eingeloggt \u2713", "ok"); else LVSet(/accounts\.google/.test(R.url || "") ? "Google-Login" : "L\u00e4dt / Notion-Login", "warn");
++      }).catch(function (E) {
++        LV.err++; LVSet(E.message || String(E), "err");
++        if (LV.err === 4) { CAct("cowork_show_tab", LV.id).catch(function () {}); LVSet("Vorschau l\u00e4dt nicht \u2013 echtes Fenster wird angezeigt", "err"); }
++      }).then(function () { LV.busy = false; });
++    };
++    var LVSend = function (Body) {
++      LV.q = LV.q.then(function () { return LVCall(Body); }).catch(function (E) { LVSet(E.message || String(E), "err"); });
++      LV.q.then(function () { setTimeout(LVShot, 150); });
++    };
++    var LVOpen = function (T) {
++      if (!String(T.email || "").trim()) { CMsg("Tab " + T.id + ": erst ein Gmail-Konto eintragen."); return; }
++      if (!CW.browser) { CMsg("Erst oben einen Browser w\u00e4hlen."); return; }
++      CSaveIf().then(function () { return CAct("cowork_login_view", T.id); }).then(function () {
++        LV.id = T.id; LV.err = 0; LV.w = 0;
++        var Ti = $("cwLoginTitle"); if (Ti) Ti.textContent = "Gmail-Login \u2013 " + T.role + " (" + T.email + ")";
++        LVSet("startet \u2026", "warn"); var Img = $("cwLoginImg"); if (Img) Img.removeAttribute("src");
++        $("cwLogin").style.display = "flex"; $("cwLoginView").focus();
++        clearInterval(LV.timer); LV.timer = setInterval(LVShot, 900); setTimeout(LVShot, 1500);
++      }).catch(function () {});
++    };
++    var LVClose = function () { clearInterval(LV.timer); LV.id = null; var M = $("cwLogin"); if (M) M.style.display = "none"; CLoad(true); };
++    (function () {
++      var View = $("cwLoginView"), Img = $("cwLoginImg"); if (!View || !Img) return;
++      var Pos = function (Ev) { var R = Img.getBoundingClientRect(); if (!R.width || !LV.w) return null; return { x: (Ev.clientX - R.left) / R.width * LV.w, y: (Ev.clientY - R.top) / R.height * LV.h }; };
++      Img.addEventListener("click", function (Ev) { var P = Pos(Ev); View.focus(); if (P) LVSend({ op: "click", x: P.x, y: P.y }); });
++      Img.addEventListener("wheel", function (Ev) { Ev.preventDefault(); var P = Pos(Ev); if (P) LVSend({ op: "scroll", x: P.x, y: P.y, dy: Ev.deltaY }); }, { passive: false });
++      View.addEventListener("keydown", function (Ev) {
++        if (LV.id == null) return;
++        var Combo = (Ev.ctrlKey && !Ev.altKey) || Ev.metaKey;
++        if (Combo) return;
++        if (Ev.key && Ev.key.length === 1) { Ev.preventDefault(); LVSend({ op: "type", text: Ev.key }); return; }
++        if (["Enter", "Backspace", "Tab", "Escape", "Delete", "ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", "Home", "End"].indexOf(Ev.key) >= 0) { Ev.preventDefault(); LVSend({ op: "key", key: Ev.key }); }
++      });
++      View.addEventListener("paste", function (Ev) { var Tx = (Ev.clipboardData || window.clipboardData).getData("text"); if (Tx) { Ev.preventDefault(); LVSend({ op: "type", text: Tx }); } });
++    })();
++    On("cwLoginClose", LVClose);
++    On("cwLoginBack", function () { LVSend({ op: "back" }); });
++    On("cwLoginShow", function () { if (LV.id != null) CAct("cowork_show_tab", LV.id).catch(function () {}); });
++    var CSel = $("cwBrowserSel");
++    if (CSel) CSel.addEventListener("change", function () { if (!CSel.value) return; CAct("cowork_set_browser", CSel.value).then(function (R) { var M = $("cwBrowserMsg"); if (M) M.textContent = R.message || ""; }).catch(function (E) { var M = $("cwBrowserMsg"); if (M) M.textContent = E.message || String(E); CSel.blur(); CLoad(true); }); });
 +    var CBox = $("cwTabs");
 +    if (CBox) {
-+      var CEdit = function (Ev) { var El = Ev.target, F = El.getAttribute && El.getAttribute("data-f"); if (!F) return; var Tr = El.closest("tr"); var T = CW.tabs[Number(Tr.getAttribute("data-i"))]; if (!T) return; T[F] = El.type === "checkbox" ? El.checked : El.value; CDirty(true); };
++      var CEdit = function (Ev) { var El = Ev.target, F = El.getAttribute && El.getAttribute("data-f"); if (!F) return; var Cd = El.closest("[data-i]"); var T = Cd && CW.tabs[Number(Cd.getAttribute("data-i"))]; if (!T) return; T[F] = El.type === "checkbox" ? El.checked : El.value; CDirty(true); };
 +      CBox.addEventListener("input", CEdit);
 +      CBox.addEventListener("change", CEdit);
 +      CBox.addEventListener("click", function (Ev) {
 +        var B = Ev.target.closest("button[data-a]"); if (!B) return;
-+        var T = CW.tabs[Number(B.closest("tr").getAttribute("data-i"))]; if (!T) return;
++        var Cd = B.closest("[data-i]"); var T = Cd && CW.tabs[Number(Cd.getAttribute("data-i"))]; if (!T) return;
 +        var A = B.getAttribute("data-a");
 +        if (A === "mcp") CAct("cowork_setup_mcp", T.id).then(function(){setTimeout(function(){CLoad(true);},4000);}).catch(function () {});
-+        if (A === "prompt") { var P = T.role === "Main" ? "Du bist der Main Chat. Warte auf meine Aufgabe; lade zuerst die passende Projekt-Memory und starte dann cowork_start." : ("Du bist " + T.role + ". Warte auf das aktive Projekt, cowork_join als " + T.role + ", dann claim → arbeiten → update → wait."); Copy(P); CMsg("Startprompt kopiert."); }
-+        if (A === "login") { if (!String(T.email || "").trim()) { CMsg("Tab " + T.id + ": erst ein Gmail-Konto eintragen."); return; } CSaveIf().then(function () { return CAct("cowork_login", T.id); }).catch(function () {}); }
++        if (A === "prompt") { var P = T.role === "Main" ? "Du bist der Main Chat. Warte auf meine Aufgabe; lade zuerst die passende Projekt-Memory und starte dann cowork_start." : ("Du bist " + T.role + ". Warte auf das aktive Projekt, cowork_join als " + T.role + ", dann claim \u2192 arbeiten \u2192 update \u2192 wait."); Copy(P); CMsg("Startprompt kopiert."); }
++        if (A === "login") LVOpen(T);
++        if (A === "open") { if (!CW.browser) { CMsg("Erst oben einen Browser w\u00e4hlen."); return; } CSaveIf().then(function () { return CAct("open_notion_window", T.id); }).catch(function () {}); }
 +        if (A === "stop") CAct("cowork_stop", T.id).catch(function () {});
 +        if (A === "take") CAct(T.paused ? "cowork_release" : "cowork_takeover", T.id).catch(function () {});
 +        if (A === "del" && confirm("Tab " + T.id + " (" + (T.email || T.label) + ") entfernen? Der Login in diesem Container geht verloren.")) CAct("cowork_delete", T.id).catch(function () {});
@@ -747,10 +858,10 @@ index 07dc4c0..f5823b4 100644
 +    }
 +    On("cwAdd", function () { CSaveIf().then(function () { return CAct("cowork_add_tab"); }).then(function () { return CLoad(true); }).catch(function () {}); });
 +    On("cwSave", function () { CSave().catch(function () {}); });
-+    On("cwStartAll", function () { CSaveIf().then(function () { return CAct("cowork_start_all"); }).catch(function () {}); });
-+    On("cwShowAll", function () { CAct("cowork_show_all").catch(function () {}); });
++    On("cwStartAll", function () { if (!CW.browser) { CMsg("Erst oben einen Browser w\u00e4hlen."); return; } CSaveIf().then(function () { return CAct("cowork_start_all"); }).catch(function () {}); });
++    On("cwShowAll", function () { var Next = !CW.shown; CAct(Next ? "cowork_show_all" : "cowork_hide_all").then(function () { CW.shown = Next; CRender(); }).catch(function () {}); });
 +    On("cwCheck", function () { CAct("cowork_check_accounts").then(function(){setTimeout(function(){CLoad(true);},2500);}).catch(function () {}); });
-+    On("cwStopAll", function () { if (confirm("Alle Co-Work-Tabs schließen?")) CAct("cowork_stop_all").catch(function () {}); });
++    On("cwStopAll", function () { if (confirm("Alle Co-Work-Tabs schlie\u00dfen?")) CAct("cowork_stop_all").then(function () { CW.shown = false; CRender(); }).catch(function () {}); });
 +    document.querySelectorAll("[data-page=cowork]").forEach(function (B) { B.addEventListener("click", function () { CLoad(false); }); });
 +    setInterval(function () { if (document.querySelector("#page-cowork.active")) CLoad(false); }, 3000);
 +    window.addEventListener("beforeunload", function (Ev) { if (CW.dirty) { Ev.preventDefault(); Ev.returnValue = ""; } });
@@ -842,7 +953,7 @@ index 04ebefa..16ffb12 100644
                  _ if body.starts_with("toolkit-store:") => toolkit_store_url(body).map(UiEvent::OpenExternal),
                  _ => supported_ai_url(body).map(|url|UiEvent::OpenExternal(url.to_owned())).or_else(|| body.strip_prefix("js-error:").map(|message| UiEvent::JsError(message.to_string()))),
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..9909f63 100644
+index 77cc050..a3cbbad 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
 @@ -81,6 +81,16 @@ mod media;
@@ -916,7 +1027,7 @@ index 77cc050..9909f63 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +994,15 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +994,16 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -924,6 +1035,7 @@ index 77cc050..9909f63 100644
 +        .route("/api/notion/action", post(notion_mcp::action_handler))
 +        .route("/api/notion/updates", get(notion_updates::updates_handler))
 +        .route("/api/notion/cowork-tabs", get(notion_profiles::tabs_handler))
++        .route("/api/notion/cowork-view", post(notion_profiles::view_handler))
 +        .route("/api/notion/chat/state", get(notion_chat::state_handler))
 +        .route("/api/notion/chat/history", get(notion_chat::history_handler))
 +        .route("/api/notion/chat/send", post(notion_chat::send_handler))
@@ -932,7 +1044,7 @@ index 77cc050..9909f63 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1214,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1215,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -940,7 +1052,7 @@ index 77cc050..9909f63 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1230,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1231,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -948,7 +1060,7 @@ index 77cc050..9909f63 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1488,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1489,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -956,7 +1068,7 @@ index 77cc050..9909f63 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1560,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1561,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -964,7 +1076,7 @@ index 77cc050..9909f63 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1569,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1570,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -4236,10 +4348,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..8103d42
+index 0000000..448b0fe
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,328 @@
+@@ -0,0 +1,406 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4320,13 +4432,21 @@ index 0000000..8103d42
 +    Ok(Tab { id: t.id, label: if label.is_empty() { format!("Tab {}", t.id) } else { label }, email, role: String::new(), url, autostart: t.autostart })
 +}
 +
-+pub fn browser() -> Option<(&'static str, PathBuf)> {
-+    let mut c = Vec::new();
-+    for (name, rel) in [("Chrome", r"Google\Chrome\Application\chrome.exe"), ("Edge", r"Microsoft\Edge\Application\msedge.exe"), ("Brave", r"BraveSoftware\Brave-Browser\Application\brave.exe")] {
-+        for k in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] { if let Some(b) = std::env::var_os(k) { c.push((name, PathBuf::from(b).join(rel))); } }
++const BROWSERS: [(&str, &str); 3] = [("Chrome", r"Google\Chrome\Application\chrome.exe"), ("Edge", r"Microsoft\Edge\Application\msedge.exe"), ("Brave", r"BraveSoftware\Brave-Browser\Application\brave.exe")];
++fn browser_file() -> PathBuf { base().join("browser") }
++/// Alle installierten Browser, die Co-Work nutzen kann.
++pub fn installed_browsers() -> Vec<(&'static str, PathBuf)> {
++    let mut out = Vec::new();
++    for (name, rel) in BROWSERS {
++        for k in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
++            if let Some(b) = std::env::var_os(k) { let p = PathBuf::from(b).join(rel); if p.is_file() { out.push((name, p)); break; } }
++        }
 +    }
-+    c.into_iter().find(|(_, p)| p.is_file())
++    out
 +}
++pub fn chosen_browser() -> Option<String> { std::fs::read_to_string(browser_file()).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) }
++/// Der vom Nutzer gewaehlte Browser. Ohne Auswahl startet kein Tab.
++pub fn browser() -> Option<(&'static str, PathBuf)> { let c = chosen_browser()?; installed_browsers().into_iter().find(|(n, _)| n.eq_ignore_ascii_case(&c)) }
 +pub fn browser_name() -> Value { browser().map(|(n, _)| json!(n)).unwrap_or(Value::Null) }
 +pub fn list() -> Value { json!(load().into_iter().map(|t| json!({"id":t.id,"label":t.label})).collect::<Vec<_>>()) }
 +
@@ -4366,7 +4486,7 @@ index 0000000..8103d42
 +fn start_url(t:&Tab)->String{if t.url.is_empty(){NOTION_URL.to_string()}else{t.url.clone()}}
 +fn tab_index(id:u32)->usize{load().iter().position(|t|t.id==id).unwrap_or(0)}
 +pub(crate) fn launch(t:&Tab,url:&str)->Result<&'static str,String>{
-+    let(name,exe)=browser().ok_or("Kein Chrome, Edge oder Brave gefunden.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;
++    let(name,exe)=browser().ok_or("Erst unter Co-Work einen Browser ausw\u{e4}hlen.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;
 +    let port=cdp_port(tab_index(t.id));
 +    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion"]).arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;Ok(name)
 +}
@@ -4377,8 +4497,9 @@ index 0000000..8103d42
 +    let list:Vec<Value>=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?;
 +    list.into_iter().find(|v|v["type"]=="page"&&v["url"].as_str().unwrap_or("").contains("notion.")).and_then(|v|v["webSocketDebuggerUrl"].as_str().map(str::to_string)).ok_or("Kein Notion-CDP-Tab gefunden.".into())
 +}
-+async fn cdp(port:u16, commands:Vec<Value>)->Result<Vec<Value>,String>{
-+    let ws=target(port).await?;let(mut socket,_)=tokio_tungstenite::connect_async(&ws).await.map_err(|e|e.to_string())?;let mut out=Vec::new();
++async fn cdp(port:u16, commands:Vec<Value>)->Result<Vec<Value>,String>{let ws=target(port).await?;cdp_ws(&ws,commands).await}
++async fn cdp_ws(ws:&str, commands:Vec<Value>)->Result<Vec<Value>,String>{
++    let(mut socket,_)=tokio_tungstenite::connect_async(ws).await.map_err(|e|e.to_string())?;let mut out=Vec::new();
 +    for mut cmd in commands{let id=out.len()+1;cmd["id"]=json!(id);socket.send(tokio_tungstenite::tungstenite::Message::Text(cmd.to_string().into())).await.map_err(|e|e.to_string())?;loop{let msg=tokio::time::timeout(Duration::from_secs(5),socket.next()).await.map_err(|_|"CDP timeout".to_string())?.ok_or("CDP geschlossen")?.map_err(|e|e.to_string())?;if let Ok(txt)=msg.into_text(){if let Ok(v)=serde_json::from_str::<Value>(&txt){if v["id"]==id{out.push(v);break;}}}}
 +    } Ok(out)
 +}
@@ -4546,7 +4667,72 @@ index 0000000..8103d42
 +}
 +pub(crate) fn show_all_windows(){let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],false);}}
 +
-+pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();json!({"ok":true,"auto_mcp":auto_mcp_on(),"browser":browser_name(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v}).collect::<Vec<_>>()})}
++fn set_browser(v:&Value)->Result<String,String>{
++    let n=v.as_str().or_else(||v.get("name").and_then(Value::as_str)).unwrap_or("").trim().to_string();
++    if n.is_empty(){return Err("Bitte einen Browser ausw\u{e4}hlen.".into());}
++    let found=installed_browsers().into_iter().find(|(x,_)|x.eq_ignore_ascii_case(&n)).ok_or(format!("{n} ist auf diesem PC nicht installiert."))?;
++    if chosen_browser().map(|c|c.eq_ignore_ascii_case(found.0)).unwrap_or(false){return Ok(format!("Browser: {}.",found.0));}
++    if !running_ids(&load()).is_empty(){return Err("Erst alle Tabs stoppen, dann den Browser wechseln.".into());}
++    std::fs::create_dir_all(base()).map_err(|e|e.to_string())?;std::fs::write(browser_file(),found.0).map_err(|e|e.to_string())?;
++    Ok(format!("Browser: {} \u{2013} alle Tabs starten ab jetzt darin.",found.0))
++}
++fn login_url(t:&Tab)->String{
++    let scheme=["https",":/","/"].concat();
++    let host=["accounts","google","com"].join(".");
++    let cont=[scheme.as_str(),"www.",&["notion","so"].join("."),"/login"].concat();
++    [scheme.as_str(),&host,"/AccountChooser?Email=",&enc(&t.email),"&continue=",&enc(&cont)].concat()
++}
++/// Gmail-Login direkt in AdiCode: der echte Tab-Browser laedt die Google-Seite (Cookies landen im Container),
++/// das Fenster wird versteckt und AdiCode zeigt/steuert es per CDP (Screenshot + Maus/Tastatur).
++fn login_view(t:Tab)->Result<String,String>{
++    if t.email.is_empty(){return Err("Erst Gmail-Konto eintragen und speichern.".into());}
++    let url=login_url(&t);let i=tab_index(t.id);
++    let running=running_ids(std::slice::from_ref(&t)).contains(&t.id);
++    if !running{launch(&t,&url)?;}
++    let msg=format!("Login-Ansicht f\u{fc}r {} ge\u{f6}ffnet.",t.email);
++    tokio::spawn(async move{
++        if running{if let Ok(ws)=any_target(cdp_port(i)).await{let _=cdp_ws(&ws,vec![json!({"method":"Page.navigate","params":{"url":url}})]).await;}}
++        else{for _ in 0..30{if any_target(cdp_port(i)).await.is_ok(){break;}tokio::time::sleep(Duration::from_millis(500)).await;}}
++        tokio::time::sleep(Duration::from_millis(1500)).await;
++        windows::set_hidden(std::slice::from_ref(&t),true);
++    });
++    Ok(msg)
++}
++async fn any_target(port:u16)->Result<String,String>{
++    let list:Vec<Value>=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await.map_err(|_|"Tab l\u{e4}uft nicht.".to_string())?.json().await.map_err(|e|e.to_string())?;
++    list.into_iter().find(|v|v["type"]=="page"&&!v["url"].as_str().unwrap_or("").starts_with("devtools://")).and_then(|v|v["webSocketDebuggerUrl"].as_str().map(str::to_string)).ok_or("Kein Browser-Fenster im Tab gefunden.".into())
++}
++fn vk(key:&str)->Option<i64>{Some(match key{"Enter"=>13,"Backspace"=>8,"Tab"=>9,"Escape"=>27,"Delete"=>46,"ArrowLeft"=>37,"ArrowUp"=>38,"ArrowRight"=>39,"ArrowDown"=>40,"Home"=>36,"End"=>35,_=>return None})}
++async fn view_op(req:Value)->Result<Value,String>{
++    let id=req["id"].as_u64().and_then(|n|u32::try_from(n).ok());let t=find(id)?;let port=cdp_port(tab_index(t.id));
++    let ws=any_target(port).await?;
++    let num=|k:&str|req[k].as_f64().unwrap_or(0.0);
++    match req["op"].as_str().unwrap_or("shot"){
++        "shot"=>{
++            let r=cdp_ws(&ws,vec![json!({"method":"Page.captureScreenshot","params":{"format":"jpeg","quality":60}}),json!({"method":"Runtime.evaluate","params":{"expression":"JSON.stringify({w:innerWidth,h:innerHeight,u:location.href,t:document.title})","returnByValue":true}})]).await?;
++            let img=r.first().and_then(|v|v.pointer("/result/data")).and_then(Value::as_str).ok_or("Kein Bild vom Tab.")?.to_string();
++            let info:Value=r.get(1).and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_str).and_then(|s|serde_json::from_str(s).ok()).unwrap_or(json!({}));
++            let url=info["u"].as_str().unwrap_or("").to_string();
++            let notion=url.contains("notion.so")||url.contains("notion.com");
++            let done=notion&&!url.contains("/login")&&!url.contains("/signup")&&logged_in(port).await;
++            Ok(json!({"ok":true,"img":img,"w":info["w"],"h":info["h"],"url":url,"title":info["t"],"logged_in":done}))
++        }
++        "click"=>{let(x,y)=(num("x"),num("y"));cdp_ws(&ws,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseMoved","x":x,"y":y}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}})]).await?;Ok(json!({"ok":true}))}
++        "type"=>{let text=req["text"].as_str().unwrap_or("").chars().take(2000).collect::<String>();if !text.is_empty(){cdp_ws(&ws,vec![json!({"method":"Input.insertText","params":{"text":text}})]).await?;}Ok(json!({"ok":true}))}
++        "key"=>{
++            let key=req["key"].as_str().unwrap_or("").to_string();let code=vk(&key).ok_or("Taste nicht unterst\u{fc}tzt.")?;
++            let mut down=json!({"type":"rawKeyDown","key":key,"code":key,"windowsVirtualKeyCode":code,"nativeVirtualKeyCode":code});
++            if key=="Enter"{down["type"]=json!("keyDown");down["text"]=json!("\r");}
++            let up=json!({"type":"keyUp","key":key,"code":key,"windowsVirtualKeyCode":code,"nativeVirtualKeyCode":code});
++            cdp_ws(&ws,vec![json!({"method":"Input.dispatchKeyEvent","params":down}),json!({"method":"Input.dispatchKeyEvent","params":up})]).await?;Ok(json!({"ok":true}))
++        }
++        "scroll"=>{cdp_ws(&ws,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseWheel","x":num("x"),"y":num("y"),"deltaX":0,"deltaY":num("dy")}})]).await?;Ok(json!({"ok":true}))}
++        "back"=>{cdp_ws(&ws,vec![json!({"method":"Runtime.evaluate","params":{"expression":"history.back()"}})]).await?;Ok(json!({"ok":true}))}
++        _=>Err("Unbekannte Aktion.".into()),
++    }
++}
++pub async fn view_handler(Json(req):Json<Value>)->impl IntoResponse{match view_op(req).await{Ok(v)=>(axum::http::StatusCode::OK,Json(v)),Err(e)=>(axum::http::StatusCode::BAD_REQUEST,Json(json!({"ok":false,"error":e})))}}
++pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();json!({"ok":true,"auto_mcp":auto_mcp_on(),"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v}).collect::<Vec<_>>()})}
 +pub async fn tabs_handler()->impl IntoResponse{ensure_monitors();Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e|json!({"ok":false,"error":e.to_string()})))}
 +pub fn action(name:&str,v:&Value)->Option<Result<String,String>>{
 +    let id=v.as_u64().or_else(||v.get("id").and_then(Value::as_u64)).and_then(|n|u32::try_from(n).ok());
@@ -4559,6 +4745,10 @@ index 0000000..8103d42
 +        "cowork_takeover"=>find(id).map(|t|{lock(&PAUSED).insert(t.id);windows::set_hidden(std::slice::from_ref(&t),false);let i=tab_index(t.id);tokio::spawn(async move{stop_generation(cdp_port(i)).await;let _=cdp(cdp_port(i),vec![json!({"method":"Page.bringToFront"})]).await;});format!("Tab {} ({}) \u{fc}bernommen: AdiCode schickt keine Erinnerungen mehr, du kannst dort selbst schreiben.",t.id,t.role)}),
 +        "cowork_release"=>find(id).map(|t|{lock(&PAUSED).remove(&t.id);format!("Tab {} ({}) wieder an Co-Work \u{fc}bergeben.",t.id,t.role)}),
 +        "cowork_auto_mcp"=>{let on=v.as_bool().or_else(||v.get("on").and_then(Value::as_bool)).unwrap_or(false);let r=if on{std::fs::create_dir_all(base()).and_then(|_|std::fs::write(auto_mcp_file(),"1"))}else{match std::fs::remove_file(auto_mcp_file()){Err(e) if e.kind()!=std::io::ErrorKind::NotFound=>Err(e),_=>Ok(())}};ensure_monitors();r.map(|_|if on{"Auto-MCP an: neue Tabs bekommen AdiCode automatisch, sobald sie in Notion eingeloggt sind.".to_string()}else{"Auto-MCP aus.".to_string()}).map_err(|e|e.to_string())},
++        "cowork_set_browser"=>set_browser(v),
++        "cowork_hide_all"=>{let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}Ok("Worker-Fenster versteckt.".into())},
++        "cowork_show_tab"=>find(id).map(|t|{windows::set_hidden(std::slice::from_ref(&t),false);format!("Fenster von Tab {} angezeigt.",t.id)}),
++        "cowork_login_view"=>find(id).and_then(login_view),
 +        "cowork_copy_prompt"=>find(id).map(|t|prompt_for(&t)),
 +        "cowork_stop"=>find(id).map(|t|format!("Tab {} gestoppt ({} Prozesse).",t.id,stop_ids(&[t.id]))),
 +        "open_notion_window"=>match id{Some(_)=>find(id).and_then(|t|open_tab(&t)),None=>add_tab().and_then(|_|load().last().cloned().ok_or("Tab fehlt.".into())).and_then(|t|open_tab(&t))},
