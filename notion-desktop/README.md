@@ -130,6 +130,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Authtoken sichtbar**: gespeicherter Token wird maskiert angezeigt (z. B. gespeichert 2abc...wxyz).
 ## Neu in 1.0.74
 - **ngrok-Token bleibt erhalten**: beim Wechsel vom Store-ngrok auf das eigene ngrok wird der gespeicherte Authtoken uebernommen.
+## Neu in 1.0.75
+- **Einstellungen oeffnen zuverlaessiger**: klappt jetzt auch, wenn das Konto-Menue in Notion unten statt oben ist; Seiten duerfen fertig laden.
+- **MCP-Auto-Einrichtung**: traegt Name (AdiCode) und Bearer-Token automatisch ein, auch im deutschen Dialog.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
