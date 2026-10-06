@@ -112,6 +112,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.39**: Usage-Check Fix (CDP-Timeout), Refresh-Button bei Kein-Chat/ohne KI
 - **1.0.40**: Refresh oeffnet danach Gmail-Login mit derselben E-Mail
 - **1.0.40**: Refresh oeffnet danach Gmail-Login mit derselben E-Mail
+- **1.0.40**: Refresh oeffnet danach Gmail-Login mit derselben E-Mail
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.
