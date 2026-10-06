@@ -110,6 +110,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Onboarding-Fix**: der unsichtbare Link Skip to content wird nie mehr angeklickt (Team-Schritt blieb haengen); Google-Kontoauswahl klickt das sichtbare Konto.
 - **Trial vor MCP**: eigene MCP-Verbindungen brauchen den Business-Plan, daher zuerst Trial.
 - **Frischer Willkommen-Chat**: offene Freigaben des Willkommen-Agents werden abgelehnt bzw. gestoppt, damit der Modell-Knopf erscheint (nur ohne AdiCode-Inhalt im Chat).
+## Neu in 1.0.68
+- **MCP auf jedem PC/Konto**: die Auto-Einrichtung traegt jetzt die URL mit Schluessel ein (https://<domain>/k/<token>/mcp). Damit klappt die Verbindung auch, wenn Notion kein Bearer-Feld zeigt. Der Server akzeptiert Header-Token ODER Pfad-Token.
+- **MCP-Dialog**: der Menuepunkt Custom MCP connection wird gefunden (war ein Menueeintrag statt Knopf); Verbinden wird nur im obersten Dialog geklickt.
+- **Chat-Modell**: Cookie-OK-Dialog wird bestaetigt; ohne Modell-Knopf (nur Policy-Modell erlaubt) gilt der Chat als ok; Wartezeit fuer den Willkommen-Agent 2 min.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
