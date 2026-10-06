@@ -79,6 +79,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.58
 - **MCP automatisch**: Einrichtung funktioniert jetzt auch bei deutscher Notion-Oberflaeche (Einstellungen, Verbindungen, Add connection, Custom MCP).
 - **Refresh-Button** erscheint in Co-Work bei jedem Account.
+## Neu in 1.0.59
+- **Refresh: schliesst sich der Tab nach dem Google-Fehler, wird er automatisch neu geoeffnet und der Gmail-Login erneut versucht**
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
