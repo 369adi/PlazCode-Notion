@@ -15,7 +15,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.35
 - **Usage-Fix**: Der Check klickt jetzt den richtigen Notion-KI-Tab und liest den echten Monatsverbrauch (z.B. 16 %). Auch der Chat-Check war durch falsche Escapes defekt.## Neu in 1.0.36
 - Co-Work-Prompts und Protokoll stark gekuerzt (weniger Token pro Chat, Diffs statt Volltext, knappe Antworten)## Neu in 1.0.37
-- Pruefe Konten haengt nicht mehr bei 58 %: fehlgeschlagene Konten schliessen den Check ab, Usage-/Chat-Check mit Zeitlimit, Chat-Oeffnen mit Wiederholung## Neu in 1.0.34
+- Pruefe Konten haengt nicht mehr bei 58 %: fehlgeschlagene Konten schliessen den Check ab, Usage-/Chat-Check mit Zeitlimit, Chat-Oeffnen mit Wiederholung## Neu in 1.0.38
+- Refresh-Button bei Konten mit mehreren oder keinem Chat (loescht das Notion-Konto nach Bestaetigung, danach selbst neu einloggen)
+- Chat-Check erkennt jetzt Konten ohne Chat (Kein Chat)
+- Vorherige Fixes: Haenger bei 58 % behoben, kuerzere Co-Work-Prompts## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.## Neu in 1.0.33
 - **Echte Usage**: Der Check liest den Verbrauch direkt aus Einstellungen -> Notion KI -> Usage (Monthly, "x% used", Reset-Datum) und zeigt ihn im Balken.
