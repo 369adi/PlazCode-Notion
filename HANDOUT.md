@@ -154,6 +154,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.79**: Chat-Verlauf alle 4 s neu laden, Titel aus document.title (ntitle) bzw. 7 Woerter, STATE erkennt DE-Labels, cowork_main_context in send() bei neuem Chat, hide_all_tabs nach gruenem Check/Kickoff (set_main_hidden)
 - **1.0.80**: Chat-Tab nie neuer Notion-Chat: ensure_welcome (prepare_chat), new = Startmarke base (letzte Nachrichten-ID), state?base= filtert, Verlauf-Schluessel url#b=base, open/wait_composer nur Willkommen-URL
 - **1.0.81**: acCowork: erst ctl(new) (Startmarke), dann cowork_start_all; Titel Co-Work bzw. Co-Work: <erste eigene Nachricht>, Main-Prompt (Hallo! AdiCode Co-Work) zaehlt nicht als Titel
+- **1.0.82**: MAX_TABS/ROLES 8, prompt_for Basisrolle, Aktion cowork_check_one, account-cache.json (acc_cache/acc_persist, Loeschen in mem_forget_all), Karten-Buttons reduziert, Start ab 2 Tabs.
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.

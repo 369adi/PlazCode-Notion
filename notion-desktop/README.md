@@ -152,6 +152,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Nie ein neuer Notion-Chat**: Neuer Chat im AdiCode-Chat startet keinen Notion-Chat mehr, sondern eine neue Unterhaltung im Chat Willkommen bei Notion. Links erscheint sie mit Namen aus deiner ersten Nachricht; alte Unterhaltungen lassen sich wieder anklicken.
 ## Neu in 1.0.81
 - **Co-Work starten im Chat**: der Knopf unten links oeffnet im AdiCode-Chat eine neue Unterhaltung Co-Work (im Chat Willkommen bei Notion, kein neuer Notion-Chat) und startet Co-Work. Alles, was du dort schreibst, verteilt Main an Coder, Reviewer und Tester.
+## Neu in 1.0.82
+- **Bis zu 8 Konten** in Co-Work (Rollen Main, Coder, Reviewer, Tester, Coder 2, Reviewer 2, Tester 2, Coder 3). **Check pro Konto** mit eigenem Knopf auf der Karte. Karten aufgeraeumt (nur Gmail-Login, Check, Freigeben, Oeffnen/Stopp, Entfernen). Check-Haekchen bleiben nach AdiCode-Neustart gespeichert (account-cache.json).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
