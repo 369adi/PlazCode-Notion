@@ -238,6 +238,12 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - Kollege: seine Domain liefert ERR_NGROK_3200 (Endpoint offline) -> Notion: 'URL doesn't point to a supported MCP endpoint'. Ursache = sein ngrok-Tunnel startet nicht, NICHT der Token. Verdacht: Adrians ngrok-Authtoken in seiner ngrok.yml (Domain gehoert nicht zum Konto / ERR_NGROK_108). Loesung: eigener Authtoken (dashboard.ngrok.com > Your Authtoken) auf Notion AI > Tunnel eintragen, eigene Domain, Tunnel muss 'online' zeigen. Pruefen: curl -i https://<domain>/mcp -> 401 = ok, Header Ngrok-Error-Code = Tunnel-Problem.
 - 1.0.70: ngrok-stderr wird gesammelt (vorher nur 'ERROR:'), neue Fehlertexte 8012/121/105/107. Fenster-Waechter in notion_profiles.rs windows (WANT/PIDCACHE/APPLY, guard 0,9 s) versteckt neue Fenster versteckter Worker; Zeigen nur Hauptfenster. Backups bugtest\*.bak170.
 
+## STAND 1.0.79
+- Chat-Tab (notion_chat.rs/notion_chat_ui.html): UI laedt Verlauf alle 4 s neu (vorher nur beim Oeffnen der Seite -> neue Chats fehlten links). Titel: STATE liefert ntitle (document.title ohne ' | Notion'); remember() nimmt ntitle, sonst die ersten 7 Woerter der ersten Nachricht. STATE erkennt DE-Labels (Nachricht bearbeiten, Antwort kopieren, Vorschau).
+- Co-Work + Main-Chat: Ursache 'Co-Work klappt nicht im Main-Chat' = 'Neuer Chat' im Chat-Tab hatte den Main-Prompt nicht. send(): Chat ohne Nachrichten + STAGE 2..5 -> np::cowork_main_context() (Main-Prompt) wird vor 'Meine Aufgabe:' gesetzt.
+- hide_all_tabs: nach gruenem Check (check_action) und im Kickoff alle Notion-Fenster inkl. Main verstecken, notion_chat::set_main_hidden(true).
+- Nicht getestet: kompletter Vier-Konten-E2E (bewusst nicht ausgefuehrt).
+
 ## STAND 1.0.78
 - load_watchdog (einmal gestartet in launch()): alle 5 s pro Tab STUCK_LOAD_JS (Notion-Host, <25 Zeichen Text, <2 beschriftete Bedienelemente) -> nach 20 s Page.reload(ignoreCache), beim 3. Mal Navigate NOTION_URL; Feld load_state. Gleiche Schleife: COOKIE_JS lehnt Cookie-Banner ab (Reject all/Alle ablehnen/Nur notwendige ...), Feld cookie.
 - READY_JS verlangt >25 Zeichen Text (Skelett gilt nicht als fertig).
