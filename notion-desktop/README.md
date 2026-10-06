@@ -12,6 +12,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.24
+- Fixes aus dem ersten echten Co-Work-Test mit allen Konten (Todo-App: Coder und Tester haben parallel gebaut, sich gegenseitig reviewt und Fix-Runden gedreht).
+- Worker-Startprompt neu und natürlich formuliert: Notion AI hatte den alten Prompt als „Prompt-Injection“ abgelehnt. Der Prompt erklärt jetzt auch, dass die MCP-Verbindung in Notion „asf“ oder „AdiCode“ heißen kann.
+- Erinnerungen von AdiCode sind als Erinnerung im Namen des Nutzers formuliert statt als „System“-Befehl.
+- Ist das KI-Kontingent eines Kontos aufgebraucht, sagt AdiCode das klar. Die anderen Worker starten trotzdem und übernehmen dessen Aufgaben.
+- `safe_write_file` kennt jetzt den Parameter `agent`. Bisher konnten Co-Work-Agents ihre eigenen gesperrten Dateien nicht sicher schreiben.
+- Rollen-Bewertung: Die Aufgaben warten jetzt bis zu 90 s auf die Worker, die gerade beitreten (vorher 20 s, dann haben sie die Bewertung verpasst).
 ## Neu in 1.0.23
 - **Co-Work neu durchdacht – Rollen sind Schwerpunkte, keine Grenzen.** Coder, Reviewer und Tester helfen bei allen Aufgaben. Ist der Experte für eine Aufgabe beschäftigt (oder wartet sie länger als 90 s), übernimmt ein anderer Agent. So arbeiten wirklich alle vier gleichzeitig.
 - **Jeder Prompt wird aus Sicht jeder Rolle bewertet:** beim Start und bei jeder neuen Nachricht mitten im Projekt (neues Tool `cowork_prompt`). Coder: Umsetzungsplan und Risiken. Reviewer: Qualitätsrisiken und Akzeptanzkriterien. Tester: Testplan und Edge Cases. Fehlende Teilaufgaben schlagen die Worker direkt vor. Die Aufgaben starten, sobald alle Bewertungen da sind (spätestens nach 150 s).

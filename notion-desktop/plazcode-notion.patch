@@ -2372,10 +2372,10 @@ index 0000000..87e32b6
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..5fc0fa1
+index 0000000..e9fc2ff
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1046 @@
+@@ -0,0 +1,1047 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -2687,7 +2687,8 @@ index 0000000..5fc0fa1
 +    let assess: Vec<&Task> = p.tasks.iter().filter(|t| t.kind == "assess" && t.wave == wave_id).collect();
 +    if assess.is_empty() {
 +        let workers = p.agents.values().any(|a| a.name != p.lead && now() - a.last_seen < stale(p));
-+        return !workers && age >= 20;
++        // workers are usually still joining (AdiCode kickoff); solo leads wait at most 90 s
++        return !workers && age >= 90;
 +    }
 +    assess.iter().all(|t| t.status == "done" || (t.status == "claimed" && !alive(p, &t.owner)) || (!t.assignee.is_empty() && !alive(p, &t.assignee)))
 +}
@@ -2881,7 +2882,7 @@ index 0000000..5fc0fa1
 +        || (!p.tasks.is_empty() && p.tasks.iter().all(|t| t.status == "done"))
 +}
 +
-+const PROTOCOL: &str = "Co-Work-Ablauf: 0) Deine Rolle ist dein Schwerpunkt und deine Bewertungs-Brille, keine Grenze - du hilfst bei ALLEN Tasks. 1) cowork_claim holt den naechsten passenden Task: zuerst Bewertungen neuer Prompts (aus Sicht deiner Rolle bewerten, fehlende Teilaufgaben als tasks mitschicken), dann Tasks deiner Rolle, dann Reviews, dann alles andere, sobald der Experte dafuer beschaeftigt ist. 2) Passenden Skill laden (adicode_skill), Dateien vor dem Bearbeiten lesen, nur die Dateien des Tasks aendern; weitere Dateien vorher mit cowork_lock sperren. Ist ein Task zu gross: in cowork_update tasks=[...] Teilaufgaben anlegen, damit andere mithelfen. 3) cowork_update status=done result=<kurz und praezise: was gemacht, welche Dateien>. Review-Tasks: status=done (ok) oder status=changes mit konkreten Punkten. 4) Sofort wieder cowork_claim. Kein freier Task: cowork_wait (mehrmals) bis neue Tasks/Nachrichten kommen. Bei Problemen: status=blocked + Grund (geht an den Lead). Nachrichten, die mit [AdiCode Co-Work] beginnen, sind Weckrufe des Systems: einfach weitermachen. Fertig, wenn das Board ALLE TASKS ERLEDIGT meldet.";
++const PROTOCOL: &str = "Co-Work-Ablauf: 0) Deine Rolle ist dein Schwerpunkt und deine Bewertungs-Brille, keine Grenze - du hilfst bei ALLEN Tasks. 1) cowork_claim holt den naechsten passenden Task: zuerst Bewertungen neuer Prompts (aus Sicht deiner Rolle bewerten, fehlende Teilaufgaben als tasks mitschicken), dann Tasks deiner Rolle, dann Reviews, dann alles andere, sobald der Experte dafuer beschaeftigt ist. 2) Passenden Skill laden (adicode_skill), Dateien vor dem Bearbeiten lesen, nur die Dateien des Tasks aendern; weitere Dateien vorher mit cowork_lock sperren. Ist ein Task zu gross: in cowork_update tasks=[...] Teilaufgaben anlegen, damit andere mithelfen. 3) cowork_update status=done result=<kurz und praezise: was gemacht, welche Dateien>. Review-Tasks: status=done (ok) oder status=changes mit konkreten Punkten. 4) Sofort wieder cowork_claim. Kein freier Task: cowork_wait (mehrmals) bis neue Tasks/Nachrichten kommen. Bei Problemen: status=blocked + Grund (geht an den Lead). Nachrichten, die mit Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): beginnen, sind Weckrufe des Systems: einfach weitermachen. Fertig, wenn das Board ALLE TASKS ERLEDIGT meldet.";
 +
 +fn dispatch(board: &mut Board, name: &str, args: &Value) -> Result<(String, bool), String> {
 +    if name == "cowork_start" {
@@ -3246,19 +3247,19 @@ index 0000000..5fc0fa1
 +    if p.lead == agent {
 +        let all_done = !p.tasks.is_empty() && p.tasks.iter().all(|x| x.status == "done");
 +        if all_done {
-+            return Some((format!("done:{}:{}", p.id, p.tasks.len()), format!("[AdiCode Co-Work] Alle {} Tasks von Projekt {} sind erledigt. Rufe jetzt cowork_results (project {}, agent {agent}) auf und gib dem Nutzer EINE finale, zusammengefuehrte Antwort.", p.tasks.len(), p.id, p.id)));
++            return Some((format!("done:{}:{}", p.id, p.tasks.len()), format!("Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): Alle {} Tasks von Projekt {} sind erledigt. Rufe jetzt cowork_results (project {}, agent {agent}) auf und gib dem Nutzer EINE finale, zusammengefuehrte Antwort.", p.tasks.len(), p.id, p.id)));
 +        }
 +        let direct: Vec<Msg> = unread(p, agent).into_iter().filter(|m| m.to == agent).collect();
 +        if let Some(last) = direct.last() {
 +            let list = direct.iter().map(|m| format!("- [{}] {}", m.from, short(&m.text, 220))).collect::<Vec<_>>().join("\n");
-+            return Some((format!("msg:{}", last.id), format!("[AdiCode Co-Work] Neues fuer dich als Lead in Projekt {}:\n{list}\nArbeite die Bewertungen/Blocker ein (cowork_board / cowork_add_tasks / cowork_message, agent {agent}) und verfolge danach mit cowork_wait den Fortschritt.", p.id)));
++            return Some((format!("msg:{}", last.id), format!("Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): Neues fuer dich als Lead in Projekt {}:\n{list}\nArbeite die Bewertungen/Blocker ein (cowork_board / cowork_add_tasks / cowork_message, agent {agent}) und verfolge danach mit cowork_wait den Fortschritt.", p.id)));
 +        }
 +        return None;
 +    }
 +    if !alive(p, agent) && p.agents.get(agent).map(|a| t - a.last_seen > 3 * stale(p)).unwrap_or(true) { return None; }
 +    if let Some(cur) = p.tasks.iter().find(|x| x.owner == agent && x.status == "claimed") {
 +        if t - cur.updated > 8 * 60 {
-+            return Some((format!("stuck:{}:{}", cur.id, (t - cur.updated) / 600), format!("[AdiCode Co-Work] Du hast Task #{} ({}) in Projekt {} noch offen. Mach ihn fertig und melde ihn mit cowork_update (agent {agent}), danach weiter mit cowork_claim.", cur.id, short(&cur.title, 80), p.id)));
++            return Some((format!("stuck:{}:{}", cur.id, (t - cur.updated) / 600), format!("Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): Du hast Task #{} ({}) in Projekt {} noch offen. Mach ihn fertig und melde ihn mit cowork_update (agent {agent}), danach weiter mit cowork_claim.", cur.id, short(&cur.title, 80), p.id)));
 +        }
 +        return None;
 +    }
@@ -3267,7 +3268,7 @@ index 0000000..5fc0fa1
 +    if free.is_empty() && direct == 0 { return None; }
 +    let ids = free.iter().take(6).map(|i| format!("#{i}")).collect::<Vec<_>>().join(", ");
 +    let what = if free.is_empty() { "neue Nachrichten fuer dich".to_string() } else { format!("{} freie Task(s) ({ids})", free.len()) };
-+    Some((format!("work:{}:{}:{}", p.id, ids, p.next_msg), format!("[AdiCode Co-Work] In Projekt {} gibt es {what}. Arbeite weiter in Schleife: cowork_claim (project {}, agent {agent}) -> erledigen -> cowork_update -> cowork_claim ..., bis nichts mehr frei ist; dann cowork_wait.", p.id, p.id)))
++    Some((format!("work:{}:{}:{}", p.id, ids, p.next_msg), format!("Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): In Projekt {} gibt es {what}. Arbeite weiter in Schleife: cowork_claim (project {}, agent {agent}) -> erledigen -> cowork_update -> cowork_claim ..., bis nichts mehr frei ist; dann cowork_wait.", p.id, p.id)))
 +}
 +
 +pub(crate) fn tools() -> Vec<Value> {
@@ -4195,10 +4196,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..817b2e2
+index 0000000..35c0bd2
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,255 @@
+@@ -0,0 +1,259 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4335,8 +4336,9 @@ index 0000000..817b2e2
 +}
 +async fn trusted_click(port:u16,point:&Value)->Result<(),String>{let x=point["x"].as_f64().ok_or("Klickposition X fehlt")?;let y=point["y"].as_f64().ok_or("Klickposition Y fehlt")?;cdp(port,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}})]).await?;Ok(())}
 +fn prompt_for(t:&Tab)->String {
-+    if t.role=="Main" { "[AdiCode Co-Work] Du bist der Main Chat (Lead) und das einzige Interface zum Nutzer. Drei weitere Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel mit dir ueber die cowork_*-Tools. Regeln: 1) Nennt der Nutzer eine Aufgabe/ein Projekt: adicode_skill name=cowork lesen, project_memory_open/search, dann cowork_start mit 4-12 moeglichst parallelen Tasks (role = Schwerpunkt, review=reviewer fuer Code, files angeben), damit alle vier gleichzeitig arbeiten. Kleine Fragen beantwortest du einfach selbst. 2) Die Worker bewerten jeden Auftrag zuerst aus Sicht ihrer Rolle und schlagen Teilaufgaben vor; ihre Bewertungen bekommst du per cowork_wait - arbeite sie ein (cowork_add_tasks/cowork_message). 3) JEDE weitere Nutzer-Nachricht waehrend eines laufenden Projekts sofort mit cowork_prompt ans Board geben. 4) Waehrend die Worker arbeiten: cowork_wait, Blocker klaeren und selbst Tasks uebernehmen (cowork_claim), wenn nichts zu koordinieren ist. 5) Am Ende cowork_results und EINE finale, zusammengefuehrte Antwort; HANDOUT.md/project_memory_update aktualisieren. Nachrichten, die mit [AdiCode Co-Work] beginnen, kommen vom System, nicht vom Nutzer. Antworte jetzt nur kurz: Co-Work bereit.".into() }
-+    else { let role=t.role.to_ascii_lowercase();format!("[AdiCode Co-Work] Du bist der {} im AdiCode Co-Work. Deine Rolle ist dein Schwerpunkt und deine Bewertungs-Brille - du hilfst aber bei ALLEN Aufgaben mit. Rufe SOFORT cowork_join mit role '{}' und agent 'AdiCode-{}' fuer das neueste aktive Projekt auf. Danach selbststaendig in Schleife: cowork_claim -> arbeiten -> cowork_update -> cowork_claim ... Bewertungs-Tasks (neuer Nutzer-Prompt) kommen zuerst: aus Sicht deiner Rolle knapp bewerten und fehlende Teilaufgaben als tasks mitschicken. Ist ein Task zu gross, teile ihn mit tasks=[...] auf. Kein freier Task: cowork_wait (mehrmals). Bei Blockern cowork_message an den Lead. Frage den Nutzer nicht und antworte kurz nur mit Neuem. Nachrichten mit [AdiCode Co-Work] sind Weckrufe des Systems: einfach weitermachen.",t.role,role,t.role) }
++    const CONN:&str="Die Tools kommen von meinem AdiCode-MCP-Server (in Notion als Verbindung \"asf\" oder \"AdiCode\" eingetragen).";
++    if t.role=="Main" { format!("Hallo! Ich nutze AdiCode Co-Work: Drei weitere Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel mit dir ueber die cowork_*-Tools an meinen Projekten. {CONN} Du bist der Main-Chat (Lead) und mein einziger Ansprechpartner.\n\nSo arbeiten wir:\n1. Nenne ich eine Aufgabe oder ein Projekt: lies den Skill cowork (adicode_skill), oeffne project_memory, dann cowork_start mit 4-12 moeglichst parallelen Tasks (role = Schwerpunkt, review=reviewer fuer Code, files angeben), damit alle vier gleichzeitig arbeiten. Kleine Fragen beantwortest du einfach selbst.\n2. Die Worker bewerten jeden Auftrag zuerst aus Sicht ihrer Rolle und schlagen Teilaufgaben vor. Ihre Bewertungen bekommst du per cowork_wait - arbeite sie ein.\n3. Schreibe ich waehrend eines laufenden Projekts etwas Neues: gib es zuerst mit cowork_prompt ans Board.\n4. Waehrend die Worker arbeiten: cowork_wait, Probleme klaeren und selbst Tasks uebernehmen (cowork_claim), wenn nichts zu koordinieren ist.\n5. Am Ende cowork_results und mir EINE zusammengefasste Antwort geben; HANDOUT.md und project_memory aktualisieren.\n\nAdiCode schickt dir manchmal eine kurze automatische Erinnerung in meinem Namen (z. B. wenn Bewertungen da oder alle Tasks fertig sind). Antworte jetzt bitte nur kurz: Co-Work bereit.") }
++    else { let role=t.role.to_ascii_lowercase();format!("Hallo! Ich nutze AdiCode Co-Work: Mehrere Notion-AI-Chats arbeiten ueber die cowork_*-Tools gemeinsam an meinem Projekt. {CONN} In diesem Chat bist du bitte mein {r}. Die Rolle ist dein Schwerpunkt, du darfst aber bei allen Aufgaben mithelfen.\n\nSo geht es:\n1. Tritt dem neuesten Projekt bei: cowork_join mit role \"{role}\" und agent \"AdiCode-{r}\" (gibt es mehrere Projekte, nimm das neueste aus cowork_board).\n2. Arbeite die Aufgaben ab: cowork_claim, Aufgabe erledigen, cowork_update mit kurzem Ergebnis, dann wieder cowork_claim. Beim Schreiben mit safe_write_file immer agent \"AdiCode-{r}\" mitgeben.\n3. Bewertungs-Aufgaben zu einem neuen Auftrag zuerst: knapp aus Sicht deiner Rolle einschaetzen und fehlende Teilaufgaben als tasks vorschlagen.\n4. Ist gerade nichts frei: cowork_wait.\n\nIch bin nicht am Rechner, bitte arbeite selbststaendig weiter. Fragen bitte per cowork_message an den Lead (Main-Chat). AdiCode schickt dir ab und zu eine kurze automatische Erinnerung in meinem Namen, wenn neue Aufgaben da sind.",r=t.role) }
 +}
 +/// Chat is idle: Notion AI is not generating/recording and the composer is empty.
 +async fn chat_idle(port:u16)->bool{
@@ -4380,10 +4382,11 @@ index 0000000..817b2e2
 +}
 +async fn open_main(port:u16)->Result<(),String>{cdp(port,vec![json!({"method":"Page.bringToFront"})]).await?;Ok(())
 +}
++const QUOTA_JS:&str=r#"/used your (trial )?AI allowance|add a payment method to unlock more AI|KI-Kontingent|AI-Guthaben/i.test((document.body&&document.body.innerText)||'')"#;
 +async fn insert_prompt(port:u16,prompt:String)->Result<(),String>{
 +    let focus=r#"(()=>{const q=[...document.querySelectorAll('textarea,[contenteditable=\"true\"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&r.left>70&&s.visibility!=='hidden'&&s.display!=='none'}).sort((a,b)=>{const score=e=>{const hint=((e.getAttribute('placeholder')||'')+' '+(e.getAttribute('aria-label')||'')).toLowerCase();return (/ask notion ai|notion ai fragen|frag notion ai|describe your own/.test(hint)?100000:0)+e.getBoundingClientRect().bottom};return score(b)-score(a)});if(!q[0])return false;q[0].focus();return true})()"#;
 +    let mut ready=false;for _ in 0..20{ready=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":focus,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool).unwrap_or(false);if ready{break;}tokio::time::sleep(Duration::from_millis(500)).await;}
-+    if !ready{return Err("Notion-AI-Eingabefeld nicht gefunden; Startprompt kopieren verwenden.".into());}
++    if !ready{let quota=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":QUOTA_JS,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false);if quota{return Err("KI-Kontingent dieses Notion-Kontos ist aufgebraucht".into());}return Err("Notion-AI-Eingabefeld nicht gefunden; Startprompt kopieren verwenden.".into());}
 +    cdp(port,vec![json!({"method":"Input.insertText","params":{"text":prompt}})]).await?;tokio::time::sleep(Duration::from_millis(300)).await;
 +    let submit=r#"(()=>{const e=[...document.querySelectorAll('button,[role=\"button\"]')].find(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e),a=(e.getAttribute('aria-label')||'').toLowerCase();return r.width>0&&r.height>0&&s.display!=='none'&&/submit ai message|send|senden/.test(a)});if(!e)return null;const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()"#;
 +    let point=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":submit,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);
@@ -4422,10 +4425,12 @@ index 0000000..817b2e2
 +    set_status("Projekt erkannt. Coder, Reviewer und Tester treten bei …");
 +    let mut prompt_errors=Vec::new();
 +    for(i,t)in tabs.iter().enumerate().skip(1){if let Err(e)=insert_prompt(cdp_port(i),prompt_for(t)).await{prompt_errors.push(format!("{}: {e}",t.role));}tokio::time::sleep(Duration::from_secs(2)).await;}
-+    if !prompt_errors.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Worker-Kickoff unvollständig: {}",prompt_errors.join("; ")));return;}
-+    let wanted=["coder","reviewer","tester"];
-+    for _ in 0..45 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){set_status("Co-Work aktiv: Coder, Reviewer und Tester sind mit Main verbunden. Jeder bewertet neue Auftraege aus seiner Rollen-Sicht und hilft dann bei allem mit.");let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(2)).await;}
-+    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.",missing.join(", ")));
++    let failed:Vec<String>=prompt_errors.iter().map(|e|e.split(':').next().unwrap_or("").to_ascii_lowercase()).collect();
++    let note=if prompt_errors.is_empty(){String::new()}else{format!(" Nicht gestartet: {} - die anderen übernehmen diese Aufgaben mit.",prompt_errors.join("; "))};
++    let wanted:Vec<&str>=["coder","reviewer","tester"].into_iter().filter(|r|!failed.iter().any(|f|f==r)).collect();
++    if wanted.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Worker-Kickoff fehlgeschlagen:{note}"));return;}
++    for _ in 0..45 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){set_status(format!("Co-Work aktiv: {} mit Main verbunden. Jeder bewertet neue Aufträge aus seiner Rollen-Sicht und hilft dann bei allem mit.{note}",wanted.join(", ")));let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(2)).await;}
++    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.{note}",missing.join(", ")));
 +}
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
 +fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
@@ -5506,7 +5511,7 @@ index 0000000..be8820a
 +}
 diff --git a/agent/src/notion_safety.rs b/agent/src/notion_safety.rs
 new file mode 100644
-index 0000000..9759733
+index 0000000..7b1d27f
 --- /dev/null
 +++ b/agent/src/notion_safety.rs
 @@ -0,0 +1,227 @@
@@ -5637,7 +5642,7 @@ index 0000000..9759733
 +        json!({"name": "safe_read_file", "description": "[Sicher] Liest eine UTF-8-Textdatei (max. 500 KB) im Shared-Ordner und liefert ihren sha256. Pfade relativ zum Shared-Ordner; Geheimnis-Dateien sind gesperrt.",
 +            "inputSchema": {"type": "object", "required": ["path"], "properties": {"path": {"type": "string"}}}, "annotations": {"readOnlyHint": true}}),
 +        json!({"name": "safe_write_file", "description": "[Sicher] Legt eine Datei an oder ersetzt sie NUR, wenn expected_sha256 noch zur aktuellen Version passt (vorher safe_read_file). Verhindert, dass parallele Chats sich gegenseitig ueberschreiben.",
-+            "inputSchema": {"type": "object", "required": ["path", "content"], "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "expected_sha256": {"type": "string", "description": "Pflicht beim Ersetzen, weglassen beim Anlegen."}}},
++            "inputSchema": {"type": "object", "required": ["path", "content"], "properties": {"path": {"type": "string"}, "content": {"type": "string"}, "expected_sha256": {"type": "string", "description": "Pflicht beim Ersetzen, weglassen beim Anlegen."}, "agent": {"type": "string", "description": "Co-Work: dein Agent-Name (z. B. AdiCode-Coder), damit deine eigenen Datei-Locks gelten"}}},
 +            "annotations": {"destructiveHint": true}}),
 +        json!({"name": "safe_search_files", "description": "[Sicher] Sucht Text in den Dateien des Shared-Ordners (ohne Abhaengigkeits-/Build-Ordner und Geheimnis-Dateien).",
 +            "inputSchema": {"type": "object", "required": ["query"], "properties": {"query": {"type": "string"}, "path": {"type": "string"}, "max_results": {"type": "integer", "minimum": 1, "maximum": 200}}},
@@ -5651,7 +5656,7 @@ index 0000000..9759733
 +        "safe_write_file" => {
 +            let path = args["path"].as_str().unwrap_or("");
 +            if let Some(owner) = crate::notion_cowork::lock_owner(path, args["agent"].as_str().unwrap_or("")) {
-+                Err(format!("Datei ist im Co-Work-Board von '{owner}' gesperrt."))
++                Err(format!("Datei ist im Co-Work-Board von '{owner}' gesperrt. Bist du das selbst, gib agent=<dein Agent-Name> mit; sonst warte oder stimme dich per cowork_message ab."))
 +            } else {
 +                write_file(path, args["content"].as_str().unwrap_or(""), args["expected_sha256"].as_str().unwrap_or(""))
 +            }
