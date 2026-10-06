@@ -3756,10 +3756,10 @@ index 0000000..ffbc6b7
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..b244bea
+index 0000000..fb888dc
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,865 @@
+@@ -0,0 +1,868 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -4400,6 +4400,9 @@ index 0000000..b244bea
 +    if l.contains("err_ngrok_108") { return "Es läuft bereits eine andere ngrok-Sitzung (z. B. die alte Bridge). Bitte beenden.".into(); }
 +    if l.contains("err_ngrok_334") || l.contains("already bound") || l.contains("already online") { return "Die Domain ist schon an einen anderen ngrok-Tunnel gebunden. Alte Bridge/ngrok beenden.".into(); }
 +    if l.contains("err_ngrok_319") || l.contains("err_ngrok_320") { return "Diese Domain gehört nicht zu deinem ngrok-Konto.".into(); }
++    if l.contains("err_ngrok_8012") { return "ngrok erreicht AdiCode lokal nicht (Port belegt/Firewall). AdiCode neu starten.".into(); }
++    if l.contains("err_ngrok_121") || l.contains("too old") { return "ngrok ist zu alt: auf Notion AI > Tunnel ngrok neu installieren.".into(); }
++    if l.contains("err_ngrok_105") || l.contains("err_ngrok_107") { return "ngrok-Authtoken ist ungueltig: neuen Authtoken aus dashboard.ngrok.com eintragen.".into(); }
 +    let msg = line.split("err=").nth(1).unwrap_or(line).trim().trim_matches('"');
 +    msg.chars().take(300).collect()
 +}
@@ -4482,7 +4485,7 @@ index 0000000..b244bea
 +            tokio::spawn(async move {
 +                let mut lines = tokio::io::BufReader::new(err).lines();
 +                while let Ok(Some(line)) = lines.next_line().await {
-+                    if !line.trim().is_empty() { *lock(&le) = line; }
++                    let part = line.trim().trim_start_matches("ERROR:").trim().to_string(); if !part.is_empty() { let mut g = lock(&le); if g.contains("lvl=") { g.clear(); } if g.len() < 700 { if !g.is_empty() { g.push(' '); } g.push_str(&part); } }
 +                }
 +            });
 +        }
@@ -4627,10 +4630,10 @@ index 0000000..b244bea
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..75bfabb
+index 0000000..7bed17d
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,563 @@
+@@ -0,0 +1,593 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4805,25 +4808,55 @@ index 0000000..75bfabb
 +#[cfg(windows)]
 +pub(crate) mod windows {
 +    use super::*;
++    // Versteckte Worker-Tabs (Tab-IDs). Ein Waechter-Thread versteckt jede Sekunde neu aufgetauchte Fenster
++    // dieser Browser-Prozesse (Popups, Fenster die beim Verstecken noch keinen Titel hatten, Fenster nach
++    // Neuladen). Vorher blieben die als schwarze/weisse Fenster in der Brave-/Edge-Taskleiste.
++    static WANT: Lazy<Mutex<HashSet<u32>>> = Lazy::new(|| Mutex::new(HashSet::new()));
++    static PIDCACHE: Lazy<Mutex<(BTreeMap<u32, HashSet<u32>>, Option<std::time::Instant>)>> = Lazy::new(|| Mutex::new((BTreeMap::new(), None)));
++    static APPLY: Mutex<()> = Mutex::new(());
 +    static PIDS: Lazy<Mutex<(HashSet<u32>, bool)>> = Lazy::new(|| Mutex::new((HashSet::new(), false)));
-+    // Nur echte Notion-Fenster anfassen: sichtbar beim Verstecken gemerkt, beim Zeigen nur diese (bzw. Hauptfenster mit Titel).
-+    // Vorher wurden ALLE Fenster der Browser-Prozesse wiederhergestellt -> leere schwarze Hilfsfenster.
 +    static HIDDEN: Lazy<Mutex<HashSet<isize>>> = Lazy::new(|| Mutex::new(HashSet::new()));
++    static GUARD: std::sync::Once = std::sync::Once::new();
 +    #[link(name="user32")]
 +    extern "system" { fn EnumWindows(cb: unsafe extern "system" fn(isize,isize)->i32, data:isize)->i32; fn GetWindowThreadProcessId(hwnd:isize,pid:*mut u32)->u32; fn ShowWindowAsync(hwnd:isize,cmd:i32)->i32; fn SetForegroundWindow(hwnd:isize)->i32; fn IsWindowVisible(hwnd:isize)->i32; fn GetWindowTextLengthW(hwnd:isize)->i32; fn GetWindow(hwnd:isize,cmd:u32)->isize; fn GetClassNameW(hwnd:isize,buf:*mut u16,max:i32)->i32; }
-+    unsafe fn real_window(hwnd:isize)->bool { let mut b=[0u16;64]; let n=GetClassNameW(hwnd,b.as_mut_ptr(),64).max(0) as usize; String::from_utf16_lossy(&b[..n])=="Chrome_WidgetWin_1" && GetWindowTextLengthW(hwnd)>0 && GetWindow(hwnd,4)==0 }
++    unsafe fn class(hwnd:isize)->String { let mut b=[0u16;64]; let n=GetClassNameW(hwnd,b.as_mut_ptr(),64).max(0) as usize; String::from_utf16_lossy(&b[..n]) }
++    // Beim Zeigen nur echte Hauptfenster (Titel, ohne Owner) - nie Hilfsfenster, sonst schwarze Fenster.
++    unsafe fn real_window(hwnd:isize)->bool { class(hwnd)=="Chrome_WidgetWin_1" && GetWindowTextLengthW(hwnd)>0 && GetWindow(hwnd,4)==0 }
 +    unsafe extern "system" fn visit(hwnd:isize,_:isize)->i32 {
 +        let mut pid=0; GetWindowThreadProcessId(hwnd,&mut pid); let g=lock(&PIDS); if !g.0.contains(&pid){return 1;}
 +        let mut h=lock(&HIDDEN);
-+        if g.1 { let ours=h.remove(&hwnd); if ours||real_window(hwnd){ShowWindowAsync(hwnd,9);SetForegroundWindow(hwnd);} }
-+        else if IsWindowVisible(hwnd)!=0 && real_window(hwnd) { h.insert(hwnd); ShowWindowAsync(hwnd,0); }
++        if g.1 { h.remove(&hwnd); if real_window(hwnd){ShowWindowAsync(hwnd,9);SetForegroundWindow(hwnd);} }
++        // Verstecken: JEDES sichtbare Top-Level-Fenster des Prozesses (auch ohne Titel/mit Owner).
++        else if IsWindowVisible(hwnd)!=0 && class(hwnd).starts_with("Chrome_WidgetWin") { h.insert(hwnd); ShowWindowAsync(hwnd,0); }
 +        1
 +    }
++    fn pids_of(t:&Tab, cmds:&[(sysinfo::Pid, String)])->HashSet<u32>{ let d=dir(t.id).display().to_string(); cmds.iter().filter(|(_,c)|cmd_uses(c,&d)).map(|(p,_)|p.as_u32()).collect() }
++    fn apply(p:HashSet<u32>, show:bool){ if p.is_empty(){return;} *lock(&PIDS)=(p,show); unsafe{EnumWindows(visit,0);} }
 +    pub fn any_hidden()->bool{!lock(&HIDDEN).is_empty()}
 +    pub fn set_hidden(tabs:&[Tab], hidden:bool){
-+        let cmds=browser_cmds(); let mut p=HashSet::new();
-+        for t in tabs { let d=dir(t.id).display().to_string(); for(pid,c) in &cmds { if cmd_uses(c,&d){p.insert(pid.as_u32());} } }
-+        *lock(&PIDS)=(p,!hidden); unsafe{EnumWindows(visit,0);}
++        let cmds=browser_cmds();
++        let _a=lock(&APPLY);
++        let mut p=HashSet::new();
++        { let mut w=lock(&WANT); let mut c=lock(&PIDCACHE);
++          for t in tabs { let s=pids_of(t,&cmds); p.extend(s.iter().copied()); if hidden { w.insert(t.id); c.0.insert(t.id,s); } else { w.remove(&t.id); c.0.remove(&t.id); } } }
++        apply(p, !hidden);
++        if hidden { GUARD.call_once(|| { std::thread::spawn(guard); }); }
++    }
++    fn guard(){
++        loop {
++            std::thread::sleep(Duration::from_millis(900));
++            if lock(&WANT).is_empty(){ continue; }
++            // Prozessliste alle 4 s auffrischen (neue Renderer/Browser-Neustart), ausserhalb des Locks.
++            let stale=lock(&PIDCACHE).1.map_or(true,|t|t.elapsed()>Duration::from_secs(4));
++            let fresh=if stale { let cmds=browser_cmds(); let tabs=load(); let ids:Vec<u32>=lock(&WANT).iter().copied().collect();
++                Some(tabs.iter().filter(|t|ids.contains(&t.id)).map(|t|(t.id,pids_of(t,&cmds))).collect::<Vec<_>>()) } else { None };
++            let _a=lock(&APPLY);
++            let p:HashSet<u32>={ let w=lock(&WANT); let mut c=lock(&PIDCACHE);
++                if let Some(f)=fresh { for (id,s) in f { if w.contains(&id){ c.0.insert(id,s); } } c.1=Some(std::time::Instant::now()); }
++                c.0.retain(|id,_|w.contains(id));
++                c.0.values().flat_map(|s|s.iter().copied()).collect() };
++            apply(p,false);
++        }
 +    }
 +}
 +#[cfg(not(windows))] pub(crate) mod windows { use super::*; pub fn set_hidden(_: &[Tab],_:bool){} pub fn any_hidden()->bool{false} }

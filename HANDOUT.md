@@ -142,6 +142,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.67**: Refresh->check_one, Skip-to-content-Fix, Google-Chooser sichtbar, Trial vor MCP, Willkommen-Chat entsperren, Trial kuendigen
 - **1.0.68**: MCP-URL mit Schluessel (/k/<token>/mcp) fuer fremde PCs, Header ODER Pfad-Token, Custom-MCP-Menuepunkt, Connect im Dialog, Cookie-OK + Chat ohne Modell-Knopf ok
 - **1.0.69**: Bearer-Fix fremde PCs (clean_tok: doppeltes Bearer/Quotes/Whitespace, x-api-key, ?token=, Root-URL + /k/<token> ohne /mcp), OPTIONS/CORS, Diagnose abgelehnter Anfragen (UI-Zeile Abgelehnt, logs\mcp-auth.log)
+- **1.0.70**: Fenster-Waechter fuer versteckte Worker (alle Chrome_WidgetWin-Fenster der Tab-Prozesse, 0,9 s; Zeigen nur Hauptfenster), ngrok-stderr wird gesammelt (ERROR:-Mehrzeiler)
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.

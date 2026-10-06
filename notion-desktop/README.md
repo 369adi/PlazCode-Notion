@@ -118,6 +118,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **MCP mit Bearer-Token auf fremden PCs**: der Server akzeptiert den Token jetzt auch, wenn er als "Bearer abc" ins Bearer-Feld kopiert wurde, mit Anfuehrungszeichen/Leerzeichen, ohne "Bearer", als x-api-key oder ?token=. Die Server-URL darf auch ohne /mcp eingetragen werden.
 - **CORS/OPTIONS** fuer den MCP-Endpunkt (Preflight wird nicht mehr mit 401 abgelehnt).
 - **Diagnose**: abgelehnte Notion-Anfragen erscheinen auf der Seite Notion AI (Zeile "Abgelehnt" mit Grund) und in logs\mcp-auth.log - ohne Token-Inhalt.
+## Neu in 1.0.70
+- **Worker-Fenster bleiben versteckt**: ein Waechter versteckt jede Sekunde neu aufgetauchte Fenster der Co-Work-Tabs (Popups, Fenster ohne Titel). Keine schwarzen/weissen Fenster mehr in der Brave-/Edge-Taskleiste; beim Zeigen nur echte Hauptfenster.
+- **Tunnel-Fehler lesbar**: statt nur ERROR: zeigt AdiCode den vollstaendigen ngrok-Fehler (z. B. Authtoken ungueltig, andere Sitzung aktiv, Domain gehoert nicht zum Konto).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
