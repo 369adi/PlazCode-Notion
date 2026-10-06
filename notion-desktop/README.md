@@ -32,6 +32,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Update-Notizen werden wieder sauber untereinander angezeigt
 ## Neu in 1.0.40
 - **Refresh**: Nach dem Loeschen des Notion-Kontos oeffnet sich automatisch der Gmail-Login mit derselben E-Mail-Adresse
+## Neu in 1.0.40
+- **Refresh**: Nach dem Loeschen des Notion-Kontos oeffnet sich automatisch der Gmail-Login mit derselben E-Mail-Adresse
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
