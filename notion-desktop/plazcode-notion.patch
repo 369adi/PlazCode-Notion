@@ -1637,10 +1637,10 @@ index 1a68aee..c63d1e2 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
-index 0000000..88d4724
+index 0000000..b806238
 --- /dev/null
 +++ b/agent/src/notion_chat.rs
-@@ -0,0 +1,506 @@
+@@ -0,0 +1,515 @@
 +//! AdiCode Chat: ChatGPT-aehnliche Chatbox direkt in AdiCode.
 +//! Sie steuert den Co-Work-Main-Tab (Notion AI, CDP-Port 9301): Text, Fotos, Videos und
 +//! Dateien, Notion-Diktat (Sprechbox), Stopp, neuer Chat, Verlauf und Freigabe-Knoepfe.
@@ -1722,19 +1722,28 @@ index 0000000..88d4724
 +}
 +
 +/// Gemeinsame Helfer, die vor jedes Skript im Notion-Tab gesetzt werden.
-+const H: &str = r##"const __vis=e=>{if(!e)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const __A={'agent-chat-send-button':['agent-send-message-button'],'agent-chat-stop-button':['agent-stop-inference-button']};const __q=t=>{for(const x of [t,...(__A[t]||[])]){const e=document.querySelector('[data-testid="'+x+'"]');if(e)return e}return null};const __composer=()=>{const list=[...document.querySelectorAll('[contenteditable="true"][role="textbox"],[contenteditable="true"][placeholder]')].filter(__vis);if(!list.length)return null;const b=__q('agent-chat-send-button');if(!b)return list.sort((a,c)=>c.getBoundingClientRect().bottom-a.getBoundingClientRect().bottom)[0];const y=b.getBoundingClientRect().top;return list.sort((a,c)=>Math.abs(a.getBoundingClientRect().bottom-y)-Math.abs(c.getBoundingClientRect().bottom-y))[0]};const __center=e=>{const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}};const __sleep=ms=>new Promise(r=>setTimeout(r,ms));"##;
++const H: &str = r##"const __vis=e=>{if(!e)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const __rows=()=>{const o=[...document.querySelectorAll('[data-agent-service-find-row]')];if(o.length)return o;const us=[...document.querySelectorAll('[data-agent-chat-user-step-id]')];if(!us.length)return [];let p=us[us.length-1];if(us.length>1){while(p&&!p.contains(us[us.length-2]))p=p.parentElement;}else{for(let i=0;i<14&&p.parentElement;i++){p=p.parentElement;if([...p.children].some(k=>!k.contains(us[0])&&k.querySelector('[aria-label="Copy response"],[aria-label="Antwort kopieren"],[aria-expanded]')))break;}}if(!p)return [];return [...p.children].filter(k=>(k.innerText||'').trim()||k.querySelector('[aria-expanded]'))};const __A={'agent-chat-send-button':['agent-send-message-button'],'agent-chat-stop-button':['agent-stop-inference-button']};const __q=t=>{for(const x of [t,...(__A[t]||[])]){const e=document.querySelector('[data-testid="'+x+'"]');if(e)return e}return null};const __composer=()=>{const list=[...document.querySelectorAll('[contenteditable="true"][role="textbox"],[contenteditable="true"][placeholder]')].filter(__vis);if(!list.length)return null;const b=__q('agent-chat-send-button');if(!b)return list.sort((a,c)=>c.getBoundingClientRect().bottom-a.getBoundingClientRect().bottom)[0];const y=b.getBoundingClientRect().top;return list.sort((a,c)=>Math.abs(a.getBoundingClientRect().bottom-y)-Math.abs(c.getBoundingClientRect().bottom-y))[0]};const __center=e=>{const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}};const __sleep=ms=>new Promise(r=>setTimeout(r,ms));"##;
 +
 +const PROBE: &str = r##"const p=location.pathname;const login=/^\/(login|signup|onboarding)/.test(p)||!!document.querySelector('input[type="email"]');return {composer:!!__composer(),recording:!!__q('agent-chat-stop-recording-button'),login,onchat:p.startsWith('/ai')||p.startsWith('/chat'),url:location.href};"##;
 +
-+const STATE: &str = r##"const rows=[...document.querySelectorAll('[data-agent-service-find-row]')];const msgs=[];let cur=null;
++const STATE: &str = r##"const rows=__rows();const msgs=[];let cur=null;
 +const flat=n=>{n.querySelectorAll('svg,input,textarea,style,script,img[src^="blob:"]').forEach(x=>x.remove());n.querySelectorAll('button,[role="button"]').forEach(x=>{const t=(x.textContent||'').trim();x.replaceWith(document.createTextNode(t))});return n};
-+for(const r of rows){const anchor=r.getAttribute('data-agent-service-scroll-anchor')||'';
-+ if(r.querySelector('[aria-label="Edit message"],[aria-label="Nachricht bearbeiten"]')){const files=[...r.querySelectorAll('[aria-label^="Preview "],[aria-label^="Vorschau "]')].map(e=>e.getAttribute('aria-label').replace(/^(Preview|Vorschau) /,''));let lines=(r.innerText||'').split('\n');while(lines.length&&/^\s*(\d{1,2}:\d{2}(\s?[AP]M)?)?\s*$/i.test(lines[lines.length-1]))lines.pop();lines=lines.filter(l=>!files.includes(l.trim()));msgs.push({role:'user',id:anchor,text:lines.join('\n').trim(),files});cur=null;continue;}
++const COPY='[aria-label="Copy response"],[aria-label="Antwort kopieren"]',CT='[data-content-editable-root],[data-block-id],p,ul,ol,pre,table,h1,h2,h3,h4,blockquote,hr,li,code',TIME=/^\s*(\d{1,2}:\d{2}(\s?[AP]M)?)?\s*$/i;
++const tidy=t=>String(t||'').split('\n').map(s=>s.trim()).filter(s=>s&&!TIME.test(s));
++const stepOf=e=>{let l=tidy(e.innerText);if(l.length>1&&/^[A-Z]$/.test(l[0]))l=l.slice(1);l=l.filter((x,i)=>x!==l[i-1]);return l.slice(0,4).join(' ').replace(/\s*\/\s*/,' / ').replace(/^[A-Z] (?=\S+ \/ )/,'').slice(0,220)};
++const push=t=>{if(!t)return;const p=cur.steps[cur.steps.length-1];if(p===t&&!/ \/ /.test(t))return;cur.steps.push(t)};
++const walk=(n,d)=>{const self=n.hasAttribute('aria-expanded'),tg=self||!!n.querySelector('[aria-expanded]'),ct=n.matches(CT)||!!n.querySelector(CT);
++ if(tg&&ct&&!self&&d<8&&n.children.length){for(const k of n.children)walk(k,d+1);return;}
++ if(tg){(self?[n]:[...n.querySelectorAll('[aria-expanded]')]).forEach(e=>push(stepOf(e)));return;}
++ if(ct){if(n.querySelector(COPY)&&d<8&&n.children.length>1){for(const k of n.children)walk(k,d+1);return;}cur.html+=flat(n.cloneNode(true)).innerHTML;return;}
++ if(n.matches(COPY)||n.querySelector(COPY))return;
++ const l=tidy(n.innerText);if(l.length&&l.join(' ').length<120)push(l.slice(0,2).join(' · '));};
++rows.forEach((r,i)=>{const uid=r.hasAttribute('data-agent-chat-user-step-id')?r:r.querySelector('[data-agent-chat-user-step-id]');const anchor=r.getAttribute('data-agent-service-scroll-anchor')||(uid&&uid.getAttribute('data-agent-chat-user-step-id'))||('r'+i);
++ if(uid||r.querySelector('[aria-label="Edit message"],[aria-label="Nachricht bearbeiten"]')){const files=[...r.querySelectorAll('[aria-label^="Preview "],[aria-label^="Vorschau "]')].map(e=>e.getAttribute('aria-label').replace(/^(Preview|Vorschau) /,''));let lines=(r.innerText||'').split('\n');while(lines.length&&TIME.test(lines[lines.length-1]))lines.pop();lines=lines.filter(l=>!files.includes(l.trim()));msgs.push({role:'user',id:anchor,text:lines.join('\n').trim(),files});cur=null;return;}
 + if(!cur){cur={role:'assistant',id:anchor,html:'',steps:[],actions:[],done:false};msgs.push(cur);}
-+ if(r.querySelector('[aria-label="Copy response"],[aria-label="Antwort kopieren"]')){cur.done=true;continue;}
-+ const toggle=r.querySelector('[aria-expanded]');const content=r.querySelector('p,ul,ol,pre,table,h1,h2,h3,h4,blockquote,hr,li,code');
-+ if(content&&!toggle){cur.html+=flat(r.cloneNode(true)).innerHTML;}else{const t=(r.innerText||'').trim();if(t)cur.steps.push(t.split('\n').filter(Boolean).slice(0,3).join(' \u00b7 ').slice(0,180));}
-+ [...r.querySelectorAll('button,[role="button"]')].filter(b=>__vis(b)&&!b.hasAttribute('aria-expanded')&&(b.innerText||'').trim()&&(b.innerText||'').trim().length<40).forEach(b=>cur.actions.push({row:anchor,label:(b.innerText||'').trim()}));}
++ if(r.querySelector(COPY))cur.done=true;
++ walk(r,0);
++ [...r.querySelectorAll('button,[role="button"]')].filter(b=>{const t=(b.innerText||'').trim();return __vis(b)&&!b.hasAttribute('aria-expanded')&&!b.hasAttribute('aria-label')&&!b.closest('[aria-expanded]')&&t&&t.length<40&&!TIME.test(t)}).forEach(b=>cur.actions.push({row:anchor,label:(b.innerText||'').trim()}));});
 +msgs.forEach(m=>{if(m.html&&m.html.length>300000)m.html=m.html.slice(0,300000)});
 +const c=__composer();const p=location.pathname;
 +return {url:location.href,title:document.title,ntitle:(document.title||'').replace(/\s*\|\s*Notion\s*$/,'').trim(),login:/^\/(login|signup|onboarding)/.test(p),onchat:p.startsWith('/ai')||p.startsWith('/chat'),composer:!!c,composerText:c?(c.innerText||'').trim():'',generating:!!__q('agent-chat-stop-button'),recording:!!__q('agent-chat-stop-recording-button'),messages:msgs.slice(-80)};"##;
@@ -1744,7 +1753,7 @@ index 0000000..88d4724
 +const UPLOAD_STATE: &str = r##"const b=__q('agent-chat-send-button');const busy=!!document.querySelector('[role="progressbar"],[aria-busy="true"]')||/uploading|wird hochgeladen/i.test(((__composer()||{}).closest&&__composer().closest('form,div[data-agent-chat-survey-shortcut-scope]')||document.body).innerText.slice(-3000));return {busy,disabled:b?b.getAttribute('aria-disabled')==='true':true};"##;
 +
 +const SEND_POINT: &str = r##"const b=__q('agent-chat-send-button');if(!b)return null;return Object.assign(__center(b),{disabled:b.getAttribute('aria-disabled')==='true'});"##;
-+const ROWS: &str = r##"return {rows:document.querySelectorAll('[data-agent-service-find-row]').length,gen:!!__q('agent-chat-stop-button')};"##;
++const ROWS: &str = r##"return {rows:__rows().length,gen:!!__q('agent-chat-stop-button')};"##;
 +
 +fn js_str(s: &str) -> String { serde_json::to_string(s).unwrap_or_else(|_| "\"\"".into()) }
 +
@@ -2079,7 +2088,7 @@ index 0000000..88d4724
 +        "trim" => {
 +            let keep = b["keep"].as_u64().unwrap_or(12);
 +            let mut s = Session::page().await?;
-+            let js = format!("const r=[...document.querySelectorAll('[data-agent-service-find-row]')];const n=Math.max(0,r.length-{});r.forEach((e,i)=>{{e.style.display=i<n?'none':''}});return n;", keep);
++            let js = format!("const r=__rows();const n=Math.max(0,r.length-{});r.forEach((e,i)=>{{e.style.display=i<n?'none':''}});return n;", keep);
 +            let v = s.eval(&js).await?;
 +            Ok(json!({"ok": true, "hidden": v}))
 +        }
@@ -2113,7 +2122,7 @@ index 0000000..88d4724
 +            let row = b["row"].as_str().unwrap_or("");
 +            let label = b["label"].as_str().unwrap_or("");
 +            let mut s = Session::page().await?;
-+            let p = s.eval(&format!("const r=[...document.querySelectorAll('[data-agent-service-find-row]')].find(x=>x.getAttribute('data-agent-service-scroll-anchor')==={});if(!r)return null;const b=[...r.querySelectorAll('button,[role=\"button\"]')].find(x=>(x.innerText||'').trim()==={});if(!b)return null;b.scrollIntoView({{block:'center'}});await __sleep(200);return __center(b);", js_str(row), js_str(label))).await?;
++            let p = s.eval(&format!("const r=__rows().find((x,i)=>(x.getAttribute('data-agent-service-scroll-anchor')||('r'+i))==={});if(!r)return null;const b=[...r.querySelectorAll('button,[role=\"button\"]')].find(x=>(x.innerText||'').trim()==={});if(!b)return null;b.scrollIntoView({{block:'center'}});await __sleep(200);return __center(b);", js_str(row), js_str(label))).await?;
 +            if p.is_null() { return Err("Knopf nicht mehr vorhanden.".into()); }
 +            s.click(&p).await?;
 +            Ok(json!({"ok": true}))
@@ -2149,10 +2158,10 @@ index 0000000..88d4724
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..b0734fa
+index 0000000..ef86c6f
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,787 @@
+@@ -0,0 +1,814 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -2404,9 +2413,26 @@ index 0000000..b0734fa
 +.ac-live-row .x{flex:1;min-width:0}
 +.ac-live-row .g{opacity:.45;font-size:11px;white-space:nowrap}
 +.ac-live-row.blk .x{color:#f87171}
++.ac-live-locks{display:flex;flex-wrap:wrap;gap:6px;padding:0 11px 7px}
++.ac-live-lock{font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);animation:acLiveIn .2s ease}
++.ac-live-chips{display:flex;flex-wrap:wrap;gap:6px;padding:6px 11px 2px;border-top:1px solid rgba(124,140,255,.2)}
++.ac-live-chip{font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid rgba(124,140,255,.35);opacity:.75;transition:all .15s}
++.ac-live-chip:hover{opacity:1}.ac-live-chip.on{background:rgba(124,140,255,.3);opacity:1}
 +@keyframes acLivePulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}50%{box-shadow:0 0 0 5px rgba(74,222,128,0)}}
 +@keyframes acLiveIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 +@media (prefers-reduced-motion:reduce){.ac-live,.ac-live-row,.ac-live-dot.run{animation:none}}
++</style>
++<style id="adicode-chat-steps">
++#page-chat .ac-step{display:flex;gap:8px;align-items:flex-start;padding:3px 0;color:var(--muted)}
++#page-chat .ac-step.tool>span:last-child{color:var(--dim)}
++#page-chat .ac-step b{color:var(--text);font-weight:600}
++#page-chat .ac-si{width:14px;flex:none;opacity:.75;text-align:center}
++#page-chat .ac-cmd{display:block;margin:4px 0 2px;padding:6px 9px;border-radius:7px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.06);font:12px/1.45 Consolas,monospace;white-space:pre-wrap;word-break:break-all;max-height:140px;overflow:auto;color:#cfd6ea}
++#page-chat .ac-step small{opacity:.5;font-size:11px}
++#page-chat .ac-shine{background:linear-gradient(90deg,var(--muted) 0%,#cfd6ea 50%,var(--muted) 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:acShine 1.6s linear infinite}
++#page-chat .ac-spin{display:inline-block;width:9px;height:9px;margin-top:5px;border:2px solid rgba(124,140,255,.35);border-top-color:#7c8cff;border-radius:50%;animation:acSpin .8s linear infinite}
++#page-chat .ac-steps.open .ac-sl{max-height:460px}
++@keyframes acSpin{to{transform:rotate(360deg)}}
 +</style>
 +<section class="page" id="page-chat">
 +  <div class="ac-wrap">
@@ -2515,7 +2541,7 @@ index 0000000..b0734fa
 +  new MutationObserver(function () { if (active()) { poll(); loadHist(); setTimeout(function () { $("acInput").focus(); }, 50); } }).observe(page, { attributes: true, attributeFilter: ["class"] });
 +
 +  function apply(st) {
-+    S.running = !!st.running; S.gen = !!st.generating; S.rec = !!st.recording; S.url = st.url || ""; S.hidden = !!st.hidden;
++    S.running = !!st.running; var wasGen = S.gen; S.gen = !!st.generating; if (S.gen && !wasGen) S.genT = Date.now() / 1000 + ((typeof Live !== "undefined" && Live) ? Live.off : 0) - (S.seen ? 5 : 180); S.seen = true; S.rec = !!st.recording; S.url = st.url || ""; S.hidden = !!st.hidden;
 +    if (!st.running) setPill("", "Main offline \u00b7 startet beim Senden");
 +    else if (st.login) setPill("err", "Main nicht angemeldet");
 +    else if (st.error) setPill("err", "Main nicht bereit");
@@ -2596,11 +2622,17 @@ index 0000000..b0734fa
 +    var body = document.createElement("div"); body.className = "ac-body";
 +    var steps = m.steps || [];
 +    var working = !m.done && (m.typing || (m.last && S.gen));
-+    if (steps.length) {
-+      var st = document.createElement("div"); st.className = "ac-steps" + ((S.open[m.id] === undefined ? working : S.open[m.id]) ? " open" : "");
-+      var lastStep = steps[steps.length - 1];
-+      var label = working ? lastStep : ("Gedankengang \u00b7 " + steps.length + (steps.length === 1 ? " Schritt" : " Schritte"));
-+      st.innerHTML = '<span class="ac-sh"><span class="ac-chev">\u203a</span><span class="' + (working ? "ac-live" : "") + '">' + esc(label) + '</span></span><div class="ac-sl">' + steps.map(function (s) { return "<div>" + esc(s) + "</div>"; }).join("") + "</div>";
++    var liveItems = (working && typeof Live !== "undefined" && Live) ? Live.items.filter(function (e) { return e.ts >= (S.genT || 0); }).slice(-25) : [];
++    if (steps.length || liveItems.length || working) {
++      var isOpen = S.open[m.id] === undefined ? working : S.open[m.id];
++      var st = document.createElement("div"); st.className = "ac-steps" + (isOpen ? " open" : "");
++      var curTxt = liveItems.length ? liveItems[liveItems.length - 1].text : (steps.length ? steps[steps.length - 1] : "Arbeitet …");
++      var nSteps = steps.length || liveItems.length;
++      var label = working ? curTxt : (nSteps + (nSteps === 1 ? " Schritt" : " Schritte"));
++      var rowsH = steps.map(function (s) { var t = / \/ /.test(s); return '<div class="ac-step' + (t ? " tool" : "") + '"><span class="ac-si">' + (t ? "⚙" : "•") + '</span><span>' + esc(s) + '</span></div>'; });
++      liveItems.forEach(function (e) { rowsH.push('<div class="ac-step tool"><span class="ac-si">▸</span><span><b>' + esc(e.tool) + '</b> · ' + esc(e.text) + (e.detail ? '<code class="ac-cmd">' + esc(e.detail) + '</code>' : '') + ' <small>' + esc(e.tab + " · " + liveAgo(e.ts)) + '</small></span></div>'); });
++      if (working) rowsH.push('<div class="ac-step"><span class="ac-si"><i class="ac-spin"></i></span><span class="ac-shine">' + (S.gen ? "Arbeitet …" : "Sende …") + '</span></div>');
++      st.innerHTML = '<span class="ac-sh"><span class="ac-chev">›</span><span class="' + (working ? "ac-shine" : "") + '">' + esc(label) + '</span></span><div class="ac-sl">' + rowsH.join("") + "</div>";
 +      st.firstChild.onclick = function () { var cur = (S.open[m.id] === undefined ? working : S.open[m.id]); S.open[m.id] = !cur; st.classList.toggle("open", !cur); };
 +      body.appendChild(st);
 +    }
@@ -2639,7 +2671,7 @@ index 0000000..b0734fa
 +    var em = box.querySelector(".ac-empty"); if (em) { em.remove(); S.sigs = []; box.innerHTML = ""; }
 +    for (var i = 0; i < list.length; i++) {
 +      var m = list[i]; m.last = i === list.length - 1;
-+      var sig = JSON.stringify(m) + (m.last && S.gen ? "g" : "") + (S.open[m.id] === undefined ? "u" : (S.open[m.id] ? "o" : "c"));
++      var sig = JSON.stringify(m) + (m.last && S.gen ? "g" + ((typeof Live !== "undefined" && Live) ? Live.last : 0) : "") + (S.open[m.id] === undefined ? "u" : (S.open[m.id] ? "o" : "c"));
 +      if (S.sigs[i] === sig && box.children[i]) continue;
 +      var el = msgEl(m);
 +      if (box.children[i]) { el.classList.add("ac-upd"); box.replaceChild(el, box.children[i]); } else box.appendChild(el);
@@ -2680,7 +2712,7 @@ index 0000000..b0734fa
 +    var users = S.msgs.filter(function (m) { return m.role === "user"; }).length;
 +    ready.forEach(function (a) { S.local[a.name] = { url: a.url, type: a.type }; });
 +    var known = {}; S.msgs.forEach(function (m) { if (m.role === "user") known[(m.id || "") + "|" + (m.text || "")] = 1; });
-+    S.pending = { text: text, files: ready.map(function (a) { return a.name; }), t: Date.now(), users: users, inflight: true, known: known };
++    S.genT = Date.now() / 1000 + Live.off - 3; S.pending = { text: text, files: ready.map(function (a) { return a.name; }), t: Date.now(), users: users, inflight: true, known: known };
 +    var keep = { text: ta.value, att: S.att.slice() };
 +    if (textOverride == null) { ta.value = ""; autosize(); }
 +    S.att = S.att.filter(function (a) { return a.status !== "ok"; }); renderAtt();
@@ -2908,7 +2940,7 @@ index 0000000..b0734fa
 +
 +  render([]);
 +  /* ---------- Live: was die KI gerade macht (auf Deutsch) ---------- */
-+  var Live = { last: 0, items: [], t: null, open: false, off: 0 };
++  var Live = { last: 0, items: [], t: null, open: false, off: 0, locks: [], filter: "" };
 +  function liveAgo(ts) { var s = Math.max(0, Math.round(Date.now() / 1000 + Live.off - ts)); return s < 60 ? "vor " + s + " s" : "vor " + Math.round(s / 60) + " min"; }
 +  function liveRender() {
 +    var box = $("acLive"); if (!box) return;
@@ -2917,10 +2949,13 @@ index 0000000..b0734fa
 +    var cur = items[items.length - 1], run = S.gen && now - cur.ts < 180;
 +    var h = '<div class="ac-live-head"><span class="ac-live-dot' + (run ? " run" : "") + '"></span><b>' + (run ? "Gerade:" : "Zuletzt:") + '</b><span class="ac-live-txt">' + esc(cur.text) + '</span><span class="ac-live-tool">' + esc(cur.tab + " \u00b7 " + cur.tool + " \u00b7 " + liveAgo(cur.ts)) + ' ' + (Live.open ? "\u25B4" : "\u25BE") + '</span></div>';
 +    if (Live.open) {
-+      h += '<div class="ac-live-list">' + items.slice(-15).reverse().map(function (e) {
++      var seen = []; items.forEach(function (e) { if (seen.indexOf(e.tab) < 0) seen.push(e.tab); });
++      if (seen.length > 1) h += '<div class="ac-live-chips">' + seen.map(function (n) { return '<span class="ac-live-chip' + (Live.filter === n ? " on" : "") + '" data-tab="' + esc(n) + '">' + esc(n) + '</span>'; }).join("") + '</div>';
++      h += '<div class="ac-live-list">' + items.filter(function (e) { return !Live.filter || e.tab === Live.filter; }).slice(-15).reverse().map(function (e) {
 +        return '<div class="ac-live-row' + (/^Blockiert/.test(e.text) ? " blk" : "") + '"><span class="t">' + esc(liveAgo(e.ts)) + '</span><span class="x">' + esc(e.text) + '</span><span class="g">' + esc(e.tab + " \u00b7 " + e.tool) + '</span></div>';
 +      }).join("") + '</div>';
 +    }
++    if (Live.locks && Live.locks.length) h += '<div class="ac-live-locks">' + Live.locks.map(function (k) { return '<span class="ac-live-lock" title="' + esc(k.path) + '">\uD83D\uDD12 ' + esc(k.file) + ' \u00b7 ' + esc(k.owner) + '</span>'; }).join("") + '</div>';
 +    box.innerHTML = h; box.classList.add("on");
 +  }
 +  function livePoll() {
@@ -2932,20 +2967,21 @@ index 0000000..b0734fa
 +      if (typeof r.last === "number" && r.last < Live.last) { Live.last = 0; Live.items = []; return; }
 +      (r.items || []).forEach(function (e) { if (e.id > Live.last) Live.items.push(e); });
 +      if (Live.items.length > 60) Live.items = Live.items.slice(-60);
++      Live.locks = Array.isArray(r.lock_list) ? r.lock_list : [];
 +      if (typeof r.last === "number") Live.last = r.last;
-+    }).catch(function () {}).then(function () { liveRender(); Live.t = setTimeout(livePoll, S.gen ? 700 : 1600); });
++    }).catch(function () {}).then(function () { liveRender(); if (S.gen && S.msgs) render(S.msgs); Live.t = setTimeout(livePoll, S.gen ? 700 : 1600); });
 +  }
-+  $("acLive").addEventListener("click", function () { Live.open = !Live.open; liveRender(); });
++  $("acLive").addEventListener("click", function (ev) { var c = ev.target && ev.target.closest ? ev.target.closest("[data-tab]") : null; if (c) { var v = c.getAttribute("data-tab"); Live.filter = Live.filter === v ? "" : v; liveRender(); return; } Live.open = !Live.open; liveRender(); });
 +  livePoll();
 +  if (active()) { poll(); loadHist(); }
 +})();
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..87ede40
+index 0000000..a27580d
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1354 @@
+@@ -0,0 +1,1355 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -3916,7 +3952,8 @@ index 0000000..87ede40
 +fn guard_on(board: &mut Board, name: &str, args: &Value, agent: &str) -> (Option<String>, bool) {
 +    let mut hit: Option<(String, String, u64, String)> = None;
 +    let mut targets: Vec<String> = Vec::new();
-+    if name == "pc_PowerShell" {
++    let ps_t = if name == "pc_PowerShell" { crate::notion_live::ps_targets(&s(args, "command")) } else { Vec::new() };
++    if name == "pc_PowerShell" && ps_t.is_empty() {
 +        let cmd = s(args, "command").to_ascii_lowercase().replace('\\', "/");
 +        if !PS_WRITE.iter().any(|w| cmd.contains(w)) { return (None, false); }
 +        'ps: for p in board.projects.values() {
@@ -3927,7 +3964,7 @@ index 0000000..87ede40
 +            }
 +        }
 +    } else {
-+        let Some(list) = write_targets(name, args) else { return (None, false) };
++        let Some(list) = (if ps_t.is_empty() { write_targets(name, args) } else { Some(ps_t.clone()) }) else { return (None, false) };
 +        targets = list.iter().map(|t| norm_path(t).trim_end_matches("/.").trim_end_matches('/').to_string()).filter(|t| !t.is_empty()).collect();
 +        'files: for t in &targets {
 +            for p in board.projects.values() {
@@ -4302,10 +4339,10 @@ index 0000000..87ede40
 +}
 diff --git a/agent/src/notion_live.rs b/agent/src/notion_live.rs
 new file mode 100644
-index 0000000..f59f972
+index 0000000..31ac756
 --- /dev/null
 +++ b/agent/src/notion_live.rs
-@@ -0,0 +1,305 @@
+@@ -0,0 +1,408 @@
 +//! Live-Bridge (immer an): Alle Notion-AI-Tabs sehen sich gegenseitig - auch ohne
 +//! "Co-Work starten". Jeder Tool-Aufruf landet mit deutscher Klartext-Beschreibung im Live-Feed,
 +//! den der AdiCode-Chat live anzeigt. Eine Datei ist fuer einen Chat genau so lange reserviert,
@@ -4325,7 +4362,7 @@ index 0000000..f59f972
 +const ACTIVE_SECS: i64 = 900;
 +
 +#[derive(Clone)]
-+struct Entry { id: u64, ts: i64, tab: String, tool: String, text: String }
++struct Entry { id: u64, ts: i64, tab: String, tool: String, text: String, detail: String }
 +
 +struct TabInfo { label: String, seen: i64, last: String }
 +
@@ -4456,11 +4493,77 @@ index 0000000..f59f972
 +    cut(&s, 160)
 +}
 +
++const PS_FILE_CMDS: &[&str] = &["set-content", "add-content", "out-file", "new-item", "remove-item", "clear-content", "copy-item", "move-item", "rename-item", "tee-object"];
++const PS_VALUE_FLAGS: &[&str] = &["-value", "-encoding", "-itemtype", "-newname", "-filter", "-include", "-exclude", "-width", "-inputobject", "-type"];
++const PS_STRONG: &[&str] = &["set-content", "add-content", "out-file", "new-item", "remove-item", "move-item", "copy-item", "rename-item", "clear-content", "tee-object", "writealltext", "writeallbytes", "writealllines", "appendalltext", "git checkout", "git reset", "git restore", "git apply", "git stash", "git clean", "git merge", "git rebase", "git pull"];
++static IOFILE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"::(?:writealltext|writeallbytes|writealllines|appendalltext|appendalllines)\(\s*['"]([^'"]+)['"]"#).unwrap());
++
++fn ps_tokens(seg: &str) -> Vec<String> {
++    let mut v = Vec::new();
++    let mut cur = String::new();
++    let mut q: Option<char> = None;
++    for c in seg.chars() {
++        match q {
++            Some(x) if c == x => q = None,
++            Some(_) => cur.push(c),
++            None if c == '\'' || c == '"' => q = Some(c),
++            None if c.is_whitespace() => { if !cur.is_empty() { v.push(std::mem::take(&mut cur)); } }
++            None => cur.push(c),
++        }
++    }
++    if !cur.is_empty() { v.push(cur); }
++    v
++}
++
++fn ps_add(out: &mut Vec<String>, p: &str) {
++    let p = p.trim().trim_matches(|c: char| c == '(' || c == ')' || c == ',' || c == '{' || c == '}').trim_start_matches("./");
++    if p.is_empty() || p.starts_with('$') || p.starts_with('&') || p.starts_with('-') || p == "null" { return; }
++    let s = p.to_string();
++    if !out.contains(&s) { out.push(s); }
++}
++
++/// Zieldateien eines PowerShell-Befehls (klein, mit /). Leer = keine sicher erkennbar.
++pub(crate) fn ps_targets(cmd: &str) -> Vec<String> {
++    let low = cmd.replace('\\', "/").to_ascii_lowercase();
++    let mut out = Vec::new();
++    for seg in low.split(|c: char| c == ';' || c == '|' || c == '\n') {
++        let tk = ps_tokens(seg);
++        for (i, t) in tk.iter().enumerate() {
++            if !PS_FILE_CMDS.contains(&t.as_str()) { continue; }
++            let max = if t == "copy-item" || t == "move-item" { 2 } else { 1 };
++            let (mut j, mut pos) = (i + 1, 0);
++            while j < tk.len() {
++                let a = tk[j].as_str();
++                if PS_FILE_CMDS.contains(&a) { break; }
++                if matches!(a, "-path" | "-literalpath" | "-filepath" | "-destination") { if let Some(p) = tk.get(j + 1) { ps_add(&mut out, p); pos += 1; } j += 2; continue; }
++                if PS_VALUE_FLAGS.contains(&a) { j += 2; continue; }
++                if a.starts_with('-') { j += 1; continue; }
++                if pos < max { ps_add(&mut out, a); pos += 1; }
++                j += 1;
++            }
++        }
++        for (i, t) in tk.iter().enumerate() {
++            let r = t.trim_start_matches(|c: char| c.is_ascii_digit() || c == '*');
++            if r == ">" || r == ">>" { if let Some(p) = tk.get(i + 1) { ps_add(&mut out, p); } }
++            else if r.starts_with('>') && !r.starts_with(">&") && !r.starts_with(">>&") { ps_add(&mut out, r.trim_start_matches('>')); }
++        }
++    }
++    for m in IOFILE_RE.captures_iter(&low) { ps_add(&mut out, &m[1]); }
++    out
++}
++
++/// Aendert der PowerShell-Befehl Dateien? Nur echte Schreib-Befehle, nicht "-replace" oder "2>&1".
++pub(crate) fn ps_is_write(cmd: &str) -> bool {
++    let low = cmd.to_ascii_lowercase();
++    !ps_targets(cmd).is_empty() || PS_STRONG.iter().any(|w| low.contains(w))
++}
++
 +/// Wer ruft? Explizites agent-Argument, sonst die Co-Work-Zuordnung der Session. Leer = unbekannt.
 +fn ident(session: &str, args: &Value) -> String {
 +    let a = arg(args, "agent");
 +    if !a.is_empty() { return a; }
-+    crate::notion_cowork::agent_of_session(session).unwrap_or_default()
++    if let Some(a) = crate::notion_cowork::agent_of_session(session) { return a; }
++    sole_generating().unwrap_or_default()
 +}
 +
 +/// Vom Tab-Monitor: Tab des Agents generiert gerade (true) oder ist fertig (false).
@@ -4474,12 +4577,30 @@ index 0000000..f59f972
 +    GEN.lock().unwrap_or_else(|e| e.into_inner()).get(agent).map(|ts| now() - *ts < GEN_BEAT).unwrap_or(false)
 +}
 +
++/// Genau ein Tab generiert gerade -> ein Aufruf ohne Namen gehoert zu ihm. Sonst nie raten.
++fn sole_generating() -> Option<String> {
++    let t = now();
++    let g = GEN.lock().unwrap_or_else(|e| e.into_inner());
++    let v: Vec<&String> = g.iter().filter(|(_, ts)| t - **ts < GEN_BEAT).map(|(a, _)| a).collect();
++    if v.len() == 1 { Some(v[0].clone()) } else { None }
++}
++
 +/// Arbeitet der Agent gerade live? (laufender Co-Work-Task oder Tab generiert)
 +fn holds(busy: &[String], agent: &str) -> bool { busy.iter().any(|b| b == agent) || generating(agent) }
++
++/// Rohes Kommando/Pfad fuer die Live-Anzeige (max. 400 Zeichen).
++fn detail_of(args: &Value) -> String {
++    let s = ["command", "code", "path", "query", "pattern", "url"].iter()
++        .find_map(|k| args.get(*k).and_then(|v| v.as_str()).map(str::trim).filter(|v| !v.is_empty())).unwrap_or("");
++    let mut out: String = s.chars().take(400).collect();
++    if s.chars().count() > 400 { out.push('…'); }
++    out
++}
 +
 +/// Jeder Tool-Aufruf: Chat merken und Klartext in den Live-Feed schreiben.
 +pub(crate) fn record(session: &str, name: &str, args: &Value) {
 +    let text = describe(name, args);
++    let detail = detail_of(args);
 +    let who = ident(session, args);
 +    let busy = crate::notion_cowork::busy_agents();
 +    let t = now();
@@ -4492,7 +4613,7 @@ index 0000000..f59f972
 +    x.last = text.clone();
 +    l.next += 1;
 +    let id = l.next;
-+    l.feed.push_back(Entry { id, ts: t, tab: label, tool: name.to_string(), text });
++    l.feed.push_back(Entry { id, ts: t, tab: label, tool: name.to_string(), text, detail });
 +    while l.feed.len() > MAX_FEED { l.feed.pop_front(); }
 +    l.tabs.retain(|_, x| t - x.seen < 86_400);
 +}
@@ -4509,9 +4630,10 @@ index 0000000..f59f972
 +    l.locks.retain(|_, (o, _)| holds(&busy, o));
 +    let mine = holds(&busy, &who);
 +    l.busy = busy;
-+    let hit: Option<(String, String, i64)> = if name == "pc_PowerShell" {
++    let ps_t = if name == "pc_PowerShell" { ps_targets(&arg(args, "command")) } else { Vec::new() };
++    let hit: Option<(String, String, i64)> = if name == "pc_PowerShell" && ps_t.is_empty() {
 +        let cmd = arg(args, "command").to_ascii_lowercase().replace('\\', "/");
-+        if !crate::notion_cowork::ps_writes(&cmd) { return None; }
++        if !ps_is_write(&cmd) { return None; }
 +        l.locks.iter()
 +            .find(|(k, (o, _))| {
 +                let ks = k.as_str();
@@ -4520,7 +4642,7 @@ index 0000000..f59f972
 +            })
 +            .map(|(k, (o, ts))| (k.clone(), o.clone(), *ts))
 +    } else {
-+        let targets = crate::notion_cowork::live_write_paths(name, args)?;
++        let targets = if ps_t.is_empty() { crate::notion_cowork::live_write_paths(name, args)? } else { ps_t.clone() };
 +        let hit = targets.iter().find_map(|tg| {
 +            l.locks.iter()
 +                .find(|(k, (o, _))| o.as_str() != who.as_str() && crate::notion_cowork::live_same(tg, k.as_str()))
@@ -4534,7 +4656,7 @@ index 0000000..f59f972
 +    let (path, owner, ts) = hit?;
 +    l.next += 1;
 +    let id = l.next;
-+    l.feed.push_back(Entry { id, ts: t, tab: who.clone(), tool: name.to_string(), text: format!("Blockiert: wollte {} ändern, aber {owner} arbeitet gerade daran", file_name(&path)) });
++    l.feed.push_back(Entry { id, ts: t, tab: who.clone(), tool: name.to_string(), detail: String::new(), text: format!("Blockiert: wollte {} ändern, aber {owner} arbeitet gerade daran", file_name(&path)) });
 +    while l.feed.len() > MAX_FEED { l.feed.pop_front(); }
 +    Some(format!(
 +        "[AdiCode Live-Bridge] {path} wird gerade live von {owner} bearbeitet (seit {} s). Nicht ändern, sonst geht dessen Arbeit kaputt. Eine andere Aufgabe machen oder per cowork_message abstimmen. Die Datei wird automatisch frei, sobald {owner} die Aufgabe abschliesst bzw. der Chat fertig ist.",
@@ -4560,14 +4682,17 @@ index 0000000..f59f972
 +    let t = now();
 +    let l = live();
 +    let mut items: Vec<Value> = l.feed.iter().rev().take_while(|e| e.id > since).take(40)
-+        .map(|e| json!({"id": e.id, "ts": e.ts, "tab": e.tab, "tool": e.tool, "text": e.text}))
++        .map(|e| json!({"id": e.id, "ts": e.ts, "tab": e.tab, "tool": e.tool, "text": e.text, "detail": e.detail}))
 +        .collect();
 +    items.reverse();
 +    let tabs: Vec<Value> = l.tabs.values().filter(|x| t - x.seen < ACTIVE_SECS)
 +        .map(|x| json!({"tab": x.label, "ago": t - x.seen, "text": x.last}))
 +        .collect();
-+    let locks = l.locks.values().filter(|(o, _)| holds(&l.busy, o)).count();
-+    json!({"ok": true, "now": t, "last": l.next, "items": items, "tabs": tabs, "locks": locks})
++    let lock_list: Vec<Value> = l.locks.iter().filter(|(_, (o, _))| holds(&l.busy, o))
++        .map(|(k, (o, ts))| json!({"file": file_name(k), "path": k, "owner": o, "since": t - ts}))
++        .collect();
++    let locks = lock_list.len();
++    json!({"ok": true, "now": t, "last": l.next, "items": items, "tabs": tabs, "locks": locks, "lock_list": lock_list})
 +}
 +
 +#[derive(Deserialize)]
@@ -4592,6 +4717,19 @@ index 0000000..f59f972
 +    }
 +
 +    #[test]
++    fn notion_live_ps_targets() {
++        assert_eq!(ps_targets("Set-Content -Path C:\\A\\b.txt -Value 'x y'"), vec!["c:/a/b.txt"]);
++        assert_eq!(ps_targets("'hi' | Out-File -Append -Encoding utf8 out.log"), vec!["out.log"]);
++        assert_eq!(ps_targets("echo a > .\\r.txt; cargo test 2>&1"), vec!["r.txt"]);
++        assert!(ps_targets("Get-Content x.rs 2>&1 | Out-Null").is_empty());
++        assert!(!ps_is_write("$t = $t -replace 'a','b'; Get-Content patch88.ps1"));
++        assert!(ps_is_write("Remove-Item $f"));
++        assert_eq!(ps_targets("[IO.File]::WriteAllText('C:/x/y.rs', $s)"), vec!["c:/x/y.rs"]);
++        assert_eq!(ps_targets("cmd /c dir *> 'C:\\w\\l.log'"), vec!["c:/w/l.log"]);
++        assert_eq!(ps_targets("Copy-Item a.txt b.txt -Force"), vec!["a.txt", "b.txt"]);
++    }
++
++    #[test]
 +    fn notion_live_lock_only_while_live() {
 +        let wa = json!({"path": "zz_live_test/x.txt", "content": "1", "agent": "live-test-a"});
 +        let wb = json!({"path": "zz_live_test/x.txt", "content": "1", "agent": "live-test-b"});
@@ -4604,6 +4742,8 @@ index 0000000..f59f972
 +        let m = guard("s2", "files_write_file", &wb).expect("anderer Chat muss blockiert werden, solange A live arbeitet");
 +        assert!(m.contains("Live-Bridge") && m.contains("live-test-a"), "{m}");
 +        assert!(guard("s9", "files_write_file", &wa).is_none(), "gleicher Agent in neuer Session ist nicht blockiert");
++        assert!(guard("s7", "files_write_file", &json!({"path": "zz_live_test/x.txt", "content": "1"})).is_none(), "ohne Namen, nur A generiert -> gehoert zu A");
++        assert_eq!(feed(0)["lock_list"][0]["owner"], "live-test-a");
 +        assert!(tabs_text().contains("live belegt von live-test-a"));
 +        set_generating("live-test-a", false);
 +        assert!(guard("s2", "files_write_file", &wb).is_none(), "A fertig -> Datei sofort frei");
@@ -4613,7 +4753,7 @@ index 0000000..f59f972
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..29122c1
+index 0000000..9463694
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
 @@ -0,0 +1,1007 @@
@@ -4894,7 +5034,7 @@ index 0000000..29122c1
 +    let args = params.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
 +    *lock(&SHARED.last_request) = Some((chrono::Local::now(), name.clone()));
 +    let session = params["_session"].as_str().unwrap_or("").to_string();
-+    crate::notion_live::record(&session, &name, &args);
++    crate::notion_profiles::ensure_gen_monitor(); crate::notion_live::record(&session, &name, &args);
 +    if let Some(out) = crate::notion_cowork::call(&name, &args, &session).await {
 +        return out;
 +    }
@@ -5626,10 +5766,10 @@ index 0000000..29122c1
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..7b3bdec
+index 0000000..e3d9b02
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,718 @@
+@@ -0,0 +1,754 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -5911,8 +6051,32 @@ index 0000000..7b3bdec
 +    let expr="(()=>{const b=document.querySelector('[data-testid=\"agent-chat-stop-button\"],[data-testid=\"agent-stop-inference-button\"]');if(b)b.click();return !!b})()";
 +    let _=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await;
 +}
++static GEN_STARTED: AtomicBool = AtomicBool::new(false);
++/// Startet einmalig den Tab-Monitor (liest nur, schreibt nie in Chats).
++pub(crate) fn ensure_gen_monitor(){if !GEN_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(gen_monitor());}}
++/// Tab-Monitor (immer an, auch ohne "Co-Work starten"): meldet der Live-Bridge, welcher Tab gerade generiert,
++/// und stoppt haengende Chats nach STUCK_SECS ohne Fortschritt (nicht bei "Selbst schreiben").
++async fn gen_monitor(){
++    let mut stuck:BTreeMap<u32,(String,std::time::Instant)>=BTreeMap::new();
++    let mut running:Vec<u32>=Vec::new();
++    let mut n:u64=0;
++    loop{
++        tokio::time::sleep(Duration::from_secs(3)).await;
++        let tabs=load();
++        if n%5==0{let tc=tabs.clone();running=tokio::task::spawn_blocking(move||running_ids(&tc)).await.unwrap_or_default();}
++        n+=1;
++        for(i,t)in tabs.iter().enumerate(){
++            let agent=if i==0{let l=crate::notion_cowork::latest_lead();if l.is_empty(){"Main".to_string()}else{l}}else{format!("AdiCode-{}",t.role.replace(' ',""))};
++            if !running.contains(&t.id){crate::notion_live::set_generating(&agent,false);stuck.remove(&t.id);continue;}
++            match gen_snapshot(cdp_port(i)).await{
++                Some(s)=>{crate::notion_live::set_generating(&agent,true);if is_paused(t.id){stuck.remove(&t.id);continue;}let e=stuck.entry(t.id).or_insert((s.clone(),std::time::Instant::now()));if e.0!=s{*e=(s,std::time::Instant::now());}else if e.1.elapsed()>Duration::from_secs(STUCK_SECS){stop_generation(cdp_port(i)).await;stuck.remove(&t.id);tracing::warn!("Co-Work: Chat {} hing {STUCK_SECS}s ohne Fortschritt - gestoppt",t.role);}}
++                None=>{crate::notion_live::set_generating(&agent,false);stuck.remove(&t.id);}
++            }
++        }
++    }
++}
 +/// Watchdog: Notion AI bleibt manchmal haengen ("Processing" ohne neuen Text, z. B. nach einem AdiCode-Neustart). Nach STUCK_SECS ohne Fortschritt stoppen; der Nudger weckt den Chat danach wieder.
-+const STUCK_SECS:u64=420;
++const STUCK_SECS:u64=180;
 +/// Notion AI chats stop after each turn. Wake idle chats when work is waiting.
 +async fn nudger(tabs:Vec<Tab>){
 +    let mut last:BTreeMap<u32,(String,std::time::Instant,u32)>=BTreeMap::new();
@@ -6211,9 +6375,21 @@ index 0000000..7b3bdec
 +        }
 +    }
 +}
-+pub(crate) fn ensure_monitors(){if !USAGE_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(usage_monitor());}if !AUTO_MCP_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(auto_mcp_watcher());}}
++pub(crate) fn ensure_monitors(){ensure_gen_monitor();if !USAGE_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(usage_monitor());}if !AUTO_MCP_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(auto_mcp_watcher());}}
 +/// Hat der Nutzer das Worker-Fenster gerade selbst im Fokus, schickt AdiCode keine Erinnerung hinein.
 +async fn user_present(port:u16)->bool{cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":"document.hasFocus()","returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false)}async fn keep_alive(tabs:Vec<Tab>){loop{for(i,t)in tabs.iter().enumerate(){let _=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":"(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));return document.visibilityState})()"}})]).await;let _=t;}tokio::time::sleep(Duration::from_secs(20)).await;}}
++/// Worker, die sich nach dem Kickoff nicht gemeldet haben: Fenster nach vorn, Startnachricht EINMAL erneut schicken.
++async fn rejoin(tabs:&[Tab],wanted:&[&str]){
++    let roles=crate::notion_cowork::latest_agent_roles();
++    for(i,t)in tabs.iter().enumerate().skip(1){
++        let r=t.role.to_ascii_lowercase();
++        if skipped(t.id)||!wanted.iter().any(|w|r.starts_with(w))||roles.iter().any(|x|r.starts_with(x.as_str())){continue;}
++        if gen_snapshot(cdp_port(i)).await.is_some(){continue;}
++        let _=open_main(cdp_port(i)).await;tokio::time::sleep(Duration::from_secs(2)).await;
++        let ok=insert_prompt(cdp_port(i),prompt_for(t)).await.is_ok();
++        set_status(format!("{} hat sich nicht gemeldet \u{2013} Startnachricht erneut geschickt{}.",t.role,if ok{""}else{" (fehlgeschlagen)"}));
++    }
++}
 +async fn kickoff(tabs:Vec<Tab>, baseline:usize){
 +    stage(1);for t in &tabs{step(t.id,0);}let errors=full_check(&tabs).await;
 +    if !errors.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Start angehalten \u{2013} Account-Check: {}",errors.join("; ")));return;}
@@ -6230,7 +6406,7 @@ index 0000000..7b3bdec
 +    let note=if prompt_errors.is_empty(){String::new()}else{format!(" Nicht gestartet: {} - die anderen übernehmen diese Aufgaben mit.",prompt_errors.join("; "))};
 +    let wanted:Vec<&str>=["coder","reviewer","tester"].into_iter().filter(|r|tabs.iter().skip(1).any(|t|t.role.to_ascii_lowercase().starts_with(r))).filter(|r|!failed.iter().any(|f|f==r)).filter(|r|!tabs.iter().skip(1).any(|t|skipped(t.id)&&t.role.eq_ignore_ascii_case(r))).collect();
 +    if wanted.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Worker-Kickoff fehlgeschlagen:{note}"));return;}
-+    for _ in 0..90 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){stage(5);set_status(format!("Co-Work aktiv: {} mit Main verbunden. Jeder bewertet neue Aufträge aus seiner Rollen-Sicht und hilft dann bei allem mit.{note}",wanted.join(", ")));let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(1)).await;}
++    for k in 0..150 {if k==40{rejoin(&tabs,&wanted).await;}let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){stage(5);set_status(format!("Co-Work aktiv: {} mit Main verbunden. Jeder bewertet neue Aufträge aus seiner Rollen-Sicht und hilft dann bei allem mit.{note}",wanted.join(", ")));let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(1)).await;}
 +    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);stage(6);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.{note}",missing.join(", ")));
 +}
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 8 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 8 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}

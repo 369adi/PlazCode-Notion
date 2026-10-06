@@ -144,6 +144,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - **1.0.86**: notion_chat.rs Helper __q mit Alias-Tabelle __A: agent-chat-send-button -> agent-send-message-button, agent-chat-stop-button -> agent-stop-inference-button. notion_profiles.rs: Stopp-Selektoren um agent-stop-inference-button erweitert. Chat-v2-Style (adicode-chat-v2) in notion_chat_ui.html + render() ac-upd. Backups bugtest\*.bak185/.bak186.
 - **1.0.87**: neues Modul notion_live.rs (Live-Feed + deutsche Uebersetzung describe()/describe_ps(), immer aktive Datei-Reservierung guard() pro MCP-Session, Route /api/notion/live). notion_mcp.rs call_tool: record() + guard(). notion_cowork.rs: ps_writes/live_write_paths/live_same, cowork_board haengt tabs_text() an. notion_chat_ui.html: Live-Leiste #acLive. Backups bugtest\*.bak187.
 - **1.0.88**: notion_live.rs ohne LOCK_SECS: Lock gilt solange Agent claimed Task hat (notion_cowork::busy_agents) oder Tab generiert (set_generating vom nudger in notion_profiles.rs, GEN_BEAT 15 s Herzschlag). Identitaet = agent-Arg bzw. agent_of_session, sonst kein Lock. Prompts: agent bei jedem Schreib-Tool. Backups bugtest\*.bak188.
+- **1.0.89**: gen_monitor in notion_profiles.rs (ensure_gen_monitor, auch aus notion_mcp call_tool; 3 s Takt, running_ids alle 15 s, set_generating + Watchdog STUCK_SECS=180). notion_live: sole_generating fuer namenlose Aufrufe, ps_targets/ps_is_write (Tokenizer), lock_list im Feed; notion_cowork guard_on nutzt ps_targets. kickoff: rejoin() bei k==40, Schleife 150 s. UI: Lock-Chips + Tab-Filter. Neues work\release.ps1 + work\relnotes.json. Backups bugtest\*.bak189. Achtung PowerShell: Funktionsname Rd ist Alias von Remove-Item!
 
 ## 12. Arbeitsstand
 - Releases bei GitHub-Actions-Störung: `C:\Users\liket\PlazCode-Shared\work\rel.ps1` + `work\pub.ps1`.
@@ -181,3 +182,10 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 **3. Aendern**: Patches als Node-Skript per `files_write_file`.
 **4. Testen + Release**: In EINEM Hintergrundjob (`relNN.ps1`). Nicht synchron warten.
 **5. Abschluss**: HANDOUT + Memory-Update parallel, Commit mit `[skip ci]`.
+## 2026-10-06 AdiCode-Coder: Chat-Spiegel + Live-Schritte
+- Ursache leerer Chat: Notion hat [data-agent-service-find-row] entfernt. Neu: __rows() in notion_chat.rs (gemeinsamer Parent der data-agent-chat-user-step-id-Zeilen, alter Selektor als Fallback).
+- STATE neu: User-Zeilen ueber user-step-id, Assistent-Inhalt ueber [data-content-editable-root]/[data-block-id], Schritte aus [aria-expanded]-Toggles (z. B. "AdiCode / pc_PowerShell", "16 steps") + Kurztexte (Brewing/Focusing).
+- notion_live.rs: Entry.detail (command/code/path/query/pattern/url, max 400 Zeichen) im Feed.
+- notion_chat_ui.html: Schrittliste wie Notion mit Live-Feed-Merge (Tool, Befehl als Code, Alter), Spinner "Arbeitet ...", fertig = "N Schritte".
+- Live geprueft per CDP: 39 Nachrichten, Inhalt + Schritte korrekt. cargo test 97/97 ok, release gebaut. Wirksam nach App-Neustart.
+- Backups: work\coder-probe\*.bak, *.bak2

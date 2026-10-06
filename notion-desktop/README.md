@@ -170,6 +170,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.88
 - **Datei-Reservierung ohne 5-Minuten-Timer**: Eine Datei ist fuer einen Chat genau so lange belegt, wie er live daran arbeitet - solange sein Co-Work-Task laeuft oder sein Tab gerade generiert. Ist die Aufgabe fertig oder der Chat still, ist die Datei sofort frei.
 - **Tabs werden am Namen erkannt** (Main, AdiCode-Coder ...) statt an der Notion-Verbindung: keine 15 Geister-Chats mehr, und ein Chat blockiert sich nicht mehr selbst. Chats ohne Namen werden nie gesperrt.
+## Neu in 1.0.89
+- **Tab-Monitor immer an**: AdiCode sieht bei allen Co-Work-Fenstern, welcher Chat gerade schreibt - auch ohne 'Co-Work starten'. Nur lesen, AdiCode schreibt nie selbst in Chats.
+- **Namen automatisch**: Kommt ein Aufruf ohne Namen und schreibt gerade genau ein Tab, gehoert der Aufruf zu diesem Tab. Sonst wird nie geraten.
+- **PowerShell genauer**: Die echten Zieldateien werden aus dem Befehl gelesen (Set-Content, Out-File, >, Copy-Item, WriteAllText ...). '-replace' oder '2>&1' zaehlen nicht mehr als Schreiben.
+- **Worker treten sicher bei**: Meldet sich ein Worker 40 s nach dem Kickoff nicht, holt AdiCode das Fenster nach vorn und schickt die Startnachricht einmal erneut.
+- **Live-Leiste**: zeigt belegte Dateien mit Besitzer und hat Filter pro Chat.
+- **Haengende Chats** werden nach 3 statt 7 Minuten ohne Fortschritt gestoppt.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
