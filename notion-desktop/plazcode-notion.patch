@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..19b783b 100644
+index 07dc4c0..f7162af 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -486,7 +486,7 @@ index 07dc4c0..19b783b 100644
 +            <button class="softbtn cwi" id="cwAdd" data-ic="plus">Tab hinzuf&uuml;gen</button>
 +            <button class="softbtn cwi" id="cwSave" data-ic="save">Speichern</button>
 +            <span class="cwsep"></span>
-+            <button class="softbtn cwi" id="cwCheck" data-ic="refresh">Accounts pr&uuml;fen</button>
++            <button class="softbtn cwi" id="cwCheck" data-ic="refresh" title="Startet fehlende Tabs, pr&uuml;ft AdiCode-MCP (auch asf), Usage und &ouml;ffnet den Chat Willkommen bei Notion">Check (MCP &middot; Usage &middot; Chat)</button>
 +            <button class="softbtn" id="cwShowAll">Worker zeigen</button>
 +            <span id="cwDirty" class="nbadge warn" style="display:none">Nicht gespeichert</span>
 +          </div>
@@ -610,7 +610,7 @@ index 07dc4c0..19b783b 100644
        PlazCodeVersion.render(Byid('updateInstalled'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        PlazCodeVersion.render(Byid('sidebarVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Value);
 -      PlazCodeVersion.render(Byid('titleVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), 'PlazCode ');
-+      PlazCodeVersion.render(Byid('titleVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), 'AdiCode ');
++      PlazCodeVersion.render(Byid('titleVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), 'AdiCode '); if (Value.notion_version) { var NV = 'v' + Value.notion_version; if (Byid('sidebarVersion')) Byid('sidebarVersion').textContent = NV; if (Byid('titleVersion')) Byid('titleVersion').textContent = 'AdiCode ' + NV; }
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
@@ -860,7 +860,7 @@ index 07dc4c0..19b783b 100644
 +    On("cwSave", function () { CSave().catch(function () {}); });
 +    On("cwStartAll", function () { if (!CW.browser) { CMsg("Erst oben einen Browser w\u00e4hlen."); return; } CSaveIf().then(function () { return CAct("cowork_start_all"); }).catch(function () {}); });
 +    On("cwShowAll", function () { var Next = !CW.shown; CAct(Next ? "cowork_show_all" : "cowork_hide_all").then(function () { CW.shown = Next; CRender(); }).catch(function () {}); });
-+    On("cwCheck", function () { CAct("cowork_check_accounts").then(function(){setTimeout(function(){CLoad(true);},2500);}).catch(function () {}); });
++    On("cwCheck", function () { CAct("cowork_check_accounts").then(function(){[3000,10000,25000,50000].forEach(function(ms){setTimeout(function(){CLoad(true);},ms);});}).catch(function () {}); });
 +    On("cwStopAll", function () { if (confirm("Alle Co-Work-Tabs schlie\u00dfen?")) CAct("cowork_stop_all").then(function () { CW.shown = false; CRender(); }).catch(function () {}); });
 +    document.querySelectorAll("[data-page=cowork]").forEach(function (B) { B.addEventListener("click", function () { CLoad(false); }); });
 +    setInterval(function () { if (document.querySelector("#page-cowork.active")) CLoad(false); }, 3000);
@@ -873,7 +873,7 @@ index 07dc4c0..19b783b 100644
 +      if (Box) Box.innerHTML = UD.tabs.length ? UD.tabs.map(function (T) {
 +        var A = T.account || {}, P = A.usage, Col = A.exhausted ? "#ff5c7a" : (P != null && P >= 80 ? "#ffb347" : "#21d4fd");
 +        var Txt = A.exhausted ? "aufgebraucht" : (P == null ? "unbekannt" : P + "%");
-+        var Det = [(A.used != null && A.limit != null) ? (A.used + " / " + A.limit) : "", A.usage_source ? ("Quelle: " + A.usage_source) : "", A.usage_error || "", A.checked ? ("gepr\u00fcft " + A.checked) : ""].filter(Boolean).join(" \u00b7 ");
++        var Det = [A.check ? ("Check: " + A.check) : "", (A.premium_limit != null) ? ("Premium " + A.premium_used + " / " + A.premium_limit) : "", (A.basic_limit != null) ? ("Basis " + A.basic_used + " / " + A.basic_limit + (A.plan_type === "unlimited" ? " (im Plan unbegrenzt)" : "")) : "", A.mcp ? ("MCP: " + A.mcp) : "", A.chat || "", A.usage_error || "", A.checked ? ("gepr\u00fcft " + A.checked) : ""].filter(Boolean).join(" \u00b7 ");
 +        return "<div style=\"display:grid;grid-template-columns:170px 1fr 150px;gap:10px;align-items:center;margin:6px 0\"><div><b>" + CEsc(T.role) + "</b><br><small class=\"nhint\">" + CEsc(T.email || T.label) + "</small></div><div><div style=\"height:9px;background:#252a39;border-radius:5px;overflow:hidden\"><i style=\"display:block;height:100%;width:" + (A.exhausted ? 100 : (P || 0)) + "%;background:" + Col + "\"></i></div><small class=\"nhint\">" + CEsc(Det) + "</small></div><div><span class=\"nbadge" + (T.running ? " ok" : "") + "\">" + (T.running ? "l\u00e4uft" : "aus") + "</span> <b>" + Txt + "</b>" + (T.paused ? " <small class=\"nhint\">(du schreibst)</small>" : "") + "</div></div>";
 +      }).join("") : "<p class=\"nhint\">Noch keine Tabs.</p>";
 +      var Ok = UD.tabs.filter(function (T) { var A = T.account || {}; return T.running && !A.exhausted; });
@@ -4348,10 +4348,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..448b0fe
+index 0000000..0e5a304
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,406 @@
+@@ -0,0 +1,446 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4486,6 +4486,7 @@ index 0000000..448b0fe
 +fn start_url(t:&Tab)->String{if t.url.is_empty(){NOTION_URL.to_string()}else{t.url.clone()}}
 +fn tab_index(id:u32)->usize{load().iter().position(|t|t.id==id).unwrap_or(0)}
 +pub(crate) fn launch(t:&Tab,url:&str)->Result<&'static str,String>{
++    mark_account(t.id,"usage_error",Value::Null);mark_account(t.id,"check",json!("Tab startet \u{2026}"));
 +    let(name,exe)=browser().ok_or("Erst unter Co-Work einen Browser ausw\u{e4}hlen.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;
 +    let port=cdp_port(tab_index(t.id));
 +    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion"]).arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;Ok(name)
@@ -4551,21 +4552,67 @@ index 0000000..448b0fe
 +fn set_status(s:impl Into<String>){*lock(&COWORK_STATUS)=s.into();}
 +pub(crate) fn status_text()->String{lock(&COWORK_STATUS).clone()}
 +pub(crate) fn mcp_ok(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)}
++static CHECKING: AtomicBool = AtomicBool::new(false);
++async fn js_eval(port:u16,expr:&str)->Result<Value,String>{Ok(cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null))}
++async fn wait_cdp(port:u16)->bool{for _ in 0..40{if target(port).await.is_ok(){return true;}tokio::time::sleep(Duration::from_secs(1)).await;}false}
++const FIND_WELCOME:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const re=/^(welcome to notion|willkommen (bei|in|zu) notion)/i;for(let k=0;k<20;k++){const tab=document.querySelector('#sidebar-tab-chats,[role="tab"][aria-label="Chat"],[role="tab"][aria-label="Chats"]');if(tab&&tab.getAttribute('aria-selected')!=='true')tab.click();const item=[...document.querySelectorAll('[role="menuitem"]')].filter(vis).find(e=>re.test((e.innerText||'').trim()));if(item){item.click();await sleep(1500);return {found:true}}if(k%5===4){const sc=[...document.querySelectorAll('[role="menu"],[role="tabpanel"],[role="list"]')].find(e=>vis(e)&&e.scrollHeight>e.clientHeight+20);if(sc)sc.scrollTop+=500;}await sleep(500);}return {found:false}})()"#;
++const CHAT_READY:&str=r#"(()=>{const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&s.visibility!=='hidden'&&s.display!=='none'};const composer=[...document.querySelectorAll('textarea,[contenteditable="true"]')].filter(vis)[0];const p=location.pathname;return {ready:(p==='/ai'||p.startsWith('/ai/')||p==='/chat'||p.startsWith('/chat/'))&&!!composer,href:location.href}})()"#;
++/// Oeffnet IMMER den bestehenden Chat "Willkommen bei Notion" - es wird nie ein neuer Chat angelegt.
 +async fn prepare_chat(t:&Tab,i:usize)->Result<(),String>{
 +    let port=cdp_port(i);
-+    cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;
-+    tokio::time::sleep(Duration::from_secs(3)).await;
-+    let choose=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const visible=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const chat=document.querySelector('#sidebar-tab-chats,[role=\"tab\"][aria-label=\"Chat\"]');if(chat&&chat.getAttribute('aria-selected')!=='true')chat.click();await sleep(800);const items=[...document.querySelectorAll('[role=\"menuitem\"]')].filter(visible);let target=items.find(e=>/welcome to notion|willkommen (?:bei|in) notion/i.test((e.innerText||'')));let mode='welcome';if(!target){mode='new';target=[...document.querySelectorAll('button,[role=\"button\"]')].filter(visible).find(e=>(e.getAttribute('aria-label')||e.innerText||'').trim().toLowerCase()==='new chat');}if(target)target.click();await sleep(1500);return {mode,clicked:!!target}})()"#;
-+    let picked=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":choose,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);
-+    for attempt in 0..30 {
-+        tokio::time::sleep(Duration::from_secs(1)).await;
-+        let expr=r#"(()=>{const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&s.visibility!=='hidden'&&s.display!=='none'};const composer=[...document.querySelectorAll('textarea,[contenteditable=\"true\"]')].filter(vis).sort((a,b)=>b.getBoundingClientRect().bottom-a.getBoundingClientRect().bottom)[0];const path=location.pathname;return {ready:(path==='/ai'||path.startsWith('/ai/')||path==='/chat'||path.startsWith('/chat/'))&&!!composer,href:location.href}})()"#;
-+        let value=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);
-+        if value["ready"].as_bool().unwrap_or(false){let label=if picked["mode"]=="welcome"{"Willkommen bei Notion bereit"}else{"Neuer Chat bereit"};let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!(label);e["url"]=value["href"].clone();return Ok(());}
-+        if attempt==12{let _=cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await;}
++    let known=lock(&ACCOUNT).get(&t.id).and_then(|a|a["welcome_url"].as_str().map(String::from));
++    let mut found=false;
++    if let Some(u)=known.as_ref(){
++        let here=js_eval(port,"location.href").await?;
++        if here.as_str()!=Some(u.as_str()){cdp(port,vec![json!({"method":"Page.navigate","params":{"url":u}})]).await?;tokio::time::sleep(Duration::from_secs(3)).await;}
++        found=true;
 +    }
-+    let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!("Chat nicht bereit");
++    if !found{
++        for attempt in 0..3{
++            if attempt>0{cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;tokio::time::sleep(Duration::from_secs(4)).await;}
++            let r=js_eval(port,FIND_WELCOME).await?;
++            if r["found"].as_bool().unwrap_or(false){found=true;break;}
++        }
++    }
++    if !found{mark_account(t.id,"chat",json!("Chat \u{201a}Willkommen bei Notion\u{2018} nicht gefunden"));return Err(format!("{}: Chat \u{201a}Willkommen bei Notion\u{2018} nicht gefunden (es wird bewusst kein neuer Chat ge\u{f6}ffnet)",t.role));}
++    for _ in 0..25{
++        tokio::time::sleep(Duration::from_secs(1)).await;
++        let v=js_eval(port,CHAT_READY).await?;
++        if v["ready"].as_bool().unwrap_or(false){let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!("Willkommen bei Notion bereit");e["url"]=v["href"].clone();e["welcome_url"]=v["href"].clone();return Ok(());}
++    }
++    mark_account(t.id,"chat",json!("Chat nicht bereit"));
 +    Err(format!("{}: Notion-Chatbox wurde nicht bereit",t.role))
++}
++/// Ein einziger Check pro Konto: Tab erreichbar -> eingeloggt -> AdiCode-MCP (auch "asf") pruefen/einrichten -> Usage -> Chat "Willkommen bei Notion".
++async fn check_one(t:Tab,i:usize)->Result<(),String>{
++    if t.email.is_empty(){mark_account(t.id,"check",json!("Keine E-Mail eingetragen"));return Err(format!("{}: keine E-Mail",t.role));}
++    let port=cdp_port(i);
++    mark_account(t.id,"check",json!("Warte auf Tab \u{2026}"));
++    if !wait_cdp(port).await{mark_account(t.id,"check",json!("Tab nicht erreichbar"));mark_account(t.id,"usage_error",json!("Tab nicht erreichbar"));return Err(format!("{}: Tab nicht erreichbar",t.role));}
++    let mut ok=false;for _ in 0..25{if logged_in(port).await{ok=true;break;}tokio::time::sleep(Duration::from_secs(1)).await;}
++    if !ok{mark_account(t.id,"check",json!("Nicht eingeloggt \u{2013} Gmail-Login nutzen"));return Err(format!("{}: nicht in Notion eingeloggt",t.role));}
++    mark_account(t.id,"check",json!("Pr\u{fc}fe AdiCode-MCP \u{2026}"));
++    if let Err(e)=setup_mcp(&t,i).await{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));mark_account(t.id,"check",json!("MCP fehlt"));return Err(format!("{}: MCP {e}",t.role));}
++    mark_account(t.id,"check",json!("Pr\u{fc}fe Usage \u{2026}"));
++    inspect_account(&t,i).await;
++    mark_account(t.id,"check",json!("\u{d6}ffne \u{201a}Willkommen bei Notion\u{2018} \u{2026}"));
++    if let Err(e)=prepare_chat(&t,i).await{mark_account(t.id,"check",json!("Chat fehlt"));return Err(e);}
++    let ex=lock(&ACCOUNT).get(&t.id).map(|a|a["exhausted"].as_bool().unwrap_or(false)).unwrap_or(false);
++    mark_account(t.id,"check",json!(if ex{"OK \u{2013} aber KI-Kontingent aufgebraucht"}else{"OK"}));
++    Ok(())
++}
++async fn full_check(tabs:&[Tab])->Vec<String>{
++    set_status("Account-Check: AdiCode-MCP, Usage und Chat \u{201a}Willkommen bei Notion\u{2018} \u{2026}");
++    let hs:Vec<_>=tabs.iter().cloned().enumerate().map(|(i,t)|tokio::spawn(check_one(t,i))).collect();
++    let mut errs=Vec::new();for h in hs{match h.await{Ok(Err(e))=>errs.push(e),Err(e)=>errs.push(e.to_string()),_=>{}}}errs
++}
++fn check_action()->Result<String,String>{
++    let tabs=load();if tabs.is_empty(){return Err("Noch keine Tabs eingetragen.".into());}
++    if CHECKING.swap(true,Ordering::SeqCst){return Ok("Check l\u{e4}uft bereits.".into());}
++    let running=running_ids(&tabs);
++    for t in tabs.iter().filter(|t|!running.contains(&t.id)&&!t.email.is_empty()){if let Err(e)=launch(t,&start_url(t)){CHECKING.store(false,Ordering::SeqCst);return Err(e);}}
++    tokio::spawn(async move{let errs=full_check(&tabs).await;CHECKING.store(false,Ordering::SeqCst);set_status(if errs.is_empty(){"Check ok: alle Konten bereit (MCP, Usage, Chat \u{201a}Willkommen bei Notion\u{2018}).".to_string()}else{format!("Check: {}",errs.join("; "))});});
++    Ok("Check l\u{e4}uft: fehlende Tabs werden gestartet, dann MCP, Usage und Chat gepr\u{fc}ft.".into())
 +}
 +async fn open_main(port:u16)->Result<(),String>{cdp(port,vec![json!({"method":"Page.bringToFront"})]).await?;Ok(())
 +}
@@ -4589,7 +4636,7 @@ index 0000000..448b0fe
 +    let verify=r#"(()=>{const body=(document.body&&document.body.innerText)||'';return /Installed connections|Installierte Verbindungen/i.test(body)&&/\bAdiCode\b/i.test(body)})()"#;let ok=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":verify,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool).unwrap_or(false);let mut a=lock(&ACCOUNT);a.entry(t.id).or_insert_with(||json!({}))["mcp"]=json!(if ok{"Verbunden"}else{"Manueller Fallback nötig"});if ok{Ok("MCP verbunden.".into())}else{Err("MCP-Verbindung konnte nicht bestätigt werden.".into())}
 +}
 +/// Usage-Check: fragt die interne Notion-API des eingeloggten Kontos (getSpaces + getAIUsageEligibility[V2]) ab, Fallback Seitentext. Erkennt aufgebrauchte Kontingente.
-+const USAGE_JS:&str=r#"(async()=>{const body=(document.body&&document.body.innerText)||'';let store='';for(let i=0;i<localStorage.length;i++){try{store+='\n'+localStorage.getItem(localStorage.key(i));}catch(e){}}const text=body+'\n'+store;const names=['GPT-5','GPT-4.1','GPT-4o','Claude 4.5 Sonnet','Claude 4 Sonnet','Claude Opus','Gemini 2.5 Pro','o3','o4-mini','Notion AI'];const models=[...new Set(names.filter(n=>text.toLowerCase().includes(n.toLowerCase())))];const exhausted=/used your (trial )?AI allowance|add a payment method to unlock more AI|KI-Kontingent (ist )?aufgebraucht|AI-Guthaben aufgebraucht|out of AI responses/i.test(body);let used=null,limit=null,source='',eligible=null;const post=(p,b)=>fetch('/api/v3/'+p,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.ok?r.json():null).catch(()=>null);const walk=(o,f,d)=>{if(!o||typeof o!=='object'||d>6)return;for(const[k,v]of Object.entries(o)){if(typeof v==='number')f(k,v);else walk(v,f,(d||0)+1);}};try{const sp=await post('getSpaces',{});let spaceId=null;if(sp){for(const u of Object.values(sp)){const ids=Object.keys((u&&u.space)||{});if(ids.length){spaceId=ids[0];break;}}}if(spaceId){for(const ep of ['getAIUsageEligibilityV2','getAIUsageEligibility']){const j=await post(ep,{spaceId,surface:'ai_module'});if(!j)continue;source=ep;if(typeof j.isEligible==='boolean')eligible=j.isEligible;walk(j,(k,v)=>{const kk=k.toLowerCase();if(used==null&&/(used|usage|count|consumed)/.test(kk)&&!/limit|max/.test(kk))used=v;if(limit==null&&/(limit|max|allowance|total)/.test(kk))limit=v;});break;}}}catch(e){}let usage=null;if(used!=null&&limit){usage=Math.max(0,Math.min(100,Math.round(used/limit*100)));}if(usage==null){const near=text.match(/(?:usage|verwendet|genutzt|limit|kontingent)[^%]{0,100}(\d{1,3})\s*%/i)||text.match(/(\d{1,3})\s*%[^\n]{0,100}(?:usage|verwendet|genutzt|limit|kontingent)/i);if(near){usage=Math.min(100,Number(near[1]));source=source||'Seitentext';}}const ex=exhausted||eligible===false;if(ex){usage=100;}return {usage,used,limit,exhausted:ex,usage_source:source||(usage==null?'nicht gefunden':''),models,checked:new Date().toLocaleTimeString(),url:location.href,usage_error:null}})()"#;
++const USAGE_JS:&str=r#"(async()=>{const body=(document.body&&document.body.innerText)||'';const exText=/used your (trial )?AI allowance|add a payment method to unlock more AI|KI-Kontingent (ist )?aufgebraucht|AI-Guthaben aufgebraucht|out of AI responses/i.test(body);const post=(p,b)=>fetch('/api/v3/'+p,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.ok?r.json():null).catch(()=>null);const out={usage:null,used:null,limit:null,basic_used:null,basic_limit:null,premium_used:null,premium_limit:null,plan_type:null,exhausted:exText,usage_source:'nicht gefunden',usage_error:null,models:[],checked:new Date().toLocaleTimeString(),url:location.href};try{const sp=await post('getSpaces',{});let spaceId=null;if(sp){for(const u of Object.values(sp)){const ids=Object.keys((u&&u.space)||{});if(ids.length){spaceId=ids[0];break;}}}if(!spaceId){out.usage_error='Nicht eingeloggt oder kein Workspace';return out;}const v1=await post('getAIUsageEligibility',{spaceId,surface:'ai_module'});const v2=await post('getAIUsageEligibilityV2',{spaceId,surface:'ai_module'});if(v1){out.plan_type=v1.type||null;out.basic_used=v1.userUsage??v1.spaceUsage??null;out.basic_limit=v1.userLimit??v1.spaceLimit??null;if(v1.isEligible===false)out.exhausted=true;out.usage_source='getAIUsageEligibility';}if(v2){const b=v2.basicCredits||{};if(out.basic_used==null)out.basic_used=b.userUsage??null;if(out.basic_limit==null)out.basic_limit=b.userLimit??null;const ps=(v2.premiumCredits&&v2.premiumCredits.perSource)||{};let pu=0,pl=0;for(const s of Object.values(ps)){if(s&&typeof s.limit==='number'){pu+=s.usageTotal||0;pl+=s.limit;}}if(pl>0){out.premium_used=pu;out.premium_limit=pl;}out.usage_source=v1?'getAIUsageEligibility + V2':'getAIUsageEligibilityV2';}const unlimited=out.plan_type==='unlimited';if(out.premium_limit){out.used=out.premium_used;out.limit=out.premium_limit;out.usage=Math.min(100,Math.round(out.premium_used/out.premium_limit*100));}else if(!unlimited&&out.basic_limit){out.used=out.basic_used;out.limit=out.basic_limit;out.usage=Math.min(100,Math.round(out.basic_used/out.basic_limit*100));}else if(unlimited){out.usage=0;}if(!unlimited&&!out.premium_limit&&out.basic_limit&&out.basic_used>=out.basic_limit)out.exhausted=true;}catch(e){out.usage_error='Usage-Abfrage fehlgeschlagen: '+e;}if(out.exhausted)out.usage=100;return out})()"#;
 +async fn inspect_account(t:&Tab,i:usize){
 +    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":USAGE_JS,"awaitPromise":true,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).cloned()).filter(Value::is_object).unwrap_or_else(||json!({"usage_error":"Tab nicht erreichbar"}));
 +    let mut a=lock(&ACCOUNT);let entry=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));if let Some(obj)=value.as_object(){for(k,v)in obj{entry[k]=v.clone();}}
@@ -4621,16 +4668,9 @@ index 0000000..448b0fe
 +/// Hat der Nutzer das Worker-Fenster gerade selbst im Fokus, schickt AdiCode keine Erinnerung hinein.
 +async fn user_present(port:u16)->bool{cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":"document.hasFocus()","returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false)}async fn keep_alive(tabs:Vec<Tab>){loop{for(i,t)in tabs.iter().enumerate(){let _=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":"(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));return document.visibilityState})()"}})]).await;let _=t;}tokio::time::sleep(Duration::from_secs(20)).await;}}
 +async fn kickoff(tabs:Vec<Tab>, baseline:usize){
-+    set_status("Co-Work startet: MCP-Verbindungen werden geprüft …");
-+    tokio::time::sleep(Duration::from_secs(5)).await;
-+    for(i,t)in tabs.iter().enumerate(){let _=setup_mcp(t,i).await;}
-+    set_status("Öffne in allen vier Konten einmalig den Chat ‚Willkommen in Notion‘ …");
-+    let mut errors=Vec::new();
-+    for(i,t)in tabs.iter().enumerate(){if let Err(e)=prepare_chat(t,i).await{errors.push(e);}}
-+    if !errors.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Start angehalten – alle Fenster bleiben sichtbar: {}",errors.join("; ")));return;}
-+    set_status("Alle vier Chats sind bereit. Worker werden versteckt; Main bleibt sichtbar.");
-+    if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}
-+    if crate::notion_chat::CHAT_USED.load(Ordering::SeqCst){windows::set_hidden(&tabs[..1],true);}
++    let errors=full_check(&tabs).await;
++    if !errors.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Start angehalten \u{2013} Account-Check: {}",errors.join("; ")));return;}
++    set_status("Account-Check ok: alle Konten im Chat \u{201a}Willkommen bei Notion\u{2018}. Worker bleiben sichtbar, bis du \u{201a}Worker verstecken\u{2018} dr\u{fc}ckst.");
 +    let _=open_main(cdp_port(0)).await;
 +    if let Some(main)=tabs.first(){let _=insert_prompt(cdp_port(0),prompt_for(main)).await;}
 +    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
@@ -4740,7 +4780,7 @@ index 0000000..448b0fe
 +        "cowork_add_tab"=>add_tab(),"cowork_save_tabs"=>save_tabs(v),"cowork_start_all"=>start_all(v),
 +        "cowork_stop_all"=>{let ids:Vec<u32>=load().iter().map(|t|t.id).collect();Ok(format!("{} Browser-Prozesse beendet.",stop_ids(&ids)))},
 +        "cowork_show_all"=>{show_all_windows();Ok("Alle Co-Work-Fenster angezeigt.".into())},
-+        "cowork_check_accounts"=>{let tabs=load();tokio::spawn(async move{for(i,t)in tabs.iter().enumerate(){inspect_account(t,i).await;}});Ok("Account-Check läuft (Usage + Modelle).".into())},
++        "cowork_check_accounts"|"cowork_check"=>check_action(),
 +        "cowork_setup_mcp"=>find(id).map(|t|{let i=tab_index(t.id);tokio::spawn(async move{let _=setup_mcp(&t,i).await;});"MCP-Einrichtung gestartet.".into()}),
 +        "cowork_takeover"=>find(id).map(|t|{lock(&PAUSED).insert(t.id);windows::set_hidden(std::slice::from_ref(&t),false);let i=tab_index(t.id);tokio::spawn(async move{stop_generation(cdp_port(i)).await;let _=cdp(cdp_port(i),vec![json!({"method":"Page.bringToFront"})]).await;});format!("Tab {} ({}) \u{fc}bernommen: AdiCode schickt keine Erinnerungen mehr, du kannst dort selbst schreiben.",t.id,t.role)}),
 +        "cowork_release"=>find(id).map(|t|{lock(&PAUSED).remove(&t.id);format!("Tab {} ({}) wieder an Co-Work \u{fc}bergeben.",t.id,t.role)}),
@@ -7136,9 +7176,27 @@ index 3c12cf0..04e83bc 100644
          let mut state = Box::new(State { data, shared, restart: unsafe { RegisterWindowMessageW(wide("TaskbarCreated").as_ptr()) }, registered: false });
          let hooked = unsafe { SetWindowSubclass(state.data.window, procedure, SUBCLASS, (&mut *state as *mut State) as usize) != 0 };
 diff --git a/agent/src/updater.rs b/agent/src/updater.rs
-index ecb0723..b0cd4dd 100644
+index ecb0723..577433a 100644
 --- a/agent/src/updater.rs
 +++ b/agent/src/updater.rs
+@@ -10,7 +10,7 @@ const DEFAULT_FEED: &str = "https://raw.githubusercontent.com/stoveez/PlazCode/m
+ #[derive(Clone, Serialize, Deserialize)]
+ pub struct ReleaseNotes { pub version: String, pub title: String, pub summary: String, #[serde(default)] pub added: Vec<String>, #[serde(default)] pub improved: Vec<String>, #[serde(default)] pub fixed: Vec<String> }
+ #[derive(Clone, Serialize)]
+-pub struct Status { desktop_version: String, desktop_latest: Option<String>, installed: String, latest: Option<String>, available: bool, busy: bool, progress: u8, message: String, error: Option<String>, checked_at: u64, check_error: Option<String>, background: bool, release_notes: Vec<ReleaseNotes> }
++pub struct Status { notion_version: String, desktop_version: String, desktop_latest: Option<String>, installed: String, latest: Option<String>, available: bool, busy: bool, progress: u8, message: String, error: Option<String>, checked_at: u64, check_error: Option<String>, background: bool, release_notes: Vec<ReleaseNotes> }
+ fn folder() -> PathBuf { crate::platform::installation_root() }
+ fn installed_at(root: &std::path::Path) -> String {
+     ["PlazCode-Extension/manifest.json", "manifest.json"].iter().find_map(|path| {
+@@ -32,7 +32,7 @@ fn stage_helper(root: &std::path::Path, stage: &std::path::Path, windows: bool)
+     }
+     Ok(destination)
+ }
+-static STATUS: once_cell::sync::Lazy<Mutex<Status>> = once_cell::sync::Lazy::new(|| Mutex::new(Status { desktop_version: env!("CARGO_PKG_VERSION").into(), desktop_latest: None, installed: installed(), latest: None, available: false, busy: false, progress: 0, message: "Check for the latest published update.".into(), error: None, checked_at: 0, check_error: None, background: false, release_notes: serde_json::from_str(include_str!("../../release-notes.json")).unwrap_or_default() }));
++static STATUS: once_cell::sync::Lazy<Mutex<Status>> = once_cell::sync::Lazy::new(|| Mutex::new(Status { notion_version: notion_release_version(), desktop_version: env!("CARGO_PKG_VERSION").into(), desktop_latest: None, installed: installed(), latest: None, available: false, busy: false, progress: 0, message: "Check for the latest published update.".into(), error: None, checked_at: 0, check_error: None, background: false, release_notes: serde_json::from_str(include_str!("../../release-notes.json")).unwrap_or_default() }));
+ static MANUAL_WAITERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+ struct ManualWaiter;
+ impl Drop for ManualWaiter { fn drop(&mut self) { MANUAL_WAITERS.fetch_sub(1,std::sync::atomic::Ordering::SeqCst); } }
 @@ -322,6 +322,15 @@ static LAUNCH_UPDATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicB
  static CHECK_REQUEST: once_cell::sync::Lazy<tokio::sync::Notify> = once_cell::sync::Lazy::new(tokio::sync::Notify::new);
  pub fn request_launch_update() { AUTO_INSTALL.store(true, std::sync::atomic::Ordering::SeqCst);LAUNCH_UPDATE.store(true, std::sync::atomic::Ordering::SeqCst);CHECK_REQUEST.notify_one(); }
@@ -7163,3 +7221,10 @@ index ecb0723..b0cd4dd 100644
      if value["action"]=="launch" { request_launch_update();return Json(serde_json::json!({"ok":true,"queued":true})).into_response(); }
      let install=match value["action"].as_str() { Some("check")=>false,Some("install")|Some("launch")=>true,_=>return (axum::http::StatusCode::BAD_REQUEST,Json(serde_json::json!({"error":"Unknown update action."}))).into_response() };
      let silent=value["action"]=="launch" || (!install && value["background"].as_bool().unwrap_or(false));
+@@ -598,3 +608,6 @@ pub async fn post(Json(value): Json<Value>) -> axum::response::Response {
+         assert!(validate(&serde_json::json!({"version":"1.18.80","url":"https://example.com/a.zip","sha256":"a".repeat(64)})).is_ok());
+     }
+ }
++
++/// Version des AdiCode-Notion-Release (aus %LOCALAPPDATA%\PlazCodeNotion\app\.version), nicht die interne Agent-Version.
++fn notion_release_version()->String{std::env::var("LOCALAPPDATA").ok().and_then(|d|std::fs::read_to_string(std::path::Path::new(&d).join("PlazCodeNotion").join("app").join(".version")).ok()).map(|s|s.trim().to_string()).filter(|s|!s.is_empty()).unwrap_or_default()}

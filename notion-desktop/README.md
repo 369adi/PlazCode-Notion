@@ -12,6 +12,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.28
+- **Ein einziger Check** (Button "Check (MCP - Usage - Chat)"): startet fehlende Tabs, wartet bis sie erreichbar und eingeloggt sind, prueft ob der AdiCode-MCP installiert ist (auch unter dem Namen "asf" oder "PlazCode") und richtet ihn sonst ein, liest das echte Usage-Limit und oeffnet am Ende den Chat "Willkommen bei Notion". Jeder Co-Work-Start macht diesen Check automatisch - auch fuer den Main-Tab.
+- **Echtes Usage**: Basis-KI (z. B. 143/50, im Plan "unlimited") und Premium-Credits (z. B. 0/300) werden getrennt angezeigt. Vorher stand faelschlich immer 0/300.
+- **Nie ein neuer Chat**: AdiCode legt keinen neuen Notion-Chat mehr an, auch nicht im Main-Tab. Fehlt der Chat "Willkommen bei Notion", stoppt der Check mit klarer Meldung.
+- **Kein Auto-Verstecken**: Die drei Worker-Fenster bleiben beim Start sichtbar und werden erst ueber "Worker verstecken" ausgeblendet.
+- **Richtige Version oben links**: Seitenleiste und Titel zeigen jetzt die echte Release-Version statt der internen Agent-Nummer.
+- Veraltete Meldung "Tab laeuft nicht" wird beim Start sofort geloescht; das Dashboard aktualisiert sich nach dem Check mehrfach.
 ## Neu in 1.0.27
 - **Browser zuerst waehlen**: Co-Work hat oben Schritt 1 "Browser waehlen" (Chrome, Edge oder Brave - nur installierte werden angeboten). Alle Tabs starten in diesem Browser; ohne Auswahl ist "Alle starten" gesperrt. Wechsel nur, wenn alle Tabs gestoppt sind.
 - **Co-Work neu gestaltet**: drei Schritte (Browser -> Konten & Tabs -> Starten), Tabs als Karten statt Tabelle, alle Buttons mit Icons (Play, Stop, Speichern, Login, MCP, Kopieren ...). "Worker zeigen / verstecken" ist jetzt ein echter Umschalter.
