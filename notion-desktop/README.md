@@ -73,6 +73,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.56
 - **Keine neuen Chats mehr**: In den Co-Work-Tabs sind Neuer Chat, Neuer Agent und Strg+O gesperrt. Gearbeitet wird nur im Chat Willkommen bei Notion.
 - Alte, ungueltige Chat-Links werden vergessen und der Willkommen-Chat wird neu gefunden.
+## Neu in 1.0.57
+- **Keine neuen Chats mehr**: In den Co-Work-Tabs sind Neuer Chat, Neuer Agent und Strg+O gesperrt. Gearbeitet wird nur im Chat Willkommen bei Notion.
+- Alte, ungueltige Chat-Links werden vergessen und der Willkommen-Chat wird neu gefunden.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
