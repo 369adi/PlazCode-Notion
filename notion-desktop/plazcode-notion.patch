@@ -4518,10 +4518,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..1c002e9
+index 0000000..f076e15
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,529 @@
+@@ -0,0 +1,531 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4788,13 +4788,15 @@ index 0000000..1c002e9
 +/// Schliesst offene Notion-Einstellungen (z. B. nach dem MCP-Check) per X bzw. Escape.
 +const CLOSE_SETTINGS:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const q=()=>document.querySelector('input[aria-label="Search settings"],input[placeholder="Search settings"],input[aria-label="Einstellungen durchsuchen"]');for(let k=0;k<5;k++){const s=q();if(!s)return true;const dlg=s.closest('[role="dialog"]')||document.body;const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const b=[...dlg.querySelectorAll('[aria-label="Close"],[aria-label="Schließen"],[aria-label="Schliessen"]')].filter(vis)[0];if(b)b.click();else document.activeElement&&document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',keyCode:27,bubbles:true}));await sleep(700);}return !q()})()"#;
 +async fn close_settings(port:u16){let ok=js_eval(port,CLOSE_SETTINGS).await.ok().and_then(|v|v.as_bool()).unwrap_or(false);if !ok{let k=|t:&str|json!({"method":"Input.dispatchKeyEvent","params":{"type":t,"key":"Escape","code":"Escape","windowsVirtualKeyCode":27}});let _=cdp(port,vec![k("keyDown"),k("keyUp")]).await;tokio::time::sleep(Duration::from_millis(500)).await;}}
++const GUARD_JS:&str=r#"(()=>{if(window.__acg)return 1;window.__acg=1;const re=/^(new chat|neuer chat|start a new chat|neuen chat starten|new agent|neuer agent)$/i;document.addEventListener('click',e=>{const el=e.target.closest&&e.target.closest('a,button,[role=button],[role=menuitem]');if(!el)return;const raw=(el.innerText||el.getAttribute('aria-label')||'').trim().replace(/\s+/g,' ');const t=raw.replace(/ ctrl.o$/i,'');if(re.test(t)){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}},true);document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&(e.key==='o'||e.key==='O')){e.preventDefault();e.stopPropagation()}},true);return 1})()"#;
 +async fn prepare_chat(t:&Tab,i:usize)->Result<(),String>{
-+    let port=cdp_port(i);close_settings(port).await;
++    let port=cdp_port(i);close_settings(port).await;let _=js_eval(port,GUARD_JS).await;
 +    let known=lock(&ACCOUNT).get(&t.id).and_then(|a|a["welcome_url"].as_str().map(String::from)).or_else(||mem_get(&t.email,"welcome_url").as_str().map(String::from));
 +    let mut found=false;
 +    if let Some(u)=known.as_ref(){
 +        let here=js_eval(port,"location.href").await?;
 +        if here.as_str()!=Some(u.as_str()){cdp(port,vec![json!({"method":"Page.navigate","params":{"url":u}})]).await?;tokio::time::sleep(Duration::from_secs(3)).await;}
++        let noacc=js_eval(port,"/don.t have access to this chat|keinen Zugriff auf diesen Chat/i.test(document.body.innerText)").await.ok().and_then(|v|v.as_bool()).unwrap_or(false);if noacc{mem_set(&t.email,"welcome_url",Value::Null);mark_account(t.id,"welcome_url",Value::Null);cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;tokio::time::sleep(Duration::from_secs(4)).await;}
 +        found=true;
 +    }
 +    if !found{
@@ -4808,7 +4810,7 @@ index 0000000..1c002e9
 +    for _ in 0..25{
 +        tokio::time::sleep(Duration::from_secs(1)).await;
 +        let v=js_eval(port,CHAT_READY).await?;
-+        if v["ready"].as_bool().unwrap_or(false){let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!("Willkommen bei Notion bereit");e["url"]=v["href"].clone();e["welcome_url"]=v["href"].clone();drop(a);mem_set(&t.email,"welcome_url",v["href"].clone());return Ok(());}
++        if v["ready"].as_bool().unwrap_or(false){let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!("Willkommen bei Notion bereit");e["url"]=v["href"].clone();e["welcome_url"]=v["href"].clone();drop(a);mem_set(&t.email,"welcome_url",v["href"].clone());let _=js_eval(port,GUARD_JS).await;return Ok(());}
 +    }
 +    mark_account(t.id,"chat",json!("Chat nicht bereit"));
 +    Err(format!("{}: Notion-Chatbox wurde nicht bereit",t.role))
