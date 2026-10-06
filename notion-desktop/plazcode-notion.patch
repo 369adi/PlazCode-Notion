@@ -1636,7 +1636,7 @@ index 1a68aee..c63d1e2 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
-index 0000000..5c536fa
+index 0000000..88d4724
 --- /dev/null
 +++ b/agent/src/notion_chat.rs
 @@ -0,0 +1,506 @@
@@ -1721,7 +1721,7 @@ index 0000000..5c536fa
 +}
 +
 +/// Gemeinsame Helfer, die vor jedes Skript im Notion-Tab gesetzt werden.
-+const H: &str = r##"const __vis=e=>{if(!e)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const __q=t=>document.querySelector('[data-testid="'+t+'"]');const __composer=()=>{const list=[...document.querySelectorAll('[contenteditable="true"][role="textbox"],[contenteditable="true"][placeholder]')].filter(__vis);if(!list.length)return null;const b=__q('agent-chat-send-button');if(!b)return list.sort((a,c)=>c.getBoundingClientRect().bottom-a.getBoundingClientRect().bottom)[0];const y=b.getBoundingClientRect().top;return list.sort((a,c)=>Math.abs(a.getBoundingClientRect().bottom-y)-Math.abs(c.getBoundingClientRect().bottom-y))[0]};const __center=e=>{const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}};const __sleep=ms=>new Promise(r=>setTimeout(r,ms));"##;
++const H: &str = r##"const __vis=e=>{if(!e)return false;const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const __A={'agent-chat-send-button':['agent-send-message-button'],'agent-chat-stop-button':['agent-stop-inference-button']};const __q=t=>{for(const x of [t,...(__A[t]||[])]){const e=document.querySelector('[data-testid="'+x+'"]');if(e)return e}return null};const __composer=()=>{const list=[...document.querySelectorAll('[contenteditable="true"][role="textbox"],[contenteditable="true"][placeholder]')].filter(__vis);if(!list.length)return null;const b=__q('agent-chat-send-button');if(!b)return list.sort((a,c)=>c.getBoundingClientRect().bottom-a.getBoundingClientRect().bottom)[0];const y=b.getBoundingClientRect().top;return list.sort((a,c)=>Math.abs(a.getBoundingClientRect().bottom-y)-Math.abs(c.getBoundingClientRect().bottom-y))[0]};const __center=e=>{const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}};const __sleep=ms=>new Promise(r=>setTimeout(r,ms));"##;
 +
 +const PROBE: &str = r##"const p=location.pathname;const login=/^\/(login|signup|onboarding)/.test(p)||!!document.querySelector('input[type="email"]');return {composer:!!__composer(),recording:!!__q('agent-chat-stop-recording-button'),login,onchat:p.startsWith('/ai')||p.startsWith('/chat'),url:location.href};"##;
 +
@@ -5231,7 +5231,7 @@ index 0000000..8c3f01f
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..48b91f5
+index 0000000..72cac8e
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
 @@ -0,0 +1,717 @@
@@ -5504,16 +5504,16 @@ index 0000000..48b91f5
 +}
 +/// Chat is idle: Notion AI is not generating/recording and the composer is empty.
 +async fn chat_idle(port:u16)->bool{
-+    let expr=r#"(()=>{if(document.querySelector('[data-testid="agent-chat-stop-button"],[data-testid="agent-chat-stop-recording-button"]'))return false;const c=document.querySelector('[role="textbox"][contenteditable="true"]');return !!c&&!(c.innerText||'').trim()})()"#;
++    let expr=r#"(()=>{if(document.querySelector('[data-testid="agent-chat-stop-button"],[data-testid="agent-stop-inference-button"],[data-testid="agent-chat-stop-recording-button"]'))return false;const c=document.querySelector('[role="textbox"][contenteditable="true"]');return !!c&&!(c.innerText||'').trim()})()"#;
 +    cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false)
 +}
 +/// Snapshot of a generating chat (null when idle). Digits are stripped so the "Working for 3m 12s" timer does not count as progress.
 +async fn gen_snapshot(port:u16)->Option<String>{
-+    let expr=r#"(()=>{if(!document.querySelector('[data-testid="agent-chat-stop-button"]'))return null;const m=document.querySelector('main')||document.body;const t=(m.innerText||'').replace(/\d/g,'');return t.length+':'+t.slice(-300)})()"#;
++    let expr=r#"(()=>{if(!document.querySelector('[data-testid="agent-chat-stop-button"],[data-testid="agent-stop-inference-button"]'))return null;const m=document.querySelector('main')||document.body;const t=(m.innerText||'').replace(/\d/g,'');return t.length+':'+t.slice(-300)})()"#;
 +    cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_str).map(String::from))
 +}
 +async fn stop_generation(port:u16){
-+    let expr="(()=>{const b=document.querySelector('[data-testid=\"agent-chat-stop-button\"]');if(b)b.click();return !!b})()";
++    let expr="(()=>{const b=document.querySelector('[data-testid=\"agent-chat-stop-button\"],[data-testid=\"agent-stop-inference-button\"]');if(b)b.click();return !!b})()";
 +    let _=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await;
 +}
 +/// Watchdog: Notion AI bleibt manchmal haengen ("Processing" ohne neuen Text, z. B. nach einem AdiCode-Neustart). Nach STUCK_SECS ohne Fortschritt stoppen; der Nudger weckt den Chat danach wieder.

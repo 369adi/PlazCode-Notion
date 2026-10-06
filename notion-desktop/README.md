@@ -161,6 +161,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.85
 - **Co-Work Bridge**: Alle Tabs sehen, wer gerade welche Datei bearbeitet. Schreibzugriffe (Dateien, PowerShell, git) auf Dateien, die ein anderer Tab bearbeitet, werden blockiert und der andere Tab bekommt eine Nachricht. Freie Dateien werden automatisch fuer den schreibenden Tab gesperrt.
 - **Arbeitspakete im Co-Work**: Der Main Chat teilt das ganze Projekt nach Funktionsbereichen auf. Tasks mit gleichem Bereich oder gemeinsamen Dateien bilden ein Paket, jeder Tab bekommt sein eigenes Paket - so arbeiten alle gleichzeitig an verschiedenen Teilen derselben App.
+## Neu in 1.0.86
+- **Fix: "Senden-Knopf von Notion nicht gefunden"**: Notion hat die internen Namen von Senden- und Stopp-Knopf geaendert. AdiCode erkennt jetzt alte und neue Namen (Senden, Stoppen, "KI schreibt gerade"). Damit funktionieren Chat-Senden und Co-Work-Erkennung wieder.
+- **Chat-Design v2**: uebersichtlichere Seitenleiste, Kopfzeile, Nachrichten, Code-Bloecke und Eingabefeld mit sanften Animationen (respektiert reduzierte Animationen).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
