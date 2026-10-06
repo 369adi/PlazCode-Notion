@@ -4775,10 +4775,10 @@ index 0000000..19ba213
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..4e8797f
+index 0000000..48b91f5
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,716 @@
+@@ -0,0 +1,717 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -5164,13 +5164,13 @@ index 0000000..4e8797f
 +    }
 +    false
 +}
-+const STUCK_LOAD_JS:&str=r#"(()=>{if(!/notion\.(so|com)$/.test(location.hostname))return false;if(document.readyState==='loading')return true;const t=((document.body&&document.body.innerText)||'').trim();const n=[...document.querySelectorAll('[role=button],button,[role=menuitem],[role=tab],a,input')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&((e.innerText||e.value||e.placeholder||'').trim())}).length;return t.length<25&&n<2})()"#;
++const STUCK_LOAD_JS:&str=r#"(()=>{if(!/notion\.(so|com)$/.test(location.hostname))return false;if(document.readyState==='complete'&&!document.querySelector('#sidebar-tab-chats,[role="tab"][aria-label="Chat"],[role="tab"][aria-label="Chats"]')&&!document.querySelector('[role="dialog"]')&&/(^|\n)\s*(Teamspaces|Private|Privat|New task|Neue Aufgabe)\s*(\n|$)/.test((document.body&&document.body.innerText)||''))return 'layout';if(document.readyState==='loading')return true;const t=((document.body&&document.body.innerText)||'').trim();const n=[...document.querySelectorAll('[role=button],button,[role=menuitem],[role=tab],a,input')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0&&((e.innerText||e.value||e.placeholder||'').trim())}).length;return t.length<25&&n<2})()"#;
 +const COOKIE_JS:&str=r#"(()=>{const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const lb=e=>(e.innerText||e.getAttribute('aria-label')||'').trim();const bs=[...document.querySelectorAll('button,[role=button],a')].filter(vis);const near=e=>{let p=e;for(let k=0;k<7&&p;k++){p=p.parentElement;if(p&&/cookie/i.test(p.innerText||'')&&(p.innerText||'').length<1500)return true}return false};const rej=bs.find(e=>/^(reject all|reject|decline( all)?|deny( all)?|only necessary|necessary only|use necessary cookies only|alle ablehnen|ablehnen|nur (notwendige|erforderliche|nötige)( cookies)?|alle verweigern)$/i.test(lb(e))&&near(e));if(rej){rej.click();return 'reject:'+lb(rej)}const body=(document.body&&document.body.innerText)||'';if(/cookie preferences|cookie-einstellungen|cookie settings/i.test(body)&&/reload|neu geladen/i.test(body)){const ok=bs.find(e=>/^(ok|okay)$/i.test(lb(e))&&near(e));if(ok){ok.click();return 'ok'}}return null})()"#;
 +static LOAD_WD:std::sync::atomic::AtomicBool=std::sync::atomic::AtomicBool::new(false);
 +/// Startet einmalig den Lade-Waechter: laedt Notion neu, wenn es >20 s im Lade-Skelett haengt, und lehnt Cookie-Banner ab.
 +fn start_load_watchdog(){if LOAD_WD.swap(true,std::sync::atomic::Ordering::SeqCst){return;}match tokio::runtime::Handle::try_current(){Ok(h)=>{h.spawn(load_watchdog());}Err(_)=>{LOAD_WD.store(false,std::sync::atomic::Ordering::SeqCst);}}}
 +async fn load_watchdog(){
-+    let mut since:BTreeMap<u32,(std::time::Instant,u32)>=BTreeMap::new();
++    let mut since:BTreeMap<u32,(std::time::Instant,u32)>=BTreeMap::new();let mut lay:BTreeMap<u32,(std::time::Instant,u32)>=BTreeMap::new();
 +    loop{
 +        tokio::time::sleep(Duration::from_secs(5)).await;
 +        let tabs=load();
@@ -5179,6 +5179,7 @@ index 0000000..4e8797f
 +            let Ok(st)=tokio::time::timeout(Duration::from_secs(4),js_eval(port,STUCK_LOAD_JS)).await else {continue};
 +            let Ok(st)=st else {since.remove(&t.id);continue};
 +            if let Ok(Ok(c))=tokio::time::timeout(Duration::from_secs(3),js_eval(port,COOKIE_JS)).await{if c.is_string(){mark_account(t.id,"cookie",c);}}
++            if st.as_str()==Some("layout"){let e=lay.entry(t.id).or_insert((std::time::Instant::now(),0));if e.1<3&&e.0.elapsed()>=Duration::from_secs(8){e.1+=1;e.0=std::time::Instant::now();let cmd=match welcome_url(t){Some(u)=>json!({"method":"Page.navigate","params":{"url":u}}),None=>json!({"method":"Page.reload","params":{"ignoreCache":true}})};let _=cdp(port,vec![cmd]).await;mark_account(t.id,"load_state",json!("Notion ohne Chat-Leiste geladen \u{2013} neu ge\u{f6}ffnet"));tracing::warn!("Tab {}: Notion ohne Chat-Leiste, neu geoeffnet",t.id);}since.remove(&t.id);continue;}else{lay.remove(&t.id);}
 +            if st.as_bool()!=Some(true){since.remove(&t.id);continue;}
 +            let e=since.entry(t.id).or_insert((std::time::Instant::now(),0));
 +            if e.0.elapsed()>=Duration::from_secs(20){
@@ -5195,7 +5196,7 @@ index 0000000..4e8797f
 +const FILL_JS:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};const dl=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop()||document;const set=(e,v)=>{if(!e)return false;e.focus();const d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(e,v);e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));return true};const lab=e=>{let t=(e.getAttribute('aria-label')||'')+' '+(e.placeholder||'');let p=e;for(let k=0;k<4&&p;k++){p=p.parentElement;if(!p)break;const l=[...p.childNodes].map(n=>n.nodeType===3?n.textContent:(n.contains&&n.contains(e)?'':(n.innerText||''))).join(' ');if(l.trim()){t+=' '+l;break}}return t.toLowerCase()};const ins=()=>[...dl.querySelectorAll('input')].filter(e=>vis(e)&&!['checkbox','radio','hidden'].includes(e.type));let a=ins();const url=a.find(e=>/^https?:/i.test(e.value)||/https?:|mcp|url/i.test(e.placeholder||''));let name=a.find(e=>e!==url&&e.type!=='password'&&/name|example mcp|beispiel/i.test(lab(e)));if(!name)name=a.find(e=>e!==url&&e.type!=='password'&&!/token|bearer|präfix|prefix|header|schlüssel/i.test(lab(e)));if(name&&!name.value.trim())set(name,'AdiCode');const findTok=()=>ins().find(e=>e!==url&&e!==name&&(e.type==='password'||/token|api key|schlüssel/i.test(lab(e))));let tok=findTok();if(!tok&&__TOKEN__){const auth=[...dl.querySelectorAll('button,[role=button],[role=combobox],select')].filter(vis).find(e=>{const t=(e.innerText||'').trim();return /^(none|keine|ohne|no auth|kein)/i.test(t)||(/authenti/i.test(lab(e))&&t.length<30&&!/bearer/i.test(t))});if(auth){if(auth.tagName==='SELECT'){const o=[...auth.options].find(o=>/bearer/i.test(o.text));if(o){auth.value=o.value;auth.dispatchEvent(new Event('change',{bubbles:true}))}}else{auth.click();await sleep(600);const opt=[...document.querySelectorAll('[role=menuitem],[role=option],[role=menuitemradio],button,[role=button]')].filter(vis).find(e=>/^bearer/i.test((e.innerText||'').trim()));if(opt){opt.click();await sleep(700)}}}tok=findTok()}if(tok&&__TOKEN__&&tok.value!==__TOKEN__)set(tok,__TOKEN__);await sleep(400);const btn=[...dl.querySelectorAll('button,[role=button]')].filter(vis).reverse().find(e=>/^(connect|verbinden|hinzufügen|add|speichern|save)$/i.test((e.innerText||'').trim()));if(!btn||btn.disabled||btn.getAttribute('aria-disabled')==='true')return null;const r=btn.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,name:!!(name&&name.value),token:!!(tok&&tok.value)}})()"#;
 +async fn js_eval(port:u16,expr:&str)->Result<Value,String>{Ok(cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null))}
 +async fn wait_cdp(port:u16)->bool{for _ in 0..40{if target(port).await.is_ok(){return true;}tokio::time::sleep(Duration::from_secs(1)).await;}false}
-+const FIND_WELCOME:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const re=/^(welcome to notion|willkommen (bei|in|zu) notion)/i;for(let k=0;k<20;k++){const tab=document.querySelector('#sidebar-tab-chats,[role="tab"][aria-label="Chat"],[role="tab"][aria-label="Chats"]');if(tab&&tab.getAttribute('aria-selected')!=='true')tab.click();const item=[...document.querySelectorAll('[role="menuitem"]')].filter(vis).find(e=>re.test((e.innerText||'').trim()));if(item){item.click();await sleep(1500);return {found:true}}if(k%5===4){const sc=[...document.querySelectorAll('[role="menu"],[role="tabpanel"],[role="list"]')].find(e=>vis(e)&&e.scrollHeight>e.clientHeight+20);if(sc)sc.scrollTop+=500;}await sleep(500);}return {found:false}})()"#;
++const FIND_WELCOME:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const re=/^(welcome to notion|willkommen (bei|in|zu) notion)/i;for(let k=0;k<20;k++){const tab=document.querySelector('#sidebar-tab-chats,[role="tab"][aria-label="Chat"],[role="tab"][aria-label="Chats"]');if(tab&&tab.getAttribute('aria-selected')!=='true')tab.click();if(!tab&&k>=6)return {found:false,notabs:true};const item=[...document.querySelectorAll('[role="menuitem"]')].filter(vis).find(e=>re.test((e.innerText||'').trim()));if(item){item.click();await sleep(1500);return {found:true}}if(k%5===4){const sc=[...document.querySelectorAll('[role="menu"],[role="tabpanel"],[role="list"]')].find(e=>vis(e)&&e.scrollHeight>e.clientHeight+20);if(sc)sc.scrollTop+=500;}await sleep(500);}return {found:false}})()"#;
 +const CHAT_READY:&str=r#"(()=>{const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&s.visibility!=='hidden'&&s.display!=='none'};const composer=[...document.querySelectorAll('textarea,[contenteditable="true"]')].filter(vis)[0];const p=location.pathname;return {ready:(p==='/ai'||p.startsWith('/ai/')||p==='/chat'||p.startsWith('/chat/'))&&!!composer,href:location.href}})()"#;
 +/// Oeffnet IMMER den bestehenden Chat "Willkommen bei Notion" - es wird nie ein neuer Chat angelegt.
 +/// Schliesst offene Notion-Einstellungen (z. B. nach dem MCP-Check) per X bzw. Escape.
@@ -5215,8 +5216,8 @@ index 0000000..4e8797f
 +        found=true;
 +    }
 +    if !found{
-+        for attempt in 0..3{
-+            if attempt>0{cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;tokio::time::sleep(Duration::from_secs(4)).await;}
++        for attempt in 0..4{
++            if attempt>0{let cmd=if attempt%2==1{json!({"method":"Page.reload","params":{"ignoreCache":true}})}else{json!({"method":"Page.navigate","params":{"url":NOTION_URL}})};cdp(port,vec![cmd]).await?;tokio::time::sleep(Duration::from_secs(5)).await;}
 +            let r=js_eval(port,FIND_WELCOME).await?;
 +            if r["found"].as_bool().unwrap_or(false){found=true;break;}
 +        }
