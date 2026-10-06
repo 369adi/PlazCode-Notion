@@ -2024,7 +2024,7 @@ index 0000000..c2d8448
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..87e32b6
+index 0000000..da2ec0a
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
 @@ -0,0 +1,629 @@
@@ -2093,7 +2093,7 @@ index 0000000..87e32b6
 +.ac-steps .ac-sh{cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 +.ac-steps .ac-sh:hover{color:var(--dim)}
 +.ac-steps .ac-sl{display:none;margin:8px 0 0;border-left:2px solid var(--ac-line);padding-left:12px;line-height:1.55}
-+.ac-steps.open .ac-sl{display:block}
++.ac-steps.open .ac-sl{display:block;max-height:240px;overflow:auto}
 +.ac-steps .ac-chev{transition:transform .15s;display:inline-block}.ac-steps.open .ac-chev{transform:rotate(90deg)}
 +.ac-live{background:linear-gradient(90deg,var(--muted) 0%,#cfd6ea 50%,var(--muted) 100%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:acShine 1.6s linear infinite}
 +.ac-typing{display:inline-flex;gap:5px;padding:8px 0}
@@ -2354,11 +2354,11 @@ index 0000000..87e32b6
 +    var steps = m.steps || [];
 +    var working = !m.done && (m.typing || (m.last && S.gen));
 +    if (steps.length) {
-+      var st = document.createElement("div"); st.className = "ac-steps" + (S.open[m.id] ? " open" : "");
++      var st = document.createElement("div"); st.className = "ac-steps" + ((S.open[m.id] === undefined ? working : S.open[m.id]) ? " open" : "");
 +      var lastStep = steps[steps.length - 1];
 +      var label = working ? lastStep : ("Gedankengang \u00b7 " + steps.length + (steps.length === 1 ? " Schritt" : " Schritte"));
 +      st.innerHTML = '<span class="ac-sh"><span class="ac-chev">\u203a</span><span class="' + (working ? "ac-live" : "") + '">' + esc(label) + '</span></span><div class="ac-sl">' + steps.map(function (s) { return "<div>" + esc(s) + "</div>"; }).join("") + "</div>";
-+      st.firstChild.onclick = function () { S.open[m.id] = !S.open[m.id]; st.classList.toggle("open"); };
++      st.firstChild.onclick = function () { var cur = (S.open[m.id] === undefined ? working : S.open[m.id]); S.open[m.id] = !cur; st.classList.toggle("open", !cur); };
 +      body.appendChild(st);
 +    }
 +    if (m.html) { var md = document.createElement("div"); md.className = "ac-md"; md.appendChild(sanitize(m.html)); enhance(md); body.appendChild(md); }
@@ -2396,7 +2396,7 @@ index 0000000..87e32b6
 +    var em = box.querySelector(".ac-empty"); if (em) { em.remove(); S.sigs = []; box.innerHTML = ""; }
 +    for (var i = 0; i < list.length; i++) {
 +      var m = list[i]; m.last = i === list.length - 1;
-+      var sig = JSON.stringify(m) + (m.last && S.gen ? "g" : "") + (S.open[m.id] ? "o" : "");
++      var sig = JSON.stringify(m) + (m.last && S.gen ? "g" : "") + (S.open[m.id] === undefined ? "u" : (S.open[m.id] ? "o" : "c"));
 +      if (S.sigs[i] === sig && box.children[i]) continue;
 +      var el = msgEl(m);
 +      if (box.children[i]) box.replaceChild(el, box.children[i]); else box.appendChild(el);
