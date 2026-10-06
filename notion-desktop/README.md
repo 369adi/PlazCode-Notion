@@ -144,6 +144,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Kein endloses Laden mehr**: haengt Notion laenger als 20 s im Lade-Bildschirm, laedt AdiCode die Seite automatisch neu.
 - **Cookies automatisch ablehnen**: Cookie-Banner werden in allen Tabs automatisch abgelehnt (EN/DE).
 - **Jeder Check nur einmal pro Konto**: Englisch, MCP, Modelle und Usage-Seite werden pro Konto gemerkt und beim naechsten Check uebersprungen. Refresh/Vergessen setzt alles zurueck ausser der Sprache.
+## Neu in 1.0.79
+- **Chat-Liste wie bei ChatGPT**: neue Chats erscheinen sofort links und werden nach dem Inhalt benannt (Notion-Chatname bzw. kurzer Anfang der ersten Nachricht).
+- **Co-Work mit dem Main-Chat**: ein neuer Chat bekommt bei laufendem Co-Work automatisch den Co-Work-Kontext, damit Main die Worker einbindet; Nachrichten werden auch in deutschem Notion erkannt.
+- **Alles gruen = Fenster weg**: sind alle Checks ok, werden alle Notion-Fenster versteckt (auch Main).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

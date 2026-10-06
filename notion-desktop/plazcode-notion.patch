@@ -1565,10 +1565,10 @@ index 1a68aee..c63d1e2 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
-index 0000000..2fc737d
+index 0000000..d2b4423
 --- /dev/null
 +++ b/agent/src/notion_chat.rs
-@@ -0,0 +1,489 @@
+@@ -0,0 +1,494 @@
 +//! AdiCode Chat: ChatGPT-aehnliche Chatbox direkt in AdiCode.
 +//! Sie steuert den Co-Work-Main-Tab (Notion AI, CDP-Port 9301): Text, Fotos, Videos und
 +//! Dateien, Notion-Diktat (Sprechbox), Stopp, neuer Chat, Verlauf und Freigabe-Knoepfe.
@@ -1584,6 +1584,7 @@ index 0000000..2fc737d
 +/// Wird gesetzt, sobald die Chat-Seite benutzt wurde; Co-Work versteckt dann auch Main.
 +pub static CHAT_USED: AtomicBool = AtomicBool::new(false);
 +static HIDE_MAIN: AtomicBool = AtomicBool::new(true);
++pub fn set_main_hidden(b: bool) { HIDE_MAIN.store(b, Ordering::SeqCst); }
 +static MCP_CHECKED: AtomicBool = AtomicBool::new(false);
 +static ENSURE: Lazy<tokio::sync::Mutex<()>> = Lazy::new(|| tokio::sync::Mutex::new(()));
 +static HISTORY: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
@@ -1656,15 +1657,15 @@ index 0000000..2fc737d
 +const STATE: &str = r##"const rows=[...document.querySelectorAll('[data-agent-service-find-row]')];const msgs=[];let cur=null;
 +const flat=n=>{n.querySelectorAll('svg,input,textarea,style,script,img[src^="blob:"]').forEach(x=>x.remove());n.querySelectorAll('button,[role="button"]').forEach(x=>{const t=(x.textContent||'').trim();x.replaceWith(document.createTextNode(t))});return n};
 +for(const r of rows){const anchor=r.getAttribute('data-agent-service-scroll-anchor')||'';
-+ if(r.querySelector('[aria-label="Edit message"]')){const files=[...r.querySelectorAll('[aria-label^="Preview "]')].map(e=>e.getAttribute('aria-label').slice(8));let lines=(r.innerText||'').split('\n');while(lines.length&&/^\s*(\d{1,2}:\d{2}(\s?[AP]M)?)?\s*$/i.test(lines[lines.length-1]))lines.pop();lines=lines.filter(l=>!files.includes(l.trim()));msgs.push({role:'user',id:anchor,text:lines.join('\n').trim(),files});cur=null;continue;}
++ if(r.querySelector('[aria-label="Edit message"],[aria-label="Nachricht bearbeiten"]')){const files=[...r.querySelectorAll('[aria-label^="Preview "],[aria-label^="Vorschau "]')].map(e=>e.getAttribute('aria-label').replace(/^(Preview|Vorschau) /,''));let lines=(r.innerText||'').split('\n');while(lines.length&&/^\s*(\d{1,2}:\d{2}(\s?[AP]M)?)?\s*$/i.test(lines[lines.length-1]))lines.pop();lines=lines.filter(l=>!files.includes(l.trim()));msgs.push({role:'user',id:anchor,text:lines.join('\n').trim(),files});cur=null;continue;}
 + if(!cur){cur={role:'assistant',id:anchor,html:'',steps:[],actions:[],done:false};msgs.push(cur);}
-+ if(r.querySelector('[aria-label="Copy response"]')){cur.done=true;continue;}
++ if(r.querySelector('[aria-label="Copy response"],[aria-label="Antwort kopieren"]')){cur.done=true;continue;}
 + const toggle=r.querySelector('[aria-expanded]');const content=r.querySelector('p,ul,ol,pre,table,h1,h2,h3,h4,blockquote,hr,li,code');
 + if(content&&!toggle){cur.html+=flat(r.cloneNode(true)).innerHTML;}else{const t=(r.innerText||'').trim();if(t)cur.steps.push(t.split('\n').filter(Boolean).slice(0,3).join(' \u00b7 ').slice(0,180));}
 + [...r.querySelectorAll('button,[role="button"]')].filter(b=>__vis(b)&&!b.hasAttribute('aria-expanded')&&(b.innerText||'').trim()&&(b.innerText||'').trim().length<40).forEach(b=>cur.actions.push({row:anchor,label:(b.innerText||'').trim()}));}
 +msgs.forEach(m=>{if(m.html&&m.html.length>300000)m.html=m.html.slice(0,300000)});
 +const c=__composer();const p=location.pathname;
-+return {url:location.href,title:document.title,login:/^\/(login|signup|onboarding)/.test(p),onchat:p.startsWith('/ai')||p.startsWith('/chat'),composer:!!c,composerText:c?(c.innerText||'').trim():'',generating:!!__q('agent-chat-stop-button'),recording:!!__q('agent-chat-stop-recording-button'),messages:msgs.slice(-80)};"##;
++return {url:location.href,title:document.title,ntitle:(document.title||'').replace(/\s*\|\s*Notion\s*$/,'').trim(),login:/^\/(login|signup|onboarding)/.test(p),onchat:p.startsWith('/ai')||p.startsWith('/chat'),composer:!!c,composerText:c?(c.innerText||'').trim():'',generating:!!__q('agent-chat-stop-button'),recording:!!__q('agent-chat-stop-recording-button'),messages:msgs.slice(-80)};"##;
 +
 +const CLEAR: &str = r##"const c=__composer();if(!c)return false;c.focus();document.execCommand('selectAll');document.execCommand('delete');await __sleep(120);return (c.innerText||'').trim()==='';"##;
 +
@@ -1750,7 +1751,10 @@ index 0000000..2fc737d
 +    let url = clean_url(v["url"].as_str().unwrap_or(""));
 +    if !(url.contains("/chat") && url.contains("t=")) { return; }
 +    let first = v["messages"].as_array().and_then(|m| m.iter().find(|x| x["role"] == "user")).and_then(|m| m["text"].as_str()).unwrap_or("").trim().to_string();
-+    let title: String = if first.is_empty() { "Chat mit Anhang".into() } else { first.chars().take(70).collect() };
++    let nt = v["ntitle"].as_str().unwrap_or("").trim().to_string();
++    let generic = matches!(nt.to_lowercase().as_str(), "" | "new chat" | "neuer chat" | "notion ai" | "notion-ki" | "notion" | "untitled" | "ohne titel");
++    let short = |s: &str| { let line = s.lines().next().unwrap_or("").trim(); let w: Vec<&str> = line.split_whitespace().take(7).collect(); let mut t = w.join(" "); if t.chars().count() > 48 { t = t.chars().take(47).collect::<String>() + "\u{2026}"; } else if line.split_whitespace().count() > 7 { t.push_str(" \u{2026}"); } t };
++    let title: String = if !generic { nt.chars().take(70).collect() } else if first.is_empty() { "Chat mit Anhang".into() } else { short(&first) };
 +    let _g = HISTORY.lock().unwrap_or_else(|e| e.into_inner());
 +    let mut list = read_history();
 +    if let Some(pos) = list.iter().position(|x| x["url"] == json!(url)) {
@@ -1869,6 +1873,7 @@ index 0000000..2fc737d
 +        let _ = s.eval("const b=__q('agent-chat-cancel-recording-button');if(b)b.click();return true;").await;
 +        sleep(600).await;
 +    }
++    if st["rows"].as_u64().unwrap_or(0) == 0 && !text.is_empty() { if let Some(ctx) = np::cowork_main_context() { text = format!("{ctx}\n\nMeine Aufgabe: {text}"); } }
 +    s.eval(CLEAR).await?;
 +    let mut warning = None;
 +    if !files.is_empty() {
@@ -2060,7 +2065,7 @@ index 0000000..2fc737d
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..98ea89d
+index 0000000..6ff120d
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
 @@ -0,0 +1,638 @@
@@ -2330,10 +2335,10 @@ index 0000000..98ea89d
 +    S.msgs = msgs;
 +    render(msgs);
 +    var first = null; for (var i = 0; i < msgs.length; i++) if (msgs[i].role === "user") { first = msgs[i]; break; }
-+    $("acTitle").textContent = first ? (first.text || "Chat mit Anhang").split("\n")[0].slice(0, 90) : (S.pending ? S.pending.text.slice(0, 90) || "Neuer Chat" : "Neuer Chat");
++    var nt = (st.ntitle || "").trim(); if (nt && !/^(new chat|neuer chat|notion ai|notion-ki|notion|untitled|ohne titel)$/i.test(nt)) $("acTitle").textContent = nt.slice(0, 90); else $("acTitle").textContent = first ? (first.text || "Chat mit Anhang").split("\n")[0].slice(0, 90) : (S.pending ? S.pending.text.slice(0, 90) || "Neuer Chat" : "Neuer Chat");
 +    updateSend(); markHist();
 +    if (Voice.on) Voice.tick(msgs);
-+    if (S.histDirty || (first && S.url.indexOf("t=") > 0 && !S.hist.some(function (h) { return sameChat(h.url, S.url); }))) { S.histDirty = false; loadHist(); }
++    if (S.histDirty || (S.url.indexOf("t=") > 0 && Date.now() - (S.histAt || 0) > 4000) || (first && S.url.indexOf("t=") > 0 && !S.hist.some(function (h) { return sameChat(h.url, S.url); }))) { S.histDirty = false; loadHist(); }
 +  }
 +
 +  /* ---------- Rendering ---------- */
@@ -2680,7 +2685,7 @@ index 0000000..98ea89d
 +  };
 +  function tid(u) { var m = /[?&]t=([0-9a-f]+)/i.exec(u || ""); return m ? m[1] : ""; }
 +  function sameChat(a, b) { return !!tid(a) && tid(a) === tid(b); }
-+  function loadHist() { api("/api/notion/chat/history").then(function (r) { S.hist = r.items || []; renderHist(); }).catch(function () {}); }
++  function loadHist() { S.histAt = Date.now(); api("/api/notion/chat/history").then(function (r) { S.hist = r.items || []; renderHist(); }).catch(function () {}); }
 +  function renderHist() {
 +    var box = $("acHist"); box.innerHTML = "";
 +    if (!S.hist.length) { box.innerHTML = '<div class="ac-hempty">Noch keine Chats.</div>'; return; }
@@ -4754,10 +4759,10 @@ index 0000000..19ba213
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..d6c27d3
+index 0000000..3d125eb
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,704 @@
+@@ -0,0 +1,708 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4784,6 +4789,10 @@ index 0000000..d6c27d3
 +/// Ausgesetzte Tabs (Datei profiles/skip-tabs): kein Check, kein Start, keine Prompts, Fenster wird nie versteckt.
 +pub(crate) fn skipped(id:u32)->bool{std::fs::read_to_string(skip_file()).map(|s|s.split(|c:char|!c.is_ascii_digit()).any(|x|x==id.to_string())).unwrap_or(false)}
 +fn set_skip(id:u32,on:bool)->Result<String,String>{let mut ids:Vec<u32>=std::fs::read_to_string(skip_file()).unwrap_or_default().split(|c:char|!c.is_ascii_digit()).filter_map(|x|x.parse().ok()).collect();ids.retain(|x|*x!=id);if on{ids.push(id);}std::fs::create_dir_all(base()).map_err(|e|e.to_string())?;std::fs::write(skip_file(),ids.iter().map(|x|x.to_string()).collect::<Vec<_>>().join(",")).map_err(|e|e.to_string())?;tl(&format!("tab{id} skip={on}"));Ok(if on{format!("Tab {id} setzt aus: kein Check, kein Start, keine Prompts.")}else{format!("Tab {id} macht wieder mit.")})}
++/// Alle Checks gruen: alle Notion-Fenster (auch Main) verstecken; der AdiCode-Chat steuert Main weiter per CDP.
++fn hide_all_tabs(tabs:&[Tab]){let h:Vec<Tab>=tabs.iter().filter(|t|!skipped(t.id)).cloned().collect();if !h.is_empty(){windows::set_hidden(&h,true);}crate::notion_chat::set_main_hidden(true);}
++/// Laufendes Co-Work: Kontext fuer einen neuen Main-Chat (damit Main die cowork-Tools nutzt).
++pub(crate) fn cowork_main_context()->Option<String>{let s=STAGE.load(std::sync::atomic::Ordering::SeqCst);if !(2..=5).contains(&s){return None;}load().first().map(|t|prompt_for(t).replace(" Antworte jetzt nur: Co-Work bereit.",""))}
 +fn hide_workers(tabs:&[Tab]){let h:Vec<Tab>=tabs.iter().skip(1).filter(|t|!skipped(t.id)).cloned().collect();if !h.is_empty(){windows::set_hidden(&h,true);}}
 +/// Zeitprotokoll fuer Messungen: profiles/timeline.log
 +fn tl(s:&str){use std::io::Write;if let Ok(mut f)=std::fs::OpenOptions::new().create(true).append(true).open(base().join("timeline.log")){let _=f.write_all(format!("{} {}\n",chrono::Local::now().format("%H:%M:%S%.3f"),s).as_bytes());}}
@@ -5262,7 +5271,7 @@ index 0000000..d6c27d3
 +    if CHECKING.swap(true,Ordering::SeqCst){return Ok("Check l\u{e4}uft bereits.".into());}
 +    let running=running_ids(&tabs);
 +    for t in tabs.iter().filter(|t|!running.contains(&t.id)&&!t.email.is_empty()&&!skipped(t.id)){if let Err(e)=launch(t,&start_url(t)){CHECKING.store(false,Ordering::SeqCst);return Err(e);}}
-+    tokio::spawn(async move{let errs=full_check(&tabs).await;CHECKING.store(false,Ordering::SeqCst);set_status(if errs.is_empty(){"Check ok: alle Konten bereit (MCP, Usage, Chat \u{201a}Willkommen bei Notion\u{2018}).".to_string()}else{format!("Check: {}",errs.join("; "))});});
++    tokio::spawn(async move{let errs=full_check(&tabs).await;CHECKING.store(false,Ordering::SeqCst);if errs.is_empty(){hide_all_tabs(&tabs);}set_status(if errs.is_empty(){"Check ok: alle Konten bereit (MCP, Usage, Chat \u{201a}Willkommen bei Notion\u{2018}).".to_string()}else{format!("Check: {}",errs.join("; "))});});
 +    Ok("Check l\u{e4}uft: fehlende Tabs werden gestartet, dann MCP, Usage und Chat gepr\u{fc}ft.".into())
 +}
 +async fn open_main(port:u16)->Result<(),String>{cdp(port,vec![json!({"method":"Page.bringToFront"})]).await?;Ok(())
@@ -5332,7 +5341,7 @@ index 0000000..d6c27d3
 +async fn kickoff(tabs:Vec<Tab>, baseline:usize){
 +    stage(1);for t in &tabs{step(t.id,0);}let errors=full_check(&tabs).await;
 +    if !errors.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Start angehalten \u{2013} Account-Check: {}",errors.join("; ")));return;}
-+    if tabs.len()>1{hide_workers(&tabs);}set_status("Account-Check ok: alle Konten im Chat \u{201a}Willkommen bei Notion\u{2018}, Worker-Fenster automatisch versteckt.");
++    hide_all_tabs(&tabs);set_status("Account-Check ok: alle Konten im Chat \u{201a}Willkommen bei Notion\u{2018}, alle Notion-Fenster automatisch versteckt.");
 +    stage(2);let _=open_main(cdp_port(0)).await;
 +    if let Some(main)=tabs.first(){let _=insert_prompt(cdp_port(0),prompt_for(main)).await;}
 +    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
