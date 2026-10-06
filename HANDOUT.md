@@ -198,3 +198,20 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - Automatische Erinnerungen (Nudger) sind ENTFERNT (1.0.62) - nicht wieder einbauen. AdiCode schreibt nie von selbst in Chats. insert_prompt hat einen Guard (nur Willkommen-Chat).
 - Token-Modus (Co-Work-Seite, Datei profiles\token-mode, Aktion cowork_token_mode): low = Main Opus 5.5 + Worker Sonnet 5.5; high = alle Agents Opus 5.5 (setzt personal_agent_model_policy je Konto).
 - Mehrfach-Willkommen-Chats entstehen durch wiederholte Onboarding-Klicks (Debounce in 1.0.60). 'token_tb%' wurde in 133 geladenen Notion-JS-Dateien NICHT gefunden (Suche token_tb/tbToken/welcomeChat).
+
+## STAND 1.0.68 (released, Commit 7cef7ba, installiert)
+### Einrichtung auf einem fremden PC (z. B. Freund) - so klappt es
+1. `PlazCode-Notion.exe` vom neuesten Release starten (aktualisiert sich alle 15 s selbst).
+2. Seite **Notion AI** > Tunnel: ngrok installieren, **eigenen** ngrok-Authtoken eintragen, **eigene feste ngrok-Domain** eintragen (dashboard.ngrok.com > Domains, kostenlos 1 Domain). Jeder PC braucht sein EIGENES ngrok-Konto + Domain (eine Domain kann nur an einem Tunnel haengen).
+3. Tunnel muss "online" zeigen. Token wird pro PC zufaellig erzeugt (`%LOCALAPPDATA%\PlazCodeNotion\plazcode-notion.json`).
+4. In Notion: Einstellungen > Verbindungen > Add connection > **Custom MCP connection** > als URL die **"URL mit Schluessel"** eintragen (`https://<domain>/k/<token>/mcp`) > Verbinden. Kein Bearer-Feld noetig. Braucht Business-Plan/Trial.
+### Ursache des Fehlers bei anderen (gefixt in 1.0.68)
+- Auto-Einrichtung trug nur `https://<domain>/mcp` ein und erwartete danach ein Bearer-/Passwort-Feld. Neue Notion-Dialoge ("Individueller MCP-Server") haben nur das URL-Feld -> Notion verband ohne Token -> 401 -> "klappt nicht". Bei Adrian lief es nur, weil seine Verbindung schon von frueher bestand.
+- Fix: `cowork_connection()` liefert jetzt die URL mit Schluessel; `authorized()` akzeptiert Header-Token ODER Pfad-Token (ein falscher Header blockiert den Pfad-Token nicht mehr). Getestet: key-url lokal 200, key-url+falscher Header 200, Bearer 200, ohne Token 401, key-url oeffentlich ueber ngrok 200.
+- setup_mcp: "Custom MCP connection" ist ein `[role=menuitem]` (nicht button) -> wird jetzt gefunden (Retry 10x); Verbinden wird nur im obersten Dialog geklickt (vorher erwischte es die Verbinden-Knoepfe der Kartenliste); Verify prueft AdiCode im Dialog.
+- CHAT_MODEL_JS: Cookie-OK-Dialog ("Notion wird neu geladen ... Cookie-Einstellungen") wird bestaetigt (der Reject-Klick traf vorher den Cookie-Banner); ohne Modell-Knopf (Policy erlaubt nur 1 Modell) gilt Chat als ok; Wartezeit 40x3 s.
+### Offen / naechste Schritte
+- Tab 4 (adiabi26444): nach 1.0.68 `node api.js act cowork_check` -> MCP-Auto-Einrichtung mit neuer URL testen. Trial-Kuendigung meldet "nocancel" (Abrechnung-Tab: Knopf-Text pruefen). Usage-Tab nicht gefunden (neue Konten).
+- Tab 1 (trinix, "Adrian Hotz's Space", EN) + Tab 2 (qoleqabi, "Jens Steffen", EN) sind eingeloggt, Einstellungen oeffnen wieder -> Refresh erneut testen (`node api.js act cowork_refresh_confirm 1` bzw. 2).
+- Danach: cowork_start_all, `node sendmain.js 9301 task66.txt`, Zeiten aus `profiles\timeline.log`, Ergebnis `node test.js` in work\cowork-test66.
+- Neue Testwerkzeuge in work\bugtest: shot.js (CDP-Screenshot, bei versteckten Fenstern leer), tclick.js (trusted Klick x y), settabs.txt (__TAB__=Regex), addconn.txt, custmcp.txt, popup.txt, overlay.txt, authtest.js (Auth-Test ohne Token-Ausgabe), chkinline.js (Syntax der inline-JS in setup_mcp).
