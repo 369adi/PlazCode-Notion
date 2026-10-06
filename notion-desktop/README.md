@@ -123,6 +123,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Tunnel-Fehler lesbar**: statt nur ERROR: zeigt AdiCode den vollstaendigen ngrok-Fehler (z. B. Authtoken ungueltig, andere Sitzung aktiv, Domain gehoert nicht zum Konto).
 ## Neu in 1.0.71
 - **ngrok-Schnellstart**: Auf Notion AI > Tunnel nur noch den ngrok-Authtoken einfuegen und Start druecken. AdiCode installiert ngrok, speichert den Token, ermittelt automatisch die Gratis-Domain deines ngrok-Kontos, startet den Tunnel und testet die oeffentliche URL.
+## Neu in 1.0.72
+- **Schnellstart-Fix**: ngrok aus dem Microsoft Store wird richtig erkannt (Authtoken-Status), Start klappt auch ohne erneute Token-Eingabe.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

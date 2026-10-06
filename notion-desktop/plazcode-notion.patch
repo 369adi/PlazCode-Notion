@@ -3758,7 +3758,7 @@ index 0000000..ffbc6b7
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..82ae5d6
+index 0000000..9ed7e19
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
 @@ -0,0 +1,974 @@
@@ -4578,13 +4578,13 @@ index 0000000..82ae5d6
 +pub(crate) async fn quick_start(v: &Value) -> Result<String, String> {
 +    let _g = QUICK.try_lock().map_err(|_| "Schnellstart laeuft schon - kurz warten.".to_string())?;
 +    let auth = v["authtoken"].as_str().unwrap_or("").trim().to_string();
++    if auth.is_empty() && !crate::notion_updates::has_authtoken() && ngrok_exe().is_none() { return Err("Bitte zuerst den ngrok-Authtoken einfuegen (dashboard.ngrok.com -> Your Authtoken).".into()); }
 +    let typed = clean_domain(v["domain"].as_str().unwrap_or(""));
 +    set_ngrok("einrichten", "Schnellstart: ngrok wird vorbereitet ...");
 +    let fail = |e: String| { set_ngrok("Fehler", &e); e };
 +    if ngrok_exe().is_none() { set_ngrok("einrichten", "Schnellstart: ngrok wird installiert ..."); crate::notion_updates::install_ngrok().await.map_err(fail)?; }
 +    let exe = ngrok_exe().ok_or_else(|| fail("ngrok.exe fehlt auch nach der Installation.".into()))?;
 +    if !auth.is_empty() { crate::notion_updates::set_authtoken(&auth).await.map_err(fail)?; }
-+    else if !crate::notion_updates::has_authtoken() { return Err(fail("Bitte zuerst den ngrok-Authtoken einfuegen (dashboard.ngrok.com -> Your Authtoken).".into())); }
 +    let old = settings().domain;
 +    // Supervisor parken (Domain leer) und alle ngrok-Sitzungen beenden - Gratis-Konten erlauben nur eine.
 +    { let mut s = lock(&SHARED.settings); s.ngrok_enabled = true; s.domain.clear(); let _ = save_settings(&s); }
@@ -6788,10 +6788,10 @@ index 0000000..49aacb6
 \ No newline at end of file
 diff --git a/agent/src/notion_updates.rs b/agent/src/notion_updates.rs
 new file mode 100644
-index 0000000..65ec8ef
+index 0000000..ab07952
 --- /dev/null
 +++ b/agent/src/notion_updates.rs
-@@ -0,0 +1,189 @@
+@@ -0,0 +1,194 @@
 +//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
 +//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
 +//! und kann per Datei `update-now` eine sofortige Pruefung anstossen.
@@ -6903,7 +6903,12 @@ index 0000000..65ec8ef
 +pub fn has_authtoken() -> bool {
 +    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
 +    let mut files = Vec::new();
-+    if let Some(la) = env("LOCALAPPDATA") { files.push(la.join("ngrok").join("ngrok.yml")); }
++    if let Some(la) = env("LOCALAPPDATA") {
++        files.push(la.join("ngrok").join("ngrok.yml"));
++        if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
++            for e in rd.flatten() { if e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { files.push(e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml")); } }
++        }
++    }
 +    if let Some(up) = env("USERPROFILE") {
 +        files.push(up.join(".config").join("ngrok").join("ngrok.yml"));
 +        files.push(up.join(".ngrok2").join("ngrok.yml"));
