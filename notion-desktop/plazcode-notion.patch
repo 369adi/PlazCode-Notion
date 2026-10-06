@@ -1737,10 +1737,10 @@ index 0000000..c2d8448
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..cd2be2c
+index 0000000..87e32b6
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,625 @@
+@@ -0,0 +1,629 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -1997,7 +1997,10 @@ index 0000000..cd2be2c
 +    var msgs = st.messages || [];
 +    if (S.pending) {
 +      var users = msgs.filter(function (m) { return m.role === "user"; }).length;
-+      if (users > S.pending.users || (!S.pending.inflight && Date.now() - S.pending.t > 90000)) S.pending = null;
++      var pk = S.pending.known || {};
++      var fresh = msgs.some(function (m) { return m.role === "user" && !pk[(m.id || "") + "|" + (m.text || "")]; });
++      var settled = !S.pending.inflight && !S.gen && S.pending.doneAt && Date.now() - S.pending.doneAt > 8000;
++      if (fresh || users > S.pending.users || settled || (!S.pending.inflight && Date.now() - S.pending.t > 90000)) S.pending = null;
 +    }
 +    S.msgs = msgs;
 +    render(msgs);
@@ -2146,14 +2149,15 @@ index 0000000..cd2be2c
 +    if (S.pending) return Promise.resolve(false);
 +    var users = S.msgs.filter(function (m) { return m.role === "user"; }).length;
 +    ready.forEach(function (a) { S.local[a.name] = { url: a.url, type: a.type }; });
-+    S.pending = { text: text, files: ready.map(function (a) { return a.name; }), t: Date.now(), users: users, inflight: true };
++    var known = {}; S.msgs.forEach(function (m) { if (m.role === "user") known[(m.id || "") + "|" + (m.text || "")] = 1; });
++    S.pending = { text: text, files: ready.map(function (a) { return a.name; }), t: Date.now(), users: users, inflight: true, known: known };
 +    var keep = { text: ta.value, att: S.att.slice() };
 +    if (textOverride == null) { ta.value = ""; autosize(); }
 +    S.att = S.att.filter(function (a) { return a.status !== "ok"; }); renderAtt();
 +    S.stick = true; render(S.msgs); updateSend(); schedule();
 +    if (!S.running) setPill("busy", "Main startet \u2026");
 +    return api("/api/notion/chat/send", { text: text, files: ready.map(function (a) { return a.path; }) }).then(function (r) {
-+      if (S.pending) S.pending.inflight = false;
++      if (S.pending) { S.pending.inflight = false; S.pending.doneAt = Date.now(); }
 +      if (r.warning) toast(r.warning);
 +      poll(); return true;
 +    }).catch(function (e) {
@@ -2368,19 +2372,25 @@ index 0000000..cd2be2c
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..04d1c8f
+index 0000000..5fc0fa1
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,831 @@
+@@ -0,0 +1,1046 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
 +//! The main chat is the lead: it splits the user's project into tasks and gives
 +//! each task a role (prompt writer, coder, reviewer, UI/UX critic, tester,
-+//! Roblox specialist ...). Every other chat joins with a fixed role and only
-+//! picks up tasks of its role (plus unassigned tasks and tasks of roles nobody
-+//! fills). Finished work can automatically get a review task; requested changes
-+//! become fix tasks. At the end the lead merges everything via cowork_results.
++//! Roblox specialist ...). Every other chat joins with a role. A role is a
++//! FOCUS, not a fence: role tasks go to the expert first, but as soon as the
++//! expert is busy (or a task waits too long) every other agent helps with it.
++//! Every user prompt (project start and every new prompt mid-project via
++//! cowork_prompt) opens a "wave": each worker first evaluates the prompt
++//! through the lens of its role (assess task) and may propose sub-tasks; the
++//! work tasks of that wave are released once all evaluations are in (or after
++//! a short gate). Finished work can automatically get a review task; requested
++//! changes become fix tasks. AdiCode wakes idle chats when work is waiting
++//! (nudge_for). At the end the lead merges everything via cowork_results.
 +//! The board is persisted in %LOCALAPPDATA%\PlazCodeNotion\cowork.json.
 +
 +use once_cell::sync::Lazy;
@@ -2391,18 +2401,24 @@ index 0000000..04d1c8f
 +const STALE_SECS: i64 = 20 * 60;
 +const MAX_WAIT_SECS: u64 = 45;
 +const MAX_FIX_ROUNDS: u32 = 2;
++/// Seconds the work tasks of a new prompt wait for the role evaluations at most.
++const GATE_SECS: i64 = 150;
++/// An open role task that nobody took for this long may be taken by anyone.
++const STEAL_SECS: i64 = 90;
++/// Late joiners still evaluate a prompt that is younger than this.
++const ASSESS_WINDOW_SECS: i64 = 15 * 60;
 +
 +struct Role { id: &'static str, title: &'static str, guide: &'static str }
 +
 +const ROLES: &[Role] = &[
-+    Role { id: "lead", title: "Lead / Main Chat", guide: "Du bist der Main Chat und das Interface zum Nutzer. Projekt verstehen, mit cowork_start anlegen: Ziel in kleine, moeglichst parallele Tasks zerlegen und jedem Task die passende role geben - nur Rollen, die wirklich gebraucht werden. Fuer Code-Tasks review=reviewer setzen, fuer UI-Tasks review=uiux. Dem Nutzer sagen, welche Rollen-Tabs er oeffnen soll. Waehrenddessen cowork_wait/cowork_board: blockierte Tasks klaeren, Fragen beantworten, Tasks ergaenzen. Am Ende cowork_results lesen und daraus EINE finale, optimierte Antwort fuer den Nutzer bauen." },
++    Role { id: "lead", title: "Lead / Main Chat", guide: "Du bist der Main Chat und das Interface zum Nutzer. Projekt verstehen, mit cowork_start anlegen: Ziel in kleine, moeglichst parallele Tasks zerlegen (so, dass ALLE Agents gleichzeitig etwas zu tun haben) und jedem Task als role den passenden Schwerpunkt geben. Fuer Code-Tasks review=reviewer setzen, fuer UI-Tasks review=uiux. Jede weitere Nutzer-Nachricht waehrend des Projekts sofort mit cowork_prompt ans Board geben - die Worker bewerten sie aus ihrer Rollen-Sicht und schlagen Teilaufgaben vor. Waehrenddessen cowork_wait/cowork_board: Bewertungen einarbeiten, blockierte Tasks klaeren, Tasks ergaenzen und selbst Tasks uebernehmen, wenn nichts zu koordinieren ist. Am Ende cowork_results lesen und daraus EINE finale, optimierte Antwort fuer den Nutzer bauen." },
 +    Role { id: "prompt", title: "Prompt-Schreiber", guide: "Du formulierst praezise Prompts, Specs, System-Instructions, Texte und Akzeptanzkriterien. Liefere das Ergebnis als fertigen, direkt nutzbaren Text (im result oder als Datei) plus 1-2 Saetze Begruendung." },
 +    Role { id: "coder", title: "Programmierer", guide: "Du implementierst Features (App, Backend, Skripte). Passenden Skill laden (app, debug, git), Dateien vor dem Aendern lesen, nur die Dateien des Tasks aendern, bauen/testen. result: was geaendert, welche Dateien, wie getestet." },
 +    Role { id: "reviewer", title: "Code-Bewerter", guide: "Du pruefst Code auf Bugs, Sicherheit, Performance, Lesbarkeit und ob die Akzeptanzkriterien erfuellt sind. Dateien lesen, nichts selbst umschreiben. Passt alles: status=done mit kurzer Bewertung. Sonst status=changes mit nummerierten, konkreten Punkten (Datei, Stelle, gewuenschter Fix)." },
 +    Role { id: "uiux", title: "UI/UX-Kritiker", guide: "Du bewertest Oberflaechen: Klarheit, Hierarchie, Abstaende, Farben/Kontrast, Barrierefreiheit, Flows und Texte. Bei Review-Tasks status=done oder status=changes mit konkreten Verbesserungen; bei eigenen Tasks lieferst du Design-Specs (Layout, Komponenten, Zustaende)." },
 +    Role { id: "tester", title: "Tester", guide: "Du schreibst und fuehrst Tests aus, probierst Edge Cases und reproduzierst Bugs. result: was getestet wurde, Ergebnis, gefundene Fehler mit Repro-Schritten." },
 +    Role { id: "roblox", title: "Roblox-Spezialist", guide: "Du baust in Roblox Studio: Luau, Client/Server-Trennung, RemoteEvents, DataStores. Skills roblox und roblox-studio laden, roblox_* Tools nutzen. result: welche Skripte/Instanzen geaendert und wie getestet." },
-+    Role { id: "worker", title: "Generalist", guide: "Du uebernimmst Tasks ohne Rolle und Tasks, deren Rolle gerade niemand besetzt." },
++    Role { id: "worker", title: "Generalist", guide: "Du uebernimmst jede Art von Task und springst dort ein, wo gerade am meisten offen ist." },
 +];
 +
 +#[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -2425,6 +2441,7 @@ index 0000000..04d1c8f
 +    next_task: u64,
 +    next_msg: u64,
 +    next_agent: u64,
++    waves: Vec<Wave>,
 +}
 +
 +#[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -2454,7 +2471,16 @@ index 0000000..04d1c8f
 +    /// Original work task of a review/fix chain (0 for normal tasks).
 +    root: u64,
 +    round: u32,
++    /// Agent that must do this task (assess tasks); empty = anyone allowed by role rules.
++    assignee: String,
++    /// Prompt wave this task belongs to (0 = none, never gated).
++    wave: u64,
 +}
++
++/// One user prompt (project start or a new prompt mid-project).
++#[derive(Clone, Debug, Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Wave { id: u64, text: String, by: String, ts: i64 }
 +
 +#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 +#[serde(default)]
@@ -2467,6 +2493,7 @@ index 0000000..04d1c8f
 +static BOARD: Lazy<Mutex<Board>> = Lazy::new(|| Mutex::new(load()));
 +static CHANGED: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
 +pub(crate) fn project_count() -> usize { BOARD.lock().unwrap_or_else(|e| e.into_inner()).projects.len() }
++pub(crate) fn latest_lead() -> String { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.lead.clone()).unwrap_or_default() }
 +pub(crate) fn latest_agent_roles() -> Vec<String> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.agents.values().map(|a|a.role.clone()).collect()).unwrap_or_default() }
 +
 +fn now() -> i64 { chrono::Utc::now().timestamp() }
@@ -2589,8 +2616,80 @@ index 0000000..04d1c8f
 +        let others = p.agents.values().any(|a| a.name != agent && now() - a.last_seen < stale(p));
 +        if others { return false; }
 +    }
-+    if t.role.is_empty() { return true; }
-+    agent_role(p, agent) == t.role || !specialist_alive(p, &t.role, &own_work)
++    if !t.assignee.is_empty() { return t.assignee == agent || !alive(p, &t.assignee); }
++    if t.role.is_empty() || agent_role(p, agent) == t.role { return true; }
++    // A role is a focus, not a fence: the expert gets the task first while it is
++    // free; if every expert is busy/offline or the task waited too long, anyone helps.
++    !specialist_idle(p, &t.role, agent, &own_work) || now() - t.updated >= STEAL_SECS
++}
++
++/// An alive agent with this role that is not working on a task right now.
++fn specialist_idle(p: &Project, role: &str, exclude: &str, exclude2: &str) -> bool {
++    let t = now();
++    p.agents.values().any(|a| a.role == role && a.name != exclude && a.name != exclude2 && t - a.last_seen < stale(p)
++        && !p.tasks.iter().any(|x| x.owner == a.name && x.status == "claimed" && t - x.updated < stale(p)))
++}
++
++// ---------------------------------------------------------------- prompt waves
++
++/// What an agent of this role looks at when a new prompt arrives.
++fn lens(role: &str) -> &'static str {
++    match role {
++        "coder" => "Umsetzung: Wie baut man das? Betroffene Dateien/Module, sinnvolle Reihenfolge, technische Risiken, was parallel gehen kann.",
++        "reviewer" => "Qualitaet: Was kann schiefgehen (Bugs, Sicherheit, Performance, Seiteneffekte)? Klare Akzeptanzkriterien, was unbedingt reviewt werden muss.",
++        "tester" => "Pruefbarkeit: Wie wird verifiziert (Build, Tests, manuelle Checks, Screenshots)? Edge Cases, Testplan, Definition of Done.",
++        "prompt" => "Auftrag: Ist der Prompt eindeutig? Fehlende Infos, Annahmen, eine praezisierte Fassung des Auftrags.",
++        "uiux" => "Nutzersicht: Flows, Zustaende, Texte, Barrierefreiheit, was der Nutzer am Ende sieht.",
++        "roblox" => "Roblox: Client/Server-Trennung, RemoteEvents, DataStores, welche Skripte/Instanzen betroffen sind.",
++        _ => "Gesamtblick: Luecken, Risiken und wie man die Arbeit am besten auf alle Agents verteilt.",
++    }
++}
++
++fn wave(p: &Project, id: u64) -> Option<&Wave> { p.waves.iter().find(|w| w.id == id) }
++
++fn add_assess(p: &mut Project, wave_id: u64, agent: &str) -> Option<u64> {
++    if agent == p.lead || p.tasks.iter().any(|t| t.kind == "assess" && t.wave == wave_id && t.assignee == agent) { return None; }
++    let w = wave(p, wave_id)?.clone();
++    let role = agent_role(p, agent);
++    p.next_task += 1;
++    let id = p.next_task;
++    let open: Vec<String> = p.tasks.iter().filter(|t| t.kind.is_empty() && t.status != "done").map(|t| format!("#{} {}", t.id, t.title)).collect();
++    let open = if open.is_empty() { "(noch keine)".to_string() } else { open.join("; ") };
++    p.tasks.push(Task {
++        id, title: format!("Bewertung als {}: {}", role_title(&role), short(&w.text, 80)), status: "open".into(), updated: now(),
++        detail: format!("Neuer Nutzer-Prompt #{}:
++{}
++
++Bewerte ihn aus Sicht deiner Rolle - {}
++Geplante Tasks: {open}
++Antworte knapp (max. ca. 10 Zeilen): verstanden?, Luecken/Rueckfragen, Risiken, Akzeptanzkriterien, Vorschlag zur Arbeitsaufteilung. Fehlende sinnvolle Teilaufgaben gleich als tasks=[{{title, detail, role, review, files}}] in cowork_update mitschicken (keine Duplikate). Danach hilfst du bei ALLEN Tasks mit - deine Rolle ist nur dein Schwerpunkt.", w.id, w.text, lens(&role)),
++        role, kind: "assess".into(), assignee: agent.to_string(), wave: wave_id,
++        ..Default::default()
++    });
++    Some(id)
++}
++
++/// Open a new prompt wave; every alive worker gets an assess task.
++fn open_wave(p: &mut Project, by: &str, text: &str) -> u64 {
++    let id = p.waves.iter().map(|w| w.id).max().unwrap_or(0) + 1;
++    p.waves.push(Wave { id, text: text.trim().to_string(), by: by.to_string(), ts: now() });
++    if p.waves.len() > 50 { p.waves.remove(0); }
++    let workers: Vec<String> = p.agents.values().filter(|a| a.name != p.lead && now() - a.last_seen < stale(p)).map(|a| a.name.clone()).collect();
++    for a in workers { add_assess(p, id, &a); }
++    id
++}
++
++/// Work tasks of a wave start once every evaluation is in, or after GATE_SECS.
++fn gate_open(p: &Project, wave_id: u64) -> bool {
++    let Some(w) = wave(p, wave_id) else { return true; };
++    let age = now() - w.ts;
++    if age >= GATE_SECS { return true; }
++    let assess: Vec<&Task> = p.tasks.iter().filter(|t| t.kind == "assess" && t.wave == wave_id).collect();
++    if assess.is_empty() {
++        let workers = p.agents.values().any(|a| a.name != p.lead && now() - a.last_seen < stale(p));
++        return !workers && age >= 20;
++    }
++    assess.iter().all(|t| t.status == "done" || (t.status == "claimed" && !alive(p, &t.owner)) || (!t.assignee.is_empty() && !alive(p, &t.assignee)))
 +}
 +
 +// ---------------------------------------------------------------- board helpers
@@ -2634,17 +2733,18 @@ index 0000000..04d1c8f
 +    name
 +}
 +
-+fn add_tasks(p: &mut Project, list: &Value) -> Vec<u64> {
++fn add_tasks(p: &mut Project, list: &Value, wave: u64) -> Vec<u64> {
 +    let mut ids = Vec::new();
 +    for item in list.as_array().into_iter().flatten() {
 +        let title = match item.as_str() { Some(t) => t.trim().to_string(), None => s(item, "title") };
 +        if title.is_empty() { continue; }
++        if p.tasks.iter().any(|t| t.kind.is_empty() && t.status != "done" && t.title.eq_ignore_ascii_case(&title)) { continue; }
 +        p.next_task += 1;
 +        let depends_on: Vec<u64> = item["depends_on"].as_array().into_iter().flatten().filter_map(|d| d.as_u64()).collect();
 +        let files: Vec<String> = item["files"].as_array().into_iter().flatten().filter_map(|f| f.as_str().map(|x| x.trim().to_string())).filter(|f| !f.is_empty()).collect();
 +        p.tasks.push(Task {
 +            id: p.next_task, title, detail: s(item, "detail"), status: "open".into(), depends_on, files, updated: now(),
-+            role: task_role(&item["role"]), review: task_role(&item["review"]),
++            role: task_role(&item["role"]), review: task_role(&item["review"]), wave,
 +            ..Default::default()
 +        });
 +        ids.push(p.next_task);
@@ -2683,7 +2783,7 @@ index 0000000..04d1c8f
 +
 +fn claimable(p: &Project, t: &Task, agent: &str) -> bool {
 +    let free = t.status == "open" || (t.status == "claimed" && !alive(p, &t.owner));
-+    free && deps_done(p, t) && files_free(p, t, agent) && role_ok(p, t, agent)
++    free && deps_done(p, t) && files_free(p, t, agent) && role_ok(p, t, agent) && (!t.kind.is_empty() || gate_open(p, t.wave))
 +}
 +
 +/// open, claimed, review (done but review/fix pending), stale, blocked, done
@@ -2692,7 +2792,7 @@ index 0000000..04d1c8f
 +        "done" => if chain_done(p, t.id) { "done" } else { "review" },
 +        "claimed" => if alive(p, &t.owner) { "claimed" } else { "stale" },
 +        "blocked" => "blocked",
-+        _ => "open",
++        _ => if t.kind.is_empty() && !gate_open(p, t.wave) { "wartet auf Bewertung" } else { "open" },
 +    }
 +}
 +
@@ -2781,7 +2881,7 @@ index 0000000..04d1c8f
 +        || (!p.tasks.is_empty() && p.tasks.iter().all(|t| t.status == "done"))
 +}
 +
-+const PROTOCOL: &str = "Co-Work-Ablauf: 1) cowork_claim holt den naechsten passenden Task (zuerst deine Rolle, dann Tasks ohne Rolle, dann unbesetzte Rollen). 2) Passenden Skill laden (adicode_skill), Dateien vor dem Bearbeiten lesen, nur die Dateien des Tasks aendern; weitere Dateien vorher mit cowork_lock sperren. 3) cowork_update status=done result=<kurz und praezise: was gemacht, welche Dateien>. Review-Tasks: status=done (ok) oder status=changes mit konkreten Punkten. 4) Wieder cowork_claim. Kein freier Task: cowork_wait (mehrmals) bis neue Tasks/Nachrichten kommen. Bei Problemen: status=blocked + Grund (geht an den Lead). Fertig, wenn das Board ALLE TASKS ERLEDIGT meldet.";
++const PROTOCOL: &str = "Co-Work-Ablauf: 0) Deine Rolle ist dein Schwerpunkt und deine Bewertungs-Brille, keine Grenze - du hilfst bei ALLEN Tasks. 1) cowork_claim holt den naechsten passenden Task: zuerst Bewertungen neuer Prompts (aus Sicht deiner Rolle bewerten, fehlende Teilaufgaben als tasks mitschicken), dann Tasks deiner Rolle, dann Reviews, dann alles andere, sobald der Experte dafuer beschaeftigt ist. 2) Passenden Skill laden (adicode_skill), Dateien vor dem Bearbeiten lesen, nur die Dateien des Tasks aendern; weitere Dateien vorher mit cowork_lock sperren. Ist ein Task zu gross: in cowork_update tasks=[...] Teilaufgaben anlegen, damit andere mithelfen. 3) cowork_update status=done result=<kurz und praezise: was gemacht, welche Dateien>. Review-Tasks: status=done (ok) oder status=changes mit konkreten Punkten. 4) Sofort wieder cowork_claim. Kein freier Task: cowork_wait (mehrmals) bis neue Tasks/Nachrichten kommen. Bei Problemen: status=blocked + Grund (geht an den Lead). Nachrichten, die mit [AdiCode Co-Work] beginnen, sind Weckrufe des Systems: einfach weitermachen. Fertig, wenn das Board ALLE TASKS ERLEDIGT meldet.";
 +
 +fn dispatch(board: &mut Board, name: &str, args: &Value) -> Result<(String, bool), String> {
 +    if name == "cowork_start" {
@@ -2792,7 +2892,10 @@ index 0000000..04d1c8f
 +        let mut p = Project { id: id.clone(), title, goal: s(args, "goal"), created: now(), stale_minutes: args["stale_minutes"].as_u64().unwrap_or(0).min(240), ..Default::default() };
 +        let agent = join_agent(&mut p, &s(args, "agent"), "lead");
 +        p.lead = agent.clone();
-+        add_tasks(&mut p, &args["tasks"]);
++        let assess = args["assess"].as_bool().unwrap_or(true);
++        let brief = format!("{}\n{}", p.title, p.goal);
++        let w = if assess { open_wave(&mut p, &agent, &brief) } else { 0 };
++        add_tasks(&mut p, &args["tasks"], w);
 +        let goal = p.goal.clone();
 +        post(&mut p, &agent, "", format!("Projekt gestartet: {goal}"));
 +        let mut roles: Vec<String> = Vec::new();
@@ -2804,7 +2907,8 @@ index 0000000..04d1c8f
 +        } else {
 +            format!("Benoetigte Rollen: {}.\nSag dem Nutzer: fuer jede Rolle einen Notion-AI-Tab oeffnen und dort schreiben: Tritt Co-Work-Projekt {id} bei als <Rolle> (z. B. \"Tritt Co-Work-Projekt {id} bei als {}\"). Fehlt eine Rolle, uebernehmen andere Tabs deren Tasks.", roles.iter().map(|r| format!("{} ({r})", role_title(r))).collect::<Vec<_>>().join(", "), roles[0])
 +        };
-+        let out = format!("Co-Work-Projekt '{id}' erstellt. Du bist der Lead (Main Chat), dein Agent-Name ist '{agent}' (bei jedem cowork_*-Aufruf als agent mitgeben).\n{tabs}\nDanach: mit cowork_wait den Fortschritt verfolgen, Fragen/blockierte Tasks klaeren, bei Bedarf cowork_add_tasks. Am Ende cowork_results lesen und die finale Antwort zusammenfuehren.\n\n{}", summary(&p));
++        let gate = if w > 0 { format!("\nJeder Worker bewertet den Auftrag zuerst aus Sicht seiner Rolle und schlaegt fehlende Teilaufgaben vor; die Tasks werden freigegeben, sobald alle Bewertungen da sind (spaetestens nach {GATE_SECS} s). Rollen sind Schwerpunkte: ist ein Experte beschaeftigt, helfen die anderen mit.") } else { String::new() };
++        let out = format!("Co-Work-Projekt '{id}' erstellt. Du bist der Lead (Main Chat), dein Agent-Name ist '{agent}' (bei jedem cowork_*-Aufruf als agent mitgeben).\n{tabs}{gate}\nNeue Nutzer-Nachrichten waehrend des Projekts: sofort cowork_prompt.\nDanach: mit cowork_wait den Fortschritt verfolgen, Fragen/blockierte Tasks klaeren, bei Bedarf cowork_add_tasks. Am Ende cowork_results lesen und die finale Antwort zusammenfuehren.\n\n{}", summary(&p));
 +        board.projects.insert(id, p);
 +        return Ok((out, true));
 +    }
@@ -2835,9 +2939,12 @@ index 0000000..04d1c8f
 +                if lead.is_empty() || lead == me || !alive(p, &lead) { p.lead = me.clone(); }
 +            }
 +            if !existed { post(p, &me, "", format!("{me} ist beigetreten ({}).", role_title(&role))); }
++            if let Some(w) = p.waves.last().cloned() {
++                if now() - w.ts < ASSESS_WINDOW_SECS && !gate_open(p, w.id) { add_assess(p, w.id, &me); }
++            }
 +            let mine = p.tasks.iter().filter(|t| t.status != "done" && t.role == role).count();
 +            let news = take_unread(p, &me);
-+            Ok((format!("Beigetreten als '{me}' mit Rolle {} (bei jedem cowork_*-Aufruf als agent mitgeben).\nDeine Rolle: {}\nOffene Tasks deiner Rolle: {mine}. Du bekommst zuerst Tasks deiner Rolle, ausserdem Tasks ohne Rolle und Tasks unbesetzter Rollen.\n{PROTOCOL}\n\n{}{news}", role_title(&role), role_guide(&role), summary(p)), true))
++            Ok((format!("Beigetreten als '{me}' mit Rolle {} (bei jedem cowork_*-Aufruf als agent mitgeben).\nDeine Rolle: {}\nOffene Tasks deiner Rolle: {mine}. Deine Rolle ist dein Schwerpunkt: du bekommst zuerst Bewertungen und Tasks deiner Rolle, hilfst danach aber bei allem anderen mit.\n{PROTOCOL}\n\n{}{news}", role_title(&role), role_guide(&role), summary(p)), true))
 +        }
 +        "cowork_board" => {
 +            let mut news = String::new();
@@ -2851,11 +2958,23 @@ index 0000000..04d1c8f
 +        }
 +        "cowork_add_tasks" => {
 +            touch(p, &agent)?;
-+            let ids = add_tasks(p, &args["tasks"]);
-+            if ids.is_empty() { return Err("tasks ist leer".into()); }
++            let w = p.waves.last().map(|w| w.id).filter(|_| args["gated"].as_bool().unwrap_or(false)).unwrap_or(0);
++            let ids = add_tasks(p, &args["tasks"], w);
++            if ids.is_empty() { return Err("tasks ist leer (oder nur Duplikate)".into()); }
 +            let list = ids.iter().map(|i| format!("#{i}")).collect::<Vec<_>>().join(", ");
 +            post(p, &agent, "", format!("Neue Tasks: {list}"));
 +            Ok((format!("Tasks hinzugefuegt: {list}"), true))
++        }
++        "cowork_prompt" => {
++            touch(p, &agent)?;
++            let msg = s(args, "text");
++            if msg.is_empty() { return Err("text fehlt (die neue Nutzer-Nachricht)".into()); }
++            let w = open_wave(p, &agent, &msg);
++            let ids = add_tasks(p, &args["tasks"], w);
++            let n = p.tasks.iter().filter(|t| t.kind == "assess" && t.wave == w).count();
++            post(p, &agent, "", format!("Neuer Nutzer-Prompt #{w}: {}", short(&msg, 400)));
++            let list = if ids.is_empty() { String::new() } else { format!(" Neue Tasks: {}.", ids.iter().map(|i| format!("#{i}")).collect::<Vec<_>>().join(", ")) };
++            Ok((format!("Prompt #{w} ans Board gegeben. {n} Worker bewerten ihn jetzt aus Sicht ihrer Rolle (Ergebnisse kommen per cowork_wait).{list} Neue Tasks dieses Prompts starten, sobald alle Bewertungen da sind (spaetestens nach {GATE_SECS} s). Bewertungen einarbeiten: cowork_add_tasks oder cowork_message.\n\n{}", summary(p)), true))
 +        }
 +        "cowork_claim" => {
 +            touch(p, &agent)?;
@@ -2871,14 +2990,18 @@ index 0000000..04d1c8f
 +                    i
 +                }
 +                None => {
-+                    let pick = p.tasks.iter().position(|t| !t.role.is_empty() && t.role == my_role && claimable(p, t, &agent))
++                    let pick = p.tasks.iter().position(|t| t.assignee == agent && claimable(p, t, &agent))
++                        .or_else(|| p.tasks.iter().position(|t| !t.role.is_empty() && t.role == my_role && claimable(p, t, &agent)))
++                        .or_else(|| p.tasks.iter().position(|t| t.kind == "review" && claimable(p, t, &agent)))
 +                        .or_else(|| p.tasks.iter().position(|t| t.role.is_empty() && claimable(p, t, &agent)))
 +                        .or_else(|| p.tasks.iter().position(|t| claimable(p, t, &agent)));
 +                    match pick {
 +                        Some(i) => i,
 +                        None => {
 +                            let news = take_unread(p, &agent);
-+                            return Ok((format!("Gerade kein freier Task fuer dich ({}). Mit cowork_wait warten.{news}", role_title(&my_role)), true));
++                            let gated = p.tasks.iter().filter(|t| t.kind.is_empty() && t.status == "open" && !gate_open(p, t.wave)).count();
++                            let why = if gated > 0 { format!(" {gated} Task(s) warten noch auf die Rollen-Bewertungen.") } else { String::new() };
++                            return Ok((format!("Gerade kein freier Task fuer dich ({}).{why} Mit cowork_wait warten.{news}", role_title(&my_role)), true));
 +                        }
 +                    }
 +                }
@@ -2905,10 +3028,14 @@ index 0000000..04d1c8f
 +            let files = if task.files.is_empty() { String::new() } else { format!("\nGesperrte Dateien fuer dich: {}", task.files.join(", ")) };
 +            let how = match task.kind.as_str() {
 +                "review" => format!("\nREVIEW: Ergebnis pruefen (Dateien lesen, nichts selbst umschreiben). Passt alles: cowork_update task_id={} status=done result=<kurze Bewertung>. Sonst: status=changes result=<nummerierte, konkrete Aenderungen>.", task.id),
++                "assess" => format!("\nBEWERTUNG: aus Sicht deiner Rolle bewerten, dann cowork_update task_id={} status=done result=<Bewertung> und optional tasks=[...] mit fehlenden Teilaufgaben. Danach sofort cowork_claim - du hilfst bei allen Tasks.", task.id),
 +                "fix" => format!("\nFIX-RUNDE {}: Feedback oben umsetzen, danach cowork_update task_id={} status=done result=<was geaendert>. Danach folgt automatisch ein neues Review.", task.round, task.id),
 +                _ => format!("\nWenn fertig: cowork_update task_id={} status=done result=<kurze Zusammenfassung + geaenderte Dateien>.{}", task.id, if task.review.is_empty() { String::new() } else { format!(" Danach prueft {} dein Ergebnis.", role_title(&task.review)) }),
 +            };
-+            let role_hint = if task.role.is_empty() || task.role == my_role { String::new() } else { format!("\nHinweis: Dieser Task gehoert eigentlich zur Rolle {} (gerade unbesetzt) - arbeite ihn als Experte dieser Rolle ab: {}", role_title(&task.role), role_guide(&task.role)) };
++            let role_hint = if task.role.is_empty() || task.role == my_role || task.kind == "assess" { String::new() } else {
++                let why = if specialist_alive(p, &task.role, &agent) { "der Experte ist gerade beschaeftigt - du hilfst mit" } else { "gerade unbesetzt" };
++                format!("\nHinweis: Schwerpunkt dieses Tasks ist {} ({why}). Arbeite ihn mit dem Blick dieser Rolle ab: {}", role_title(&task.role), role_guide(&task.role))
++            };
 +            let news = take_unread(p, &agent);
 +            Ok((format!("Du hast Task #{} uebernommen: {}\n{}{files}{role_hint}\nProjektziel: {}{deps}{how}{news}", task.id, task.title, task.detail, p.goal), true))
 +        }
@@ -2967,6 +3094,16 @@ index 0000000..04d1c8f
 +                        extra = " Maximale Fix-Runden erreicht - der Lead entscheidet.".into();
 +                    }
 +                }
++            }
++            if args["tasks"].is_array() && status != "open" {
++                let proposed = add_tasks(p, &args["tasks"], if task.kind == "assess" { task.wave } else { 0 });
++                if !proposed.is_empty() { extra.push_str(&format!(" Neue Teilaufgaben: {}.", proposed.iter().map(|i| format!("#{i}")).collect::<Vec<_>>().join(", "))); }
++            }
++            if task.kind == "assess" && status == "done" {
++                let lead = p.lead.clone();
++                post(p, &agent, &lead, format!("Bewertung ({}) zu Prompt #{}: {}", role_title(&task.role), task.wave, short(&result, 700)));
++                let pending = p.tasks.iter().filter(|t| t.kind == "assess" && t.wave == task.wave && t.status != "done").count();
++                if pending == 0 { extra.push_str(" Alle Bewertungen sind da - die Tasks dieses Prompts sind jetzt frei."); }
 +            }
 +            let title = task.title.clone();
 +            let note = match status.as_str() {
@@ -3097,6 +3234,42 @@ index 0000000..04d1c8f
 +    json!({"ok": true, "projects": projects})
 +}
 +
++/// Wake-up text for an idle chat (AdiCode types it into the chat when the
++/// agent's Notion AI turn has ended but work is waiting). Returns (signature, text);
++/// the caller only re-sends when the signature changes or after a pause.
++pub(crate) fn nudge_for(agent: &str) -> Option<(String, String)> {
++    if agent.is_empty() { return None; }
++    let mut board = lock_board();
++    let pid = board.projects.values().filter(|p| p.agents.contains_key(agent)).max_by_key(|p| p.created)?.id.clone();
++    let p = board.projects.get_mut(&pid)?;
++    let t = now();
++    if p.lead == agent {
++        let all_done = !p.tasks.is_empty() && p.tasks.iter().all(|x| x.status == "done");
++        if all_done {
++            return Some((format!("done:{}:{}", p.id, p.tasks.len()), format!("[AdiCode Co-Work] Alle {} Tasks von Projekt {} sind erledigt. Rufe jetzt cowork_results (project {}, agent {agent}) auf und gib dem Nutzer EINE finale, zusammengefuehrte Antwort.", p.tasks.len(), p.id, p.id)));
++        }
++        let direct: Vec<Msg> = unread(p, agent).into_iter().filter(|m| m.to == agent).collect();
++        if let Some(last) = direct.last() {
++            let list = direct.iter().map(|m| format!("- [{}] {}", m.from, short(&m.text, 220))).collect::<Vec<_>>().join("\n");
++            return Some((format!("msg:{}", last.id), format!("[AdiCode Co-Work] Neues fuer dich als Lead in Projekt {}:\n{list}\nArbeite die Bewertungen/Blocker ein (cowork_board / cowork_add_tasks / cowork_message, agent {agent}) und verfolge danach mit cowork_wait den Fortschritt.", p.id)));
++        }
++        return None;
++    }
++    if !alive(p, agent) && p.agents.get(agent).map(|a| t - a.last_seen > 3 * stale(p)).unwrap_or(true) { return None; }
++    if let Some(cur) = p.tasks.iter().find(|x| x.owner == agent && x.status == "claimed") {
++        if t - cur.updated > 8 * 60 {
++            return Some((format!("stuck:{}:{}", cur.id, (t - cur.updated) / 600), format!("[AdiCode Co-Work] Du hast Task #{} ({}) in Projekt {} noch offen. Mach ihn fertig und melde ihn mit cowork_update (agent {agent}), danach weiter mit cowork_claim.", cur.id, short(&cur.title, 80), p.id)));
++        }
++        return None;
++    }
++    let free: Vec<u64> = p.tasks.iter().filter(|x| claimable(p, x, agent)).map(|x| x.id).collect();
++    let direct = unread(p, agent).into_iter().filter(|m| m.to == agent).count();
++    if free.is_empty() && direct == 0 { return None; }
++    let ids = free.iter().take(6).map(|i| format!("#{i}")).collect::<Vec<_>>().join(", ");
++    let what = if free.is_empty() { "neue Nachrichten fuer dich".to_string() } else { format!("{} freie Task(s) ({ids})", free.len()) };
++    Some((format!("work:{}:{}:{}", p.id, ids, p.next_msg), format!("[AdiCode Co-Work] In Projekt {} gibt es {what}. Arbeite weiter in Schleife: cowork_claim (project {}, agent {agent}) -> erledigen -> cowork_update -> cowork_claim ..., bis nichts mehr frei ist; dann cowork_wait.", p.id, p.id)))
++}
++
 +pub(crate) fn tools() -> Vec<Value> {
 +    let role_list = ROLES.iter().map(|r| format!("{} = {}", r.id, r.title)).collect::<Vec<_>>().join(", ");
 +    let tasks = json!({"type": "array", "description": "Tasks; IDs werden fortlaufend vergeben (erster Task eines Projekts = 1).", "items": {"type": "object", "properties": {
@@ -3110,12 +3283,13 @@ index 0000000..04d1c8f
 +    let project = json!({"type": "string", "description": "Projekt-ID (z. B. p1) oder Titel; optional, wenn nur ein Projekt existiert"});
 +    let agent = json!({"type": "string", "description": "Dein Agent-Name aus cowork_join/cowork_start"});
 +    vec![
-+        json!({"name": "cowork_start", "description": "AdiCode Co-Work: startet im Main Chat ein Projekt, an dem mehrere Notion-AI-Chats (Browser-Tabs) mit festen Rollen gleichzeitig arbeiten. Der Aufrufer wird Lead. Ziel in 4-15 kleine, moeglichst parallele Tasks zerlegen, jedem Task eine role geben (nur benoetigte Rollen) und fuer Code/UI review setzen. Vorher adicode_skill name=cowork lesen.", "inputSchema": {"type": "object", "properties": {"title": {"type": "string"}, "goal": {"type": "string", "description": "Gesamtziel inkl. Tech-Stack, Ordner, Konventionen, Schnittstellen"}, "agent": {"type": "string", "description": "Name des Leads (optional)"}, "stale_minutes": {"type": "integer", "minimum": 1, "maximum": 240, "description": "Nach so vielen Minuten Inaktivitaet werden Tasks eines Agents wieder frei (Standard 20)"}, "tasks": tasks.clone()}, "required": ["title", "goal"]}}),
-+        json!({"name": "cowork_join", "description": format!("AdiCode Co-Work: diesen Chat mit einer festen Rolle einem Co-Work-Projekt beitreten. Liefert Agent-Namen, Rollen-Anleitung, Ablauf und Board. Danach cowork_claim. Rollen: {role_list} (eigene Rollen erlaubt)."), "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": {"type": "string", "description": "Wunschname (optional, sonst <rolle>-N)"}, "role": {"type": "string", "description": "Rolle dieses Chats, z. B. coder, reviewer, uiux, prompt, tester, roblox"}}}}),
++        json!({"name": "cowork_start", "description": "AdiCode Co-Work: startet im Main Chat ein Projekt, an dem mehrere Notion-AI-Chats (Browser-Tabs) gleichzeitig arbeiten. Der Aufrufer wird Lead. Ziel in 4-15 kleine, moeglichst parallele Tasks zerlegen (alle Agents sollen gleichzeitig arbeiten koennen), jedem Task als role den Schwerpunkt geben und fuer Code/UI review setzen. Rollen sind Schwerpunkte, keine Grenzen: jeder Worker bewertet den Auftrag zuerst aus seiner Rollen-Sicht und hilft danach bei allen Tasks. Vorher adicode_skill name=cowork lesen.", "inputSchema": {"type": "object", "properties": {"title": {"type": "string"}, "goal": {"type": "string", "description": "Gesamtziel inkl. Nutzer-Auftrag, Tech-Stack, Ordner, Konventionen, Schnittstellen"}, "assess": {"type": "boolean", "description": "Rollen-Bewertung durch alle Worker vor dem Start (Standard true; nur fuer winzige Auftraege false)"}, "agent": {"type": "string", "description": "Name des Leads (optional)"}, "stale_minutes": {"type": "integer", "minimum": 1, "maximum": 240, "description": "Nach so vielen Minuten Inaktivitaet werden Tasks eines Agents wieder frei (Standard 20)"}, "tasks": tasks.clone()}, "required": ["title", "goal"]}}),
++        json!({"name": "cowork_join", "description": format!("AdiCode Co-Work: diesen Chat mit einer Rolle (Schwerpunkt + Bewertungs-Sicht, hilft aber bei allem) einem Co-Work-Projekt beitreten. Liefert Agent-Namen, Rollen-Anleitung, Ablauf und Board. Danach cowork_claim. Rollen: {role_list} (eigene Rollen erlaubt)."), "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": {"type": "string", "description": "Wunschname (optional, sonst <rolle>-N)"}, "role": {"type": "string", "description": "Rolle dieses Chats, z. B. coder, reviewer, uiux, prompt, tester, roblox"}}}}),
 +        json!({"name": "cowork_board", "description": "AdiCode Co-Work: zeigt Tasks (mit Rolle und Phase), Agents, unbesetzte Rollen, Datei-Locks und neue Nachrichten. Ohne project: Liste aller Projekte.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone()}}, "annotations": {"readOnlyHint": true}}),
-+        json!({"name": "cowork_claim", "description": "AdiCode Co-Work: uebernimmt atomar den naechsten passenden Task (zuerst eigene Rolle, dann ohne Rolle, dann unbesetzte Rollen; Abhaengigkeiten erledigt, Dateien frei) oder task_id und sperrt seine Dateien. Liefert Details und Ergebnisse der Vorgaenger.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}}, "required": ["agent"]}}),
-+        json!({"name": "cowork_update", "description": "AdiCode Co-Work: Task-Status setzen. done (result: was gemacht, welche Dateien; erzeugt ggf. automatisch einen Review-Task), changes (nur Review-Tasks: result = konkrete Aenderungen, erzeugt einen Fix-Task), blocked (Grund, geht an den Lead), open (freigeben). Gibt Datei-Locks frei.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}, "status": {"type": "string", "enum": ["done", "changes", "blocked", "open", "claimed"]}, "result": {"type": "string"}}, "required": ["agent", "task_id", "status"]}}),
-+        json!({"name": "cowork_add_tasks", "description": "AdiCode Co-Work: weitere Tasks (mit role/review) zum Projekt hinzufuegen, z. B. Fixes, Tests, Integration.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "tasks": tasks}, "required": ["agent", "tasks"]}}),
++        json!({"name": "cowork_claim", "description": "AdiCode Co-Work: uebernimmt atomar den naechsten passenden Task (zuerst eigene Bewertungen, dann eigene Rolle, dann Reviews, dann ohne Rolle, dann Tasks beschaeftigter oder fehlender Experten; Abhaengigkeiten erledigt, Dateien frei) oder task_id und sperrt seine Dateien. Liefert Details und Ergebnisse der Vorgaenger.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}}, "required": ["agent"]}}),
++        json!({"name": "cowork_update", "description": "AdiCode Co-Work: Task-Status setzen. done (result: was gemacht, welche Dateien; erzeugt ggf. automatisch einen Review-Task), changes (nur Review-Tasks: result = konkrete Aenderungen, erzeugt einen Fix-Task), blocked (Grund, geht an den Lead), open (freigeben). Optional tasks=[...]: neue Teilaufgaben vorschlagen/anlegen (z. B. aus einer Bewertung oder wenn dein Task zu gross ist), damit die anderen mithelfen. Gibt Datei-Locks frei.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}, "status": {"type": "string", "enum": ["done", "changes", "blocked", "open", "claimed"]}, "result": {"type": "string"}, "tasks": tasks.clone()}, "required": ["agent", "task_id", "status"]}}),
++        json!({"name": "cowork_prompt", "description": "AdiCode Co-Work (Main/Lead): JEDE neue Nutzer-Nachricht waehrend eines laufenden Projekts sofort hiermit ans Board geben. Jeder Worker bewertet sie zuerst aus Sicht seiner Rolle (Risiken, Akzeptanzkriterien, Testplan, Aufteilung) und schlaegt Teilaufgaben vor; danach helfen alle bei der Umsetzung. Optional gleich tasks mitgeben (starten nach den Bewertungen).", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "text": {"type": "string", "description": "Die neue Nutzer-Nachricht (woertlich oder praezise zusammengefasst)"}, "tasks": tasks.clone()}, "required": ["agent", "text"]}}),
++        json!({"name": "cowork_add_tasks", "description": "AdiCode Co-Work: weitere Tasks (mit role/review) zum Projekt hinzufuegen, z. B. Fixes, Tests, Integration. Doppelte Titel offener Tasks werden ignoriert.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "gated": {"type": "boolean", "description": "true = erst nach den Bewertungen des letzten Prompts starten"}, "tasks": tasks}, "required": ["agent", "tasks"]}}),
 +        json!({"name": "cowork_message", "description": "AdiCode Co-Work: Nachricht an alle Agents oder an einen (to). Fuer Absprachen zu Schnittstellen, Namen, Problemen.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "text": {"type": "string"}, "to": {"type": "string", "description": "Agent-Name (leer = alle)"}}, "required": ["agent", "text"]}}),
 +        json!({"name": "cowork_lock", "description": "AdiCode Co-Work: zusaetzliche Datei sperren (oder release=true freigeben), bevor du sie bearbeitest, damit kein anderer Agent sie gleichzeitig aendert.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "path": {"type": "string"}, "task_id": {"type": "integer"}, "release": {"type": "boolean"}}, "required": ["agent", "path"]}}),
 +        json!({"name": "cowork_wait", "description": "AdiCode Co-Work: wartet bis zu 45 s auf neue passende Tasks oder Nachrichten (reagiert sofort, sobald sich etwas aendert) und liefert dann das Board.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "seconds": {"type": "integer", "minimum": 1, "maximum": 45}}, "required": ["agent"]}, "annotations": {"readOnlyHint": true}}),
@@ -3133,7 +3307,7 @@ index 0000000..04d1c8f
 +    #[test]
 +    fn claim_flow() {
 +        let mut b = Board::default();
-+        ok(dispatch(&mut b, "cowork_start", &json!({"title": "T", "goal": "G", "agent": "lead", "tasks": [
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "T", "goal": "G", "agent": "lead", "assess": false, "tasks": [
 +            {"title": "api", "files": ["src/api.ts"]},
 +            {"title": "ui", "depends_on": [1]},
 +            {"title": "docs"}
@@ -3157,7 +3331,7 @@ index 0000000..04d1c8f
 +    #[test]
 +    fn roles_review_and_fix_loop() {
 +        let mut b = Board::default();
-+        ok(dispatch(&mut b, "cowork_start", &json!({"title": "App", "goal": "G", "agent": "main", "tasks": [
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "App", "goal": "G", "agent": "main", "assess": false, "tasks": [
 +            {"title": "api", "role": "Programmierer", "review": "Code-Bewerter", "files": ["api.rs"]},
 +            {"title": "screen", "role": "ui/ux", "depends_on": [1]}
 +        ]})));
@@ -3192,10 +3366,55 @@ index 0000000..04d1c8f
 +    #[test]
 +    fn unfilled_role_falls_back() {
 +        let mut b = Board::default();
-+        ok(dispatch(&mut b, "cowork_start", &json!({"title": "T", "goal": "G", "agent": "main", "tasks": [{"title": "tests", "role": "tester"}]})));
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "T", "goal": "G", "agent": "main", "assess": false, "tasks": [{"title": "tests", "role": "tester"}]})));
 +        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "w"})));
 +        let c = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "w"})));
 +        assert!(c.contains("#1") && c.contains("gerade unbesetzt"));
++    }
++
++    #[test]
++    fn roles_are_focus_and_prompts_get_assessed() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "Game", "goal": "Obby bauen", "agent": "main", "tasks": [
++            {"title": "spawn", "role": "coder"}, {"title": "checkpoints", "role": "coder"}, {"title": "tests", "role": "tester"}
++        ]})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "c", "role": "coder"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "r", "role": "reviewer"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "t", "role": "tester"})));
++        // every worker first evaluates the prompt from its role
++        let a = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"})));
++        assert!(a.contains("BEWERTUNG") && a.contains("Qualitaet"), "{a}");
++        let rid = b.projects["p1"].tasks.iter().find(|t| t.assignee == "r").unwrap().id;
++        // work is gated until all evaluations are in
++        let c = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "c"})));
++        assert!(c.contains("BEWERTUNG"));
++        let cid = b.projects["p1"].tasks.iter().find(|t| t.assignee == "c").unwrap().id;
++        let tid = b.projects["p1"].tasks.iter().find(|t| t.assignee == "t").unwrap().id;
++        ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "t", "task_id": tid})));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "r", "task_id": rid, "status": "done", "result": "Risiko: Speicherstand", "tasks": [{"title": "DataStore absichern", "role": "coder"}, {"title": "spawn"}]})));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"}))).contains("warten noch auf die Rollen-Bewertungen"));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "c", "task_id": cid, "status": "done", "result": "3 Skripte"})));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "t", "task_id": tid, "status": "done", "result": "Testplan"})));
++        assert_eq!(b.projects["p1"].tasks.iter().filter(|t| t.title == "spawn").count(), 1, "duplicate proposal ignored");
++        // the coder takes a coder task; while busy the reviewer helps with the next coder task
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "c"}))).contains("spawn"));
++        let help = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"})));
++        assert!(help.contains("checkpoints") && help.contains("beschaeftigt"), "{help}");
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "t"}))).contains("tests"));
++        // lead hears about the evaluations; idle agents get a wake-up text
++        let (_, lead_note) = nudge_for_board(&mut b, "main").expect("lead nudge");
++        assert!(lead_note.contains("Speicherstand"));
++        // a new prompt mid-project opens a new evaluation wave
++        let pr = ok(dispatch(&mut b, "cowork_prompt", &json!({"agent": "main", "text": "Bitte noch ein Leaderboard"})));
++        assert!(pr.contains("Prompt #2") && pr.contains("3 Worker"), "{pr}");
++        assert!(dispatch(&mut b, "cowork_prompt", &json!({"agent": "main"})).is_err());
++    }
++
++    fn nudge_for_board(b: &mut Board, agent: &str) -> Option<(String, String)> {
++        *lock_board() = b.clone();
++        let r = nudge_for(agent);
++        *b = lock_board().clone();
++        r
 +    }
 +
 +    fn dashboard_of(b: &Board) -> Value {
@@ -3976,10 +4195,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..2b29a41
+index 0000000..817b2e2
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,231 @@
+@@ -0,0 +1,255 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -3994,6 +4213,7 @@ index 0000000..2b29a41
 +static ACCOUNT: Lazy<Mutex<BTreeMap<u32, Value>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
 +static COWORK_STATUS: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("Bereit.".into()));
 +static KEEPER_STARTED: AtomicBool = AtomicBool::new(false);
++static NUDGER_STARTED: AtomicBool = AtomicBool::new(false);
 +
 +#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
 +#[serde(default)]
@@ -4115,8 +4335,29 @@ index 0000000..2b29a41
 +}
 +async fn trusted_click(port:u16,point:&Value)->Result<(),String>{let x=point["x"].as_f64().ok_or("Klickposition X fehlt")?;let y=point["y"].as_f64().ok_or("Klickposition Y fehlt")?;cdp(port,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}})]).await?;Ok(())}
 +fn prompt_for(t:&Tab)->String {
-+    if t.role=="Main" { "Du bist der Main Chat und das einzige Interface zum Nutzer. Wenn der Nutzer ein Projekt nennt: project_memory_open/search aufrufen, dann cowork_start. Nach wichtigen Änderungen HANDOUT.md und project_memory_update aktualisieren.".into() }
-+    else { let role=t.role.to_ascii_lowercase();format!("Du bist fest der {} im AdiCode Co-Work. Rufe SOFORT cowork_join mit role '{}' und agent 'AdiCode-{}' für das neueste aktive Projekt auf. Danach selbstständig in Schleife: cowork_claim → arbeiten → cowork_update → cowork_wait. Bei Blockern cowork_message an Main. Frage den Nutzer nicht und antworte kurz nur mit Neuem.",t.role,role,t.role) }
++    if t.role=="Main" { "[AdiCode Co-Work] Du bist der Main Chat (Lead) und das einzige Interface zum Nutzer. Drei weitere Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel mit dir ueber die cowork_*-Tools. Regeln: 1) Nennt der Nutzer eine Aufgabe/ein Projekt: adicode_skill name=cowork lesen, project_memory_open/search, dann cowork_start mit 4-12 moeglichst parallelen Tasks (role = Schwerpunkt, review=reviewer fuer Code, files angeben), damit alle vier gleichzeitig arbeiten. Kleine Fragen beantwortest du einfach selbst. 2) Die Worker bewerten jeden Auftrag zuerst aus Sicht ihrer Rolle und schlagen Teilaufgaben vor; ihre Bewertungen bekommst du per cowork_wait - arbeite sie ein (cowork_add_tasks/cowork_message). 3) JEDE weitere Nutzer-Nachricht waehrend eines laufenden Projekts sofort mit cowork_prompt ans Board geben. 4) Waehrend die Worker arbeiten: cowork_wait, Blocker klaeren und selbst Tasks uebernehmen (cowork_claim), wenn nichts zu koordinieren ist. 5) Am Ende cowork_results und EINE finale, zusammengefuehrte Antwort; HANDOUT.md/project_memory_update aktualisieren. Nachrichten, die mit [AdiCode Co-Work] beginnen, kommen vom System, nicht vom Nutzer. Antworte jetzt nur kurz: Co-Work bereit.".into() }
++    else { let role=t.role.to_ascii_lowercase();format!("[AdiCode Co-Work] Du bist der {} im AdiCode Co-Work. Deine Rolle ist dein Schwerpunkt und deine Bewertungs-Brille - du hilfst aber bei ALLEN Aufgaben mit. Rufe SOFORT cowork_join mit role '{}' und agent 'AdiCode-{}' fuer das neueste aktive Projekt auf. Danach selbststaendig in Schleife: cowork_claim -> arbeiten -> cowork_update -> cowork_claim ... Bewertungs-Tasks (neuer Nutzer-Prompt) kommen zuerst: aus Sicht deiner Rolle knapp bewerten und fehlende Teilaufgaben als tasks mitschicken. Ist ein Task zu gross, teile ihn mit tasks=[...] auf. Kein freier Task: cowork_wait (mehrmals). Bei Blockern cowork_message an den Lead. Frage den Nutzer nicht und antworte kurz nur mit Neuem. Nachrichten mit [AdiCode Co-Work] sind Weckrufe des Systems: einfach weitermachen.",t.role,role,t.role) }
++}
++/// Chat is idle: Notion AI is not generating/recording and the composer is empty.
++async fn chat_idle(port:u16)->bool{
++    let expr=r#"(()=>{if(document.querySelector('[data-testid="agent-chat-stop-button"],[data-testid="agent-chat-stop-recording-button"]'))return false;const c=document.querySelector('[role="textbox"][contenteditable="true"]');return !!c&&!(c.innerText||'').trim()})()"#;
++    cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false)
++}
++/// Notion AI chats stop after each turn. Wake idle chats when work is waiting.
++async fn nudger(tabs:Vec<Tab>){
++    let mut last:BTreeMap<u32,(String,std::time::Instant,u32)>=BTreeMap::new();
++    loop{
++        tokio::time::sleep(Duration::from_secs(10)).await;
++        for(i,t)in tabs.iter().enumerate(){
++            let agent=if i==0{crate::notion_cowork::latest_lead()}else{format!("AdiCode-{}",t.role)};
++            let Some((sig,text))=crate::notion_cowork::nudge_for(&agent) else {continue};
++            if let Some((s,at,n))=last.get(&t.id){if *s==sig&&(sig.starts_with("done:")||*n>=3||at.elapsed()<Duration::from_secs(240)){continue;}}
++            if !chat_idle(cdp_port(i)).await{continue;}
++            tokio::time::sleep(Duration::from_secs(4)).await;
++            if !chat_idle(cdp_port(i)).await{continue;}
++            if insert_prompt(cdp_port(i),text).await.is_ok(){let n=last.get(&t.id).filter(|(s,_,_)|*s==sig).map(|x|x.2+1).unwrap_or(1);last.insert(t.id,(sig,std::time::Instant::now(),n));}
++        }
++    }
 +}
 +fn set_status(s:impl Into<String>){*lock(&COWORK_STATUS)=s.into();}
 +pub(crate) fn status_text()->String{lock(&COWORK_STATUS).clone()}
@@ -4174,14 +4415,16 @@ index 0000000..2b29a41
 +    if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}
 +    if crate::notion_chat::CHAT_USED.load(Ordering::SeqCst){windows::set_hidden(&tabs[..1],true);}
 +    let _=open_main(cdp_port(0)).await;
++    if let Some(main)=tabs.first(){let _=insert_prompt(cdp_port(0),prompt_for(main)).await;}
 +    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
++    if !NUDGER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(nudger(tabs.clone()));}
 +    loop{if crate::notion_cowork::project_count()>baseline{break;}tokio::time::sleep(Duration::from_secs(3)).await;}
 +    set_status("Projekt erkannt. Coder, Reviewer und Tester treten bei …");
 +    let mut prompt_errors=Vec::new();
 +    for(i,t)in tabs.iter().enumerate().skip(1){if let Err(e)=insert_prompt(cdp_port(i),prompt_for(t)).await{prompt_errors.push(format!("{}: {e}",t.role));}tokio::time::sleep(Duration::from_secs(2)).await;}
 +    if !prompt_errors.is_empty(){windows::set_hidden(&tabs,false);set_status(format!("Worker-Kickoff unvollständig: {}",prompt_errors.join("; ")));return;}
 +    let wanted=["coder","reviewer","tester"];
-+    for _ in 0..45 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){set_status("Co-Work aktiv: Coder, Reviewer und Tester sind mit Main verbunden.");let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(2)).await;}
++    for _ in 0..45 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){set_status("Co-Work aktiv: Coder, Reviewer und Tester sind mit Main verbunden. Jeder bewertet neue Auftraege aus seiner Rollen-Sicht und hilft dann bei allem mit.");let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(2)).await;}
 +    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.",missing.join(", ")));
 +}
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
@@ -5496,10 +5739,10 @@ index 0000000..9759733
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
 new file mode 100644
-index 0000000..c7762ac
+index 0000000..49aacb6
 --- /dev/null
 +++ b/agent/src/notion_skills.rs
-@@ -0,0 +1,157 @@
+@@ -0,0 +1,161 @@
 +//! AdiCode (unofficial fork): built-in coding skills and control tools
 +//! for Notion AI. Skills are short, opinionated checklists the agent loads
 +//! before it writes code (Roblox/Luau and general app development).
@@ -5594,21 +5837,25 @@ index 0000000..c7762ac
 +
 +Context pressure
 +- Do not try to retain an unlimited raw transcript. Preserve decisions, interfaces, file paths, commands, failures and next steps; omit chatter and duplicated status.
-+- If a response suggests context was lost, stop and reload project_memory_open plus HANDOUT.md before continuing."# },    Skill { id: "cowork", title: "Co-Work: several Notion AI chats with fixed expert roles on one project", body: r#"Co-Work lets several Notion AI chats (browser tabs) build one project in parallel via a shared board (cowork_* tools). The MAIN CHAT is the lead and the only interface to the user; every other tab joins with ONE fixed expert role.
-+ROLES: lead = Main Chat, prompt = Prompt-Schreiber, coder = Programmierer, reviewer = Code-Bewerter, uiux = UI/UX-Kritiker, tester = Tester, roblox = Roblox-Spezialist, worker = Generalist. Custom roles are allowed. German names work too ("Programmierer", "Code-Bewerter", "UI/UX-Kritiker" ...).
-+LEAD (the chat where the user describes the project):
-+1. Identify the project, load project_memory_open and its HANDOUT.md, then inspect current code/project (files, git, Roblox tree) so tasks are concrete.
-+2. cowork_start with title, goal (stack, folders, conventions, interfaces) and 4-15 small tasks. Each task: clear title, detail with acceptance criteria, role (ONLY roles that are really needed for that task), files it touches, depends_on for real ordering only. Set review=reviewer for code tasks and review=uiux for UI tasks; a review task is then created automatically when the task is done, and requested changes become fix tasks (max 2 rounds, then you decide).
-+3. Tell the user which role tabs to open and the exact sentence per tab: "Tritt Co-Work-Projekt <id> bei als <Rolle>". Missing roles are covered by other tabs automatically.
-+4. Orchestrate: cowork_wait / cowork_board, answer blocked tasks and messages, add tasks with cowork_add_tasks. Only do tasks yourself if nobody else can.
++- If a response suggests context was lost, stop and reload project_memory_open plus HANDOUT.md before continuing."# },    Skill { id: "cowork", title: "Co-Work: several Notion AI chats work on one project (roles = focus, everybody helps)", body: r#"Co-Work lets several Notion AI chats (browser tabs) build one project in parallel via a shared board (cowork_* tools). The MAIN CHAT is the lead and the only interface to the user. Every other tab has a ROLE = its focus and its evaluation lens, NOT a fence: it evaluates every new prompt from its role's perspective and then helps with ALL work.
++ROLES: lead = Main Chat, prompt = Prompt-Schreiber, coder = Programmierer, reviewer = Code-Bewerter, uiux = UI/UX-Kritiker, tester = Tester, roblox = Roblox-Spezialist, worker = Generalist. Custom roles are allowed. German names work too.
++HOW WORK IS SPLIT (automatic):
++- Every user prompt opens a "wave": cowork_start (project start) and cowork_prompt (every new user message mid-project). Each worker first gets an assess task: evaluate the prompt through its role lens (coder: implementation plan/files/risks, reviewer: quality risks + acceptance criteria, tester: test plan/edge cases, ...) and propose missing sub-tasks via cowork_update tasks=[...]. Work tasks of the wave start when all evaluations are in (max 150 s).
++- cowork_claim order: own evaluation -> tasks of own role -> reviews -> unassigned -> tasks of other roles whose expert is busy/offline (or that waited > 90 s). So nobody idles while work is open.
++- Reviews never go to the author; requested changes become fix tasks (max 2 rounds, then the lead decides).
++- AdiCode wakes idle chats automatically with messages starting with [AdiCode Co-Work] (they come from the system, not the user).
++LEAD (Main Chat):
++1. Identify the project, project_memory_open + HANDOUT.md, inspect the current code so tasks are concrete. Small questions: just answer them yourself.
++2. cowork_start with title, goal (user request, stack, folders, conventions, interfaces) and 4-12 small PARALLEL tasks (so all agents can work at once). Each task: title, detail with acceptance criteria, role = focus, files it touches, depends_on only for real ordering, review=reviewer for code / uiux for UI.
++3. Every further user message during the project: cowork_prompt first (workers evaluate it), then continue.
++4. Orchestrate with cowork_wait: integrate evaluations (cowork_add_tasks / cowork_message), solve blockers, and claim tasks yourself when nothing needs coordination.
 +5. When all tasks are done: cowork_results, update HANDOUT.md, project_memory_update, then give ONE short optimized answer. Close the project only if the user wants.
-+ROLE TAB (any other chat, e.g. "Tritt Co-Work-Projekt p1 bei als Code-Bewerter"):
-+1. cowork_join with project and role; remember your agent name and pass it as agent on every cowork call. Act strictly as the expert of your role (the join answer contains the role guide).
-+2. Loop: cowork_claim (you get tasks of your role first, then unassigned ones, then tasks of unfilled roles) -> load the matching skill (roblox, roblox-studio, app, debug, git) -> read files before editing -> change only the task files (lock extra files with cowork_lock) -> verify -> cowork_update status=done with a short, precise result (what, which files, how tested).
-+3. Review tasks: read, do not rewrite. status=done if good (short verdict) or status=changes with numbered concrete points (file, place, fix).
-+4. No free task: cowork_wait (repeat; it wakes up immediately on changes). Problems or unclear interface: cowork_message to the lead or status=blocked with the reason.
-+5. Stop when the board reports all tasks done and tell the user briefly what you did.
-+RULES: never edit a file locked by another agent; results are required for done/changes/blocked; do not redo tasks owned by others; do not close the project. The AdiCode desktop app shows the live status of all roles and tasks (Co-Work page)."# },
++WORKER TAB:
++1. cowork_join with role (and agent name); pass the agent name on every cowork call.
++2. Loop: cowork_claim -> load the matching skill (roblox, roblox-studio, app, debug, git) -> read files before editing -> change only the task files (lock extra files with cowork_lock) -> verify -> cowork_update status=done with a short, precise result (what, which files, how tested). Task too big: split it with tasks=[...] so others can help.
++3. Assess tasks: max ~10 lines from your role lens + proposed tasks. Review tasks: read, do not rewrite; status=done (short verdict) or status=changes with numbered concrete points.
++4. No free task: cowork_wait (repeat). Problems: cowork_message to the lead or status=blocked with the reason. Do not ask the user.
++RULES: never edit a file locked by another agent; results are required for done/changes/blocked; do not redo tasks owned by others; do not close the project. The AdiCode desktop app shows the live status (Co-Work page and Chat tab)."# },
 +];
 +
 +fn list_text() -> String {

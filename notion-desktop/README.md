@@ -12,6 +12,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.23
+- **Co-Work neu durchdacht – Rollen sind Schwerpunkte, keine Grenzen.** Coder, Reviewer und Tester helfen bei allen Aufgaben. Ist der Experte für eine Aufgabe beschäftigt (oder wartet sie länger als 90 s), übernimmt ein anderer Agent. So arbeiten wirklich alle vier gleichzeitig.
+- **Jeder Prompt wird aus Sicht jeder Rolle bewertet:** beim Start und bei jeder neuen Nachricht mitten im Projekt (neues Tool `cowork_prompt`). Coder: Umsetzungsplan und Risiken. Reviewer: Qualitätsrisiken und Akzeptanzkriterien. Tester: Testplan und Edge Cases. Fehlende Teilaufgaben schlagen die Worker direkt vor. Die Aufgaben starten, sobald alle Bewertungen da sind (spätestens nach 150 s).
+- **Weckfunktion:** Notion-AI-Chats bleiben nach jeder Antwort stehen. AdiCode erkennt jetzt, wenn ein Chat untätig ist, obwohl Arbeit wartet, und schickt ihm einen kurzen Weckruf („[AdiCode Co-Work] …“). Der Main-Chat wird geweckt, wenn Bewertungen oder Blocker da sind und wenn alles fertig ist (dann fasst er zusammen).
+- Main bekommt beim Co-Work-Start jetzt klare Anweisungen (parallele Tasks, `cowork_prompt` für neue Nachrichten, selbst mithelfen, am Ende eine zusammengefasste Antwort).
+- Fix im Chat-Tab: Die Ladeanzeige und die doppelte Nachricht blieben hängen, wenn beim Senden ein neuer Notion-Chat entstand.
 ## Neu in 1.0.22
 - Neuer Tab **Chat**: eine ChatGPT-artige Chatbox direkt in AdiCode. Sie läuft über deinen Co-Work-Main-Tab (Notion AI) – das Main-Fenster kann dabei versteckt bleiben (Knopf „Main-Fenster zeigen/verstecken“).
 - Fotos, Videos und Dateien anhängen: **+**-Knopf, Drag & Drop oder Strg+V (Screenshots). Vorschaubilder mit Upload-Anzeige, bis 512 MB pro Datei.
