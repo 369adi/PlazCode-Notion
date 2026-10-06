@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..e9e925d 100644
+index 07dc4c0..c04533d 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -863,7 +863,7 @@ index 07dc4c0..e9e925d 100644
 +        Chip(A.chats_none === true ? "warn" : A.chats_multi === true ? "warn" : (A.chats_multi === false ? "ok" : "wait"), A.chats_none === true ? "Kein Chat" : A.chats_multi === true ? (A.chats_total + " Chats offen") : (A.chats_multi === false ? "Nur Willkommen-Chat" : "Chats ?"), A.chats_state || "Noch nicht gepr\u00fcft") +
 +        Chip(A.trial === true ? "ok" : (A.trial === false ? "warn" : "wait"), A.trial === true ? "Trial aktiv" : (A.trial === false ? "Kein Trial" : "Trial ?"), A.trial_state || "Noch nicht gepr\u00fcft") +
 +        Chip(USt, "Usage " + (A.exhausted ? "aufgebraucht" : (P == null ? "\u2013" : P + " %")), (A.usage_source || "") + (A.usage_reset ? " \u00b7 " + A.usage_reset : "")) +
-+        ((A.chats_multi === true || A.chats_none === true) ? '<button class="cwforget" data-a="refresh" title="Konto l\u00f6schen und neu einloggen">Refresh</button>' : '') +
++        ((A.chats_multi === true || A.chats_none === true || A.chat_ok === false || !!A.usage_error) ? '<button class="cwforget" data-a="refresh" title="Konto l\u00f6schen und neu einloggen">Refresh</button>' : '') +
 + ((McpOk || ModOk) ? '<button class="cwforget" data-a="forget" title="Gemerkte MCP-/Modell-Checks l\u00f6schen; der n\u00e4chste Check pr\u00fcft neu">neu pr\u00fcfen</button>' : '') +
 +        '</div>';
 +    };
@@ -4483,7 +4483,7 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..d98d5d2
+index 0000000..1ac6c6b
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
 @@ -0,0 +1,522 @@
@@ -4687,7 +4687,7 @@ index 0000000..d98d5d2
 +async fn cdp(port:u16, commands:Vec<Value>)->Result<Vec<Value>,String>{let ws=target(port).await?;cdp_ws(&ws,commands).await}
 +async fn cdp_ws(ws:&str, commands:Vec<Value>)->Result<Vec<Value>,String>{
 +    let(mut socket,_)=tokio_tungstenite::connect_async(ws).await.map_err(|e|e.to_string())?;let mut out=Vec::new();
-+    for mut cmd in commands{let id=out.len()+1;cmd["id"]=json!(id);socket.send(tokio_tungstenite::tungstenite::Message::Text(cmd.to_string().into())).await.map_err(|e|e.to_string())?;loop{let msg=tokio::time::timeout(Duration::from_secs(5),socket.next()).await.map_err(|_|"CDP timeout".to_string())?.ok_or("CDP geschlossen")?.map_err(|e|e.to_string())?;if let Ok(txt)=msg.into_text(){if let Ok(v)=serde_json::from_str::<Value>(&txt){if v["id"]==id{out.push(v);break;}}}}
++    for mut cmd in commands{let id=out.len()+1;cmd["id"]=json!(id);socket.send(tokio_tungstenite::tungstenite::Message::Text(cmd.to_string().into())).await.map_err(|e|e.to_string())?;loop{let msg=tokio::time::timeout(Duration::from_secs(30),socket.next()).await.map_err(|_|"CDP timeout".to_string())?.ok_or("CDP geschlossen")?.map_err(|e|e.to_string())?;if let Ok(txt)=msg.into_text(){if let Ok(v)=serde_json::from_str::<Value>(&txt){if v["id"]==id{out.push(v);break;}}}}
 +    } Ok(out)
 +}
 +async fn trusted_click(port:u16,point:&Value)->Result<(),String>{let x=point["x"].as_f64().ok_or("Klickposition X fehlt")?;let y=point["y"].as_f64().ok_or("Klickposition Y fehlt")?;cdp(port,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}})]).await?;Ok(())}
