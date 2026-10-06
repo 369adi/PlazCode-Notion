@@ -62,6 +62,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Google-Login**: Cookie-Hinweis wird zuerst komplett abgearbeitet (ablehnen, dann Okay bei dem Neuladen-Dialog), erst danach wird Google geklickt. Das Neuladen mitten im Google-Fenster hatte den Fehler 400 ausgeloest.
 ## Neu in 1.0.52
 - **Seite laedt nach Google-Login nicht**: Ein frisch geloeschtes Konto hat keinen Workspace, Notion stuerzt dann auf der KI-Seite ab (leere Seite). AdiCode oeffnet nach 8 s die Startseite, dort startet das Onboarding.
+## Neu in 1.0.53
+- **Einrichtung nach Refresh vollstaendig**: Arbeitsbereich Marketing, Ziele, Verbinden ueberspringen, Team, Plan und Desktop-App werden automatisch durchgeklickt.
+- **Schneller**: Einrichtung prueft alle 1,5 s statt alle 3 s.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
