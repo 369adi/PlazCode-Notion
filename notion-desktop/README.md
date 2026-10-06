@@ -97,6 +97,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Projekt-Memory antwortet kurz** (spart Token): project_memory_update gibt nur noch eine Zeile zurueck statt das ganze Handout.
 ## Neu in 1.0.64
 - **Token-Modus sichtbar**: das Auswahlfeld Token: wenig / Token: viel (alle Opus) steht jetzt neben der Browser-Auswahl auf der Co-Work-Seite (war vorher per CSS ausgeblendet).
+## Neu in 1.0.65
+- **Check prueft und repariert alles**: MCP und Modelle werden bei jedem Check neu geprueft (nicht mehr nur gemerkt).
+- **Chat-Modell wird umgestellt**: im Chat Willkommen bei Notion stellt AdiCode den Modell-Knopf von Automatisch auf Opus 5.5 bzw. Sonnet 5.5 (vorher galt nur die Workspace-Policy, die Chats liefen weiter auf Auto/Sonnet).
+- **Token-Modus startet automatisch einen Check**, damit alle Agents sofort umgestellt werden.
+- **Trial**: Erkennung korrigiert (unsubscribed wurde als Trial gezaehlt); fehlt ein Trial, startet der Check das kostenlose Probe-Abo unter Notion-KI > KI-Konnektoren.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
