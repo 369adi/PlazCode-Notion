@@ -4481,7 +4481,7 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..732996b
+index 0000000..937de4e
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
 @@ -0,0 +1,519 @@
@@ -4797,10 +4797,10 @@ index 0000000..732996b
 +    step(t.id,2);mark_account(t.id,"check",json!("Pr\u{fc}fe Modelle \u{2026}"));
 +    if let Err(e)=ensure_models(&t,i).await{missing.push("Modell");errs.push(e);}step(t.id,3);check_trial(&t,i).await;step(t.id,4);
 +    mark_account(t.id,"check",json!("Pr\u{fc}fe Usage \u{2026}"));
-+    inspect_account(&t,i).await;step(t.id,5);check_usage_ui(&t,i).await;check_chats(&t,i).await;
++    inspect_account(&t,i).await;step(t.id,5);let _=tokio::time::timeout(Duration::from_secs(40),check_usage_ui(&t,i)).await;let _=tokio::time::timeout(Duration::from_secs(40),check_chats(&t,i)).await;
 +    mark_account(t.id,"check",json!("\u{d6}ffne \u{201a}Willkommen bei Notion\u{2018} \u{2026}"));
-+    match prepare_chat(&t,i).await{Ok(())=>mark_account(t.id,"chat_ok",json!(true)),Err(e)=>{mark_account(t.id,"chat_ok",json!(false));missing.push("Chat");errs.push(e);}}
-+    step(t.id,6);if !errs.is_empty(){mark_account(t.id,"check",json!(format!("{} fehlt",missing.join(", "))));return Err(errs.join("; "));}
++    match {let r=prepare_chat(&t,i).await;if r.is_err(){tokio::time::sleep(Duration::from_secs(3)).await;prepare_chat(&t,i).await}else{r}}{Ok(())=>mark_account(t.id,"chat_ok",json!(true)),Err(e)=>{mark_account(t.id,"chat_ok",json!(false));missing.push("Chat");errs.push(e);}}
++    step(t.id,7);if !errs.is_empty(){mark_account(t.id,"check",json!(format!("{} fehlt",missing.join(", "))));return Err(errs.join("; "));}
 +    step(t.id,7);let ex=lock(&ACCOUNT).get(&t.id).map(|a|a["exhausted"].as_bool().unwrap_or(false)).unwrap_or(false);
 +    mark_account(t.id,"check",json!(if ex{"OK \u{2013} aber KI-Kontingent aufgebraucht"}else{"OK"}));
 +    Ok(())
