@@ -105,6 +105,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 
 Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Execution, Stop mode, Permissions, Reasoning, Automation und Instructions** entfernt werden? Außerdem die leere Karte oben entfernen. Appearance und Desktop bleiben.
 ## 11. Changelog
+- **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.
 - **1.0.32** - Fortschrittsbalken (STAGE/step in notion_profiles.rs, CProg in desktop.html, state.stage), Trial-Check (TRIAL_JS: getSubscriptionData isSubscribed && !hasPaidNonzero = Trial; Chip in CChk).
 - **1.0.31** - Account-Check: ensure_models (MODELS_JS via saveTransactionsFanout, personal_agent_model_policy; Main Opus 5.5 albuquerque-quinn, Worker Sonnet 5.5 achira-donut), Gedaechtnis accounts.json (mem_get/mem_set: mcp_ok, models_ok, welcome_url), close_settings vor prepare_chat, Worker nach Kickoff versteckt, state.hidden. UI: CChk-Chips, Zum Chat (cowork_goto_chat), neu pruefen (cowork_forget), Icon-Labels, Browser-Picker CBrIcon/CBrRender.
 - **1.0.30** - Co-Work: Session-Leiste (cwsession) mit Start rechts, Konten als Zeilen (cwrow, CRow neu), Usage-Dashboard-Karte versteckt (cwUsage bleibt fuer JS). Schwarze Fenster gefixt: notion_profiles.rs windows::visit merkt versteckte HWNDs (HIDDEN) und zeigt nur diese bzw. Chrome_WidgetWin_1 mit Titel ohne Owner.

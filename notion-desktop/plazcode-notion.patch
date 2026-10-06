@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..0d20a2f 100644
+index 07dc4c0..b4fbbfe 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -708,7 +708,7 @@ index 07dc4c0..0d20a2f 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1520,346 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1520,347 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -860,8 +860,9 @@ index 07dc4c0..0d20a2f 100644
 +        Chip(ModOk ? "ok" : (ModBad ? "bad" : "wait"), "Modell: " + Tgt, A.model_state || "Noch nicht gepr\u00fcft") +
 +        Chip(ChatOk ? "ok" : (ChatBad ? "bad" : "wait"), ChatBad ? "Chat fehlt" : "Chat \u201aWillkommen\u2018", A.chat || "") +
 +        (ChatBad ? '<button class="cwgo" data-a="chat" title="Tab \u00f6ffnen und zum Chat Willkommen bei Notion springen">Zum Chat \u2192</button>' : '') +
++        Chip(A.chats_multi === true ? "warn" : (A.chats_multi === false ? "ok" : "wait"), A.chats_multi === true ? (A.chats_total + " Chats offen") : (A.chats_multi === false ? "Nur Willkommen-Chat" : "Chats ?"), A.chats_state || "Noch nicht gepr\u00fcft") +
 +        Chip(A.trial === true ? "ok" : (A.trial === false ? "warn" : "wait"), A.trial === true ? "Trial aktiv" : (A.trial === false ? "Kein Trial" : "Trial ?"), A.trial_state || "Noch nicht gepr\u00fcft") +
-+        Chip(USt, "Usage " + (A.exhausted ? "aufgebraucht" : (P == null ? "\u2013" : P + " %")), A.usage_source || "") +
++        Chip(USt, "Usage " + (A.exhausted ? "aufgebraucht" : (P == null ? "\u2013" : P + " %")), (A.usage_source || "") + (A.usage_reset ? " \u00b7 " + A.usage_reset : "")) +
 +        ((McpOk || ModOk) ? '<button class="cwforget" data-a="forget" title="Gemerkte MCP-/Modell-Checks l\u00f6schen; der n\u00e4chste Check pr\u00fcft neu">neu pr\u00fcfen</button>' : '') +
 +        '</div>';
 +    };
@@ -4480,10 +4481,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..7e9b1f1
+index 0000000..fa8b703
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,502 @@
+@@ -0,0 +1,519 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4520,6 +4521,23 @@ index 0000000..7e9b1f1
 +            else if sub{mark_account(t.id,"trial",json!(false));mark_account(t.id,"trial_state",json!(format!("Bezahlter Plan ({tier}) - kein Trial")));}
 +            else{mark_account(t.id,"trial",json!(false));mark_account(t.id,"trial_state",json!("Kein Trial (Free-Plan)"));}}
 +        _=>{mark_account(t.id,"trial",Value::Null);mark_account(t.id,"trial_state",json!("Trial-Status nicht lesbar"));}
++    }
++}
++const USAGE_UI_JS:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const byText=(re,sel)=>[...document.querySelectorAll(sel||'div[role="button"],div[role="menuitem"],[role="tab"],button,a')].filter(vis).find(e=>re.test((e.innerText||'').trim().split('\n')[0]));const dlgOpen=()=>document.querySelector('input[aria-label="Search settings"],input[placeholder="Search settings"],input[aria-label="Einstellungen durchsuchen"]');try{if(!dlgOpen()){let st=byText(/^(settings|einstellungen)$/i);if(!st){const sw=document.querySelector('.notion-sidebar-switcher,[class*="switcher"]')||byText(/space$/i);if(sw){sw.click();await sleep(900);}st=byText(/^(settings|einstellungen)$/i);}if(!st)return {found:false,error:'Einstellungen nicht gefunden'};st.click();await sleep(1500);}const ai=byText(/^notion ai$|^notion-ki$|^notion ki$/i);if(ai){ai.click();await sleep(1200);}const us=byText(/^(usage|verwendung|nutzung)/i);if(!us)return {found:false,error:'Usage-Tab nicht gefunden'};us.click();await sleep(2500);const d=(dlgOpen()||document.body).closest('[role="dialog"]')||document.body;const t=d.innerText||'';const m=t.match(/(\d+(?:[.,]\d+)?)\s*%\s*(used|verwendet|genutzt|benutzt)/i);const r=t.match(/(Resets on [^\n]+|Zurückgesetzt[^\n]*|Wird [^\n]*zurückgesetzt[^\n]*|Neustart [^\n]+)/i);if(!m)return {found:false,error:'Keine Prozentangabe gefunden'};return {found:true,pct:parseFloat(m[1].replace(',','.')),reset:r?r[1].trim():null}}catch(e){return {found:false,error:String(e&&e.message||e)}}})()"#;
++const CHATS_JS:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const re=/^(welcome to notion|willkommen (bei|in|zu) notion)/i;const seen=new Set();let welcome=0;try{const tab=document.querySelector('#sidebar-tab-chats,[role="tab"][aria-label="Chat"],[role="tab"][aria-label="Chats"]');if(tab&&tab.getAttribute('aria-selected')!=='true'){tab.click();await sleep(1200);}for(let k=0;k<8;k++){for(const e of document.querySelectorAll('[role="menuitem"]')){if(!vis(e))continue;const tx=(e.innerText||'').trim().split('\n')[0];if(!tx||/^hide tab name$/i.test(tx))continue;if(!seen.has(tx+'#'+seen.size)){seen.add(tx+'#'+(re.test(tx)?'w':'o')+'#'+tx)}}const sc=[...document.querySelectorAll('[role="menu"],[role="tabpanel"],[role="list"]')].find(e=>vis(e)&&e.scrollHeight>e.clientHeight+20);if(!sc)break;sc.scrollTop+=500;await sleep(400)}const all=[...seen];const total=all.length;welcome=all.filter(x=>x.includes('#w#')).length;return {ok:total>0,total,welcome}}catch(e){return {ok:false,error:String(e&&e.message||e)}}})()"#;
++async fn check_usage_ui(t:&Tab,i:usize){
++    let port=cdp_port(i);
++    match js_eval(port,USAGE_UI_JS).await{
++        Ok(r) if r["found"].as_bool().unwrap_or(false)=>{mark_account(t.id,"ui_pct",r["pct"].clone());mark_account(t.id,"usage",r["pct"].clone());mark_account(t.id,"usage_source",json!("Einstellungen \u{2192} Notion KI \u{2192} Usage (Monthly)"));mark_account(t.id,"usage_error",Value::Null);mark_account(t.id,"usage_reset",r["reset"].clone());}
++        Ok(r)=>{mark_account(t.id,"usage_error",r["error"].clone());}
++        Err(e)=>{mark_account(t.id,"usage_error",json!(e));}
++    }
++    close_settings(port).await;
++}
++async fn check_chats(t:&Tab,i:usize){
++    match js_eval(cdp_port(i),CHATS_JS).await{
++        Ok(r) if r["ok"].as_bool().unwrap_or(false)=>{let total=r["total"].as_u64().unwrap_or(0);let w=r["welcome"].as_u64().unwrap_or(0);let multi=total>w||w>1;mark_account(t.id,"chats_total",json!(total));mark_account(t.id,"chats_welcome",json!(w));mark_account(t.id,"chats_multi",json!(multi));mark_account(t.id,"chats_state",json!(if multi{format!("{total} Chats offen (davon {w} Willkommen) - mehr als nur Willkommen")}else{"Nur der Chat Willkommen bei Notion".to_string()}));}
++        _=>{mark_account(t.id,"chats_multi",Value::Null);mark_account(t.id,"chats_state",json!("Chat-Liste nicht lesbar"));}
 +    }
 +}
 +fn accounts_file()->PathBuf{base().join("accounts.json")}
@@ -4779,7 +4797,7 @@ index 0000000..7e9b1f1
 +    step(t.id,2);mark_account(t.id,"check",json!("Pr\u{fc}fe Modelle \u{2026}"));
 +    if let Err(e)=ensure_models(&t,i).await{missing.push("Modell");errs.push(e);}step(t.id,3);check_trial(&t,i).await;step(t.id,4);
 +    mark_account(t.id,"check",json!("Pr\u{fc}fe Usage \u{2026}"));
-+    inspect_account(&t,i).await;step(t.id,5);
++    inspect_account(&t,i).await;step(t.id,5);check_usage_ui(&t,i).await;check_chats(&t,i).await;
 +    mark_account(t.id,"check",json!("\u{d6}ffne \u{201a}Willkommen bei Notion\u{2018} \u{2026}"));
 +    match prepare_chat(&t,i).await{Ok(())=>mark_account(t.id,"chat_ok",json!(true)),Err(e)=>{mark_account(t.id,"chat_ok",json!(false));missing.push("Chat");errs.push(e);}}
 +    step(t.id,6);if !errs.is_empty(){mark_account(t.id,"check",json!(format!("{} fehlt",missing.join(", "))));return Err(errs.join("; "));}
@@ -4825,7 +4843,7 @@ index 0000000..7e9b1f1
 +const USAGE_JS:&str=r#"(async()=>{const body=(document.body&&document.body.innerText)||'';const exText=/used your (trial )?AI allowance|add a payment method to unlock more AI|KI-Kontingent (ist )?aufgebraucht|AI-Guthaben aufgebraucht|out of AI responses/i.test(body);const post=(p,b)=>fetch('/api/v3/'+p,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.ok?r.json():null).catch(()=>null);const out={usage:null,used:null,limit:null,basic_used:null,basic_limit:null,premium_used:null,premium_limit:null,plan_type:null,exhausted:exText,usage_source:'nicht gefunden',usage_error:null,models:[],checked:new Date().toLocaleTimeString(),url:location.href};try{const sp=await post('getSpaces',{});let spaceId=null;if(sp){for(const u of Object.values(sp)){const ids=Object.keys((u&&u.space)||{});if(ids.length){spaceId=ids[0];break;}}}if(!spaceId){out.usage_error='Nicht eingeloggt oder kein Workspace';return out;}const v1=await post('getAIUsageEligibility',{spaceId,surface:'ai_module'});const v2=await post('getAIUsageEligibilityV2',{spaceId,surface:'ai_module'});if(v1){out.plan_type=v1.type||null;out.basic_used=v1.userUsage??v1.spaceUsage??null;out.basic_limit=v1.userLimit??v1.spaceLimit??null;if(v1.isEligible===false)out.exhausted=true;out.usage_source='getAIUsageEligibility';}if(v2){const b=v2.basicCredits||{};if(out.basic_used==null)out.basic_used=b.userUsage??null;if(out.basic_limit==null)out.basic_limit=b.userLimit??null;const ps=(v2.premiumCredits&&v2.premiumCredits.perSource)||{};let pu=0,pl=0;for(const s of Object.values(ps)){if(s&&typeof s.limit==='number'){pu+=s.usageTotal||0;pl+=s.limit;}}if(pl>0){out.premium_used=pu;out.premium_limit=pl;}out.usage_source=v1?'getAIUsageEligibility + V2':'getAIUsageEligibilityV2';}const unlimited=out.plan_type==='unlimited';if(out.premium_limit){out.used=out.premium_used;out.limit=out.premium_limit;out.usage=Math.min(100,Math.round(out.premium_used/out.premium_limit*100));}else if(!unlimited&&out.basic_limit){out.used=out.basic_used;out.limit=out.basic_limit;out.usage=Math.min(100,Math.round(out.basic_used/out.basic_limit*100));}else if(unlimited){out.usage=0;}if(!unlimited&&!out.premium_limit&&out.basic_limit&&out.basic_used>=out.basic_limit)out.exhausted=true;}catch(e){out.usage_error='Usage-Abfrage fehlgeschlagen: '+e;}if(out.exhausted)out.usage=100;return out})()"#;
 +async fn inspect_account(t:&Tab,i:usize){
 +    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":USAGE_JS,"awaitPromise":true,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).cloned()).filter(Value::is_object).unwrap_or_else(||json!({"usage_error":"Tab nicht erreichbar"}));
-+    let mut a=lock(&ACCOUNT);let entry=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));if let Some(obj)=value.as_object(){for(k,v)in obj{entry[k]=v.clone();}}
++    let mut a=lock(&ACCOUNT);let entry=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));if let Some(obj)=value.as_object(){for(k,v)in obj{entry[k]=v.clone();}}if let Some(p)=entry.get("ui_pct").cloned().filter(|v|!v.is_null()){entry["usage"]=p;}
 +}
 +/// Live-Dashboard: alle 30 s Usage fuer jeden laufenden Tab, unabhaengig davon, ob Co-Work gestartet wurde.
 +async fn usage_monitor(){loop{let tabs=load();let running=tokio::task::spawn_blocking({let t=tabs.clone();move||running_ids(&t)}).await.unwrap_or_default();for(i,t)in tabs.iter().enumerate(){if running.contains(&t.id){inspect_account(t,i).await;}else{mark_account(t.id,"usage_error",json!("Tab l\u{e4}uft nicht"));}}tokio::time::sleep(Duration::from_secs(30)).await;}}
