@@ -137,6 +137,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Notion immer auf Englisch**: AdiCode stellt jedes Konto automatisch auf English (US) um (Einstellungen > Sprache), damit es keine Sprachprobleme gibt.
 - **MCP schon vorhanden**: meldet Notion bereits hinzugefuegt, gilt das jetzt als verbunden statt als Fehler.
 - **Chat-Anzeige**: erkennt die offenen Chats zuverlaessiger (nur Seitenleiste, offene Dialoge werden vorher geschlossen).
+## Neu in 1.0.77
+- **Chat im Vollbild**: oeffnet Notion den Chat als Seitenleiste oder schwebend (anderes Layout), stellt AdiCode ihn auf Full screen um.
+- **Verbindungen-Seite in allen Layouts**: findet die bestehende AdiCode-Verbindung unter Connected/Manage und den Hinzufuegen-Knopf auch als Configure oben rechts.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
