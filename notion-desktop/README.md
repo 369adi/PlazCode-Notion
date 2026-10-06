@@ -12,6 +12,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.25
+- Co-Work: Der Main-Agent bittet dich nicht mehr, selbst weitere Notion-AI-Tabs zu öffnen. Die Worker-Tabs von AdiCode treten automatisch bei. Nur wenn nach 2 Minuten niemand beigetreten ist, kommt ein Hinweis.
 ## Neu in 1.0.24
 - Fixes aus dem ersten echten Co-Work-Test mit allen Konten (Todo-App: Coder und Tester haben parallel gebaut, sich gegenseitig reviewt und Fix-Runden gedreht).
 - Worker-Startprompt neu und natürlich formuliert: Notion AI hatte den alten Prompt als „Prompt-Injection“ abgelehnt. Der Prompt erklärt jetzt auch, dass die MCP-Verbindung in Notion „asf“ oder „AdiCode“ heißen kann.

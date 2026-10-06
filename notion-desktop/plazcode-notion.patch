@@ -2372,7 +2372,7 @@ index 0000000..87e32b6
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..e9fc2ff
+index 0000000..690346e
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
 @@ -0,0 +1,1047 @@
@@ -2904,9 +2904,9 @@ index 0000000..e9fc2ff
 +            for r in [&t.role, &t.review] { if !r.is_empty() && !roles.contains(r) { roles.push(r.clone()); } }
 +        }
 +        let tabs = if roles.is_empty() {
-+            format!("Sag dem Nutzer: weitere Notion-AI-Tabs oeffnen und dort schreiben: Tritt Co-Work-Projekt {id} bei.")
++            format!("Die Worker-Tabs von AdiCode treten automatisch bei (der Nutzer muss nichts tun). Nur falls nach 2 Minuten niemand beigetreten ist: Nutzer bitten, in AdiCode Co-Work zu starten oder in weiteren Notion-AI-Tabs zu schreiben: Tritt Co-Work-Projekt {id} bei.")
 +        } else {
-+            format!("Benoetigte Rollen: {}.\nSag dem Nutzer: fuer jede Rolle einen Notion-AI-Tab oeffnen und dort schreiben: Tritt Co-Work-Projekt {id} bei als <Rolle> (z. B. \"Tritt Co-Work-Projekt {id} bei als {}\"). Fehlt eine Rolle, uebernehmen andere Tabs deren Tasks.", roles.iter().map(|r| format!("{} ({r})", role_title(r))).collect::<Vec<_>>().join(", "), roles[0])
++            format!("Benoetigte Schwerpunkte: {}. Die Worker-Tabs von AdiCode (Coder, Reviewer, Tester) treten automatisch bei und helfen bei allen Rollen mit - den Nutzer NICHT bitten, Tabs zu oeffnen. Nur falls nach 2 Minuten niemand beigetreten ist: Nutzer bitten, in AdiCode Co-Work zu starten (oder in weiteren Notion-AI-Tabs zu schreiben: Tritt Co-Work-Projekt {id} bei als {}).", roles.iter().map(|r| format!("{} ({r})", role_title(r))).collect::<Vec<_>>().join(", "), roles[0])
 +        };
 +        let gate = if w > 0 { format!("\nJeder Worker bewertet den Auftrag zuerst aus Sicht seiner Rolle und schlaegt fehlende Teilaufgaben vor; die Tasks werden freigegeben, sobald alle Bewertungen da sind (spaetestens nach {GATE_SECS} s). Rollen sind Schwerpunkte: ist ein Experte beschaeftigt, helfen die anderen mit.") } else { String::new() };
 +        let out = format!("Co-Work-Projekt '{id}' erstellt. Du bist der Lead (Main Chat), dein Agent-Name ist '{agent}' (bei jedem cowork_*-Aufruf als agent mitgeben).\n{tabs}{gate}\nNeue Nutzer-Nachrichten waehrend des Projekts: sofort cowork_prompt.\nDanach: mit cowork_wait den Fortschritt verfolgen, Fragen/blockierte Tasks klaeren, bei Bedarf cowork_add_tasks. Am Ende cowork_results lesen und die finale Antwort zusammenfuehren.\n\n{}", summary(&p));
