@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..b98432b 100644
+index 07dc4c0..6a5ea58 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -710,7 +710,7 @@ index 07dc4c0..b98432b 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1522,351 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1522,352 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -865,7 +865,7 @@ index 07dc4c0..b98432b 100644
 +        Chip(A.chats_none === true ? "warn" : A.chats_multi === true ? "warn" : (A.chats_multi === false ? "ok" : "wait"), A.chats_none === true ? "Kein Chat" : A.chats_multi === true ? (A.chats_total + " Chats offen") : (A.chats_multi === false ? "Nur Willkommen-Chat" : "Chats ?"), A.chats_state || "Noch nicht gepr\u00fcft") +
 +        Chip(A.trial === true ? "ok" : (A.trial === false ? "warn" : "wait"), A.trial === true ? "Trial aktiv" : (A.trial === false ? "Kein Trial" : "Trial ?"), A.trial_state || "Noch nicht gepr\u00fcft") +
 +        Chip(USt, "Usage " + (A.exhausted ? "aufgebraucht" : (P == null ? "\u2013" : P + " %")), (A.usage_source || "") + (A.usage_reset ? " \u00b7 " + A.usage_reset : "")) +
-+        ('<button class="cwforget" data-a="refresh" title="Konto l\u00f6schen und neu einloggen">Refresh</button>') +
++        (T.skipped ? '<span class="cwchip warn" title="Dieser Tab macht bei Check und Co-Work nicht mit">\u23f8 setzt aus</span>' : '') + '<button class="cwforget" data-a="skip" title="Tab bei Check und Co-Work aussetzen bzw. wieder mitmachen lassen">' + (T.skipped ? 'mitmachen' : 'aussetzen') + '</button>' + ('<button class="cwforget" data-a="refresh" title="Konto l\u00f6schen und neu einloggen">Refresh</button>') +
 + ((McpOk || ModOk) ? '<button class="cwforget" data-a="forget" title="Gemerkte MCP-/Modell-Checks l\u00f6schen; der n\u00e4chste Check pr\u00fcft neu">neu pr\u00fcfen</button>' : '') +
 +        '</div>';
 +    };
@@ -987,7 +987,8 @@ index 07dc4c0..b98432b 100644
 +        if (A === "login") LVOpen(T);
 +        if (A === "chat") CAct("cowork_goto_chat", T.id).then(function(){setTimeout(function(){CLoad(true);},8000);}).catch(function () {});
 +        if (A === "refresh") { if (confirm("Notion-Konto " + T.email + " wirklich komplett l\u00f6schen? Das kann nicht r\u00fcckg\u00e4ngig gemacht werden; danach musst du dich neu einloggen. Bei einem fremden Workspace (z. B. Workspace von Jens Steffen) NICHT best\u00e4tigen.")) CAct("cowork_refresh_confirm", T.id).then(function(){CLoad(true);}).catch(function () {}); }
-+ if (A === "forget") CAct("cowork_forget", T.id).then(function(){CLoad(true);}).catch(function () {});
++ if (A === "skip") CAct("cowork_skip", T.id).then(function(){CLoad(true);}).catch(function () {});
++            if (A === "forget") CAct("cowork_forget", T.id).then(function(){CLoad(true);}).catch(function () {});
 +        if (A === "open") { if (!CW.browser) { CMsg("Erst oben einen Browser w\u00e4hlen."); return; } CSaveIf().then(function () { return CAct("open_notion_window", T.id); }).catch(function () {}); }
 +        if (A === "stop") CAct("cowork_stop", T.id).catch(function () {});
 +        if (A === "take") CAct(T.paused ? "cowork_release" : "cowork_takeover", T.id).catch(function () {});
@@ -4524,10 +4525,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..0934293
+index 0000000..958b765
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,555 @@
+@@ -0,0 +1,563 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4549,10 +4550,17 @@ index 0000000..0934293
 +static PAUSED: Lazy<Mutex<HashSet<u32>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 +fn auto_mcp_file() -> PathBuf { base().join("auto-mcp") }
 +pub(crate) fn auto_mcp_on() -> bool { auto_mcp_file().exists() }
-+pub(crate) fn is_paused(id: u32) -> bool { lock(&PAUSED).contains(&id) }
++pub(crate) fn is_paused(id: u32) -> bool { lock(&PAUSED).contains(&id) || skipped(id) }
++fn skip_file()->PathBuf{base().join("skip-tabs")}
++/// Ausgesetzte Tabs (Datei profiles/skip-tabs): kein Check, kein Start, keine Prompts, Fenster wird nie versteckt.
++pub(crate) fn skipped(id:u32)->bool{std::fs::read_to_string(skip_file()).map(|s|s.split(|c:char|!c.is_ascii_digit()).any(|x|x==id.to_string())).unwrap_or(false)}
++fn set_skip(id:u32,on:bool)->Result<String,String>{let mut ids:Vec<u32>=std::fs::read_to_string(skip_file()).unwrap_or_default().split(|c:char|!c.is_ascii_digit()).filter_map(|x|x.parse().ok()).collect();ids.retain(|x|*x!=id);if on{ids.push(id);}std::fs::create_dir_all(base()).map_err(|e|e.to_string())?;std::fs::write(skip_file(),ids.iter().map(|x|x.to_string()).collect::<Vec<_>>().join(",")).map_err(|e|e.to_string())?;tl(&format!("tab{id} skip={on}"));Ok(if on{format!("Tab {id} setzt aus: kein Check, kein Start, keine Prompts.")}else{format!("Tab {id} macht wieder mit.")})}
++fn hide_workers(tabs:&[Tab]){let h:Vec<Tab>=tabs.iter().skip(1).filter(|t|!skipped(t.id)).cloned().collect();if !h.is_empty(){windows::set_hidden(&h,true);}}
++/// Zeitprotokoll fuer Messungen: profiles/timeline.log
++fn tl(s:&str){use std::io::Write;if let Ok(mut f)=std::fs::OpenOptions::new().create(true).append(true).open(base().join("timeline.log")){let _=writeln!(f,"{} {}",chrono::Local::now().format("%H:%M:%S%.3f"),s);}}
 +/// Dauerhaftes Gedaechtnis pro Gmail-Konto: einmal bestaetigter MCP/Modell-Check wird nicht wiederholt.
 +static STAGE:std::sync::atomic::AtomicU32=std::sync::atomic::AtomicU32::new(0);
-+fn stage(n:u32){STAGE.store(n,std::sync::atomic::Ordering::SeqCst);}
++fn stage(n:u32){tl(&format!("STAGE {n}"));STAGE.store(n,std::sync::atomic::Ordering::SeqCst);}
 +fn step(id:u32,n:u32){mark_account(id,"step",json!(n));}
 +const TRIAL_JS:&str=r#"(async()=>{const post=(p,b)=>fetch('/api/v3/'+p,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.ok?r.json():null).catch(()=>null);const sp=await post('getSpaces',{});if(!sp)return {ok:false};const uid=Object.keys(sp)[0];const sid=Object.keys((sp[uid]||{}).space||{})[0];if(!sid)return {ok:false};const v=sp[uid].space[sid];const sv=(v.value&&v.value.value)||v.value||v;const d=await post('getSubscriptionData',{spaceId:sid});if(!d)return {ok:false};const cd=d.customerData||{};const sub=!!(cd.isSubscribed===true||/^subscribed/.test(d.type||''));const paid=!!(d.hasPaidNonzero||cd.hasPaidNonzero);return {ok:true,sub,paid,tier:d.subscriptionTier||sv.subscription_tier||null,plan:sv.plan_type||null}})()"#;
 +/// Trial-Check: Abo aktiv, aber noch nie etwas bezahlt = Trial.
@@ -4596,7 +4604,7 @@ index 0000000..0934293
 +fn mem_get(email:&str,k:&str)->Value{mem_all().get(email.to_lowercase().as_str()).and_then(|e|e.get(k)).cloned().unwrap_or(Value::Null)}
 +fn mem_set(email:&str,k:&str,v:Value){if email.is_empty(){return;}let mut all=mem_all();let key=email.to_lowercase();if !all[key.as_str()].is_object(){all[key.as_str()]=json!({});}all[key.as_str()][k]=v;let _=std::fs::create_dir_all(base());let _=std::fs::write(accounts_file(),serde_json::to_vec_pretty(&all).unwrap_or_default());}
 +fn mem_forget(email:&str){let mut all=mem_all();if let Some(o)=all.as_object_mut(){o.remove(&email.to_lowercase());}let _=std::fs::write(accounts_file(),serde_json::to_vec_pretty(&all).unwrap_or_default());}
-+fn mark_account(id: u32, k: &str, v: Value) { let mut a = lock(&ACCOUNT); a.entry(id).or_insert_with(|| json!({"usage": null, "models": []}))[k] = v; }
++fn mark_account(id: u32, k: &str, v: Value) { if matches!(k,"check"|"refresh_state"|"trial_state"|"model_state"|"chat"|"mcp"|"step"|"usage_error"){tl(&format!("tab{id} {k}={v}"));} let mut a = lock(&ACCOUNT); a.entry(id).or_insert_with(|| json!({"usage": null, "models": []}))[k] = v; }
 +
 +#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
 +#[serde(default)]
@@ -4785,7 +4793,7 @@ index 0000000..0934293
 +        }
 +    }
 +}
-+fn set_status(s:impl Into<String>){*lock(&COWORK_STATUS)=s.into();}
++fn set_status(s:impl Into<String>){let s=s.into();tl(&format!("STATUS {s}"));*lock(&COWORK_STATUS)=s;}
 +pub(crate) fn status_text()->String{lock(&COWORK_STATUS).clone()}
 +pub(crate) fn mcp_ok(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)||load().iter().find(|t|t.id==id).map(|t|mem_get(&t.email,"mcp_ok2").as_bool()==Some(true)).unwrap_or(false)}
 +static CHECKING: AtomicBool = AtomicBool::new(false);
@@ -4879,14 +4887,14 @@ index 0000000..0934293
 +}
 +async fn full_check(tabs:&[Tab])->Vec<String>{
 +    set_status("Account-Check: AdiCode-MCP, Usage und Chat \u{201a}Willkommen bei Notion\u{2018} \u{2026}");
-+    let hs:Vec<_>=tabs.iter().cloned().enumerate().map(|(i,t)|tokio::spawn(check_one(t,i))).collect();
++    let hs:Vec<_>=tabs.iter().cloned().enumerate().filter(|(_,t)|!skipped(t.id)).map(|(i,t)|tokio::spawn(check_one(t,i))).collect();
 +    let mut errs=Vec::new();for h in hs{match h.await{Ok(Err(e))=>errs.push(e),Err(e)=>errs.push(e.to_string()),_=>{}}}errs
 +}
 +fn check_action()->Result<String,String>{
 +    let tabs=load();if tabs.is_empty(){return Err("Noch keine Tabs eingetragen.".into());}
 +    if CHECKING.swap(true,Ordering::SeqCst){return Ok("Check l\u{e4}uft bereits.".into());}
 +    let running=running_ids(&tabs);
-+    for t in tabs.iter().filter(|t|!running.contains(&t.id)&&!t.email.is_empty()){if let Err(e)=launch(t,&start_url(t)){CHECKING.store(false,Ordering::SeqCst);return Err(e);}}
++    for t in tabs.iter().filter(|t|!running.contains(&t.id)&&!t.email.is_empty()&&!skipped(t.id)){if let Err(e)=launch(t,&start_url(t)){CHECKING.store(false,Ordering::SeqCst);return Err(e);}}
 +    tokio::spawn(async move{let errs=full_check(&tabs).await;CHECKING.store(false,Ordering::SeqCst);set_status(if errs.is_empty(){"Check ok: alle Konten bereit (MCP, Usage, Chat \u{201a}Willkommen bei Notion\u{2018}).".to_string()}else{format!("Check: {}",errs.join("; "))});});
 +    Ok("Check l\u{e4}uft: fehlende Tabs werden gestartet, dann MCP, Usage und Chat gepr\u{fc}ft.".into())
 +}
@@ -4955,7 +4963,7 @@ index 0000000..0934293
 +async fn kickoff(tabs:Vec<Tab>, baseline:usize){
 +    stage(1);for t in &tabs{step(t.id,0);}let errors=full_check(&tabs).await;
 +    if !errors.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Start angehalten \u{2013} Account-Check: {}",errors.join("; ")));return;}
-+    if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}set_status("Account-Check ok: alle Konten im Chat \u{201a}Willkommen bei Notion\u{2018}, Worker-Fenster automatisch versteckt.");
++    if tabs.len()>1{hide_workers(&tabs);}set_status("Account-Check ok: alle Konten im Chat \u{201a}Willkommen bei Notion\u{2018}, Worker-Fenster automatisch versteckt.");
 +    stage(2);let _=open_main(cdp_port(0)).await;
 +    if let Some(main)=tabs.first(){let _=insert_prompt(cdp_port(0),prompt_for(main)).await;}
 +    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
@@ -4963,17 +4971,17 @@ index 0000000..0934293
 +    stage(3);loop{if crate::notion_cowork::project_count()>baseline{break;}tokio::time::sleep(Duration::from_secs(1)).await;}
 +    stage(4);set_status("Projekt erkannt. Coder, Reviewer und Tester treten bei …");
 +    let mut prompt_errors=Vec::new();
-+    let rs=futures::future::join_all(tabs.iter().enumerate().skip(1).map(|(i,t)|{let p=prompt_for(t);let port=cdp_port(i);let role=t.role.clone();async move{(role,insert_prompt(port,p).await)}})).await;for(role,r)in rs{if let Err(e)=r{prompt_errors.push(format!("{}: {e}",role));}}
++    let rs=futures::future::join_all(tabs.iter().enumerate().skip(1).filter(|(_,t)|!skipped(t.id)).map(|(i,t)|{let p=prompt_for(t);let port=cdp_port(i);let role=t.role.clone();async move{(role,insert_prompt(port,p).await)}})).await;for(role,r)in rs{if let Err(e)=r{prompt_errors.push(format!("{}: {e}",role));}}
 +    let failed:Vec<String>=prompt_errors.iter().map(|e|e.split(':').next().unwrap_or("").to_ascii_lowercase()).collect();
 +    let note=if prompt_errors.is_empty(){String::new()}else{format!(" Nicht gestartet: {} - die anderen übernehmen diese Aufgaben mit.",prompt_errors.join("; "))};
-+    let wanted:Vec<&str>=["coder","reviewer","tester"].into_iter().filter(|r|!failed.iter().any(|f|f==r)).collect();
++    let wanted:Vec<&str>=["coder","reviewer","tester"].into_iter().filter(|r|!failed.iter().any(|f|f==r)).filter(|r|!tabs.iter().skip(1).any(|t|skipped(t.id)&&t.role.eq_ignore_ascii_case(r))).collect();
 +    if wanted.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Worker-Kickoff fehlgeschlagen:{note}"));return;}
 +    for _ in 0..90 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){stage(5);set_status(format!("Co-Work aktiv: {} mit Main verbunden. Jeder bewertet neue Aufträge aus seiner Rollen-Sicht und hilft dann bei allem mit.{note}",wanted.join(", ")));let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(1)).await;}
 +    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);stage(6);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.{note}",missing.join(", ")));
 +}
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
 +fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
-+fn start_all(_: &Value)->Result<String,String>{let tabs=load();if tabs.len()!=4||tabs.iter().any(|t|t.email.is_empty()){return Err("Start erst möglich, wenn genau 4 Tabs mit E-Mail eingetragen sind.".into());}let running=running_ids(&tabs);for t in tabs.iter().filter(|t|!running.contains(&t.id)){launch(t,&start_url(t))?;}let baseline=crate::notion_cowork::project_count();tokio::spawn(kickoff(tabs,baseline));Ok("Co-Work startet. Schreibe deine Aufgabe im AdiCode-Chat (oder im Main-Fenster); die drei Worker treten danach automatisch bei.".into())}
++fn start_all(_: &Value)->Result<String,String>{let tabs=load();if tabs.len()!=4||tabs.iter().any(|t|t.email.is_empty()){return Err("Start erst möglich, wenn genau 4 Tabs mit E-Mail eingetragen sind.".into());}let running=running_ids(&tabs);for t in tabs.iter().filter(|t|!running.contains(&t.id)&&!skipped(t.id)){launch(t,&start_url(t))?;}tl("START_ALL");let baseline=crate::notion_cowork::project_count();tokio::spawn(kickoff(tabs,baseline));Ok("Co-Work startet. Schreibe deine Aufgabe im AdiCode-Chat (oder im Main-Fenster); die drei Worker treten danach automatisch bei.".into())}
 +fn delete(id:Option<u32>)->Result<String,String>{let t=find(id)?;if running_ids(std::slice::from_ref(&t)).contains(&t.id){return Err("Tab läuft noch. Erst stoppen.".into());}if dir(t.id).is_dir(){std::fs::remove_dir_all(dir(t.id)).map_err(|e|e.to_string())?;}let tabs:Vec<Tab>=load().into_iter().filter(|x|x.id!=t.id).collect();save(&tabs)?;lock(&ACCOUNT).remove(&t.id);Ok(format!("Tab {} entfernt; Rollen wurden nachgerückt.",t.id))}
 +fn open_tab(t:&Tab)->Result<String,String>{launch(t,&start_url(t)).map(|b|format!("Tab {} geöffnet ({b}).",t.id))}
 +
@@ -5052,7 +5060,7 @@ index 0000000..0934293
 +    }
 +}
 +pub async fn view_handler(Json(req):Json<Value>)->impl IntoResponse{match view_op(req).await{Ok(v)=>(axum::http::StatusCode::OK,Json(v)),Err(e)=>(axum::http::StatusCode::BAD_REQUEST,Json(json!({"ok":false,"error":e})))}}
-+pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();let mem=mem_all();json!({"ok":true,"stage":if running.is_empty(){0}else{STAGE.load(std::sync::atomic::Ordering::SeqCst)},"hidden":windows::any_hidden(),"auto_mcp":auto_mcp_on(),"token_mode":if token_high(){"high"}else{"low"},"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v["memory"]=mem.get(t.email.to_lowercase().as_str()).cloned().unwrap_or(Value::Null);v}).collect::<Vec<_>>()})}
++pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();let mem=mem_all();json!({"ok":true,"stage":if running.is_empty(){0}else{STAGE.load(std::sync::atomic::Ordering::SeqCst)},"hidden":windows::any_hidden(),"auto_mcp":auto_mcp_on(),"token_mode":if token_high(){"high"}else{"low"},"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["skipped"]=json!(skipped(t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v["memory"]=mem.get(t.email.to_lowercase().as_str()).cloned().unwrap_or(Value::Null);v}).collect::<Vec<_>>()})}
 +pub async fn tabs_handler()->impl IntoResponse{ensure_monitors();Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e|json!({"ok":false,"error":e.to_string()})))}
 +pub fn action(name:&str,v:&Value)->Option<Result<String,String>>{
 +    let id=v.as_u64().or_else(||v.get("id").and_then(Value::as_u64)).and_then(|n|u32::try_from(n).ok());
@@ -5063,6 +5071,7 @@ index 0000000..0934293
 +        "cowork_check_accounts"|"cowork_check"=>check_action(),
 +        "cowork_goto_chat"=>find(id).and_then(|t|{if !running_ids(std::slice::from_ref(&t)).contains(&t.id){launch(&t,&start_url(&t))?;}windows::set_hidden(std::slice::from_ref(&t),false);let i=tab_index(t.id);let msg=format!("Tab {} ({}) wird zum Chat \u{201a}Willkommen bei Notion\u{2018} gebracht.",t.id,t.role);tokio::spawn(async move{let port=cdp_port(i);if !wait_cdp(port).await{return;}let _=cdp(port,vec![json!({"method":"Page.bringToFront"})]).await;let ok=prepare_chat(&t,i).await.is_ok();mark_account(t.id,"chat_ok",json!(ok));let st=lock(&ACCOUNT).get(&t.id).and_then(|a|a["check"].as_str().map(String::from)).unwrap_or_default();if ok&&st=="Chat fehlt"{mark_account(t.id,"check",json!("OK"));}});Ok(msg)}),
 +        "cowork_refresh_confirm"=>find(id).map(|t|{let i=tab_index(t.id);windows::set_hidden(std::slice::from_ref(&t),false);mark_account(t.id,"refresh_state",json!("Konto wird gel\u{f6}scht ..."));let t2=t.clone();tokio::spawn(refresh_account(t2,i));format!("Refresh f\u{fc}r Tab {} gestartet.",t.id)}),
++        "cowork_skip"=>find(id).and_then(|t|set_skip(t.id,!skipped(t.id))),
 +        "cowork_forget"=>find(id).map(|t|{mem_forget(&t.email);mark_account(t.id,"mcp_saved",json!(false));mark_account(t.id,"model_ok",Value::Null);format!("Gemerkte Checks f\u{fc}r {} gel\u{f6}scht \u{2013} n\u{e4}chster Check pr\u{fc}ft MCP und Modelle neu.",t.email)}),
 +        "cowork_setup_mcp"=>find(id).map(|t|{let i=tab_index(t.id);tokio::spawn(async move{let _=setup_mcp(&t,i).await;});"MCP-Einrichtung gestartet.".into()}),
 +        "cowork_takeover"=>find(id).map(|t|{lock(&PAUSED).insert(t.id);windows::set_hidden(std::slice::from_ref(&t),false);let i=tab_index(t.id);tokio::spawn(async move{stop_generation(cdp_port(i)).await;let _=cdp(cdp_port(i),vec![json!({"method":"Page.bringToFront"})]).await;});format!("Tab {} ({}) \u{fc}bernommen: AdiCode schickt keine Erinnerungen mehr, du kannst dort selbst schreiben.",t.id,t.role)}),
@@ -5071,7 +5080,7 @@ index 0000000..0934293
 +        "cowork_token_mode"=>{let high=v.as_str().or_else(||v.get("mode").and_then(Value::as_str)).map(|s|s=="high").unwrap_or(false);let r=if high{std::fs::create_dir_all(base()).and_then(|_|std::fs::write(token_file(),"high"))}else{match std::fs::remove_file(token_file()){Err(e) if e.kind()!=std::io::ErrorKind::NotFound=>Err(e),_=>Ok(())}};let ck=if r.is_ok(){check_action().unwrap_or_else(|e|e)}else{String::new()};r.map(|_|format!("{} {}",if high{"Viel-Token-Modus: alle Agents auf Opus 5.5."}else{"Spar-Modus: Main Opus 5.5, Worker Sonnet 5.5."},ck)).map_err(|e|e.to_string())},
 +        "cowork_wake"=>{let tabs=load();tokio::spawn(async move{for(i,t)in tabs.iter().enumerate(){let agent=if i==0{crate::notion_cowork::latest_lead()}else{format!("AdiCode-{}",t.role)};let Some((_,text))=crate::notion_cowork::nudge_for(&agent) else{continue};if chat_idle(cdp_port(i)).await{let _=insert_prompt(cdp_port(i),text).await;}}});Ok("Aufwecken gesendet (nur an ruhende Chats mit offener Arbeit, nur im Willkommen-Chat).".into())},
 +        "cowork_set_browser"=>set_browser(v),
-+        "cowork_hide_all"=>{let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}Ok("Worker-Fenster versteckt.".into())},
++        "cowork_hide_all"=>{let tabs=load();if tabs.len()>1{hide_workers(&tabs);}Ok("Worker-Fenster versteckt.".into())},
 +        "cowork_show_tab"=>find(id).map(|t|{windows::set_hidden(std::slice::from_ref(&t),false);format!("Fenster von Tab {} angezeigt.",t.id)}),
 +        "cowork_login_view"=>find(id).and_then(login_view),
 +        "cowork_copy_prompt"=>find(id).map(|t|prompt_for(&t)),

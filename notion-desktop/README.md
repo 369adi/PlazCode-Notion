@@ -102,6 +102,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Chat-Modell wird umgestellt**: im Chat Willkommen bei Notion stellt AdiCode den Modell-Knopf von Automatisch auf Opus 5.5 bzw. Sonnet 5.5 (vorher galt nur die Workspace-Policy, die Chats liefen weiter auf Auto/Sonnet).
 - **Token-Modus startet automatisch einen Check**, damit alle Agents sofort umgestellt werden.
 - **Trial**: Erkennung korrigiert (unsubscribed wurde als Trial gezaehlt); fehlt ein Trial, startet der Check das kostenlose Probe-Abo unter Notion-KI > KI-Konnektoren.
+## Neu in 1.0.66
+- **Tab aussetzen**: Knopf aussetzen/mitmachen pro Tab. Ausgesetzte Tabs werden nicht gecheckt, nicht gestartet, bekommen keine Prompts und ihr Fenster wird nie versteckt.
+- **Zeitprotokoll** profiles\timeline.log: jeder Check-/Refresh-/Co-Work-Schritt mit Uhrzeit (fuer Messungen).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
