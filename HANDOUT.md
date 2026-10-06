@@ -121,6 +121,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.46**: Google-Login automatisch (Onboarding, Trial starten und kuendigen)
 - **1.0.47**: Notion-Login klickt Google (Onboarding, Trial starten und kuendigen)
 - **1.0.48**: Popup-Blocker aus fuer Google-Login (Onboarding, Trial starten und kuendigen)
+- **1.0.49**: Auto-Login im Check (Onboarding, Trial starten und kuendigen)
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.

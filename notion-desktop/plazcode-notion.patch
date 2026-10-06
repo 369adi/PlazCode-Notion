@@ -4502,10 +4502,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..43eea56
+index 0000000..e81870a
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,527 @@
+@@ -0,0 +1,528 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4818,6 +4818,7 @@ index 0000000..43eea56
 +    mark_account(t.id,"check",json!("Warte auf Tab \u{2026}"));
 +    if !wait_cdp(port).await{mark_account(t.id,"check",json!("Tab nicht erreichbar"));mark_account(t.id,"usage_error",json!("Tab nicht erreichbar"));return Err(format!("{}: Tab nicht erreichbar",t.role));}
 +    let mut ok=false;for _ in 0..25{if logged_in(port).await{ok=true;break;}tokio::time::sleep(Duration::from_secs(1)).await;}
++    if !ok{mark_account(t.id,"check",json!("Auto-Login \u{2026}"));for _ in 0..25{let st=setup_phase(port,"onboard",&t.email).await;if st.starts_with("workspace"){ok=true;break;}tokio::time::sleep(Duration::from_secs(3)).await;if logged_in(port).await{ok=true;break;}}}
 +    if !ok{mark_account(t.id,"check",json!("Nicht eingeloggt \u{2013} Gmail-Login nutzen"));return Err(format!("{}: nicht in Notion eingeloggt",t.role));}
 +    step(t.id,1);let mut missing:Vec<&str>=Vec::new();let mut errs:Vec<String>=Vec::new();
 +    if mem_get(&t.email,"mcp_ok2").as_bool()==Some(true){mark_account(t.id,"mcp",json!("Bereits verbunden"));mark_account(t.id,"mcp_saved",json!(true));}
