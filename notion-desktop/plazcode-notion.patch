@@ -4481,7 +4481,7 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..e86b293
+index 0000000..0e40dcc
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
 @@ -0,0 +1,519 @@
@@ -4733,7 +4733,7 @@ index 0000000..e86b293
 +}
 +fn set_status(s:impl Into<String>){*lock(&COWORK_STATUS)=s.into();}
 +pub(crate) fn status_text()->String{lock(&COWORK_STATUS).clone()}
-+pub(crate) fn mcp_ok2(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)||load().iter().find(|t|t.id==id).map(|t|mem_get(&t.email,"mcp_ok2").as_bool()==Some(true)).unwrap_or(false)}
++pub(crate) fn mcp_ok(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)||load().iter().find(|t|t.id==id).map(|t|mem_get(&t.email,"mcp_ok2").as_bool()==Some(true)).unwrap_or(false)}
 +static CHECKING: AtomicBool = AtomicBool::new(false);
 +async fn js_eval(port:u16,expr:&str)->Result<Value,String>{Ok(cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null))}
 +async fn wait_cdp(port:u16)->bool{for _ in 0..40{if target(port).await.is_ok(){return true;}tokio::time::sleep(Duration::from_secs(1)).await;}false}
@@ -4859,7 +4859,7 @@ index 0000000..e86b293
 +        if !auto_mcp_on(){continue;}
 +        let tabs=load();let running=tokio::task::spawn_blocking({let t=tabs.clone();move||running_ids(&t)}).await.unwrap_or_default();
 +        for(i,t)in tabs.iter().enumerate(){
-+            if !running.contains(&t.id)||mcp_ok2(t.id)||is_paused(t.id){continue;}
++            if !running.contains(&t.id)||mcp_ok(t.id)||is_paused(t.id){continue;}
 +            if tried.get(&t.id).map(|x|x.elapsed()<Duration::from_secs(300)).unwrap_or(false){continue;}
 +            if !logged_in(cdp_port(i)).await{continue;}
 +            tried.insert(t.id,std::time::Instant::now());
