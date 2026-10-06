@@ -2694,9 +2694,1064 @@ index 0000000..98ea89d
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..04f060b
+index 0000000..ffbc6b7
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
+@@ -0,0 +1,1049 @@
++//! AdiCode (unofficial fork): Co-Work.
++//! Several Notion AI chats (browser tabs) connected to the same AdiCode
++//! server work on one project at the same time through a shared board.
++//! The main chat is the lead: it splits the user's project into tasks and gives
++//! each task a role (prompt writer, coder, reviewer, UI/UX critic, tester,
++//! Roblox specialist ...). Every other chat joins with a role. A role is a
++//! FOCUS, not a fence: role tasks go to the expert first, but as soon as the
++//! expert is busy (or a task waits too long) every other agent helps with it.
++//! Every user prompt (project start and every new prompt mid-project via
++//! cowork_prompt) opens a "wave": each worker first evaluates the prompt
++//! through the lens of its role (assess task) and may propose sub-tasks; the
++//! work tasks of that wave are released once all evaluations are in (or after
++//! a short gate). Finished work can automatically get a review task; requested
++//! changes become fix tasks. AdiCode wakes idle chats when work is waiting
++//! (nudge_for). At the end the lead merges everything via cowork_results.
++//! The board is persisted in %LOCALAPPDATA%\PlazCodeNotion\cowork.json.
++
++use once_cell::sync::Lazy;
++use serde::{Deserialize, Serialize};
++use serde_json::{json, Value};
++use std::{collections::BTreeMap, path::PathBuf, sync::Mutex, time::Duration};
++
++const STALE_SECS: i64 = 20 * 60;
++const MAX_WAIT_SECS: u64 = 45;
++const MAX_FIX_ROUNDS: u32 = 2;
++/// Seconds the work tasks of a new prompt wait for the role evaluations at most.
++const GATE_SECS: i64 = 45;
++/// An open role task that nobody took for this long may be taken by anyone.
++const STEAL_SECS: i64 = 25;
++/// Late joiners still evaluate a prompt that is younger than this.
++const ASSESS_WINDOW_SECS: i64 = 15 * 60;
++
++struct Role { id: &'static str, title: &'static str, guide: &'static str }
++
++const ROLES: &[Role] = &[
++    Role { id: "lead", title: "Lead / Main Chat", guide: "Du bist der Main Chat und das Interface zum Nutzer. Projekt verstehen, mit cowork_start anlegen: Ziel in kleine, moeglichst parallele Tasks zerlegen (so, dass ALLE Agents gleichzeitig etwas zu tun haben) und jedem Task als role den passenden Schwerpunkt geben. Fuer Code-Tasks review=reviewer setzen, fuer UI-Tasks review=uiux. Jede weitere Nutzer-Nachricht waehrend des Projekts sofort mit cowork_prompt ans Board geben - die Worker bewerten sie aus ihrer Rollen-Sicht und schlagen Teilaufgaben vor. Waehrenddessen cowork_wait/cowork_board: Bewertungen einarbeiten, blockierte Tasks klaeren, Tasks ergaenzen und selbst Tasks uebernehmen, wenn nichts zu koordinieren ist. Am Ende cowork_results lesen und daraus EINE finale, optimierte Antwort fuer den Nutzer bauen." },
++    Role { id: "prompt", title: "Prompt-Schreiber", guide: "Du formulierst praezise Prompts, Specs, System-Instructions, Texte und Akzeptanzkriterien. Liefere das Ergebnis als fertigen, direkt nutzbaren Text (im result oder als Datei) plus 1-2 Saetze Begruendung." },
++    Role { id: "coder", title: "Programmierer", guide: "Du implementierst Features (App, Backend, Skripte). Passenden Skill laden (app, debug, git), Dateien vor dem Aendern lesen, nur die Dateien des Tasks aendern, bauen/testen. result: was geaendert, welche Dateien, wie getestet." },
++    Role { id: "reviewer", title: "Code-Bewerter", guide: "Du pruefst Code auf Bugs, Sicherheit, Performance, Lesbarkeit und ob die Akzeptanzkriterien erfuellt sind. Dateien lesen, nichts selbst umschreiben. Passt alles: status=done mit kurzer Bewertung. Sonst status=changes mit nummerierten, konkreten Punkten (Datei, Stelle, gewuenschter Fix)." },
++    Role { id: "uiux", title: "UI/UX-Kritiker", guide: "Du bewertest Oberflaechen: Klarheit, Hierarchie, Abstaende, Farben/Kontrast, Barrierefreiheit, Flows und Texte. Bei Review-Tasks status=done oder status=changes mit konkreten Verbesserungen; bei eigenen Tasks lieferst du Design-Specs (Layout, Komponenten, Zustaende)." },
++    Role { id: "tester", title: "Tester", guide: "Du schreibst und fuehrst Tests aus, probierst Edge Cases und reproduzierst Bugs. result: was getestet wurde, Ergebnis, gefundene Fehler mit Repro-Schritten." },
++    Role { id: "roblox", title: "Roblox-Spezialist", guide: "Du baust in Roblox Studio: Luau, Client/Server-Trennung, RemoteEvents, DataStores. Skills roblox und roblox-studio laden, roblox_* Tools nutzen. result: welche Skripte/Instanzen geaendert und wie getestet." },
++    Role { id: "worker", title: "Generalist", guide: "Du uebernimmst jede Art von Task und springst dort ein, wo gerade am meisten offen ist." },
++];
++
++#[derive(Clone, Debug, Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Board { projects: BTreeMap<String, Project>, next_project: u64 }
++
++#[derive(Clone, Debug, Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Project {
++    id: String,
++    title: String,
++    goal: String,
++    created: i64,
++    lead: String,
++    stale_minutes: u64,
++    agents: BTreeMap<String, Agent>,
++    tasks: Vec<Task>,
++    messages: Vec<Msg>,
++    locks: BTreeMap<String, Lock>,
++    next_task: u64,
++    next_msg: u64,
++    next_agent: u64,
++    waves: Vec<Wave>,
++}
++
++#[derive(Clone, Debug, Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Agent { name: String, role: String, joined: i64, last_seen: i64, last_read: u64 }
++
++#[derive(Clone, Debug, Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Task {
++    id: u64,
++    title: String,
++    detail: String,
++    status: String,
++    owner: String,
++    depends_on: Vec<u64>,
++    files: Vec<String>,
++    result: String,
++    updated: i64,
++    /// Role that should do this task (empty = anyone).
++    role: String,
++    /// Role that reviews the result when it is done (empty = no review).
++    review: String,
++    /// "" = normal task, "review" or "fix".
++    kind: String,
++    /// Task this review/fix refers to.
++    origin: u64,
++    /// Original work task of a review/fix chain (0 for normal tasks).
++    root: u64,
++    round: u32,
++    /// Agent that must do this task (assess tasks); empty = anyone allowed by role rules.
++    assignee: String,
++    /// Prompt wave this task belongs to (0 = none, never gated).
++    wave: u64,
++}
++
++/// One user prompt (project start or a new prompt mid-project).
++#[derive(Clone, Debug, Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Wave { id: u64, text: String, by: String, ts: i64 }
++
++#[derive(Clone, Debug, Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Msg { id: u64, from: String, to: String, text: String, ts: i64 }
++
++#[derive(Clone, Debug, Default, Serialize, Deserialize)]
++#[serde(default)]
++struct Lock { owner: String, task: u64, since: i64 }
++
++static BOARD: Lazy<Mutex<Board>> = Lazy::new(|| Mutex::new(load()));
++static CHANGED: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
++pub(crate) fn project_count() -> usize { BOARD.lock().unwrap_or_else(|e| e.into_inner()).projects.len() }
++pub(crate) fn latest_lead() -> String { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.lead.clone()).unwrap_or_default() }
++pub(crate) fn latest_agent_roles() -> Vec<String> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.agents.values().map(|a|a.role.clone()).collect()).unwrap_or_default() }
++
++fn now() -> i64 { chrono::Utc::now().timestamp() }
++
++fn board_path() -> PathBuf {
++    std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
++        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
++        .unwrap_or_else(|| PathBuf::from("."))
++        .join("PlazCodeNotion").join("cowork.json")
++}
++
++fn load() -> Board {
++    std::fs::read_to_string(board_path()).ok()
++        .and_then(|raw| serde_json::from_str(raw.trim_start_matches('\u{feff}')).ok())
++        .unwrap_or_default()
++}
++
++fn write_board(bytes: Vec<u8>) {
++    let path = board_path();
++    if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
++    let tmp = path.with_extension("json.tmp");
++    if std::fs::write(&tmp, bytes).is_ok() { let _ = std::fs::rename(&tmp, &path); }
++}
++
++static DIRTY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
++/// Background writer: bundles all changes and writes at most every 800 ms, outside the board lock.
++static SAVER: Lazy<()> = Lazy::new(|| {
++    let _ = std::thread::Builder::new().name("cowork-save".into()).spawn(|| loop {
++        std::thread::sleep(Duration::from_millis(800));
++        if DIRTY.swap(false, std::sync::atomic::Ordering::AcqRel) {
++            let bytes = serde_json::to_vec(&*lock_board()).ok();
++            if let Some(bytes) = bytes { write_board(bytes); }
++        }
++    });
++});
++
++/// Marks the board as changed; the background writer persists it shortly after.
++fn save(_board: &Board) {
++    DIRTY.store(true, std::sync::atomic::Ordering::Release);
++    Lazy::force(&SAVER);
++}
++
++fn lock_board() -> std::sync::MutexGuard<'static, Board> { BOARD.lock().unwrap_or_else(|e| e.into_inner()) }
++
++fn s(v: &Value, k: &str) -> String { v[k].as_str().unwrap_or("").trim().to_string() }
++
++fn text(t: String) -> Value { json!({"content": [{"type": "text", "text": t}]}) }
++
++fn err(t: String) -> Value { json!({"isError": true, "content": [{"type": "text", "text": t}]}) }
++
++fn norm_path(p: &str) -> String { p.trim().replace('\\', "/").trim_start_matches("./").to_ascii_lowercase() }
++
++fn short(t: &str, n: usize) -> String {
++    if t.chars().count() <= n { t.to_string() } else { format!("{}...", t.chars().take(n).collect::<String>()) }
++}
++
++// ---------------------------------------------------------------- roles
++
++fn norm_role(raw: &str) -> String {
++    let r: String = raw.trim().to_lowercase().chars()
++        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_' || *c == '/')
++        .take(32).collect();
++    let mapped = match r.as_str() {
++        "" => "",
++        "lead" | "main" | "mainchat" | "main-chat" | "orchestrator" | "leiter" => "lead",
++        "prompt" | "prompter" | "prompt-schreiber" | "promptschreiber" | "prompt-writer" | "writer" | "texter" => "prompt",
++        "coder" | "code" | "dev" | "developer" | "programmierer" | "programmer" | "engineer" | "entwickler" => "coder",
++        "reviewer" | "review" | "code-reviewer" | "code-bewerter" | "codebewerter" | "bewerter" => "reviewer",
++        "uiux" | "ui" | "ux" | "ui/ux" | "ui-ux" | "ui_ux" | "design" | "designer" | "ui/ux-kritiker" | "ui-ux-kritiker" | "uiux-kritiker" | "ux-kritiker" | "kritiker" => "uiux",
++        "tester" | "test" | "qa" | "testing" => "tester",
++        "roblox" | "roblox-dev" | "luau" | "roblox-studio" | "roblox-spezialist" => "roblox",
++        "worker" | "any" | "generalist" | "helfer" => "worker",
++        other => return other.replace('/', "-"),
++    };
++    mapped.to_string()
++}
++
++/// Role of a task: empty stays empty, "worker" means anyone.
++fn task_role(v: &Value) -> String {
++    if v.as_bool() == Some(true) { return "reviewer".into(); }
++    let r = norm_role(v.as_str().unwrap_or(""));
++    if r == "worker" { String::new() } else { r }
++}
++
++fn role_title(id: &str) -> String {
++    if id.is_empty() { return "Generalist".into(); }
++    ROLES.iter().find(|r| r.id == id).map(|r| r.title.to_string()).unwrap_or_else(|| id.to_string())
++}
++
++fn role_guide(id: &str) -> String {
++    ROLES.iter().find(|r| r.id == id).map(|r| r.guide.to_string())
++        .unwrap_or_else(|| format!("Eigene Rolle '{id}': uebernimm Tasks mit dieser Rolle und arbeite als Experte dafuer."))
++}
++
++fn stale(p: &Project) -> i64 { if p.stale_minutes == 0 { STALE_SECS } else { p.stale_minutes as i64 * 60 } }
++
++fn alive(p: &Project, agent: &str) -> bool {
++    p.agents.get(agent).map(|a| now() - a.last_seen < stale(p)).unwrap_or(false)
++}
++
++fn agent_role(p: &Project, agent: &str) -> String { p.agents.get(agent).map(|a| a.role.clone()).unwrap_or_default() }
++
++fn specialist_alive(p: &Project, role: &str, exclude: &str) -> bool {
++    let t = now();
++    p.agents.values().any(|a| a.role == role && a.name != exclude && t - a.last_seen < stale(p))
++}
++
++fn missing_roles(p: &Project) -> Vec<String> {
++    let mut v: Vec<String> = Vec::new();
++    for t in &p.tasks {
++        if t.status != "done" && !t.role.is_empty() && !specialist_alive(p, &t.role, "") && !v.contains(&t.role) { v.push(t.role.clone()); }
++    }
++    v
++}
++
++fn role_ok(p: &Project, t: &Task, agent: &str) -> bool {
++    // Nobody reviews their own work if somebody else is around.
++    let own_work = if t.kind == "review" { p.tasks.iter().find(|x| x.id == t.origin).map(|x| x.owner.clone()).unwrap_or_default() } else { String::new() };
++    if !own_work.is_empty() && own_work == agent {
++        let others = p.agents.values().any(|a| a.name != agent && now() - a.last_seen < stale(p));
++        if others { return false; }
++    }
++    if !t.assignee.is_empty() { return t.assignee == agent || !alive(p, &t.assignee); }
++    if t.role.is_empty() || agent_role(p, agent) == t.role { return true; }
++    // A role is a focus, not a fence: the expert gets the task first while it is
++    // free; if every expert is busy/offline or the task waited too long, anyone helps.
++    !specialist_idle(p, &t.role, agent, &own_work) || now() - t.updated >= STEAL_SECS
++}
++
++/// An alive agent with this role that is not working on a task right now.
++fn specialist_idle(p: &Project, role: &str, exclude: &str, exclude2: &str) -> bool {
++    let t = now();
++    p.agents.values().any(|a| a.role == role && a.name != exclude && a.name != exclude2 && t - a.last_seen < stale(p)
++        && !p.tasks.iter().any(|x| x.owner == a.name && x.status == "claimed" && t - x.updated < stale(p)))
++}
++
++// ---------------------------------------------------------------- prompt waves
++
++/// What an agent of this role looks at when a new prompt arrives.
++fn lens(role: &str) -> &'static str {
++    match role {
++        "coder" => "Umsetzung: Wie baut man das? Betroffene Dateien/Module, sinnvolle Reihenfolge, technische Risiken, was parallel gehen kann.",
++        "reviewer" => "Qualitaet: Was kann schiefgehen (Bugs, Sicherheit, Performance, Seiteneffekte)? Klare Akzeptanzkriterien, was unbedingt reviewt werden muss.",
++        "tester" => "Pruefbarkeit: Wie wird verifiziert (Build, Tests, manuelle Checks, Screenshots)? Edge Cases, Testplan, Definition of Done.",
++        "prompt" => "Auftrag: Ist der Prompt eindeutig? Fehlende Infos, Annahmen, eine praezisierte Fassung des Auftrags.",
++        "uiux" => "Nutzersicht: Flows, Zustaende, Texte, Barrierefreiheit, was der Nutzer am Ende sieht.",
++        "roblox" => "Roblox: Client/Server-Trennung, RemoteEvents, DataStores, welche Skripte/Instanzen betroffen sind.",
++        _ => "Gesamtblick: Luecken, Risiken und wie man die Arbeit am besten auf alle Agents verteilt.",
++    }
++}
++
++fn wave(p: &Project, id: u64) -> Option<&Wave> { p.waves.iter().find(|w| w.id == id) }
++
++fn add_assess(p: &mut Project, wave_id: u64, agent: &str) -> Option<u64> {
++    if agent == p.lead || p.tasks.iter().any(|t| t.kind == "assess" && t.wave == wave_id && t.assignee == agent) { return None; }
++    let w = wave(p, wave_id)?.clone();
++    let role = agent_role(p, agent);
++    p.next_task += 1;
++    let id = p.next_task;
++    let open: Vec<String> = p.tasks.iter().filter(|t| t.kind.is_empty() && t.status != "done").map(|t| format!("#{} {}", t.id, t.title)).collect();
++    let open = if open.is_empty() { "(noch keine)".to_string() } else { open.join("; ") };
++    p.tasks.push(Task {
++        id, title: format!("Bewertung als {}: {}", role_title(&role), short(&w.text, 80)), status: "open".into(), updated: now(),
++        detail: format!("Neuer Nutzer-Prompt #{}:
++{}
++
++Bewerte ihn aus Sicht deiner Rolle - {}
++Geplante Tasks: {open}
++Antworte knapp (max. ca. 10 Zeilen): verstanden?, Luecken/Rueckfragen, Risiken, Akzeptanzkriterien, Vorschlag zur Arbeitsaufteilung. Fehlende sinnvolle Teilaufgaben gleich als tasks=[{{title, detail, role, review, files}}] in cowork_update mitschicken (keine Duplikate). Danach hilfst du bei ALLEN Tasks mit - deine Rolle ist nur dein Schwerpunkt.", w.id, w.text, lens(&role)),
++        role, kind: "assess".into(), assignee: agent.to_string(), wave: wave_id,
++        ..Default::default()
++    });
++    Some(id)
++}
++
++/// Open a new prompt wave; every alive worker gets an assess task.
++fn open_wave(p: &mut Project, by: &str, text: &str) -> u64 {
++    let id = p.waves.iter().map(|w| w.id).max().unwrap_or(0) + 1;
++    p.waves.push(Wave { id, text: text.trim().to_string(), by: by.to_string(), ts: now() });
++    if p.waves.len() > 50 { p.waves.remove(0); }
++    let workers: Vec<String> = p.agents.values().filter(|a| a.name != p.lead && now() - a.last_seen < stale(p)).map(|a| a.name.clone()).collect();
++    for a in workers { add_assess(p, id, &a); }
++    id
++}
++
++/// Work tasks of a wave start once every evaluation is in, or after GATE_SECS.
++fn gate_open(p: &Project, wave_id: u64) -> bool {
++    let Some(w) = wave(p, wave_id) else { return true; };
++    let age = now() - w.ts;
++    if age >= GATE_SECS { return true; }
++    let assess: Vec<&Task> = p.tasks.iter().filter(|t| t.kind == "assess" && t.wave == wave_id).collect();
++    if assess.is_empty() {
++        let workers = p.agents.values().any(|a| a.name != p.lead && now() - a.last_seen < stale(p));
++        // workers are usually still joining (AdiCode kickoff); solo leads wait at most 90 s
++        return !workers && age >= 25;
++    }
++    assess.iter().all(|t| t.status == "done" || (t.status == "claimed" && !alive(p, &t.owner)) || (!t.assignee.is_empty() && !alive(p, &t.assignee)))
++}
++
++// ---------------------------------------------------------------- board helpers
++
++fn project_id(board: &Board, args: &Value) -> Result<String, String> {
++    let wanted = s(args, "project");
++    if !wanted.is_empty() {
++        if board.projects.contains_key(&wanted) { return Ok(wanted); }
++        if let Some(p) = board.projects.values().find(|p| p.title.eq_ignore_ascii_case(&wanted)) { return Ok(p.id.clone()); }
++        return Err(format!("Projekt '{wanted}' nicht gefunden. cowork_board ohne project listet alle Projekte."));
++    }
++    let all: Vec<&Project> = board.projects.values().collect();
++    match all.len() {
++        0 => Err("Kein Co-Work-Projekt vorhanden. Der Lead (Main Chat) startet eins mit cowork_start.".into()),
++        1 => Ok(all[0].id.clone()),
++        _ => Err("Mehrere Co-Work-Projekte vorhanden, bitte project angeben (cowork_board listet sie).".into()),
++    }
++}
++
++fn touch(p: &mut Project, agent: &str) -> Result<(), String> {
++    match p.agents.get_mut(agent) {
++        Some(a) => { a.last_seen = now(); Ok(()) }
++        None => Err(format!("Agent '{agent}' ist diesem Projekt nicht beigetreten. Erst cowork_join aufrufen und den Namen bei jedem Aufruf als agent mitgeben.")),
++    }
++}
++
++fn join_agent(p: &mut Project, wanted: &str, role: &str) -> String {
++    let mut name: String = wanted.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(32).collect();
++    if name.is_empty() {
++        let base = if role.is_empty() || role == "worker" { "agent".to_string() } else { role.to_string() };
++        loop {
++            p.next_agent += 1;
++            let candidate = format!("{base}-{}", p.next_agent);
++            if !p.agents.contains_key(&candidate) { name = candidate; break; }
++        }
++    }
++    let t = now();
++    let entry = p.agents.entry(name.clone()).or_insert_with(|| Agent { name: name.clone(), role: role.to_string(), joined: t, last_seen: t, last_read: 0 });
++    entry.last_seen = t;
++    if !role.is_empty() { entry.role = role.to_string(); }
++    name
++}
++
++fn add_tasks(p: &mut Project, list: &Value, wave: u64) -> Vec<u64> {
++    let mut ids = Vec::new();
++    for item in list.as_array().into_iter().flatten() {
++        let title = match item.as_str() { Some(t) => t.trim().to_string(), None => s(item, "title") };
++        if title.is_empty() { continue; }
++        if p.tasks.iter().any(|t| t.kind.is_empty() && t.status != "done" && t.title.eq_ignore_ascii_case(&title)) { continue; }
++        p.next_task += 1;
++        let depends_on: Vec<u64> = item["depends_on"].as_array().into_iter().flatten().filter_map(|d| d.as_u64()).collect();
++        let files: Vec<String> = item["files"].as_array().into_iter().flatten().filter_map(|f| f.as_str().map(|x| x.trim().to_string())).filter(|f| !f.is_empty()).collect();
++        p.tasks.push(Task {
++            id: p.next_task, title, detail: s(item, "detail"), status: "open".into(), depends_on, files, updated: now(),
++            role: task_role(&item["role"]), review: task_role(&item["review"]), wave,
++            ..Default::default()
++        });
++        ids.push(p.next_task);
++    }
++    ids
++}
++
++fn post(p: &mut Project, from: &str, to: &str, text: String) {
++    p.next_msg += 1;
++    p.messages.push(Msg { id: p.next_msg, from: from.to_string(), to: to.to_string(), text, ts: now() });
++    if p.messages.len() > 300 { let cut = p.messages.len() - 300; p.messages.drain(..cut); }
++}
++
++/// All reviews/fixes of a work task are finished.
++fn chain_done(p: &Project, id: u64) -> bool { p.tasks.iter().filter(|x| x.root == id).all(|x| x.status == "done") }
++
++fn deps_done(p: &Project, t: &Task) -> bool {
++    t.depends_on.iter().all(|d| p.tasks.iter().any(|x| x.id == *d && x.status == "done") && chain_done(p, *d))
++}
++
++/// Besitzer eines aktiven Co-Work-Datei-Locks (fremder, lebender Agent) - fuer safe_write_file.
++pub fn lock_owner(path: &str, agent: &str) -> Option<String> {
++    let key = norm_path(path);
++    let board = lock_board();
++    for p in board.projects.values() {
++        if let Some(l) = p.locks.get(&key) {
++            if l.owner != agent && alive(p, &l.owner) { return Some(l.owner.clone()); }
++        }
++    }
++    None
++}
++
++fn files_free(p: &Project, t: &Task, agent: &str) -> bool {
++    t.files.iter().all(|f| p.locks.get(&norm_path(f)).map(|l| l.owner == agent || !alive(p, &l.owner)).unwrap_or(true))
++}
++
++fn claimable(p: &Project, t: &Task, agent: &str) -> bool {
++    let free = t.status == "open" || (t.status == "claimed" && !alive(p, &t.owner));
++    free && deps_done(p, t) && files_free(p, t, agent) && role_ok(p, t, agent) && (!t.kind.is_empty() || gate_open(p, t.wave))
++}
++
++/// open, claimed, review (done but review/fix pending), stale, blocked, done
++fn phase(p: &Project, t: &Task) -> &'static str {
++    match t.status.as_str() {
++        "done" => if chain_done(p, t.id) { "done" } else { "review" },
++        "claimed" => if alive(p, &t.owner) { "claimed" } else { "stale" },
++        "blocked" => "blocked",
++        _ => if t.kind.is_empty() && !gate_open(p, t.wave) { "wartet auf Bewertung" } else { "open" },
++    }
++}
++
++fn summary(p: &Project) -> String {
++    let t = now();
++    let mut o = format!("Co-Work-Projekt {} \"{}\"\nZiel: {}\nLead: {}\n\nAgents:\n", p.id, p.title, p.goal, if p.lead.is_empty() { "-" } else { p.lead.as_str() });
++    for a in p.agents.values() {
++        let cur = p.tasks.iter().find(|x| x.owner == a.name && x.status == "claimed").map(|x| format!(" arbeitet an #{}", x.id)).unwrap_or_default();
++        o.push_str(&format!("- {} ({}){}{}\n", a.name, role_title(&a.role), cur, if t - a.last_seen < stale(p) { "" } else { " [inaktiv]" }));
++    }
++    let missing = missing_roles(p);
++    if !missing.is_empty() {
++        o.push_str(&format!("Unbesetzte Rollen: {} (der Nutzer kann Tabs mit diesen Rollen oeffnen; bis dahin uebernehmen andere Agents diese Tasks)\n", missing.iter().map(|r| role_title(r)).collect::<Vec<_>>().join(", ")));
++    }
++    let done = p.tasks.iter().filter(|x| x.status == "done").count();
++    o.push_str(&format!("\nTasks ({done}/{} erledigt):\n", p.tasks.len()));
++    for task in &p.tasks {
++        let mut line = format!("- #{} [{}] {}", task.id, phase(p, task), task.title);
++        if !task.role.is_empty() { line.push_str(&format!(" {{{}}}", task.role)); }
++        if !task.owner.is_empty() && task.status != "open" { line.push_str(&format!(" @{}", task.owner)); }
++        if !task.depends_on.is_empty() { line.push_str(&format!(" (nach {})", task.depends_on.iter().map(|d| format!("#{d}")).collect::<Vec<_>>().join(", "))); }
++        if !task.review.is_empty() && task.kind != "review" { line.push_str(&format!(" (Review durch {})", task.review)); }
++        if task.status == "open" && deps_done(p, task) { line.push_str(" <- frei"); }
++        o.push_str(&line);
++        o.push('\n');
++        if !task.detail.is_empty() { o.push_str(&format!("    {}\n", short(&task.detail, 400))); }
++        if !task.files.is_empty() { o.push_str(&format!("    Dateien: {}\n", task.files.join(", "))); }
++        if !task.result.is_empty() { o.push_str(&format!("    Ergebnis: {}\n", short(&task.result, 600))); }
++    }
++    if !p.tasks.is_empty() && done == p.tasks.len() { o.push_str("\nALLE TASKS ERLEDIGT. Lead: cowork_results aufrufen und alles zu EINER finalen, optimierten Antwort fuer den Nutzer zusammenfuehren.\n"); }
++    if !p.locks.is_empty() {
++        o.push_str("\nDatei-Locks:\n");
++        for (f, l) in &p.locks { o.push_str(&format!("- {f} @{} (Task #{})\n", l.owner, l.task)); }
++    }
++    o
++}
++
++fn results_text(p: &Project) -> String {
++    let mut o = format!("Ergebnisse von Co-Work-Projekt {} \"{}\"\nZiel: {}\n\n", p.id, p.title, p.goal);
++    for t in p.tasks.iter().filter(|t| t.kind.is_empty()) {
++        o.push_str(&format!("## #{} {} [{}] - {} @{}\n", t.id, t.title, phase(p, t), role_title(&t.role), if t.owner.is_empty() { "-" } else { t.owner.as_str() }));
++        o.push_str(if t.result.is_empty() { "(kein Ergebnis notiert)\n" } else { "" });
++        if !t.result.is_empty() { o.push_str(&format!("{}\n", t.result)); }
++        for x in p.tasks.iter().filter(|x| x.root == t.id) {
++            o.push_str(&format!("  - {} #{} @{} [{}]: {}\n", if x.kind == "review" { "Review" } else { "Fix" }, x.id, if x.owner.is_empty() { "-" } else { x.owner.as_str() }, x.status, if x.result.is_empty() { "-" } else { x.result.as_str() }));
++        }
++        o.push('\n');
++    }
++    let msgs: Vec<&Msg> = p.messages.iter().rev().take(15).collect();
++    if !msgs.is_empty() {
++        o.push_str("Letzte Nachrichten:\n");
++        for m in msgs.into_iter().rev() { o.push_str(&format!("- [{}] {}\n", m.from, short(&m.text, 300))); }
++    }
++    let done = !p.tasks.is_empty() && p.tasks.iter().all(|t| t.status == "done");
++    o.push_str(if done {
++        "\nAlle Tasks erledigt. Fuehre die Ergebnisse jetzt zu EINER finalen, optimierten Antwort fuer den Nutzer zusammen: Widersprueche aufloesen, Review-Feedback beruecksichtigen, nichts Doppeltes, klare naechste Schritte."
++    } else {
++        "\nNoch nicht alles erledigt - mit cowork_wait weiter warten oder offene Punkte klaeren."
++    });
++    o
++}
++
++fn unread(p: &Project, agent: &str) -> Vec<Msg> {
++    let last = p.agents.get(agent).map(|a| a.last_read).unwrap_or(0);
++    p.messages.iter().filter(|m| m.id > last && m.from != agent && (m.to.is_empty() || m.to == agent)).cloned().collect()
++}
++
++fn take_unread(p: &mut Project, agent: &str) -> String {
++    let msgs = unread(p, agent);
++    let mut o = String::new();
++    if !msgs.is_empty() {
++        o.push_str("\nNeue Nachrichten:\n");
++        for m in &msgs {
++            let to = if m.to.is_empty() { String::new() } else { format!(" -> {}", m.to) };
++            o.push_str(&format!("- [{}{}] {}\n", m.from, to, m.text));
++        }
++    }
++    let max = p.next_msg;
++    if let Some(a) = p.agents.get_mut(agent) { a.last_read = max; }
++    o
++}
++
++fn has_news(p: &Project, agent: &str) -> bool {
++    !unread(p, agent).is_empty()
++        || p.tasks.iter().any(|t| claimable(p, t, agent))
++        || (!p.tasks.is_empty() && p.tasks.iter().all(|t| t.status == "done"))
++}
++
++const PROTOCOL: &str = "Co-Work: Rolle = Schwerpunkt, du hilfst bei allem. Loop: cowork_claim -> Task erledigen (Skill per adicode_skill, nur Task-Dateien, weitere vorher cowork_lock; zu gross: cowork_update tasks=[..]) -> cowork_update status=done result=<1 Satz + Dateien> (Review: done oder changes + Punkte) -> sofort wieder cowork_claim. Bewertungen neuer Prompts zuerst, fehlende Teilaufgaben als tasks. Nichts frei: cowork_wait. Blockiert: status=blocked + Grund. Antworten knapp: Diffs und Dateinamen statt Volltext, nichts wiederholen. Nachrichten mit Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): sind Systemweckrufe: weitermachen. Fertig bei ALLE TASKS ERLEDIGT.";
++
++fn dispatch(board: &mut Board, name: &str, args: &Value) -> Result<(String, bool), String> {
++    if name == "cowork_start" {
++        let title = s(args, "title");
++        if title.is_empty() { return Err("title fehlt".into()); }
++        board.next_project += 1;
++        let id = format!("p{}", board.next_project);
++        let mut p = Project { id: id.clone(), title, goal: s(args, "goal"), created: now(), stale_minutes: args["stale_minutes"].as_u64().unwrap_or(0).min(240), ..Default::default() };
++        let agent = join_agent(&mut p, &s(args, "agent"), "lead");
++        p.lead = agent.clone();
++        let assess = args["assess"].as_bool().unwrap_or(true);
++        let brief = format!("{}\n{}", p.title, p.goal);
++        let w = if assess { open_wave(&mut p, &agent, &brief) } else { 0 };
++        add_tasks(&mut p, &args["tasks"], w);
++        let goal = p.goal.clone();
++        post(&mut p, &agent, "", format!("Projekt gestartet: {goal}"));
++        let mut roles: Vec<String> = Vec::new();
++        for t in &p.tasks {
++            for r in [&t.role, &t.review] { if !r.is_empty() && !roles.contains(r) { roles.push(r.clone()); } }
++        }
++        let tabs = if roles.is_empty() {
++            format!("Die Worker-Tabs von AdiCode treten automatisch bei (der Nutzer muss nichts tun). Nur falls nach 2 Minuten niemand beigetreten ist: Nutzer bitten, in AdiCode Co-Work zu starten oder in weiteren Notion-AI-Tabs zu schreiben: Tritt Co-Work-Projekt {id} bei.")
++        } else {
++            format!("Benoetigte Schwerpunkte: {}. Die Worker-Tabs von AdiCode (Coder, Reviewer, Tester) treten automatisch bei und helfen bei allen Rollen mit - den Nutzer NICHT bitten, Tabs zu oeffnen. Nur falls nach 2 Minuten niemand beigetreten ist: Nutzer bitten, in AdiCode Co-Work zu starten (oder in weiteren Notion-AI-Tabs zu schreiben: Tritt Co-Work-Projekt {id} bei als {}).", roles.iter().map(|r| format!("{} ({r})", role_title(r))).collect::<Vec<_>>().join(", "), roles[0])
++        };
++        let gate = if w > 0 { format!("\nJeder Worker bewertet den Auftrag zuerst aus Sicht seiner Rolle und schlaegt fehlende Teilaufgaben vor; die Tasks werden freigegeben, sobald alle Bewertungen da sind (spaetestens nach {GATE_SECS} s). Rollen sind Schwerpunkte: ist ein Experte beschaeftigt, helfen die anderen mit.") } else { String::new() };
++        let out = format!("Co-Work-Projekt '{id}' erstellt. Du bist der Lead (Main Chat), dein Agent-Name ist '{agent}' (bei jedem cowork_*-Aufruf als agent mitgeben).\n{tabs}{gate}\nNeue Nutzer-Nachrichten waehrend des Projekts: sofort cowork_prompt.\nDanach: mit cowork_wait den Fortschritt verfolgen, Fragen/blockierte Tasks klaeren, bei Bedarf cowork_add_tasks. Am Ende cowork_results lesen und die finale Antwort zusammenfuehren.\n\n{}", summary(&p));
++        board.projects.insert(id, p);
++        return Ok((out, true));
++    }
++    if name == "cowork_board" && s(args, "project").is_empty() && board.projects.len() != 1 {
++        if board.projects.is_empty() { return Ok(("Keine Co-Work-Projekte. Der Lead (Main Chat) startet eins mit cowork_start.".into(), false)); }
++        let mut o = String::from("Co-Work-Projekte:\n");
++        for p in board.projects.values() {
++            let done = p.tasks.iter().filter(|t| t.status == "done").count();
++            o.push_str(&format!("- {}: {} ({done}/{} Tasks erledigt, {} Agents)\n", p.id, p.title, p.tasks.len(), p.agents.len()));
++        }
++        return Ok((o, false));
++    }
++    if name == "cowork_close" {
++        let pid = project_id(board, args)?;
++        board.projects.remove(&pid);
++        return Ok((format!("Projekt {pid} geschlossen und vom Board entfernt."), true));
++    }
++    let pid = project_id(board, args)?;
++    let p = board.projects.get_mut(&pid).ok_or_else(|| "Projekt verschwunden".to_string())?;
++    let agent = s(args, "agent");
++    match name {
++        "cowork_join" => {
++            let role = { let r = norm_role(&s(args, "role")); if r.is_empty() { "worker".to_string() } else { r } };
++            let existed = p.agents.contains_key(&agent);
++            let me = join_agent(p, &agent, &role);
++            if role == "lead" {
++                let lead = p.lead.clone();
++                if lead.is_empty() || lead == me || !alive(p, &lead) { p.lead = me.clone(); }
++            }
++            if !existed { post(p, &me, "", format!("{me} ist beigetreten ({}).", role_title(&role))); }
++            if let Some(w) = p.waves.last().cloned() {
++                if now() - w.ts < ASSESS_WINDOW_SECS && !gate_open(p, w.id) { add_assess(p, w.id, &me); }
++            }
++            let mine = p.tasks.iter().filter(|t| t.status != "done" && t.role == role).count();
++            let news = take_unread(p, &me);
++            Ok((format!("Beigetreten als '{me}' mit Rolle {} (bei jedem cowork_*-Aufruf als agent mitgeben).\nDeine Rolle: {}\nOffene Tasks deiner Rolle: {mine}. Deine Rolle ist dein Schwerpunkt: du bekommst zuerst Bewertungen und Tasks deiner Rolle, hilfst danach aber bei allem anderen mit.\n{PROTOCOL}\n\n{}{news}", role_title(&role), role_guide(&role), summary(p)), true))
++        }
++        "cowork_board" => {
++            let mut news = String::new();
++            let known = !agent.is_empty() && p.agents.contains_key(&agent);
++            if known { touch(p, &agent)?; news = take_unread(p, &agent); }
++            Ok((format!("{}{news}", summary(p)), known))
++        }
++        "cowork_results" => {
++            if !agent.is_empty() && p.agents.contains_key(&agent) { touch(p, &agent)?; }
++            Ok((results_text(p), false))
++        }
++        "cowork_add_tasks" => {
++            touch(p, &agent)?;
++            let w = p.waves.last().map(|w| w.id).filter(|_| args["gated"].as_bool().unwrap_or(false)).unwrap_or(0);
++            let ids = add_tasks(p, &args["tasks"], w);
++            if ids.is_empty() { return Err("tasks ist leer (oder nur Duplikate)".into()); }
++            let list = ids.iter().map(|i| format!("#{i}")).collect::<Vec<_>>().join(", ");
++            post(p, &agent, "", format!("Neue Tasks: {list}"));
++            Ok((format!("Tasks hinzugefuegt: {list}"), true))
++        }
++        "cowork_prompt" => {
++            touch(p, &agent)?;
++            let msg = s(args, "text");
++            if msg.is_empty() { return Err("text fehlt (die neue Nutzer-Nachricht)".into()); }
++            let w = open_wave(p, &agent, &msg);
++            let ids = add_tasks(p, &args["tasks"], w);
++            let n = p.tasks.iter().filter(|t| t.kind == "assess" && t.wave == w).count();
++            post(p, &agent, "", format!("Neuer Nutzer-Prompt #{w}: {}", short(&msg, 400)));
++            let list = if ids.is_empty() { String::new() } else { format!(" Neue Tasks: {}.", ids.iter().map(|i| format!("#{i}")).collect::<Vec<_>>().join(", ")) };
++            Ok((format!("Prompt #{w} ans Board gegeben. {n} Worker bewerten ihn jetzt aus Sicht ihrer Rolle (Ergebnisse kommen per cowork_wait).{list} Neue Tasks dieses Prompts starten, sobald alle Bewertungen da sind (spaetestens nach {GATE_SECS} s). Bewertungen einarbeiten: cowork_add_tasks oder cowork_message.\n\n{}", summary(p)), true))
++        }
++        "cowork_claim" => {
++            touch(p, &agent)?;
++            let my_role = agent_role(p, &agent);
++            let idx = match args["task_id"].as_u64() {
++                Some(id) => {
++                    let i = p.tasks.iter().position(|t| t.id == id).ok_or_else(|| format!("Task #{id} gibt es nicht."))?;
++                    let mine = p.tasks[i].owner == agent && p.tasks[i].status == "claimed";
++                    if !mine && !claimable(p, &p.tasks[i], &agent) {
++                        let t = &p.tasks[i];
++                        return Err(format!("Task #{id} ist nicht frei fuer dich (Status {}, Owner {}, Rolle {}). Abhaengigkeiten, Rolle oder Datei-Locks pruefen (cowork_board).", t.status, if t.owner.is_empty() { "-" } else { t.owner.as_str() }, role_title(&t.role)));
++                    }
++                    i
++                }
++                None => {
++                    let pick = p.tasks.iter().position(|t| t.assignee == agent && claimable(p, t, &agent))
++                        .or_else(|| p.tasks.iter().position(|t| !t.role.is_empty() && t.role == my_role && claimable(p, t, &agent)))
++                        .or_else(|| p.tasks.iter().position(|t| t.kind == "review" && claimable(p, t, &agent)))
++                        .or_else(|| p.tasks.iter().position(|t| t.role.is_empty() && claimable(p, t, &agent)))
++                        .or_else(|| p.tasks.iter().position(|t| claimable(p, t, &agent)));
++                    match pick {
++                        Some(i) => i,
++                        None => {
++                            let news = take_unread(p, &agent);
++                            let gated = p.tasks.iter().filter(|t| t.kind.is_empty() && t.status == "open" && !gate_open(p, t.wave)).count();
++                            let why = if gated > 0 { format!(" {gated} Task(s) warten noch auf die Rollen-Bewertungen.") } else { String::new() };
++                            return Ok((format!("Gerade kein freier Task fuer dich ({}).{why} Mit cowork_wait warten.{news}", role_title(&my_role)), true));
++                        }
++                    }
++                }
++            };
++            let t = now();
++            let tid = p.tasks[idx].id;
++            for f in p.tasks[idx].files.clone() {
++                p.locks.insert(norm_path(&f), Lock { owner: agent.clone(), task: tid, since: t });
++            }
++            {
++                let task = &mut p.tasks[idx];
++                task.status = "claimed".into();
++                task.owner = agent.clone();
++                task.updated = t;
++            }
++            let task = p.tasks[idx].clone();
++            let mut deps = String::new();
++            for d in &task.depends_on {
++                if let Some(x) = p.tasks.iter().find(|x| x.id == *d) {
++                    deps.push_str(&format!("- #{} {}: {}\n", x.id, x.title, if x.result.is_empty() { "(kein Ergebnis notiert)" } else { x.result.as_str() }));
++                }
++            }
++            let deps = if deps.is_empty() { String::new() } else { format!("\nErgebnisse der Vorgaenger-Tasks:\n{deps}") };
++            let files = if task.files.is_empty() { String::new() } else { format!("\nGesperrte Dateien fuer dich: {}", task.files.join(", ")) };
++            let how = match task.kind.as_str() {
++                "review" => format!("\nREVIEW: Ergebnis pruefen (Dateien lesen, nichts selbst umschreiben). Passt alles: cowork_update task_id={} status=done result=<kurze Bewertung>. Sonst: status=changes result=<nummerierte, konkrete Aenderungen>.", task.id),
++                "assess" => format!("\nBEWERTUNG: aus Sicht deiner Rolle bewerten, dann cowork_update task_id={} status=done result=<Bewertung> und optional tasks=[...] mit fehlenden Teilaufgaben. Danach sofort cowork_claim - du hilfst bei allen Tasks.", task.id),
++                "fix" => format!("\nFIX-RUNDE {}: Feedback oben umsetzen, danach cowork_update task_id={} status=done result=<was geaendert>. Danach folgt automatisch ein neues Review.", task.round, task.id),
++                _ => format!("\nWenn fertig: cowork_update task_id={} status=done result=<kurze Zusammenfassung + geaenderte Dateien>.{}", task.id, if task.review.is_empty() { String::new() } else { format!(" Danach prueft {} dein Ergebnis.", role_title(&task.review)) }),
++            };
++            let role_hint = if task.role.is_empty() || task.role == my_role || task.kind == "assess" { String::new() } else {
++                let why = if specialist_alive(p, &task.role, &agent) { "der Experte ist gerade beschaeftigt - du hilfst mit" } else { "gerade unbesetzt" };
++                format!("\nHinweis: Schwerpunkt dieses Tasks ist {} ({why}). Arbeite ihn mit dem Blick dieser Rolle ab: {}", role_title(&task.role), role_guide(&task.role))
++            };
++            let news = take_unread(p, &agent);
++            Ok((format!("Du hast Task #{} uebernommen: {}\n{}{files}{role_hint}\nProjektziel: {}{deps}{how}{news}", task.id, task.title, task.detail, p.goal), true))
++        }
++        "cowork_update" => {
++            touch(p, &agent)?;
++            let id = args["task_id"].as_u64().ok_or_else(|| "task_id fehlt".to_string())?;
++            let status = s(args, "status").to_ascii_lowercase();
++            if !["done", "blocked", "open", "claimed", "changes"].contains(&status.as_str()) { return Err("status muss done, changes, blocked, open oder claimed sein".into()); }
++            let i = p.tasks.iter().position(|t| t.id == id).ok_or_else(|| format!("Task #{id} gibt es nicht."))?;
++            let owner = p.tasks[i].owner.clone();
++            let allowed = owner.is_empty() || owner == agent || agent == p.lead || !alive(p, &owner);
++            if !allowed { return Err(format!("Task #{id} gehoert {owner}. Nur der Owner oder der Lead darf ihn aendern.")); }
++            let result = s(args, "result");
++            if status == "changes" && p.tasks[i].kind != "review" { return Err("status=changes gibt es nur fuer Review-Tasks. Fuer andere Tasks done, blocked oder open nutzen.".into()); }
++            if (status == "done" || status == "changes" || status == "blocked") && result.is_empty() {
++                return Err("result fehlt: kurz und praezise notieren, was gemacht wurde bzw. was fehlt (die anderen Agents und der Lead bauen darauf auf).".into());
++            }
++            let stored = if status == "changes" { "done".to_string() } else { status.clone() };
++            {
++                let task = &mut p.tasks[i];
++                task.status = stored.clone();
++                if status == "open" { task.owner.clear(); } else { task.owner = agent.clone(); }
++                if !result.is_empty() { task.result = if status == "changes" { format!("AENDERUNGEN NOETIG: {result}") } else { result.clone() }; }
++                task.updated = now();
++            }
++            if stored != "claimed" { p.locks.retain(|_, l| l.task != id); }
++            let task = p.tasks[i].clone();
++            let mut extra = String::new();
++            if status == "done" && !task.review.is_empty() && task.kind != "review" && !p.tasks.iter().any(|x| x.kind == "review" && x.origin == id) {
++                p.next_task += 1;
++                let rid = p.next_task;
++                let files = if task.files.is_empty() { String::new() } else { format!("\nBetroffene Dateien: {}", task.files.join(", ")) };
++                p.tasks.push(Task {
++                    id: rid, title: format!("Review #{id}: {}", task.title), status: "open".into(), updated: now(),
++                    detail: format!("Pruefe das Ergebnis von #{id} ({}) als {}.\nAufgabe war: {}\nErgebnis von {agent}: {}{files}", task.title, role_title(&task.review), task.detail, task.result),
++                    role: task.review.clone(), kind: "review".into(), origin: id, root: if task.root == 0 { id } else { task.root }, round: task.round,
++                    ..Default::default()
++                });
++                extra = format!(" Review-Task #{rid} fuer {} erstellt.", role_title(&task.review));
++            }
++            if status == "changes" {
++                if let Some(o) = p.tasks.iter().find(|x| x.id == task.origin).cloned() {
++                    if task.round < MAX_FIX_ROUNDS {
++                        p.next_task += 1;
++                        let fid = p.next_task;
++                        p.tasks.push(Task {
++                            id: fid, title: format!("Fix #{}: {}", o.id, o.title.trim_start_matches("Fix ")), status: "open".into(), updated: now(),
++                            detail: format!("Feedback von {agent} (Review #{id}): {result}\n\nUrspruenglicher Task #{}: {}\n{}\nBisheriges Ergebnis: {}", o.id, o.title, o.detail, o.result),
++                            role: o.role.clone(), review: o.review.clone(), kind: "fix".into(), origin: o.id, root: task.root, round: task.round + 1, files: o.files.clone(),
++                            ..Default::default()
++                        });
++                        extra = format!(" Fix-Task #{fid} fuer {} erstellt.", role_title(&o.role));
++                    } else {
++                        let lead = p.lead.clone();
++                        post(p, &agent, &lead, format!("Review #{id}: maximale Fix-Runden ({MAX_FIX_ROUNDS}) erreicht. Lead entscheidet ueber: {result}"));
++                        extra = " Maximale Fix-Runden erreicht - der Lead entscheidet.".into();
++                    }
++                }
++            }
++            if args["tasks"].is_array() && status != "open" {
++                let proposed = add_tasks(p, &args["tasks"], if task.kind == "assess" { task.wave } else { 0 });
++                if !proposed.is_empty() { extra.push_str(&format!(" Neue Teilaufgaben: {}.", proposed.iter().map(|i| format!("#{i}")).collect::<Vec<_>>().join(", "))); }
++            }
++            if task.kind == "assess" && status == "done" {
++                let lead = p.lead.clone();
++                post(p, &agent, &lead, format!("Bewertung ({}) zu Prompt #{}: {}", role_title(&task.role), task.wave, short(&result, 700)));
++                let pending = p.tasks.iter().filter(|t| t.kind == "assess" && t.wave == task.wave && t.status != "done").count();
++                if pending == 0 { extra.push_str(" Alle Bewertungen sind da - die Tasks dieses Prompts sind jetzt frei."); }
++            }
++            let title = task.title.clone();
++            let note = match status.as_str() {
++                "done" => format!("#{id} erledigt ({title}): {}{extra}", short(&result, 300)),
++                "changes" => format!("#{id} Aenderungen noetig ({title}): {}{extra}", short(&result, 300)),
++                "blocked" => format!("#{id} BLOCKIERT ({title}): {result}"),
++                "open" => format!("#{id} wieder freigegeben ({title})."),
++                _ => format!("#{id} in Arbeit ({title})."),
++            };
++            let to = if status == "blocked" && !p.lead.is_empty() && p.lead != agent { p.lead.clone() } else { String::new() };
++            post(p, &agent, &to, note);
++            let free = p.tasks.iter().filter(|t| claimable(p, t, &agent)).count();
++            let news = take_unread(p, &agent);
++            Ok((format!("Task #{id} -> {status}.{extra} Freie Tasks: {free}. Weiter mit cowork_claim oder cowork_wait.{news}"), true))
++        }
++        "cowork_message" => {
++            touch(p, &agent)?;
++            let msg = s(args, "text");
++            if msg.is_empty() { return Err("text fehlt".into()); }
++            let to = s(args, "to");
++            if !to.is_empty() && !p.agents.contains_key(&to) { return Err(format!("Agent '{to}' gibt es in diesem Projekt nicht (cowork_board zeigt alle).")); }
++            post(p, &agent, &to, msg);
++            let news = take_unread(p, &agent);
++            Ok((format!("Nachricht gesendet{}.{news}", if to.is_empty() { " an alle".to_string() } else { format!(" an {to}") }), true))
++        }
++        "cowork_lock" => {
++            touch(p, &agent)?;
++            let path = norm_path(&s(args, "path"));
++            if path.is_empty() { return Err("path fehlt".into()); }
++            if args["release"].as_bool().unwrap_or(false) {
++                let blocked_by = p.locks.get(&path).filter(|l| l.owner != agent && alive(p, &l.owner) && agent != p.lead).map(|l| l.owner.clone());
++                match blocked_by {
++                    Some(owner) => Err(format!("{path} ist von {owner} gesperrt.")),
++                    None => { p.locks.remove(&path); Ok((format!("Lock auf {path} freigegeben."), true)) }
++                }
++            } else {
++                if let Some(l) = p.locks.get(&path) {
++                    if l.owner != agent && alive(p, &l.owner) { return Err(format!("{path} ist gerade von {} gesperrt (Task #{}). Spaeter erneut versuchen oder per cowork_message abstimmen.", l.owner, l.task)); }
++                }
++                let task = args["task_id"].as_u64().unwrap_or(0);
++                p.locks.insert(path.clone(), Lock { owner: agent.clone(), task, since: now() });
++                Ok((format!("{path} ist jetzt fuer dich gesperrt."), true))
++            }
++        }
++        other => Err(format!("Unbekanntes Co-Work-Tool '{other}'")),
++    }
++}
++
++fn wait_step(args: &Value, deadline: tokio::time::Instant, base: &mut Option<usize>) -> Result<Option<String>, String> {
++    let mut board = lock_board();
++    let pid = project_id(&board, args)?;
++    let agent = s(args, "agent");
++    let p = board.projects.get_mut(&pid).ok_or_else(|| "Projekt verschwunden".to_string())?;
++    touch(p, &agent)?;
++    let free_now = p.tasks.iter().filter(|t| claimable(p, t, &agent)).count();
++    let grew = match *base { Some(b) => { if free_now < b { *base = Some(free_now); } free_now > b }, None => { *base = Some(free_now); false } };
++    if !(has_news(p, &agent) || grew || tokio::time::Instant::now() >= deadline) { return Ok(None); }
++    let news = take_unread(p, &agent);
++    let free = p.tasks.iter().filter(|t| claimable(p, t, &agent)).count();
++    let out = if news.trim().is_empty() { format!("Keine Neuigkeiten. Freie Tasks: {free}.") } else { format!("Freie Tasks: {free}.{news}") };
++    save(&board);
++    Ok(Some(out))
++}
++
++async fn wait(args: &Value) -> Value {
++    let secs = args["seconds"].as_u64().unwrap_or(40).clamp(1, MAX_WAIT_SECS);
++    let deadline = tokio::time::Instant::now() + Duration::from_secs(secs); let mut base: Option<usize> = None;
++    loop {
++        let notified = CHANGED.notified();
++        match wait_step(args, deadline, &mut base) {
++            Err(e) => return err(e),
++            Ok(Some(out)) => return text(out),
++            Ok(None) => { let tick = (tokio::time::Instant::now() + Duration::from_secs(3)).min(deadline); let _ = tokio::time::timeout_at(tick, notified).await; }
++        }
++    }
++}
++
++/// Handle a cowork_* tool call. Returns None for other tool names.
++pub(crate) async fn call(name: &str, args: &Value) -> Option<Value> {
++    if !name.starts_with("cowork_") { return None; }
++    if name == "cowork_wait" { return Some(wait(args).await); }
++    let result = {
++        let mut board = lock_board();
++        let r = dispatch(&mut board, name, args);
++        if let Ok((_, true)) = &r { save(&board); }
++        r
++    };
++    Some(match result {
++        Ok((out, changed)) => { if changed { CHANGED.notify_waiters(); } text(out) }
++        Err(e) => err(e),
++    })
++}
++
++/// Short overview for adicode_status.
++pub(crate) fn status() -> Value {
++    let board = lock_board();
++    Value::Array(board.projects.values().map(|p| json!({
++        "id": p.id, "title": p.title,
++        "agents": p.agents.values().filter(|a| now() - a.last_seen < stale(p)).count(),
++        "tasks_done": p.tasks.iter().filter(|t| t.status == "done").count(),
++        "tasks_total": p.tasks.len(),
++    })).collect())
++}
++
++/// Full live state for the Co-Work panel in the desktop app.
++pub(crate) fn dashboard() -> Value {
++    let board = lock_board();
++    let t = now();
++    let projects: Vec<Value> = board.projects.values().map(|p| {
++        let agents: Vec<Value> = p.agents.values().map(|a| {
++            let current = p.tasks.iter().find(|x| x.owner == a.name && x.status == "claimed");
++            json!({
++                "name": a.name, "role": a.role, "role_title": role_title(&a.role), "lead": a.name == p.lead,
++                "alive": t - a.last_seen < stale(p), "idle_secs": t - a.last_seen,
++                "task": current.map(|x| json!({"id": x.id, "title": x.title})),
++            })
++        }).collect();
++        let tasks: Vec<Value> = p.tasks.iter().map(|x| json!({
++            "id": x.id, "title": x.title, "role": x.role, "role_title": if x.role.is_empty() { String::new() } else { role_title(&x.role) },
++            "kind": x.kind, "status": x.status, "phase": phase(p, x), "owner": x.owner, "depends_on": x.depends_on,
++            "result": short(&x.result, 240), "updated": x.updated,
++        })).collect();
++        json!({
++            "id": p.id, "title": p.title, "goal": short(&p.goal, 400), "lead": p.lead,
++            "done": p.tasks.iter().filter(|x| x.status == "done").count(), "total": p.tasks.len(),
++            "missing_roles": missing_roles(p).iter().map(|r| role_title(r)).collect::<Vec<_>>(),
++            "agents": agents, "tasks": tasks,
++        })
++    }).collect();
++    json!({"ok": true, "projects": projects})
++}
++
++/// Wake-up text for an idle chat (AdiCode types it into the chat when the
++/// agent's Notion AI turn has ended but work is waiting). Returns (signature, text);
++/// the caller only re-sends when the signature changes or after a pause.
++pub(crate) fn nudge_for(agent: &str) -> Option<(String, String)> {
++    if agent.is_empty() { return None; }
++    let mut board = lock_board();
++    let pid = board.projects.values().filter(|p| p.agents.contains_key(agent)).max_by_key(|p| p.created)?.id.clone();
++    let p = board.projects.get_mut(&pid)?;
++    let t = now();
++    if p.lead == agent {
++        let all_done = !p.tasks.is_empty() && p.tasks.iter().all(|x| x.status == "done");
++        if all_done {
++            return Some((format!("done:{}:{}", p.id, p.tasks.len()), format!("Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): Alle {} Tasks von Projekt {} sind erledigt. Rufe jetzt cowork_results (project {}, agent {agent}) auf und gib dem Nutzer EINE finale, zusammengefuehrte Antwort.", p.tasks.len(), p.id, p.id)));
++        }
++        let direct: Vec<Msg> = unread(p, agent).into_iter().filter(|m| m.to == agent).collect();
++        if let Some(last) = direct.last() {
++            let list = direct.iter().map(|m| format!("- [{}] {}", m.from, short(&m.text, 220))).collect::<Vec<_>>().join("\n");
++            return Some((format!("msg:{}", last.id), format!("Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): Neues fuer dich als Lead in Projekt {}:\n{list}\nArbeite die Bewertungen/Blocker ein (cowork_board / cowork_add_tasks / cowork_message, agent {agent}) und verfolge danach mit cowork_wait den Fortschritt.", p.id)));
++        }
++        return None;
++    }
++    if !alive(p, agent) && p.agents.get(agent).map(|a| t - a.last_seen > 3 * stale(p)).unwrap_or(true) { return None; }
++    if let Some(cur) = p.tasks.iter().find(|x| x.owner == agent && x.status == "claimed") {
++        if t - cur.updated > 8 * 60 {
++            return Some((format!("stuck:{}:{}", cur.id, (t - cur.updated) / 600), format!("Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): Du hast Task #{} ({}) in Projekt {} noch offen. Mach ihn fertig und melde ihn mit cowork_update (agent {agent}), danach weiter mit cowork_claim.", cur.id, short(&cur.title, 80), p.id)));
++        }
++        return None;
++    }
++    let free: Vec<u64> = p.tasks.iter().filter(|x| claimable(p, x, agent)).map(|x| x.id).collect();
++    let direct = unread(p, agent).into_iter().filter(|m| m.to == agent).count();
++    if free.is_empty() && direct == 0 { return None; }
++    let ids = free.iter().take(6).map(|i| format!("#{i}")).collect::<Vec<_>>().join(", ");
++    let what = if free.is_empty() { "neue Nachrichten fuer dich".to_string() } else { format!("{} freie Task(s) ({ids})", free.len()) };
++    Some((format!("work:{}:{}:{}", p.id, ids, p.next_msg), format!("Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): In Projekt {} gibt es {what}. Arbeite weiter in Schleife: cowork_claim (project {}, agent {agent}) -> erledigen -> cowork_update -> cowork_claim ..., bis nichts mehr frei ist; dann cowork_wait.", p.id, p.id)))
++}
++
++pub(crate) fn tools() -> Vec<Value> {
++    let role_list = ROLES.iter().map(|r| format!("{} = {}", r.id, r.title)).collect::<Vec<_>>().join(", ");
++    let tasks = json!({"type": "array", "description": "Tasks; IDs werden fortlaufend vergeben (erster Task eines Projekts = 1).", "items": {"type": "object", "properties": {
++        "title": {"type": "string"},
++        "detail": {"type": "string", "description": "Was genau zu tun ist, Akzeptanzkriterien"},
++        "role": {"type": "string", "description": format!("Rolle, die den Task macht (leer = egal). Rollen: {role_list}")},
++        "review": {"type": "string", "description": "Rolle, die das Ergebnis danach prueft (z. B. reviewer fuer Code, uiux fuer Oberflaechen; leer = kein Review)"},
++        "depends_on": {"type": "array", "items": {"type": "integer"}, "description": "Task-IDs, die vorher fertig (inkl. Review) sein muessen"},
++        "files": {"type": "array", "items": {"type": "string"}, "description": "Dateien/Skripte, die der Task aendert (werden beim Claim gesperrt)"}
++    }, "required": ["title"]}});
++    let project = json!({"type": "string", "description": "Projekt-ID (z. B. p1) oder Titel; optional, wenn nur ein Projekt existiert"});
++    let agent = json!({"type": "string", "description": "Dein Agent-Name aus cowork_join/cowork_start"});
++    vec![
++        json!({"name": "cowork_start", "description": "AdiCode Co-Work: startet im Main Chat ein Projekt, an dem mehrere Notion-AI-Chats (Browser-Tabs) gleichzeitig arbeiten. Der Aufrufer wird Lead. Ziel in 4-15 kleine, moeglichst parallele Tasks zerlegen (alle Agents sollen gleichzeitig arbeiten koennen), jedem Task als role den Schwerpunkt geben und fuer Code/UI review setzen. Rollen sind Schwerpunkte, keine Grenzen: jeder Worker bewertet den Auftrag zuerst aus seiner Rollen-Sicht und hilft danach bei allen Tasks. Vorher adicode_skill name=cowork lesen.", "inputSchema": {"type": "object", "properties": {"title": {"type": "string"}, "goal": {"type": "string", "description": "Gesamtziel inkl. Nutzer-Auftrag, Tech-Stack, Ordner, Konventionen, Schnittstellen"}, "assess": {"type": "boolean", "description": "Rollen-Bewertung durch alle Worker vor dem Start (Standard true; nur fuer winzige Auftraege false)"}, "agent": {"type": "string", "description": "Name des Leads (optional)"}, "stale_minutes": {"type": "integer", "minimum": 1, "maximum": 240, "description": "Nach so vielen Minuten Inaktivitaet werden Tasks eines Agents wieder frei (Standard 20)"}, "tasks": tasks.clone()}, "required": ["title", "goal"]}}),
++        json!({"name": "cowork_join", "description": format!("AdiCode Co-Work: diesen Chat mit einer Rolle (Schwerpunkt + Bewertungs-Sicht, hilft aber bei allem) einem Co-Work-Projekt beitreten. Liefert Agent-Namen, Rollen-Anleitung, Ablauf und Board. Danach cowork_claim. Rollen: {role_list} (eigene Rollen erlaubt)."), "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": {"type": "string", "description": "Wunschname (optional, sonst <rolle>-N)"}, "role": {"type": "string", "description": "Rolle dieses Chats, z. B. coder, reviewer, uiux, prompt, tester, roblox"}}}}),
++        json!({"name": "cowork_board", "description": "AdiCode Co-Work: zeigt Tasks (mit Rolle und Phase), Agents, unbesetzte Rollen, Datei-Locks und neue Nachrichten. Ohne project: Liste aller Projekte.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone()}}, "annotations": {"readOnlyHint": true}}),
++        json!({"name": "cowork_claim", "description": "AdiCode Co-Work: uebernimmt atomar den naechsten passenden Task (zuerst eigene Bewertungen, dann eigene Rolle, dann Reviews, dann ohne Rolle, dann Tasks beschaeftigter oder fehlender Experten; Abhaengigkeiten erledigt, Dateien frei) oder task_id und sperrt seine Dateien. Liefert Details und Ergebnisse der Vorgaenger.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}}, "required": ["agent"]}}),
++        json!({"name": "cowork_update", "description": "AdiCode Co-Work: Task-Status setzen. done (result: was gemacht, welche Dateien; erzeugt ggf. automatisch einen Review-Task), changes (nur Review-Tasks: result = konkrete Aenderungen, erzeugt einen Fix-Task), blocked (Grund, geht an den Lead), open (freigeben). Optional tasks=[...]: neue Teilaufgaben vorschlagen/anlegen (z. B. aus einer Bewertung oder wenn dein Task zu gross ist), damit die anderen mithelfen. Gibt Datei-Locks frei.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "task_id": {"type": "integer"}, "status": {"type": "string", "enum": ["done", "changes", "blocked", "open", "claimed"]}, "result": {"type": "string"}, "tasks": tasks.clone()}, "required": ["agent", "task_id", "status"]}}),
++        json!({"name": "cowork_prompt", "description": "AdiCode Co-Work (Main/Lead): JEDE neue Nutzer-Nachricht waehrend eines laufenden Projekts sofort hiermit ans Board geben. Jeder Worker bewertet sie zuerst aus Sicht seiner Rolle (Risiken, Akzeptanzkriterien, Testplan, Aufteilung) und schlaegt Teilaufgaben vor; danach helfen alle bei der Umsetzung. Optional gleich tasks mitgeben (starten nach den Bewertungen).", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "text": {"type": "string", "description": "Die neue Nutzer-Nachricht (woertlich oder praezise zusammengefasst)"}, "tasks": tasks.clone()}, "required": ["agent", "text"]}}),
++        json!({"name": "cowork_add_tasks", "description": "AdiCode Co-Work: weitere Tasks (mit role/review) zum Projekt hinzufuegen, z. B. Fixes, Tests, Integration. Doppelte Titel offener Tasks werden ignoriert.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "gated": {"type": "boolean", "description": "true = erst nach den Bewertungen des letzten Prompts starten"}, "tasks": tasks}, "required": ["agent", "tasks"]}}),
++        json!({"name": "cowork_message", "description": "AdiCode Co-Work: Nachricht an alle Agents oder an einen (to). Fuer Absprachen zu Schnittstellen, Namen, Problemen.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "text": {"type": "string"}, "to": {"type": "string", "description": "Agent-Name (leer = alle)"}}, "required": ["agent", "text"]}}),
++        json!({"name": "cowork_lock", "description": "AdiCode Co-Work: zusaetzliche Datei sperren (oder release=true freigeben), bevor du sie bearbeitest, damit kein anderer Agent sie gleichzeitig aendert.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "path": {"type": "string"}, "task_id": {"type": "integer"}, "release": {"type": "boolean"}}, "required": ["agent", "path"]}}),
++        json!({"name": "cowork_wait", "description": "AdiCode Co-Work: wartet bis zu 45 s auf neue passende Tasks oder Nachrichten (reagiert sofort, sobald sich etwas aendert) und liefert dann das Board.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone(), "seconds": {"type": "integer", "minimum": 1, "maximum": 45}}, "required": ["agent"]}, "annotations": {"readOnlyHint": true}}),
++        json!({"name": "cowork_results", "description": "AdiCode Co-Work: alle Ergebnisse des Projekts gesammelt (pro Task inkl. Reviews und Fixes) - fuer den Lead, um im Main Chat die finale Antwort zusammenzufuehren.", "inputSchema": {"type": "object", "properties": {"project": project.clone(), "agent": agent.clone()}}, "annotations": {"readOnlyHint": true}}),
++        json!({"name": "cowork_close", "description": "AdiCode Co-Work: Projekt schliessen und vom Board entfernen (nur auf Wunsch des Nutzers).", "inputSchema": {"type": "object", "properties": {"project": project}, "required": ["project"]}, "annotations": {"destructiveHint": true}}),
++    ]
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn ok(r: Result<(String, bool), String>) -> String { r.expect("call failed").0 }
++
++    #[test]
++    fn claim_flow() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "T", "goal": "G", "agent": "lead", "assess": false, "tasks": [
++            {"title": "api", "files": ["src/api.ts"]},
++            {"title": "ui", "depends_on": [1]},
++            {"title": "docs"}
++        ]})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "a"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "b"})));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "a"}))).contains("#1"));
++        // b cannot get #2 (depends on #1), so it gets #3
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "b"}))).contains("#3"));
++        assert!(dispatch(&mut b, "cowork_claim", &json!({"agent": "b", "task_id": 1})).is_err());
++        assert!(dispatch(&mut b, "cowork_lock", &json!({"agent": "b", "path": "src\\api.ts"})).is_err());
++        assert!(dispatch(&mut b, "cowork_update", &json!({"agent": "a", "task_id": 1, "status": "done"})).is_err(), "done needs a result");
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "a", "task_id": 1, "status": "done", "result": "api fertig"})));
++        let c = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "b"})));
++        assert!(c.contains("#2") && c.contains("api fertig"));
++        assert!(dispatch(&mut b, "cowork_claim", &json!({"agent": "ghost"})).is_err());
++        assert!(ok(dispatch(&mut b, "cowork_message", &json!({"agent": "a", "text": "hi", "to": "b"}))).contains("an b"));
++        assert!(ok(dispatch(&mut b, "cowork_board", &json!({"agent": "b"}))).contains("hi"));
++    }
++
++    #[test]
++    fn roles_review_and_fix_loop() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "App", "goal": "G", "agent": "main", "assess": false, "tasks": [
++            {"title": "api", "role": "Programmierer", "review": "Code-Bewerter", "files": ["api.rs"]},
++            {"title": "screen", "role": "ui/ux", "depends_on": [1]}
++        ]})));
++        assert_eq!(b.projects["p1"].tasks[0].role, "coder");
++        assert_eq!(b.projects["p1"].tasks[0].review, "reviewer");
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "c", "role": "coder"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "r", "role": "reviewer"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "u", "role": "uiux"})));
++        // the reviewer may not take the coder task while a coder is online
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"}))).contains("kein freier Task"));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "c"}))).contains("#1"));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "c", "task_id": 1, "status": "done", "result": "v1"})));
++        // review #3 exists, #2 still waits for the review chain
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "u"}))).contains("kein freier Task"));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"}))).contains("#3"));
++        assert!(dispatch(&mut b, "cowork_update", &json!({"agent": "c", "task_id": 1, "status": "changes", "result": "x"})).is_err());
++        assert!(ok(dispatch(&mut b, "cowork_update", &json!({"agent": "r", "task_id": 3, "status": "changes", "result": "1. null check"}))).contains("Fix-Task #4"));
++        assert_eq!(phase(&b.projects["p1"], &b.projects["p1"].tasks[0]), "review");
++        let fix = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "c"})));
++        assert!(fix.contains("#4") && fix.contains("null check"));
++        assert!(ok(dispatch(&mut b, "cowork_update", &json!({"agent": "c", "task_id": 4, "status": "done", "result": "v2"}))).contains("Review-Task #5"));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"}))).contains("#5"));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "r", "task_id": 5, "status": "done", "result": "ok"})));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "u"}))).contains("#2"));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "u", "task_id": 2, "status": "done", "result": "screen fertig"})));
++        let res = ok(dispatch(&mut b, "cowork_results", &json!({"agent": "main"})));
++        assert!(res.contains("Alle Tasks erledigt") && res.contains("null check") && res.contains("screen fertig"));
++        let dash = dashboard_of(&b);
++        assert_eq!(dash["projects"][0]["done"], 5);
++    }
++
++    #[test]
++    fn unfilled_role_falls_back() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "T", "goal": "G", "agent": "main", "assess": false, "tasks": [{"title": "tests", "role": "tester"}]})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "w"})));
++        let c = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "w"})));
++        assert!(c.contains("#1") && c.contains("gerade unbesetzt"));
++    }
++
++    #[test]
++    fn roles_are_focus_and_prompts_get_assessed() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "Game", "goal": "Obby bauen", "agent": "main", "tasks": [
++            {"title": "spawn", "role": "coder"}, {"title": "checkpoints", "role": "coder"}, {"title": "tests", "role": "tester"}
++        ]})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "c", "role": "coder"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "r", "role": "reviewer"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "t", "role": "tester"})));
++        // every worker first evaluates the prompt from its role
++        let a = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"})));
++        assert!(a.contains("BEWERTUNG") && a.contains("Qualitaet"), "{a}");
++        let rid = b.projects["p1"].tasks.iter().find(|t| t.assignee == "r").unwrap().id;
++        // work is gated until all evaluations are in
++        let c = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "c"})));
++        assert!(c.contains("BEWERTUNG"));
++        let cid = b.projects["p1"].tasks.iter().find(|t| t.assignee == "c").unwrap().id;
++        let tid = b.projects["p1"].tasks.iter().find(|t| t.assignee == "t").unwrap().id;
++        ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "t", "task_id": tid})));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "r", "task_id": rid, "status": "done", "result": "Risiko: Speicherstand", "tasks": [{"title": "DataStore absichern", "role": "coder"}, {"title": "spawn"}]})));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"}))).contains("warten noch auf die Rollen-Bewertungen"));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "c", "task_id": cid, "status": "done", "result": "3 Skripte"})));
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "t", "task_id": tid, "status": "done", "result": "Testplan"})));
++        assert_eq!(b.projects["p1"].tasks.iter().filter(|t| t.title == "spawn").count(), 1, "duplicate proposal ignored");
++        // the coder takes a coder task; while busy the reviewer helps with the next coder task
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "c"}))).contains("spawn"));
++        let help = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "r"})));
++        assert!(help.contains("checkpoints") && help.contains("beschaeftigt"), "{help}");
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "t"}))).contains("tests"));
++        // lead hears about the evaluations; idle agents get a wake-up text
++        let (_, lead_note) = nudge_for_board(&mut b, "main").expect("lead nudge");
++        assert!(lead_note.contains("Speicherstand"));
++        // a new prompt mid-project opens a new evaluation wave
++        let pr = ok(dispatch(&mut b, "cowork_prompt", &json!({"agent": "main", "text": "Bitte noch ein Leaderboard"})));
++        assert!(pr.contains("Prompt #2") && pr.contains("3 Worker"), "{pr}");
++        assert!(dispatch(&mut b, "cowork_prompt", &json!({"agent": "main"})).is_err());
++    }
++
++    fn nudge_for_board(b: &mut Board, agent: &str) -> Option<(String, String)> {
++        *lock_board() = b.clone();
++        let r = nudge_for(agent);
++        *b = lock_board().clone();
++        r
++    }
++
++    fn dashboard_of(b: &Board) -> Value {
++        *lock_board() = b.clone();
++        dashboard()
++    }
++}
+diff --git a/agent/src/notion_cowork.rs.bak160 b/agent/src/notion_cowork.rs.bak160
+new file mode 100644
+index 0000000..04f060b
+--- /dev/null
++++ b/agent/src/notion_cowork.rs.bak160
 @@ -0,0 +1,1047 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
@@ -4518,7 +5573,7 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..d0de79d
+index 0000000..b735760
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
 @@ -0,0 +1,527 @@
@@ -4735,8 +5790,8 @@ index 0000000..d0de79d
 +async fn trusted_click(port:u16,point:&Value)->Result<(),String>{let x=point["x"].as_f64().ok_or("Klickposition X fehlt")?;let y=point["y"].as_f64().ok_or("Klickposition Y fehlt")?;cdp(port,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}})]).await?;Ok(())}
 +fn prompt_for(t:&Tab)->String {
 +    const CONN:&str="Die Tools kommen von meinem AdiCode-MCP-Server (in Notion als Verbindung \"asf\" oder \"AdiCode\" eingetragen).";
-+    if t.role=="Main" { format!("Hallo! AdiCode Co-Work: Drei Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel ueber cowork_*-Tools mit dir. {CONN} Du bist Main/Lead und mein einziger Ansprechpartner.\n1. Neue Aufgabe/Projekt: project_memory oeffnen, Skill cowork lesen, cowork_start mit 4-12 parallelen Tasks (role, review=reviewer fuer Code, files). Kleine Fragen selbst beantworten.\n2. Bewertungen der Worker per cowork_wait einarbeiten; Neues waehrend des Projekts zuerst per cowork_prompt.\n3. Ende: cowork_results, mir EINE kurze Antwort, HANDOUT.md und project_memory aktualisieren.\nSpare Token: knapp antworten, Diffs statt Volltext, nichts wiederholen. AdiCode schickt kurze Erinnerungen in meinem Namen. Antworte jetzt nur: Co-Work bereit.") }
-+    else { let role=t.role.to_ascii_lowercase();format!("Hallo! AdiCode Co-Work: Mehrere Notion-AI-Chats arbeiten ueber cowork_*-Tools gemeinsam. {CONN} Du bist mein {r} (Schwerpunkt, hilf bei allem).\n1. cowork_join mit role \"{role}\" und agent \"AdiCode-{r}\" (neuestes Projekt aus cowork_board).\n2. Loop: cowork_claim, erledigen, cowork_update mit 1-Satz-Ergebnis, wieder cowork_claim. safe_write_file immer mit agent \"AdiCode-{r}\".\n3. Bewertungs-Tasks zuerst, knapp aus Sicht deiner Rolle.\n4. Nichts frei: cowork_wait.\nIch bin nicht am Rechner: arbeite selbststaendig, antworte knapp, Diffs statt Volltext. Fragen per cowork_message an Main. Kurze automatische Erinnerungen von AdiCode sind von mir.",r=t.role) }
++    if t.role=="Main" { format!("Hallo! AdiCode Co-Work: Drei Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel ueber cowork_*-Tools mit dir. {CONN} Du bist Main/Lead und mein einziger Ansprechpartner.\n1. Neue Aufgabe/Projekt: project_memory oeffnen, Skill cowork lesen, cowork_start mit 4-12 parallelen Tasks (role, review=reviewer fuer Code, files). Kleine Fragen selbst beantworten.\n2. Bewertungen der Worker per cowork_wait einarbeiten; Neues waehrend des Projekts zuerst per cowork_prompt.\n3. Ende: cowork_results, mir EINE kurze Antwort, HANDOUT.md und project_memory aktualisieren.\nTempo: Tasks so schneiden, dass alle Worker sofort parallel starten; unabhaengige Tool-Calls in EINER Antwort parallel ausfuehren; nicht auf langsame Worker warten, sondern selbst mitarbeiten. Spare Token: knapp antworten, Diffs statt Volltext, nichts wiederholen. AdiCode schickt kurze Erinnerungen in meinem Namen. Antworte jetzt nur: Co-Work bereit.") }
++    else { let role=t.role.to_ascii_lowercase();format!("Hallo! AdiCode Co-Work: Mehrere Notion-AI-Chats arbeiten ueber cowork_*-Tools gemeinsam. {CONN} Du bist mein {r} (Schwerpunkt, hilf bei allem).\n1. cowork_join mit role \"{role}\" und agent \"AdiCode-{r}\" (neuestes Projekt aus cowork_board).\n2. Loop: cowork_claim, erledigen, cowork_update mit 1-Satz-Ergebnis, wieder cowork_claim. safe_write_file immer mit agent \"AdiCode-{r}\".\n3. Bewertungs-Tasks zuerst, knapp aus Sicht deiner Rolle.\n   Tempo: unabhaengige Tool-Calls (Dateien lesen/schreiben/suchen) in EINER Antwort parallel ausfuehren, keine Zwischenberichte, nach cowork_update sofort wieder cowork_claim.\n4. Nichts frei: cowork_wait.\nIch bin nicht am Rechner: arbeite selbststaendig, antworte knapp, Diffs statt Volltext. Fragen per cowork_message an Main. Kurze automatische Erinnerungen von AdiCode sind von mir.",r=t.role) }
 +}
 +/// Chat is idle: Notion AI is not generating/recording and the composer is empty.
 +async fn chat_idle(port:u16)->bool{
@@ -4753,13 +5808,13 @@ index 0000000..d0de79d
 +    let _=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await;
 +}
 +/// Watchdog: Notion AI bleibt manchmal haengen ("Processing" ohne neuen Text, z. B. nach einem AdiCode-Neustart). Nach STUCK_SECS ohne Fortschritt stoppen; der Nudger weckt den Chat danach wieder.
-+const STUCK_SECS:u64=600;
++const STUCK_SECS:u64=420;
 +/// Notion AI chats stop after each turn. Wake idle chats when work is waiting.
 +async fn nudger(tabs:Vec<Tab>){
 +    let mut last:BTreeMap<u32,(String,std::time::Instant,u32)>=BTreeMap::new();
 +    let mut stuck:BTreeMap<u32,(String,std::time::Instant)>=BTreeMap::new();
 +    loop{
-+        tokio::time::sleep(Duration::from_secs(10)).await;
++        tokio::time::sleep(Duration::from_secs(4)).await;
 +        for(i,t)in tabs.iter().enumerate(){
 +            if is_paused(t.id){stuck.remove(&t.id);continue;}
 +            match gen_snapshot(cdp_port(i)).await{
@@ -4768,10 +5823,10 @@ index 0000000..d0de79d
 +            }
 +            let agent=if i==0{crate::notion_cowork::latest_lead()}else{format!("AdiCode-{}",t.role)};
 +            let Some((sig,text))=crate::notion_cowork::nudge_for(&agent) else {continue};
-+            if let Some((s,at,n))=last.get(&t.id){if *s==sig&&(sig.starts_with("done:")||*n>=3||at.elapsed()<Duration::from_secs(240)){continue;}}
++            if let Some((s,at,n))=last.get(&t.id){if *s==sig&&(sig.starts_with("done:")||*n>=3||at.elapsed()<Duration::from_secs(90)){continue;}}
 +            if i>0&&user_present(cdp_port(i)).await{continue;}
 +            if !chat_idle(cdp_port(i)).await{continue;}
-+            tokio::time::sleep(Duration::from_secs(4)).await;
++            tokio::time::sleep(Duration::from_secs(2)).await;
 +            if !chat_idle(cdp_port(i)).await{continue;}
 +            if insert_prompt(cdp_port(i),text).await.is_ok(){let n=last.get(&t.id).filter(|(s,_,_)|*s==sig).map(|x|x.2+1).unwrap_or(1);last.insert(t.id,(sig,std::time::Instant::now(),n));}
 +        }
@@ -4928,15 +5983,15 @@ index 0000000..d0de79d
 +    if let Some(main)=tabs.first(){let _=insert_prompt(cdp_port(0),prompt_for(main)).await;}
 +    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
 +    if !NUDGER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(nudger(tabs.clone()));}
-+    stage(3);loop{if crate::notion_cowork::project_count()>baseline{break;}tokio::time::sleep(Duration::from_secs(3)).await;}
++    stage(3);loop{if crate::notion_cowork::project_count()>baseline{break;}tokio::time::sleep(Duration::from_secs(1)).await;}
 +    stage(4);set_status("Projekt erkannt. Coder, Reviewer und Tester treten bei …");
 +    let mut prompt_errors=Vec::new();
-+    for(i,t)in tabs.iter().enumerate().skip(1){if let Err(e)=insert_prompt(cdp_port(i),prompt_for(t)).await{prompt_errors.push(format!("{}: {e}",t.role));}tokio::time::sleep(Duration::from_secs(2)).await;}
++    let rs=futures::future::join_all(tabs.iter().enumerate().skip(1).map(|(i,t)|{let p=prompt_for(t);let port=cdp_port(i);let role=t.role.clone();async move{(role,insert_prompt(port,p).await)}})).await;for(role,r)in rs{if let Err(e)=r{prompt_errors.push(format!("{}: {e}",role));}}
 +    let failed:Vec<String>=prompt_errors.iter().map(|e|e.split(':').next().unwrap_or("").to_ascii_lowercase()).collect();
 +    let note=if prompt_errors.is_empty(){String::new()}else{format!(" Nicht gestartet: {} - die anderen übernehmen diese Aufgaben mit.",prompt_errors.join("; "))};
 +    let wanted:Vec<&str>=["coder","reviewer","tester"].into_iter().filter(|r|!failed.iter().any(|f|f==r)).collect();
 +    if wanted.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Worker-Kickoff fehlgeschlagen:{note}"));return;}
-+    for _ in 0..45 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){stage(5);set_status(format!("Co-Work aktiv: {} mit Main verbunden. Jeder bewertet neue Aufträge aus seiner Rollen-Sicht und hilft dann bei allem mit.{note}",wanted.join(", ")));let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(2)).await;}
++    for _ in 0..90 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){stage(5);set_status(format!("Co-Work aktiv: {} mit Main verbunden. Jeder bewertet neue Aufträge aus seiner Rollen-Sicht und hilft dann bei allem mit.{note}",wanted.join(", ")));let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(1)).await;}
 +    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);stage(6);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.{note}",missing.join(", ")));
 +}
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
@@ -5581,6 +6636,539 @@ index 0000000..5cdcce0
 +        "cowork_stop"=>find(id).map(|t|format!("Tab {} gestoppt ({} Prozesse).",t.id,stop_ids(&[t.id]))),
 +        "open_notion_window"=>match id{Some(_)=>find(id).and_then(|t|open_tab(&t)),None=>add_tab().and_then(|_|load().last().cloned().ok_or("Tab fehlt.".into())).and_then(|t|open_tab(&t))},
 +        "cowork_login"=>find(id).and_then(|t|{if t.email.is_empty(){return Err("Erst Gmail-Konto eintragen und speichern.".into());}let url=format!("https://accounts.google.com/AccountChooser?Email={}&continue={}",enc(&t.email),enc("https://www.notion.so/login"));launch(&t,&url).map(|b|format!("Google-Login für {} geöffnet ({b}).",t.email))}),
++        "delete_notion_profile"|"cowork_delete"=>delete(id),
++        "rename_notion_profile"=>find(id).and_then(|t|{let mut tabs=load();if let Some(x)=tabs.iter_mut().find(|x|x.id==t.id){x.label=clean(v.get("label").and_then(Value::as_str).unwrap_or(""),40);}save(&tabs).map(|_|"Name gespeichert.".into())}),
++        _=>return None,
++    })
++}
+diff --git a/agent/src/notion_profiles.rs.bak160 b/agent/src/notion_profiles.rs.bak160
+new file mode 100644
+index 0000000..d0de79d
+--- /dev/null
++++ b/agent/src/notion_profiles.rs.bak160
+@@ -0,0 +1,527 @@
++//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
++use axum::{response::IntoResponse, Json};
++use futures::{SinkExt, StreamExt};
++use once_cell::sync::Lazy;
++use serde::{Deserialize, Serialize};
++use serde_json::{json, Value};
++use std::{collections::{BTreeMap, HashSet}, path::PathBuf, sync::{atomic::{AtomicBool, Ordering}, Mutex}, time::Duration};
++
++pub(crate) const NOTION_URL: &str = "https://www.notion.so/ai";
++const MAX_TABS: u32 = 4;
++const ROLES: [&str; 4] = ["Main", "Coder", "Reviewer", "Tester"];
++static ACCOUNT: Lazy<Mutex<BTreeMap<u32, Value>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
++static COWORK_STATUS: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new("Bereit.".into()));
++static KEEPER_STARTED: AtomicBool = AtomicBool::new(false);
++static NUDGER_STARTED: AtomicBool = AtomicBool::new(false);
++static USAGE_STARTED: AtomicBool = AtomicBool::new(false);
++static AUTO_MCP_STARTED: AtomicBool = AtomicBool::new(false);
++/// Tabs, die der Nutzer selbst bedient ("Selbst schreiben"): kein Nudger, kein Watchdog.
++static PAUSED: Lazy<Mutex<HashSet<u32>>> = Lazy::new(|| Mutex::new(HashSet::new()));
++fn auto_mcp_file() -> PathBuf { base().join("auto-mcp") }
++pub(crate) fn auto_mcp_on() -> bool { auto_mcp_file().exists() }
++pub(crate) fn is_paused(id: u32) -> bool { lock(&PAUSED).contains(&id) }
++/// Dauerhaftes Gedaechtnis pro Gmail-Konto: einmal bestaetigter MCP/Modell-Check wird nicht wiederholt.
++static STAGE:std::sync::atomic::AtomicU32=std::sync::atomic::AtomicU32::new(0);
++fn stage(n:u32){STAGE.store(n,std::sync::atomic::Ordering::SeqCst);}
++fn step(id:u32,n:u32){mark_account(id,"step",json!(n));}
++const TRIAL_JS:&str=r#"(async()=>{const post=(p,b)=>fetch('/api/v3/'+p,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.ok?r.json():null).catch(()=>null);const sp=await post('getSpaces',{});if(!sp)return {ok:false};const uid=Object.keys(sp)[0];const sid=Object.keys((sp[uid]||{}).space||{})[0];if(!sid)return {ok:false};const v=sp[uid].space[sid];const sv=(v.value&&v.value.value)||v.value||v;const d=await post('getSubscriptionData',{spaceId:sid});if(!d)return {ok:false};const cd=d.customerData||{};const sub=!!(cd.isSubscribed||/subscribed/.test(d.type||''));const paid=!!(d.hasPaidNonzero||cd.hasPaidNonzero);return {ok:true,sub,paid,tier:d.subscriptionTier||sv.subscription_tier||null,plan:sv.plan_type||null}})()"#;
++/// Trial-Check: Abo aktiv, aber noch nie etwas bezahlt = Trial.
++async fn check_trial(t:&Tab,i:usize){
++    match js_eval(cdp_port(i),TRIAL_JS).await{
++        Ok(r) if r["ok"].as_bool().unwrap_or(false)=>{let sub=r["sub"].as_bool().unwrap_or(false);let paid=r["paid"].as_bool().unwrap_or(false);
++            let tier=r["tier"].as_str().unwrap_or("");
++            if sub&&!paid{mark_account(t.id,"trial",json!(true));mark_account(t.id,"trial_state",json!(format!("Trial aktiv ({tier})")));}
++            else if sub{mark_account(t.id,"trial",json!(false));mark_account(t.id,"trial_state",json!(format!("Bezahlter Plan ({tier}) - kein Trial")));}
++            else{mark_account(t.id,"trial",json!(false));mark_account(t.id,"trial_state",json!("Kein Trial (Free-Plan)"));}}
++        _=>{mark_account(t.id,"trial",Value::Null);mark_account(t.id,"trial_state",json!("Trial-Status nicht lesbar"));}
++    }
++}
++const USAGE_UI_JS:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const byText=(re,sel)=>[...document.querySelectorAll(sel||'div[role="button"],div[role="menuitem"],[role="tab"],button,a')].filter(vis).find(e=>re.test((e.innerText||'').trim().split('\n')[0]));const dlgOpen=()=>document.querySelector('input[aria-label="Search settings"],input[placeholder="Search settings"],input[aria-label="Einstellungen durchsuchen"]');try{if(!dlgOpen()){let st=byText(/^(settings|einstellungen)$/i);if(!st){const sw=document.querySelector('.notion-sidebar-switcher,[class*="switcher"]')||byText(/space$/i);if(sw){sw.click();await sleep(900);}st=byText(/^(settings|einstellungen)$/i);}if(!st)return {found:false,error:'Einstellungen nicht gefunden'};st.click();await sleep(1500);}const ai=byText(/^notion ai$|^notion-ki$|^notion ki$/i);if(ai){(ai.closest('[role="tab"]')||ai).click();}let us=null;for(let k=0;k<12&&!us;k++){await sleep(500);us=byText(/^(usage|verwendung|nutzung)/i);}if(!us)return {found:false,error:'Usage-Tab nicht gefunden'};us.click();await sleep(2500);const d=(dlgOpen()||document.body).closest('[role="dialog"]')||document.body;const t=d.innerText||'';const m=t.match(/(\d+(?:[.,]\d+)?)\s*%\s*(used|verwendet|genutzt|benutzt)/i);const r=t.match(/(Resets on [^\n]+|Zurückgesetzt[^\n]*|Wird [^\n]*zurückgesetzt[^\n]*|Neustart [^\n]+)/i);if(!m)return {found:false,error:'Keine Prozentangabe gefunden'};return {found:true,pct:parseFloat(m[1].replace(',','.')),reset:r?r[1].trim():null}}catch(e){return {found:false,error:String(e&&e.message||e)}}})()"#;
++const CHATS_JS:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const re=/^(welcome to notion|willkommen (bei|in|zu) notion)/i;const seen=new Set();let welcome=0;try{if(![...document.querySelectorAll('[role="menuitem"]')].some(vis)){const sb=[...document.querySelectorAll('[role="button"],button')].find(b=>vis(b)&&/^(seitenleiste .ffnen|open sidebar)$/i.test(b.getAttribute('aria-label')||''));if(sb){sb.click();await sleep(1200)}}const tab=document.querySelector('#sidebar-tab-chats,[role="tab"][aria-label="Chat"],[role="tab"][aria-label="Chats"]');if(tab&&tab.getAttribute('aria-selected')!=='true'){tab.click();await sleep(1200);}for(let k=0;k<8;k++){for(const e of document.querySelectorAll('[role="menuitem"]')){if(!vis(e))continue;const tx=(e.innerText||'').trim().split('\n')[0];if(!tx||/^hide tab name$/i.test(tx))continue;const sc0=[...document.querySelectorAll('[role="menu"],[role="tabpanel"],[role="list"]')].find(x=>vis(x)&&x.scrollHeight>x.clientHeight+20);seen.add(tx+'#'+(re.test(tx)?'w':'o')+'@'+Math.round(e.getBoundingClientRect().top+(sc0?sc0.scrollTop:0)))}const sc=[...document.querySelectorAll('[role="menu"],[role="tabpanel"],[role="list"]')].find(e=>vis(e)&&e.scrollHeight>e.clientHeight+20);if(!sc)break;sc.scrollTop+=500;await sleep(400)}const all=[...seen];const total=all.length;welcome=all.filter(x=>x.includes('#w@')).length;const hasNew=[...document.querySelectorAll('[role=\"button\"]')].some(e=>vis(e)&&/^(new chat|neuer chat)$/i.test((e.innerText||'').trim()));return {ok:total>0||hasNew,total,welcome}}catch(e){return {ok:false,error:String(e&&e.message||e)}}})()"#;
++async fn check_usage_ui(t:&Tab,i:usize){
++    let port=cdp_port(i);
++    match js_eval(port,USAGE_UI_JS).await{
++        Ok(r) if r["found"].as_bool().unwrap_or(false)=>{mark_account(t.id,"ui_pct",r["pct"].clone());mark_account(t.id,"usage",r["pct"].clone());mark_account(t.id,"usage_source",json!("Einstellungen \u{2192} Notion KI \u{2192} Usage (Monthly)"));mark_account(t.id,"usage_error",Value::Null);mark_account(t.id,"usage_reset",r["reset"].clone());}
++        Ok(r)=>{mark_account(t.id,"usage_error",r["error"].clone());}
++        Err(e)=>{mark_account(t.id,"usage_error",json!(e));}
++    }
++    close_settings(port).await;
++}
++const REFRESH_JS:&str=r#"(async()=>{const GO=__GO__;const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const byText=(re,sel)=>[...document.querySelectorAll(sel||'div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>re.test((e.innerText||'').trim().split('\n')[0]));const dlgOpen=()=>document.querySelector('input[aria-label^=Search],input[aria-label^=Einstellungen]');try{if(!dlgOpen()){let st=byText(/^(settings|einstellungen)$/i);if(!st){const sw=document.querySelector('.notion-sidebar-switcher,[class*=switcher]')||byText(/space$/i);if(sw){sw.click();await sleep(900)}st=byText(/^(settings|einstellungen)$/i)}if(!st)return {ok:false,msg:'Einstellungen nicht gefunden'};st.click();await sleep(1500)}const d=dlgOpen().closest('[role=dialog]');const acc=[...d.querySelectorAll('[role=tab]')].filter(vis)[0];if(!acc)return {ok:false,msg:'Konto-Tab nicht gefunden'};acc.click();await sleep(1500);const btn=[...d.querySelectorAll('[role=button],button')].filter(vis).find(e=>/^(delete my account|mein konto l.schen|konto l.schen)/i.test((e.innerText||'').trim()));if(!btn)return {ok:false,msg:'Konto-loeschen-Button nicht gefunden'};btn.click();await sleep(1500);const dl=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();const txt=dl?dl.innerText:'';const inp=dl&&dl.querySelector('input,textarea');if(!inp)return {ok:false,msg:'Kein Eingabefeld im Loeschdialog: '+txt.slice(0,300)};let name=inp.placeholder||'';if(!name){const m=txt.match(/[\u0022\u201c\u201e']([^\u0022\u201d\u201c'\n]{2,60})[\u0022\u201d']/);name=m?m[1]:''}if(!name)return {ok:false,msg:'Workspace-Name nicht erkannt: '+txt.slice(0,300)};if(!GO)return {ok:true,msg:'Dry-run: '+name};const setv=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setv.call(inp,name);inp.dispatchEvent(new Event('input',{bubbles:true}));await sleep(700);const ok=[...dl.querySelectorAll('[role=button],button')].filter(vis).find(e=>/delete|l.schen/i.test((e.innerText||'').trim())&&!/cancel|abbrechen/i.test(e.innerText||'')&&e.getAttribute('aria-disabled')!=='true');if(!ok)return {ok:false,msg:'Bestaetigen-Button nicht aktiv'};ok.click();await sleep(2500);return {ok:true,msg:'Konto geloescht: '+name}}catch(e){return {ok:false,msg:String(e&&e.message||e)}}})()"#;
++async fn refresh_account(t:Tab,i:usize){let port=cdp_port(i);if !wait_cdp(port).await{mark_account(t.id,"refresh_state",json!("Tab nicht erreichbar"));return;}let js=REFRESH_JS.replace("__GO__","true");match js_eval(port,&js).await{Ok(r)=>{let ok=r["ok"].as_bool().unwrap_or(false);let msg=r["msg"].as_str().unwrap_or("").to_string();mark_account(t.id,"refresh_state",json!(msg.clone()));mark_account(t.id,"check",json!(msg));if ok{mem_forget(&t.email);mark_account(t.id,"chat_ok",json!(false));mark_account(t.id,"refresh_state",json!("Konto gel\u{f6}scht - Gmail-Login mit derselben E-Mail wird ge\u{f6}ffnet ..."));tokio::time::sleep(Duration::from_secs(4)).await;let _=login_view(t.clone());post_refresh_setup(t.clone(),i).await;}}Err(e)=>{mark_account(t.id,"refresh_state",json!(e.to_string()));}}}
++const SETUP_JS:&str=r#"(async()=>{const PH='__PH__';const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const norm=x=>(x.innerText||'').trim().replace(/\s+/g,' ');const clickT=(re,root,sel)=>{const e=[...(root||document).querySelectorAll(sel||'div[role=button],button,a,[role=tab],[role=menuitem],[role=radio],label')].filter(vis).find(x=>re.test(norm(x)));if(e){if(PH==='onboard'){const ck=re.source+'|'+body.slice(0,300);window.__clk=window.__clk||{};if(Date.now()-(window.__clk[ck]||0)<20000)return true;window.__clk[ck]=Date.now()}e.click();return true}return false};const body=document.body.innerText||'';const dlgs=[...document.querySelectorAll('[role=dialog]')].filter(vis);const dlg=dlgs.length?dlgs[dlgs.length-1]:null;const dlgOpen=()=>document.querySelector('input[aria-label^=Search],input[aria-label^=Einstellungen]');const openSettings=async()=>{if(dlgOpen())return true;let st=[...document.querySelectorAll('div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>/^(settings|einstellungen)$/i.test(norm(e)));if(!st){const sw=document.querySelector('.notion-sidebar-switcher,[class*=switcher]');if(sw){sw.click();await sleep(900)}st=[...document.querySelectorAll('div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>/^(settings|einstellungen)$/i.test(norm(e)))}if(!st)return false;st.click();await sleep(1500);return !!dlgOpen()};const tab=async(re)=>{const d=dlgOpen().closest('[role=dialog]');const t=[...d.querySelectorAll('[role=tab]')].filter(vis).find(e=>re.test(norm(e)));if(!t)return false;t.click();await sleep(1500);return true};try{if(PH==='onboard'){if(document.readyState==='complete'&&(document.body.innerText||'').trim().length<40&&!document.querySelector('#sidebar-tab-chats')){const k=+sessionStorage.getItem('__blank')||0;if(!k){sessionStorage.setItem('__blank',String(Date.now()))}else if(Date.now()-k>8000){sessionStorage.setItem('__blank','0');if(location.pathname==='/'||location.pathname===''){location.reload()}else{location.href=location.origin+'/'}return {state:'reload'}}return {state:'blank'}}sessionStorage.setItem('__blank','0');if(/cookie preferences|cookie-einstellungen/i.test(body)&&clickT(/^(okay|ok)$/i)){return {state:'cookie-ok'}}if(/cookie notice|cookie-hinweis/i.test(body)&&clickT(/^(reject all|alle ablehnen)$/i)){return {state:'cookie'}}if(/cookie preferences|cookie-einstellungen/i.test(body)){return {state:'cookie-wait'}}if(/notion\.(so|com)$/.test(location.host)&&document.querySelector('input[type=email]')&&!document.querySelector('#sidebar-tab-chats')){if(!window.__gclick||Date.now()-window.__gclick>8000){if(clickT(/^(continue with google|weiter mit google|mit google fortfahren|google)$/i)){window.__gclick=Date.now();return {state:'notion-google'}}}return {state:'login'}}if(/accounts\.google\.com/.test(location.host)){const em='__EM__';if(/That.s an error|Das ist ein Fehler|(^|[^0-9])400([^0-9]|$)/i.test(body)&&!document.querySelector('[data-identifier],[data-email]')&&body.length<600){return {state:'google-error'}}const ac=[...document.querySelectorAll('[data-identifier],[data-email]')].find(e=>(e.getAttribute('data-identifier')||e.getAttribute('data-email'))===em);if(ac){ac.click();return {state:'google-konto'}}if(clickT(/^(weiter|continue|fortfahren|zulassen|allow)$/i))return {state:'google-weiter'};return {state:'google'}}if(/What kind of work do you do|Welche Art von Arbeit/i.test(body)){clickT(/^(marketing)$/i);await sleep(500);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-work'}}if(/What do you want to get done|Was m.chtest du erledigen/i.test(body)){clickT(/^(track projects and tasks|projekte und aufgaben)/i);await sleep(500);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-goals'}}if(/Start with your real work|Starte mit deiner echten Arbeit/i.test(body)){clickT(/^(skip for now|vorerst .berspringen|.berspringen|sp.ter)/i);return {state:'step-connect'}}if(/Who else is on your team|Wer ist (sonst )?noch in deinem Team/i.test(body)){if(!clickT(/^(skip|skip for now|.berspringen)/i))clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-team'}}if(/Choose your plan|W.hle dein(en)? (Plan|Abo)/i.test(body)&&!/Try free for 30 days.*Skip/i.test(body)){clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-plan'}}if(/Notion is 50% faster|Desktop.?App/i.test(body)&&/Skip for now|.berspringen/i.test(body)){clickT(/^(skip for now|vorerst .berspringen|.berspringen|sp.ter)/i);return {state:'step-desktop'}}if(/How do you want to use Notion|Wie m.chtest du Notion/i.test(body)){clickT(/for work|f.r die arbeit|beruflich|arbeit/i);await sleep(600);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step1'}}if(/Start with your team|Notion works best|Mit deinem Team/i.test(body)){if(!clickT(/^(skip|skip for now|.berspringen|sp.ter)/i))clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step2'}}if(/Choose your plan|W.hle dein(en)? (Plan|Abo)|Plan w.hlen/i.test(body)){clickT(/continue with free|mit .*kostenlos|kostenlos fortfahren/i);return {state:'step3'}}if(document.querySelector('.notion-sidebar,.notion-sidebar-container')&&!/Choose your plan|How do you want to use/i.test(body))return {state:'workspace'};return {state:'wait'}}if(PH==='trial'){if(!(await openSettings()))return {state:'noset'};if(!(await tab(/^(notion ai|notion-ki)/i)))return {state:'noai'};await tab(/^(ai connectors|ki-connectors|connectors)/i);if(!clickT(/^(try for free|kostenlos testen|gratis testen)/i,dlgOpen().closest('[role=dialog]')))return {state:'notry'};await sleep(2000);const d2=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();if(d2&&clickT(/^(try for free|kostenlos testen|gratis testen|start free trial)/i,d2)){await sleep(3500);return {state:'trialstarted'}}return {state:'nodlg'}}if(PH==='cancel'){if(!(await openSettings()))return {state:'noset'};let ok=await tab(/^(billing|abrechnung|plans|tarife|upgrade plan)/i);if(!ok)return {state:'nobilling'};await sleep(1200);const rootD=dlgOpen().closest('[role=dialog]');if(!clickT(/cancel (free )?trial|trial (beenden|k.ndigen)|testversion (beenden|k.ndigen)|cancel plan/i,rootD))return {state:'nocancel'};await sleep(1800);const d3=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();if(d3){clickT(/^(cancel (free )?trial|confirm|cancel plan|yes|best.tigen|beenden|k.ndigen)/i,d3);await sleep(2500)}return {state:'cancelled'}}return {state:'unknown'}}catch(e){return {state:'err',msg:String(e&&e.message||e)}}})()"#;
++fn is_g(v:&Value)->bool{v["url"].as_str().unwrap_or("").contains("accounts.google.com")}
++async fn google_close(port:u16){let list:Vec<Value>=match reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await{Ok(r)=>r.json().await.unwrap_or_default(),Err(_)=>return};let pages:Vec<Value>=list.into_iter().filter(|v|v["type"]=="page").collect();let others=pages.iter().filter(|v|!is_g(v)).count();for v in pages.iter().filter(|v|is_g(v)){if others>0{if let Some(id)=v["id"].as_str(){let _=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json/close/{id}")).timeout(Duration::from_secs(3)).send().await;}}else if let Some(ws)=v["webSocketDebuggerUrl"].as_str(){let _=cdp_ws(ws,vec![json!({"method":"Page.navigate","params":{"url":"https://www.notion.so/login"}})]).await;}}}
++async fn google_ws(port:u16)->Option<String>{let list:Vec<Value>=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await.ok()?.json().await.ok()?;list.into_iter().find(|v|v["type"]=="page"&&v["url"].as_str().unwrap_or("").contains("accounts.google.com")).and_then(|v|v["webSocketDebuggerUrl"].as_str().map(str::to_string))}
++async fn setup_phase(port:u16,ph:&str,em:&str)->String{let js=SETUP_JS.replace("__PH__",ph).replace("__EM__",em);match (match google_ws(port).await{Some(ws)=>cdp_ws(&ws,vec![json!({"method":"Runtime.evaluate","params":{"expression":js.as_str(),"awaitPromise":true,"returnByValue":true}})]).await.map(|v|v.last().and_then(|x|x.pointer("/result/result/value")).cloned().unwrap_or(Value::Null)),None=>js_eval(port,&js).await}){Ok(r)=>{let st=r["state"].as_str().unwrap_or("?").to_string();if st=="google-error"{google_close(port).await;}if let Some(m)=r["msg"].as_str(){format!("{} {}",st,m)}else{st}}Err(e)=>format!("err {}",e)}}
++async fn post_refresh_setup(t:Tab,i:usize){let port=cdp_port(i);mark_account(t.id,"refresh_state",json!("Warte auf Gmail-Login, dann Einrichtung ..."));let mut ws=false;let mut sg=false;let mut gone=0u32;for _ in 0..240{tokio::time::sleep(Duration::from_millis(1500)).await;if !wait_cdp(port).await{gone+=1;if gone==2||gone%25==0{mark_account(t.id,"refresh_state",json!("Tab geschlossen - Gmail-Login wird erneut geoeffnet ..."));let _=login_view(t.clone());}continue;}gone=0;let st=setup_phase(port,"onboard",&t.email).await;if st.starts_with("google"){sg=true;}else if sg&&!st.starts_with("login")&&!st.starts_with("notion-google")&&!st.starts_with("err"){sg=false;mark_account(t.id,"refresh_state",json!("Notion wird nach dem Google-Login neu geladen"));let _=js_eval(port,"(()=>{location.href=location.origin+String.fromCharCode(47);return 1})()").await;tokio::time::sleep(Duration::from_secs(5)).await;continue;}if st.starts_with("workspace"){ws=true;break;}if st.starts_with("step"){mark_account(t.id,"refresh_state",json!(format!("Einrichtung: {}",st)));}}if !ws{mark_account(t.id,"refresh_state",json!("Einrichtung: Workspace nicht erreicht (Login pruefen)"));return;}tokio::time::sleep(Duration::from_secs(4)).await;mark_account(t.id,"refresh_state",json!("Starte Business-Trial (Notion KI)"));let mut s1=String::new();for _ in 0..3{s1=setup_phase(port,"trial",&t.email).await;if s1.starts_with("trialstarted"){break;}tokio::time::sleep(Duration::from_secs(3)).await;}if !s1.starts_with("trialstarted"){mark_account(t.id,"refresh_state",json!(format!("Trial-Start fehlgeschlagen: {}",s1)));return;}tokio::time::sleep(Duration::from_secs(3)).await;mark_account(t.id,"refresh_state",json!("Kuendige Trial unter Billing"));let mut s2=String::new();for _ in 0..3{s2=setup_phase(port,"cancel",&t.email).await;if s2.starts_with("cancelled"){break;}tokio::time::sleep(Duration::from_secs(3)).await;}if s2.starts_with("cancelled"){mark_account(t.id,"refresh_state",json!("Account aktiviert (Trial gestartet und gekuendigt)"));}else{mark_account(t.id,"refresh_state",json!(format!("Trial laeuft, Kuendigung offen: {}",s2)));}}
++async fn check_chats(t:&Tab,i:usize){
++    match js_eval(cdp_port(i),CHATS_JS).await{
++        Ok(r) if r["ok"].as_bool().unwrap_or(false)=>{let total=r["total"].as_u64().unwrap_or(0);let w=r["welcome"].as_u64().unwrap_or(0);let multi=total>w||w>1;mark_account(t.id,"chats_none",json!(total==0));mark_account(t.id,"chats_total",json!(total));mark_account(t.id,"chats_welcome",json!(w));mark_account(t.id,"chats_multi",json!(multi));mark_account(t.id,"chats_state",json!(if total==0{"Kein Chat vorhanden".to_string()}else if multi{format!("{total} Chats offen (davon {w} Willkommen) - mehr als nur Willkommen")}else{"Nur der Chat Willkommen bei Notion".to_string()}));}
++        _=>{mark_account(t.id,"chats_multi",Value::Null);mark_account(t.id,"chats_state",json!("Chat-Liste nicht lesbar"));}
++    }
++}
++fn accounts_file()->PathBuf{base().join("accounts.json")}
++fn mem_all()->Value{std::fs::read_to_string(accounts_file()).ok().and_then(|s|serde_json::from_str::<Value>(&s).ok()).filter(Value::is_object).unwrap_or_else(||json!({}))}
++fn mem_get(email:&str,k:&str)->Value{mem_all().get(email.to_lowercase().as_str()).and_then(|e|e.get(k)).cloned().unwrap_or(Value::Null)}
++fn mem_set(email:&str,k:&str,v:Value){if email.is_empty(){return;}let mut all=mem_all();let key=email.to_lowercase();if !all[key.as_str()].is_object(){all[key.as_str()]=json!({});}all[key.as_str()][k]=v;let _=std::fs::create_dir_all(base());let _=std::fs::write(accounts_file(),serde_json::to_vec_pretty(&all).unwrap_or_default());}
++fn mem_forget(email:&str){let mut all=mem_all();if let Some(o)=all.as_object_mut(){o.remove(&email.to_lowercase());}let _=std::fs::write(accounts_file(),serde_json::to_vec_pretty(&all).unwrap_or_default());}
++fn mark_account(id: u32, k: &str, v: Value) { let mut a = lock(&ACCOUNT); a.entry(id).or_insert_with(|| json!({"usage": null, "models": []}))[k] = v; }
++
++#[derive(Serialize, Deserialize, Clone, Default, Debug, PartialEq)]
++#[serde(default)]
++pub struct Tab {
++    pub id: u32,
++    pub label: String,
++    pub email: String,
++    pub role: String,
++    pub url: String,
++    pub autostart: bool,
++}
++
++fn base() -> PathBuf {
++    let root = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
++    root.join("PlazCodeNotion").join("profiles")
++}
++fn dir(id: u32) -> PathBuf { base().join(format!("agent-{id}")) }
++fn tabs_file() -> PathBuf { base().join("tabs.json") }
++fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> { m.lock().unwrap_or_else(|e| e.into_inner()) }
++fn role(i: usize) -> String { ROLES.get(i).copied().unwrap_or("Tester").to_string() }
++pub(crate) fn cdp_port(i: usize) -> u16 { 9301 + i as u16 }
++fn parse_id(name: &str) -> Option<u32> { name.strip_prefix("agent-").and_then(|x| x.parse::<u32>().ok()).filter(|n| (1..=MAX_TABS).contains(n)) }
++fn dir_ids() -> Vec<u32> {
++    let mut v: Vec<u32> = std::fs::read_dir(base()).map(|rd| rd.flatten().filter(|e| e.path().is_dir()).filter_map(|e| parse_id(&e.file_name().to_string_lossy())).collect()).unwrap_or_default();
++    v.sort_unstable(); v
++}
++fn normalize(tabs: &mut [Tab]) { for (i, t) in tabs.iter_mut().enumerate() { t.role = role(i); } }
++
++pub fn load() -> Vec<Tab> {
++    let mut tabs: Vec<Tab> = std::fs::read_to_string(tabs_file()).ok().and_then(|t| serde_json::from_str(t.trim_start_matches('\u{feff}')).ok()).unwrap_or_default();
++    tabs.retain(|t| (1..=MAX_TABS).contains(&t.id));
++    for id in dir_ids() {
++        if tabs.len() >= MAX_TABS as usize { break; }
++        if !tabs.iter().any(|t| t.id == id) {
++            let label = std::fs::read_to_string(dir(id).join("plazcode-label.txt")).map(|s| s.trim().to_string()).unwrap_or_default();
++            tabs.push(Tab { id, label: if label.is_empty() { format!("Tab {id}") } else { label }, autostart: true, ..Default::default() });
++        }
++    }
++    normalize(&mut tabs); tabs
++}
++fn save(tabs: &[Tab]) -> Result<(), String> {
++    std::fs::create_dir_all(base()).map_err(|e| e.to_string())?;
++    let mut tabs = tabs.to_vec(); normalize(&mut tabs);
++    let tmp = tabs_file().with_extension("json.tmp");
++    std::fs::write(&tmp, serde_json::to_vec_pretty(&tabs).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
++    std::fs::rename(&tmp, tabs_file()).map_err(|e| e.to_string())
++}
++fn clean(s: &str, max: usize) -> String { s.trim().chars().filter(|c| !c.is_control()).take(max).collect::<String>().trim().to_string() }
++fn sanitize(t: &Tab) -> Result<Tab, String> {
++    let email = clean(&t.email, 120).to_ascii_lowercase();
++    if !email.is_empty() && (!email.contains('@') || email.contains(' ') || email.starts_with('@') || email.ends_with('@')) { return Err(format!("Tab {}: ungültige E-Mail-Adresse.", t.id)); }
++    let url = clean(&t.url, 300);
++    if !url.is_empty() && !url.starts_with("https://") { return Err(format!("Tab {}: Die Startseite muss mit https:// beginnen.", t.id)); }
++    let label = clean(&t.label, 40);
++    Ok(Tab { id: t.id, label: if label.is_empty() { format!("Tab {}", t.id) } else { label }, email, role: String::new(), url, autostart: t.autostart })
++}
++
++const BROWSERS: [(&str, &str); 3] = [("Chrome", r"Google\Chrome\Application\chrome.exe"), ("Edge", r"Microsoft\Edge\Application\msedge.exe"), ("Brave", r"BraveSoftware\Brave-Browser\Application\brave.exe")];
++fn browser_file() -> PathBuf { base().join("browser") }
++/// Alle installierten Browser, die Co-Work nutzen kann.
++pub fn installed_browsers() -> Vec<(&'static str, PathBuf)> {
++    let mut out = Vec::new();
++    for (name, rel) in BROWSERS {
++        for k in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
++            if let Some(b) = std::env::var_os(k) { let p = PathBuf::from(b).join(rel); if p.is_file() { out.push((name, p)); break; } }
++        }
++    }
++    out
++}
++pub fn chosen_browser() -> Option<String> { std::fs::read_to_string(browser_file()).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) }
++/// Der vom Nutzer gewaehlte Browser. Ohne Auswahl startet kein Tab.
++pub fn browser() -> Option<(&'static str, PathBuf)> { let c = chosen_browser()?; installed_browsers().into_iter().find(|(n, _)| n.eq_ignore_ascii_case(&c)) }
++pub fn browser_name() -> Value { browser().map(|(n, _)| json!(n)).unwrap_or(Value::Null) }
++pub fn list() -> Value { json!(load().into_iter().map(|t| json!({"id":t.id,"label":t.label})).collect::<Vec<_>>()) }
++
++fn cmd_uses(cmd: &str, dir: &str) -> bool {
++    let (cmd, dir) = (cmd.to_ascii_lowercase(), dir.to_ascii_lowercase());
++    cmd.match_indices(&dir).any(|(i, _)| !cmd[i + dir.len()..].starts_with(|c: char| c.is_ascii_digit()))
++}
++fn browser_cmds() -> Vec<(sysinfo::Pid, String)> {
++    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
++    let mut sys = System::new(); sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
++    sys.processes().iter().filter_map(|(pid,p)| { let cmd=p.cmd().iter().map(|a|a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" "); cmd.contains("--user-data-dir=").then_some((*pid,cmd)) }).collect()
++}
++fn running_ids(tabs: &[Tab]) -> Vec<u32> { let cmds=browser_cmds(); tabs.iter().filter(|t| {let d=dir(t.id).display().to_string();cmds.iter().any(|(_,c)|cmd_uses(c,&d))}).map(|t|t.id).collect() }
++fn stop_ids(ids: &[u32]) -> usize {
++    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
++    let mut sys=System::new();sys.refresh_processes_specifics(ProcessesToUpdate::All,true,ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
++    let dirs:Vec<String>=ids.iter().map(|i|dir(*i).display().to_string()).collect(); let mut n=0;
++    for p in sys.processes().values(){let cmd=p.cmd().iter().map(|a|a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" ");if cmd.contains("--user-data-dir=")&&dirs.iter().any(|d|cmd_uses(&cmd,d))&&p.kill(){n+=1;}}
++    n
++}
++
++#[cfg(windows)]
++pub(crate) mod windows {
++    use super::*;
++    static PIDS: Lazy<Mutex<(HashSet<u32>, bool)>> = Lazy::new(|| Mutex::new((HashSet::new(), false)));
++    // Nur echte Notion-Fenster anfassen: sichtbar beim Verstecken gemerkt, beim Zeigen nur diese (bzw. Hauptfenster mit Titel).
++    // Vorher wurden ALLE Fenster der Browser-Prozesse wiederhergestellt -> leere schwarze Hilfsfenster.
++    static HIDDEN: Lazy<Mutex<HashSet<isize>>> = Lazy::new(|| Mutex::new(HashSet::new()));
++    #[link(name="user32")]
++    extern "system" { fn EnumWindows(cb: unsafe extern "system" fn(isize,isize)->i32, data:isize)->i32; fn GetWindowThreadProcessId(hwnd:isize,pid:*mut u32)->u32; fn ShowWindowAsync(hwnd:isize,cmd:i32)->i32; fn SetForegroundWindow(hwnd:isize)->i32; fn IsWindowVisible(hwnd:isize)->i32; fn GetWindowTextLengthW(hwnd:isize)->i32; fn GetWindow(hwnd:isize,cmd:u32)->isize; fn GetClassNameW(hwnd:isize,buf:*mut u16,max:i32)->i32; }
++    unsafe fn real_window(hwnd:isize)->bool { let mut b=[0u16;64]; let n=GetClassNameW(hwnd,b.as_mut_ptr(),64).max(0) as usize; String::from_utf16_lossy(&b[..n])=="Chrome_WidgetWin_1" && GetWindowTextLengthW(hwnd)>0 && GetWindow(hwnd,4)==0 }
++    unsafe extern "system" fn visit(hwnd:isize,_:isize)->i32 {
++        let mut pid=0; GetWindowThreadProcessId(hwnd,&mut pid); let g=lock(&PIDS); if !g.0.contains(&pid){return 1;}
++        let mut h=lock(&HIDDEN);
++        if g.1 { let ours=h.remove(&hwnd); if ours||real_window(hwnd){ShowWindowAsync(hwnd,9);SetForegroundWindow(hwnd);} }
++        else if IsWindowVisible(hwnd)!=0 && real_window(hwnd) { h.insert(hwnd); ShowWindowAsync(hwnd,0); }
++        1
++    }
++    pub fn any_hidden()->bool{!lock(&HIDDEN).is_empty()}
++    pub fn set_hidden(tabs:&[Tab], hidden:bool){
++        let cmds=browser_cmds(); let mut p=HashSet::new();
++        for t in tabs { let d=dir(t.id).display().to_string(); for(pid,c) in &cmds { if cmd_uses(c,&d){p.insert(pid.as_u32());} } }
++        *lock(&PIDS)=(p,!hidden); unsafe{EnumWindows(visit,0);}
++    }
++}
++#[cfg(not(windows))] pub(crate) mod windows { use super::*; pub fn set_hidden(_: &[Tab],_:bool){} pub fn any_hidden()->bool{false} }
++
++fn start_url(t:&Tab)->String{if t.url.is_empty(){NOTION_URL.to_string()}else{t.url.clone()}}
++fn tab_index(id:u32)->usize{load().iter().position(|t|t.id==id).unwrap_or(0)}
++pub(crate) fn launch(t:&Tab,url:&str)->Result<&'static str,String>{
++    mark_account(t.id,"usage_error",Value::Null);mark_account(t.id,"check",json!("Tab startet \u{2026}"));
++    let(name,exe)=browser().ok_or("Erst unter Co-Work einen Browser ausw\u{e4}hlen.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;
++    let port=cdp_port(tab_index(t.id));
++    if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],port)),Duration::from_millis(300)).is_ok(){return Ok(name);}
++    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion","--disable-popup-blocking"]).arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;Ok(name)
++}
++fn find(id:Option<u32>)->Result<Tab,String>{let id=id.ok_or("Tab-Nummer fehlt.")?;load().into_iter().find(|t|t.id==id).ok_or(format!("Tab {id} gibt es nicht."))}
++fn enc(s:&str)->String{s.bytes().map(|b|if b.is_ascii_alphanumeric()||b"-_.~".contains(&b){(b as char).to_string()}else{format!("%{b:02X}")}).collect()}
++
++pub(crate) async fn target(port:u16)->Result<String,String>{
++    let list:Vec<Value>=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?;
++    list.into_iter().find(|v|v["type"]=="page"&&v["url"].as_str().unwrap_or("").contains("notion.")).and_then(|v|v["webSocketDebuggerUrl"].as_str().map(str::to_string)).ok_or("Kein Notion-CDP-Tab gefunden.".into())
++}
++async fn cdp(port:u16, commands:Vec<Value>)->Result<Vec<Value>,String>{let ws=target(port).await?;cdp_ws(&ws,commands).await}
++async fn cdp_ws(ws:&str, commands:Vec<Value>)->Result<Vec<Value>,String>{
++    let(mut socket,_)=tokio_tungstenite::connect_async(ws).await.map_err(|e|e.to_string())?;let mut out=Vec::new();
++    for mut cmd in commands{let id=out.len()+1;cmd["id"]=json!(id);socket.send(tokio_tungstenite::tungstenite::Message::Text(cmd.to_string().into())).await.map_err(|e|e.to_string())?;loop{let msg=tokio::time::timeout(Duration::from_secs(30),socket.next()).await.map_err(|_|"CDP timeout".to_string())?.ok_or("CDP geschlossen")?.map_err(|e|e.to_string())?;if let Ok(txt)=msg.into_text(){if let Ok(v)=serde_json::from_str::<Value>(&txt){if v["id"]==id{out.push(v);break;}}}}
++    } Ok(out)
++}
++async fn trusted_click(port:u16,point:&Value)->Result<(),String>{let x=point["x"].as_f64().ok_or("Klickposition X fehlt")?;let y=point["y"].as_f64().ok_or("Klickposition Y fehlt")?;cdp(port,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}})]).await?;Ok(())}
++fn prompt_for(t:&Tab)->String {
++    const CONN:&str="Die Tools kommen von meinem AdiCode-MCP-Server (in Notion als Verbindung \"asf\" oder \"AdiCode\" eingetragen).";
++    if t.role=="Main" { format!("Hallo! AdiCode Co-Work: Drei Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel ueber cowork_*-Tools mit dir. {CONN} Du bist Main/Lead und mein einziger Ansprechpartner.\n1. Neue Aufgabe/Projekt: project_memory oeffnen, Skill cowork lesen, cowork_start mit 4-12 parallelen Tasks (role, review=reviewer fuer Code, files). Kleine Fragen selbst beantworten.\n2. Bewertungen der Worker per cowork_wait einarbeiten; Neues waehrend des Projekts zuerst per cowork_prompt.\n3. Ende: cowork_results, mir EINE kurze Antwort, HANDOUT.md und project_memory aktualisieren.\nSpare Token: knapp antworten, Diffs statt Volltext, nichts wiederholen. AdiCode schickt kurze Erinnerungen in meinem Namen. Antworte jetzt nur: Co-Work bereit.") }
++    else { let role=t.role.to_ascii_lowercase();format!("Hallo! AdiCode Co-Work: Mehrere Notion-AI-Chats arbeiten ueber cowork_*-Tools gemeinsam. {CONN} Du bist mein {r} (Schwerpunkt, hilf bei allem).\n1. cowork_join mit role \"{role}\" und agent \"AdiCode-{r}\" (neuestes Projekt aus cowork_board).\n2. Loop: cowork_claim, erledigen, cowork_update mit 1-Satz-Ergebnis, wieder cowork_claim. safe_write_file immer mit agent \"AdiCode-{r}\".\n3. Bewertungs-Tasks zuerst, knapp aus Sicht deiner Rolle.\n4. Nichts frei: cowork_wait.\nIch bin nicht am Rechner: arbeite selbststaendig, antworte knapp, Diffs statt Volltext. Fragen per cowork_message an Main. Kurze automatische Erinnerungen von AdiCode sind von mir.",r=t.role) }
++}
++/// Chat is idle: Notion AI is not generating/recording and the composer is empty.
++async fn chat_idle(port:u16)->bool{
++    let expr=r#"(()=>{if(document.querySelector('[data-testid="agent-chat-stop-button"],[data-testid="agent-chat-stop-recording-button"]'))return false;const c=document.querySelector('[role="textbox"][contenteditable="true"]');return !!c&&!(c.innerText||'').trim()})()"#;
++    cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false)
++}
++/// Snapshot of a generating chat (null when idle). Digits are stripped so the "Working for 3m 12s" timer does not count as progress.
++async fn gen_snapshot(port:u16)->Option<String>{
++    let expr=r#"(()=>{if(!document.querySelector('[data-testid="agent-chat-stop-button"]'))return null;const m=document.querySelector('main')||document.body;const t=(m.innerText||'').replace(/\d/g,'');return t.length+':'+t.slice(-300)})()"#;
++    cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_str).map(String::from))
++}
++async fn stop_generation(port:u16){
++    let expr="(()=>{const b=document.querySelector('[data-testid=\"agent-chat-stop-button\"]');if(b)b.click();return !!b})()";
++    let _=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await;
++}
++/// Watchdog: Notion AI bleibt manchmal haengen ("Processing" ohne neuen Text, z. B. nach einem AdiCode-Neustart). Nach STUCK_SECS ohne Fortschritt stoppen; der Nudger weckt den Chat danach wieder.
++const STUCK_SECS:u64=600;
++/// Notion AI chats stop after each turn. Wake idle chats when work is waiting.
++async fn nudger(tabs:Vec<Tab>){
++    let mut last:BTreeMap<u32,(String,std::time::Instant,u32)>=BTreeMap::new();
++    let mut stuck:BTreeMap<u32,(String,std::time::Instant)>=BTreeMap::new();
++    loop{
++        tokio::time::sleep(Duration::from_secs(10)).await;
++        for(i,t)in tabs.iter().enumerate(){
++            if is_paused(t.id){stuck.remove(&t.id);continue;}
++            match gen_snapshot(cdp_port(i)).await{
++                Some(s)=>{let e=stuck.entry(t.id).or_insert((s.clone(),std::time::Instant::now()));if e.0!=s{*e=(s,std::time::Instant::now());}else if e.1.elapsed()>Duration::from_secs(STUCK_SECS){stop_generation(cdp_port(i)).await;stuck.remove(&t.id);last.remove(&t.id);tracing::warn!("Co-Work: Chat {} hing {STUCK_SECS}s ohne Fortschritt - gestoppt",t.role);}continue;}
++                None=>{stuck.remove(&t.id);}
++            }
++            let agent=if i==0{crate::notion_cowork::latest_lead()}else{format!("AdiCode-{}",t.role)};
++            let Some((sig,text))=crate::notion_cowork::nudge_for(&agent) else {continue};
++            if let Some((s,at,n))=last.get(&t.id){if *s==sig&&(sig.starts_with("done:")||*n>=3||at.elapsed()<Duration::from_secs(240)){continue;}}
++            if i>0&&user_present(cdp_port(i)).await{continue;}
++            if !chat_idle(cdp_port(i)).await{continue;}
++            tokio::time::sleep(Duration::from_secs(4)).await;
++            if !chat_idle(cdp_port(i)).await{continue;}
++            if insert_prompt(cdp_port(i),text).await.is_ok(){let n=last.get(&t.id).filter(|(s,_,_)|*s==sig).map(|x|x.2+1).unwrap_or(1);last.insert(t.id,(sig,std::time::Instant::now(),n));}
++        }
++    }
++}
++fn set_status(s:impl Into<String>){*lock(&COWORK_STATUS)=s.into();}
++pub(crate) fn status_text()->String{lock(&COWORK_STATUS).clone()}
++pub(crate) fn mcp_ok(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)||load().iter().find(|t|t.id==id).map(|t|mem_get(&t.email,"mcp_ok2").as_bool()==Some(true)).unwrap_or(false)}
++static CHECKING: AtomicBool = AtomicBool::new(false);
++async fn js_eval(port:u16,expr:&str)->Result<Value,String>{Ok(cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null))}
++async fn wait_cdp(port:u16)->bool{for _ in 0..40{if target(port).await.is_ok(){return true;}tokio::time::sleep(Duration::from_secs(1)).await;}false}
++const FIND_WELCOME:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.visibility!=='hidden'&&s.display!=='none'};const re=/^(welcome to notion|willkommen (bei|in|zu) notion)/i;for(let k=0;k<20;k++){const tab=document.querySelector('#sidebar-tab-chats,[role="tab"][aria-label="Chat"],[role="tab"][aria-label="Chats"]');if(tab&&tab.getAttribute('aria-selected')!=='true')tab.click();const item=[...document.querySelectorAll('[role="menuitem"]')].filter(vis).find(e=>re.test((e.innerText||'').trim()));if(item){item.click();await sleep(1500);return {found:true}}if(k%5===4){const sc=[...document.querySelectorAll('[role="menu"],[role="tabpanel"],[role="list"]')].find(e=>vis(e)&&e.scrollHeight>e.clientHeight+20);if(sc)sc.scrollTop+=500;}await sleep(500);}return {found:false}})()"#;
++const CHAT_READY:&str=r#"(()=>{const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&s.visibility!=='hidden'&&s.display!=='none'};const composer=[...document.querySelectorAll('textarea,[contenteditable="true"]')].filter(vis)[0];const p=location.pathname;return {ready:(p==='/ai'||p.startsWith('/ai/')||p==='/chat'||p.startsWith('/chat/'))&&!!composer,href:location.href}})()"#;
++/// Oeffnet IMMER den bestehenden Chat "Willkommen bei Notion" - es wird nie ein neuer Chat angelegt.
++/// Schliesst offene Notion-Einstellungen (z. B. nach dem MCP-Check) per X bzw. Escape.
++const CLOSE_SETTINGS:&str=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const q=()=>document.querySelector('input[aria-label="Search settings"],input[placeholder="Search settings"],input[aria-label="Einstellungen durchsuchen"]');for(let k=0;k<5;k++){const s=q();if(!s)return true;const dlg=s.closest('[role="dialog"]')||document.body;const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const b=[...dlg.querySelectorAll('[aria-label="Close"],[aria-label="Schließen"],[aria-label="Schliessen"]')].filter(vis)[0];if(b)b.click();else document.activeElement&&document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',keyCode:27,bubbles:true}));await sleep(700);}return !q()})()"#;
++async fn close_settings(port:u16){let ok=js_eval(port,CLOSE_SETTINGS).await.ok().and_then(|v|v.as_bool()).unwrap_or(false);if !ok{let k=|t:&str|json!({"method":"Input.dispatchKeyEvent","params":{"type":t,"key":"Escape","code":"Escape","windowsVirtualKeyCode":27}});let _=cdp(port,vec![k("keyDown"),k("keyUp")]).await;tokio::time::sleep(Duration::from_millis(500)).await;}}
++const GUARD_JS:&str=r#"(()=>{if(window.__acg)return 1;window.__acg=1;const re=/^(new chat|neuer chat|start a new chat|neuen chat starten|new agent|neuer agent)$/i;document.addEventListener('click',e=>{const el=e.target.closest&&e.target.closest('a,button,[role=button],[role=menuitem]');if(!el)return;const raw=(el.innerText||el.getAttribute('aria-label')||'').trim().replace(/\s+/g,' ');const t=raw.replace(/ ctrl.o$/i,'');if(re.test(t)){e.preventDefault();e.stopPropagation();e.stopImmediatePropagation()}},true);document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&(e.key==='o'||e.key==='O')){e.preventDefault();e.stopPropagation()}},true);return 1})()"#;
++async fn prepare_chat(t:&Tab,i:usize)->Result<(),String>{
++    let port=cdp_port(i);close_settings(port).await;let _=js_eval(port,GUARD_JS).await;
++    let known=lock(&ACCOUNT).get(&t.id).and_then(|a|a["welcome_url"].as_str().map(String::from)).or_else(||mem_get(&t.email,"welcome_url").as_str().map(String::from));
++    let mut found=false;
++    if let Some(u)=known.as_ref(){
++        let here=js_eval(port,"location.href").await?;
++        if here.as_str()!=Some(u.as_str()){cdp(port,vec![json!({"method":"Page.navigate","params":{"url":u}})]).await?;tokio::time::sleep(Duration::from_secs(3)).await;}
++        let noacc=js_eval(port,"/don.t have access to this chat|keinen Zugriff auf diesen Chat/i.test(document.body.innerText)").await.ok().and_then(|v|v.as_bool()).unwrap_or(false);if noacc{mem_set(&t.email,"welcome_url",Value::Null);mark_account(t.id,"welcome_url",Value::Null);cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;tokio::time::sleep(Duration::from_secs(4)).await;}
++        found=true;
++    }
++    if !found{
++        for attempt in 0..3{
++            if attempt>0{cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;tokio::time::sleep(Duration::from_secs(4)).await;}
++            let r=js_eval(port,FIND_WELCOME).await?;
++            if r["found"].as_bool().unwrap_or(false){found=true;break;}
++        }
++    }
++    if !found{mark_account(t.id,"chat",json!("Chat \u{201a}Willkommen bei Notion\u{2018} nicht gefunden"));return Err(format!("{}: Chat \u{201a}Willkommen bei Notion\u{2018} nicht gefunden (es wird bewusst kein neuer Chat ge\u{f6}ffnet)",t.role));}
++    for _ in 0..25{
++        tokio::time::sleep(Duration::from_secs(1)).await;
++        let v=js_eval(port,CHAT_READY).await?;
++        if v["ready"].as_bool().unwrap_or(false){let _=js_eval(port,GUARD_JS).await;let mut a=lock(&ACCOUNT);let e=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));e["chat"]=json!("Willkommen bei Notion bereit");e["url"]=v["href"].clone();e["welcome_url"]=v["href"].clone();drop(a);mem_set(&t.email,"welcome_url",v["href"].clone());return Ok(());}
++    }
++    mark_account(t.id,"chat",json!("Chat nicht bereit"));
++    Err(format!("{}: Notion-Chatbox wurde nicht bereit",t.role))
++}
++/// Claude-Modelle in "Allowed models for Notion Agent" (interne Notion-Codenamen -> Anzeigename).
++const CLAUDE_MODELS:[(&str,&str);8]=[("albuquerque-quinn","Opus 5.5"),("achira-donut","Sonnet 5.5"),("agave-flan","Opus 5"),("ambrosia-tart-high","Opus 4.8"),("apricot-sorbet-high","Opus 4.7"),("angel-cake-high","Sonnet 5"),("almond-croissant-low","Sonnet 4.6"),("anthropic-haiku-4.5","Haiku 4.5")];
++/// Main = Opus 5.5 (Orchestrator), alle Worker = Sonnet 5.5.
++fn target_model(i:usize)->(&'static str,&'static str){if i==0{CLAUDE_MODELS[0]}else{CLAUDE_MODELS[1]}}
++const MODELS_JS:&str=r#"(async()=>{const T='__T__';const ALL=__ALL__;const OTHER=['openai','gemini','xai','deepseek','kimi','glm'];const post=async(u,b)=>{const r=await fetch('/api/v3/'+u,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b)});if(!r.ok)throw new Error(u+' HTTP '+r.status);return r.json()};const read=async()=>{const j=await post('getSpaces',{});const uid=Object.keys(j)[0];const sid=Object.keys((j[uid]||{}).space||{})[0];if(!sid)throw new Error('Workspace nicht gefunden');const v=j[uid].space[sid].value;const s=((v&&v.value)||v||{}).settings||{};return {sid,pol:s.personal_agent_model_policy||{}}};const allowed=p=>ALL.filter(m=>!(p.disabledModels||[]).includes(m));const good=p=>{const a=allowed(p);return a.length===1&&a[0]===T&&OTHER.every(x=>(p.disabledProviders||[]).includes(x))};try{let {sid,pol}=await read();if(good(pol))return {ok:true,changed:false,allowed:allowed(pol)};const np={disabledModels:ALL.filter(m=>m!==T),disabledProviders:OTHER};await post('saveTransactionsFanout',{requestId:crypto.randomUUID(),transactions:[{id:crypto.randomUUID(),spaceId:sid,debug:{userAction:'ModelControls.save'},operations:[{pointer:{table:'space',id:sid,spaceId:sid},path:['settings','personal_agent_model_policy'],command:'set',args:np}]}]});await new Promise(r=>setTimeout(r,1500));pol=(await read()).pol;return {ok:good(pol),changed:true,allowed:allowed(pol)}}catch(e){return {ok:false,error:String(e&&e.message||e)}}})()"#;
++/// Prueft und setzt Notion AI -> Model controls -> Allowed models for Notion Agent auf genau das Rollenmodell. Wird gemerkt.
++async fn ensure_models(t:&Tab,i:usize)->Result<(),String>{
++    let (tid,tname)=target_model(i);
++    mark_account(t.id,"model_target",json!(tname));
++    if mem_get(&t.email,"models_ok").as_str()==Some(tid){mark_account(t.id,"model_ok",json!(true));mark_account(t.id,"model_state",json!(format!("{tname} (gemerkt)")));return Ok(());}
++    let all=serde_json::to_string(&CLAUDE_MODELS.iter().map(|(k,_)|*k).collect::<Vec<_>>()).unwrap_or_default();
++    let r=js_eval(cdp_port(i),&MODELS_JS.replace("__T__",tid).replace("__ALL__",&all)).await?;
++    if r["ok"].as_bool().unwrap_or(false){mem_set(&t.email,"models_ok",json!(tid));mark_account(t.id,"model_ok",json!(true));mark_account(t.id,"model_state",json!(if r["changed"].as_bool().unwrap_or(false){format!("{tname} gesetzt")}else{tname.to_string()}));Ok(())}
++    else{let e=r["error"].as_str().map(String::from).unwrap_or_else(||format!("erlaubt: {}",r["allowed"]));mark_account(t.id,"model_ok",json!(false));mark_account(t.id,"model_state",json!(format!("Nicht {tname}: {e}")));Err(format!("{}: Modell {e}",t.role))}
++}
++/// Ein einziger Check pro Konto: Tab -> Login -> AdiCode-MCP (gemerkt) -> Modelle (gemerkt) -> Usage -> Chat "Willkommen bei Notion". Laeuft immer komplett durch.
++async fn check_one(t:Tab,i:usize)->Result<(),String>{
++    if t.email.is_empty(){mark_account(t.id,"check",json!("Keine E-Mail eingetragen"));return Err(format!("{}: keine E-Mail",t.role));}
++    let port=cdp_port(i);
++    mark_account(t.id,"check",json!("Warte auf Tab \u{2026}"));
++    if !wait_cdp(port).await{mark_account(t.id,"check",json!("Tab nicht erreichbar"));mark_account(t.id,"usage_error",json!("Tab nicht erreichbar"));return Err(format!("{}: Tab nicht erreichbar",t.role));}
++    let mut ok=false;for _ in 0..25{if logged_in(port).await{ok=true;break;}tokio::time::sleep(Duration::from_secs(1)).await;}
++    if !ok{mark_account(t.id,"check",json!("Auto-Login \u{2026}"));for _ in 0..25{let st=setup_phase(port,"onboard",&t.email).await;if st.starts_with("workspace"){ok=true;break;}tokio::time::sleep(Duration::from_secs(3)).await;if logged_in(port).await{ok=true;break;}}}
++    if !ok{mark_account(t.id,"check",json!("Nicht eingeloggt \u{2013} Gmail-Login nutzen"));return Err(format!("{}: nicht in Notion eingeloggt",t.role));}
++    step(t.id,1);let mut missing:Vec<&str>=Vec::new();let mut errs:Vec<String>=Vec::new();
++    if mem_get(&t.email,"mcp_ok2").as_bool()==Some(true){mark_account(t.id,"mcp",json!("Bereits verbunden"));mark_account(t.id,"mcp_saved",json!(true));}
++    else{mark_account(t.id,"check",json!("Pr\u{fc}fe AdiCode-MCP \u{2026}"));match setup_mcp(&t,i).await{Ok(_)=>{mem_set(&t.email,"mcp_ok2",json!(true));mark_account(t.id,"mcp_saved",json!(true));}Err(e)=>{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));missing.push("MCP");errs.push(format!("{}: MCP {e}",t.role));}}}
++    step(t.id,2);mark_account(t.id,"check",json!("Pr\u{fc}fe Modelle \u{2026}"));
++    if let Err(e)=ensure_models(&t,i).await{missing.push("Modell");errs.push(e);}step(t.id,3);check_trial(&t,i).await;step(t.id,4);
++    mark_account(t.id,"check",json!("Pr\u{fc}fe Usage \u{2026}"));
++    inspect_account(&t,i).await;step(t.id,5);let _=tokio::time::timeout(Duration::from_secs(40),check_usage_ui(&t,i)).await;let _=tokio::time::timeout(Duration::from_secs(40),check_chats(&t,i)).await;
++    mark_account(t.id,"check",json!("\u{d6}ffne \u{201a}Willkommen bei Notion\u{2018} \u{2026}"));
++    match {let r=prepare_chat(&t,i).await;if r.is_err(){tokio::time::sleep(Duration::from_secs(3)).await;prepare_chat(&t,i).await}else{r}}{Ok(())=>mark_account(t.id,"chat_ok",json!(true)),Err(e)=>{mark_account(t.id,"chat_ok",json!(false));missing.push("Chat");errs.push(e);}}
++    step(t.id,7);if !errs.is_empty(){mark_account(t.id,"check",json!(format!("{} fehlt",missing.join(", "))));return Err(errs.join("; "));}
++    step(t.id,7);let ex=lock(&ACCOUNT).get(&t.id).map(|a|a["exhausted"].as_bool().unwrap_or(false)).unwrap_or(false);
++    mark_account(t.id,"check",json!(if ex{"OK \u{2013} aber KI-Kontingent aufgebraucht"}else{"OK"}));
++    Ok(())
++}
++async fn full_check(tabs:&[Tab])->Vec<String>{
++    set_status("Account-Check: AdiCode-MCP, Usage und Chat \u{201a}Willkommen bei Notion\u{2018} \u{2026}");
++    let hs:Vec<_>=tabs.iter().cloned().enumerate().map(|(i,t)|tokio::spawn(check_one(t,i))).collect();
++    let mut errs=Vec::new();for h in hs{match h.await{Ok(Err(e))=>errs.push(e),Err(e)=>errs.push(e.to_string()),_=>{}}}errs
++}
++fn check_action()->Result<String,String>{
++    let tabs=load();if tabs.is_empty(){return Err("Noch keine Tabs eingetragen.".into());}
++    if CHECKING.swap(true,Ordering::SeqCst){return Ok("Check l\u{e4}uft bereits.".into());}
++    let running=running_ids(&tabs);
++    for t in tabs.iter().filter(|t|!running.contains(&t.id)&&!t.email.is_empty()){if let Err(e)=launch(t,&start_url(t)){CHECKING.store(false,Ordering::SeqCst);return Err(e);}}
++    tokio::spawn(async move{let errs=full_check(&tabs).await;CHECKING.store(false,Ordering::SeqCst);set_status(if errs.is_empty(){"Check ok: alle Konten bereit (MCP, Usage, Chat \u{201a}Willkommen bei Notion\u{2018}).".to_string()}else{format!("Check: {}",errs.join("; "))});});
++    Ok("Check l\u{e4}uft: fehlende Tabs werden gestartet, dann MCP, Usage und Chat gepr\u{fc}ft.".into())
++}
++async fn open_main(port:u16)->Result<(),String>{cdp(port,vec![json!({"method":"Page.bringToFront"})]).await?;Ok(())
++}
++const QUOTA_JS:&str=r#"/used your (trial )?AI allowance|add a payment method to unlock more AI|KI-Kontingent|AI-Guthaben/i.test((document.body&&document.body.innerText)||'')"#;
++async fn insert_prompt(port:u16,prompt:String)->Result<(),String>{
++    let focus=r#"(()=>{const q=[...document.querySelectorAll('textarea,[contenteditable=\"true\"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&r.left>70&&s.visibility!=='hidden'&&s.display!=='none'}).sort((a,b)=>{const score=e=>{const hint=((e.getAttribute('placeholder')||'')+' '+(e.getAttribute('aria-label')||'')).toLowerCase();return (/ask notion ai|notion ai fragen|frag notion ai|describe your own/.test(hint)?100000:0)+e.getBoundingClientRect().bottom};return score(b)-score(a)});if(!q[0])return false;q[0].focus();return true})()"#;
++    let mut ready=false;for _ in 0..20{ready=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":focus,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool).unwrap_or(false);if ready{break;}tokio::time::sleep(Duration::from_millis(500)).await;}
++    if !ready{let quota=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":QUOTA_JS,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false);if quota{return Err("KI-Kontingent dieses Notion-Kontos ist aufgebraucht".into());}return Err("Notion-AI-Eingabefeld nicht gefunden; Startprompt kopieren verwenden.".into());}
++    cdp(port,vec![json!({"method":"Input.insertText","params":{"text":prompt}})]).await?;tokio::time::sleep(Duration::from_millis(300)).await;
++    let submit=r#"(()=>{const e=[...document.querySelectorAll('button,[role=\"button\"]')].find(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e),a=(e.getAttribute('aria-label')||'').toLowerCase();return r.width>0&&r.height>0&&s.display!=='none'&&/submit ai message|send|senden/.test(a)});if(!e)return null;const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()"#;
++    let point=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":submit,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);
++    if point.is_object(){trusted_click(port,&point).await?;}else{cdp(port,vec![json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyDown","key":"Enter","code":"Enter","windowsVirtualKeyCode":13,"modifiers":2}}),json!({"method":"Input.dispatchKeyEvent","params":{"type":"keyUp","key":"Enter","code":"Enter","windowsVirtualKeyCode":13,"modifiers":2}})]).await?;}Ok(())
++}
++pub(crate) async fn setup_mcp(t:&Tab,i:usize)->Result<String,String>{
++    let(url,token)=crate::notion_mcp::cowork_connection();if url.is_empty()||token.is_empty(){return Err("MCP-URL oder Token fehlt in AdiCode.".into());}let port=cdp_port(i);
++    let open=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms));const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};const exact=(sel,text)=>[...document.querySelectorAll(sel)].find(e=>vis(e)&&(e.innerText||e.getAttribute('aria-label')||'').trim().toLowerCase()===text);let sidebar=document.querySelector('[aria-label=\"Lock sidebar open\"]');if(sidebar)sidebar.click();await sleep(500);if(!document.querySelector('input[aria-label=\"Search settings\"]')){const ws=[...document.querySelectorAll('[role=\"button\"]')].find(e=>vis(e)&&e.getBoundingClientRect().x<30&&e.getBoundingClientRect().y<45&&(e.innerText||'').trim());if(ws)ws.click();await sleep(500);const dlgEl=document.querySelector('[role=dialog]');const inDlg=t=>dlgEl&&[...dlgEl.querySelectorAll('button,[role=button],[role=menuitem]')].find(e=>vis(e)&&(e.innerText||'').trim().toLowerCase()===t);const settings=inDlg('settings')||inDlg('einstellungen')||exact('button,[role=\"button\"]','settings')||exact('button,[role=\"button\"]','einstellungen');if(settings)settings.click();await sleep(1200);}const connections=exact('[role=\"tab\"]','connections')||exact('[role=\"tab\"]','verbindungen');if(connections)connections.click();await sleep(1200);const installed=exact('[role=\"tab\"]','installed')||exact('[role=\"tab\"]','verwalten')||exact('[role=\"tab\"]','installiert');if(installed)installed.click();await sleep(900);if(/\b(AdiCode|asf|PlazCode)\b/i.test((document.body&&document.body.innerText)||''))return {existing:true};const discover=exact('[role=\"tab\"]','discover')||exact('[role=\"tab\"]','verbindungen durchsuchen')||exact('[role=\"tab\"]','entdecken');if(discover)discover.click();await sleep(700);{const hasC=[...document.querySelectorAll('button,[role=\"button\"]')].find(e=>vis(e)&&/custom mcp|benutzerdefinierter mcp/i.test((e.innerText||'')));if(!hasC){const ab=[...document.querySelectorAll('button,[role=\"button\"]')].find(e=>vis(e)&&/^(add connection|verbindung hinzuf)/i.test((e.innerText||'').trim()));if(ab){ab.click();await sleep(1000);}}}const custom=[...document.querySelectorAll('button,[role=\"button\"]')].find(e=>vis(e)&&/custom mcp|benutzerdefinierter mcp/i.test((e.innerText||'')));if(!custom)return {error:'Custom MCP fehlt'};custom.click();await sleep(700);const input=[...document.querySelectorAll('input')].find(e=>vis(e)&&/example\.com\/mcp/i.test(e.placeholder||''));if(!input)return {error:'URL-Feld fehlt'};const d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(input,__URL__);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));const btn=[...document.querySelectorAll('button,[role=\"button\"]')].find(e=>vis(e)&&/^(connect|verbinden)$/.test((e.innerText||'').trim().toLowerCase()));if(!btn)return {error:'Connect 1 fehlt'};const r=btn.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()"#.replace("__URL__",&json!(url).to_string());
++    let first=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":open,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);
++    if first["existing"].as_bool().unwrap_or(false){let mut a=lock(&ACCOUNT);a.entry(t.id).or_insert_with(||json!({}))["mcp"]=json!("Bereits verbunden");return Ok("MCP bereits verbunden.".into());}if !first.is_object()||first.get("error").is_some(){return Err(first["error"].as_str().unwrap_or("MCP-Dialog nicht gefunden").into());}trusted_click(port,&first).await?;tokio::time::sleep(Duration::from_secs(2)).await;
++    let fill=r#"(()=>{const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'};const set=(e,v)=>{if(!e)return;const d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(e,v);e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))};const inputs=[...document.querySelectorAll('input')].filter(vis);set(inputs.find(e=>e.placeholder==='Example MCP Server'),'AdiCode');set(inputs.find(e=>e.type==='password'),__TOKEN__);const btn=[...document.querySelectorAll('button,[role=\"button\"]')].find(e=>vis(e)&&/^(connect|verbinden)$/.test((e.innerText||'').trim().toLowerCase()));if(!btn)return null;const r=btn.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()"#.replace("__TOKEN__",&json!(token).to_string());
++    let second=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":fill,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);if !second.is_object(){return Err("Finaler MCP-Connect-Knopf fehlt.".into());}trusted_click(port,&second).await?;tokio::time::sleep(Duration::from_secs(7)).await;
++    let verify=r#"(()=>{const body=(document.body&&document.body.innerText)||'';return /Installed connections|Installierte Verbindungen/i.test(body)&&/\bAdiCode\b/i.test(body)})()"#;let ok=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":verify,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool).unwrap_or(false);let mut a=lock(&ACCOUNT);a.entry(t.id).or_insert_with(||json!({}))["mcp"]=json!(if ok{"Verbunden"}else{"Manueller Fallback nötig"});if ok{Ok("MCP verbunden.".into())}else{Err("MCP-Verbindung konnte nicht bestätigt werden.".into())}
++}
++/// Usage-Check: fragt die interne Notion-API des eingeloggten Kontos (getSpaces + getAIUsageEligibility[V2]) ab, Fallback Seitentext. Erkennt aufgebrauchte Kontingente.
++const USAGE_JS:&str=r#"(async()=>{const body=(document.body&&document.body.innerText)||'';const exText=/used your (trial )?AI allowance|add a payment method to unlock more AI|KI-Kontingent (ist )?aufgebraucht|AI-Guthaben aufgebraucht|out of AI responses/i.test(body);const post=(p,b)=>fetch('/api/v3/'+p,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.ok?r.json():null).catch(()=>null);const out={usage:null,used:null,limit:null,basic_used:null,basic_limit:null,premium_used:null,premium_limit:null,plan_type:null,exhausted:exText,usage_source:'nicht gefunden',usage_error:null,models:[],checked:new Date().toLocaleTimeString(),url:location.href};try{const sp=await post('getSpaces',{});let spaceId=null;if(sp){for(const u of Object.values(sp)){const ids=Object.keys((u&&u.space)||{});if(ids.length){spaceId=ids[0];break;}}}if(!spaceId){out.usage_error='Nicht eingeloggt oder kein Workspace';return out;}const v1=await post('getAIUsageEligibility',{spaceId,surface:'ai_module'});const v2=await post('getAIUsageEligibilityV2',{spaceId,surface:'ai_module'});if(v1){out.plan_type=v1.type||null;out.basic_used=v1.userUsage??v1.spaceUsage??null;out.basic_limit=v1.userLimit??v1.spaceLimit??null;if(v1.isEligible===false)out.exhausted=true;out.usage_source='getAIUsageEligibility';}if(v2){const b=v2.basicCredits||{};if(out.basic_used==null)out.basic_used=b.userUsage??null;if(out.basic_limit==null)out.basic_limit=b.userLimit??null;const ps=(v2.premiumCredits&&v2.premiumCredits.perSource)||{};let pu=0,pl=0;for(const s of Object.values(ps)){if(s&&typeof s.limit==='number'){pu+=s.usageTotal||0;pl+=s.limit;}}if(pl>0){out.premium_used=pu;out.premium_limit=pl;}out.usage_source=v1?'getAIUsageEligibility + V2':'getAIUsageEligibilityV2';}const unlimited=out.plan_type==='unlimited';if(out.premium_limit){out.used=out.premium_used;out.limit=out.premium_limit;out.usage=Math.min(100,Math.round(out.premium_used/out.premium_limit*100));}else if(!unlimited&&out.basic_limit){out.used=out.basic_used;out.limit=out.basic_limit;out.usage=Math.min(100,Math.round(out.basic_used/out.basic_limit*100));}else if(unlimited){out.usage=0;}if(!unlimited&&!out.premium_limit&&out.basic_limit&&out.basic_used>=out.basic_limit)out.exhausted=true;}catch(e){out.usage_error='Usage-Abfrage fehlgeschlagen: '+e;}if(out.exhausted)out.usage=100;return out})()"#;
++async fn inspect_account(t:&Tab,i:usize){
++    let value=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":USAGE_JS,"awaitPromise":true,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).cloned()).filter(Value::is_object).unwrap_or_else(||json!({"usage_error":"Tab nicht erreichbar"}));
++    let mut a=lock(&ACCOUNT);let entry=a.entry(t.id).or_insert_with(||json!({"usage":null,"models":[]}));if let Some(obj)=value.as_object(){for(k,v)in obj{entry[k]=v.clone();}}if let Some(p)=entry.get("ui_pct").cloned().filter(|v|!v.is_null()){entry["usage"]=p;}
++}
++/// Live-Dashboard: alle 30 s Usage fuer jeden laufenden Tab, unabhaengig davon, ob Co-Work gestartet wurde.
++async fn usage_monitor(){loop{let tabs=load();let running=tokio::task::spawn_blocking({let t=tabs.clone();move||running_ids(&t)}).await.unwrap_or_default();for(i,t)in tabs.iter().enumerate(){if running.contains(&t.id){inspect_account(t,i).await;}else{mark_account(t.id,"usage_error",json!("Tab l\u{e4}uft nicht"));}}tokio::time::sleep(Duration::from_secs(30)).await;}}
++async fn logged_in(port:u16)->bool{
++    let expr=r#"(()=>/(^|\.)notion\.(so|com)$/.test(location.hostname)&&!/\/login|\/signup|onboarding/.test(location.pathname)&&!!document.querySelector('.notion-sidebar,nav,[role="tab"]'))()"#;
++    cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false)
++}
++/// Auto-MCP: traegt AdiCode in jedem laufenden, eingeloggten Tab ohne Verbindung automatisch ein (max. alle 5 min pro Tab).
++async fn auto_mcp_watcher(){
++    let mut tried:BTreeMap<u32,std::time::Instant>=BTreeMap::new();
++    loop{
++        tokio::time::sleep(Duration::from_secs(20)).await;
++        if !auto_mcp_on(){continue;}
++        let tabs=load();let running=tokio::task::spawn_blocking({let t=tabs.clone();move||running_ids(&t)}).await.unwrap_or_default();
++        for(i,t)in tabs.iter().enumerate(){
++            if !running.contains(&t.id)||mcp_ok(t.id)||is_paused(t.id){continue;}
++            if tried.get(&t.id).map(|x|x.elapsed()<Duration::from_secs(300)).unwrap_or(false){continue;}
++            if !logged_in(cdp_port(i)).await{continue;}
++            tried.insert(t.id,std::time::Instant::now());
++            mark_account(t.id,"mcp",json!("Wird automatisch eingetragen ..."));
++            match setup_mcp(t,i).await{Ok(m)=>tracing::info!("Auto-MCP Tab {}: {m}",t.id),Err(e)=>mark_account(t.id,"mcp",json!(format!("Auto-Einrichtung fehlgeschlagen: {e}")))}
++        }
++    }
++}
++pub(crate) fn ensure_monitors(){if !USAGE_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(usage_monitor());}if !AUTO_MCP_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(auto_mcp_watcher());}}
++/// Hat der Nutzer das Worker-Fenster gerade selbst im Fokus, schickt AdiCode keine Erinnerung hinein.
++async fn user_present(port:u16)->bool{cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":"document.hasFocus()","returnByValue":true}})]).await.ok().and_then(|r|r.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool)).unwrap_or(false)}async fn keep_alive(tabs:Vec<Tab>){loop{for(i,t)in tabs.iter().enumerate(){let _=cdp(cdp_port(i),vec![json!({"method":"Runtime.evaluate","params":{"expression":"(()=>{window.dispatchEvent(new Event('focus'));document.dispatchEvent(new Event('visibilitychange'));return document.visibilityState})()"}})]).await;let _=t;}tokio::time::sleep(Duration::from_secs(20)).await;}}
++async fn kickoff(tabs:Vec<Tab>, baseline:usize){
++    stage(1);for t in &tabs{step(t.id,0);}let errors=full_check(&tabs).await;
++    if !errors.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Start angehalten \u{2013} Account-Check: {}",errors.join("; ")));return;}
++    if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}set_status("Account-Check ok: alle Konten im Chat \u{201a}Willkommen bei Notion\u{2018}, Worker-Fenster automatisch versteckt.");
++    stage(2);let _=open_main(cdp_port(0)).await;
++    if let Some(main)=tabs.first(){let _=insert_prompt(cdp_port(0),prompt_for(main)).await;}
++    if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
++    if !NUDGER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(nudger(tabs.clone()));}
++    stage(3);loop{if crate::notion_cowork::project_count()>baseline{break;}tokio::time::sleep(Duration::from_secs(3)).await;}
++    stage(4);set_status("Projekt erkannt. Coder, Reviewer und Tester treten bei …");
++    let mut prompt_errors=Vec::new();
++    for(i,t)in tabs.iter().enumerate().skip(1){if let Err(e)=insert_prompt(cdp_port(i),prompt_for(t)).await{prompt_errors.push(format!("{}: {e}",t.role));}tokio::time::sleep(Duration::from_secs(2)).await;}
++    let failed:Vec<String>=prompt_errors.iter().map(|e|e.split(':').next().unwrap_or("").to_ascii_lowercase()).collect();
++    let note=if prompt_errors.is_empty(){String::new()}else{format!(" Nicht gestartet: {} - die anderen übernehmen diese Aufgaben mit.",prompt_errors.join("; "))};
++    let wanted:Vec<&str>=["coder","reviewer","tester"].into_iter().filter(|r|!failed.iter().any(|f|f==r)).collect();
++    if wanted.is_empty(){windows::set_hidden(&tabs,false);stage(6);set_status(format!("Worker-Kickoff fehlgeschlagen:{note}"));return;}
++    for _ in 0..45 {let roles=crate::notion_cowork::latest_agent_roles();if wanted.iter().all(|r|roles.iter().any(|x|x.as_str()==*r)){stage(5);set_status(format!("Co-Work aktiv: {} mit Main verbunden. Jeder bewertet neue Aufträge aus seiner Rollen-Sicht und hilft dann bei allem mit.{note}",wanted.join(", ")));let _=open_main(cdp_port(0)).await;return;}tokio::time::sleep(Duration::from_secs(2)).await;}
++    let roles=crate::notion_cowork::latest_agent_roles();let missing:Vec<_>=wanted.iter().filter(|r|!roles.iter().any(|x|x.as_str()==**r)).copied().collect();windows::set_hidden(&tabs,false);stage(6);set_status(format!("Verbindungstest fehlgeschlagen. Fehlende Rollen: {}. Fenster wurden zur Kontrolle gezeigt.{note}",missing.join(", ")));
++}
++fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 4 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
++fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 4 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
++fn start_all(_: &Value)->Result<String,String>{let tabs=load();if tabs.len()!=4||tabs.iter().any(|t|t.email.is_empty()){return Err("Start erst möglich, wenn genau 4 Tabs mit E-Mail eingetragen sind.".into());}let running=running_ids(&tabs);for t in tabs.iter().filter(|t|!running.contains(&t.id)){launch(t,&start_url(t))?;}let baseline=crate::notion_cowork::project_count();tokio::spawn(kickoff(tabs,baseline));Ok("Co-Work startet. Schreibe deine Aufgabe im AdiCode-Chat (oder im Main-Fenster); die drei Worker treten danach automatisch bei.".into())}
++fn delete(id:Option<u32>)->Result<String,String>{let t=find(id)?;if running_ids(std::slice::from_ref(&t)).contains(&t.id){return Err("Tab läuft noch. Erst stoppen.".into());}if dir(t.id).is_dir(){std::fs::remove_dir_all(dir(t.id)).map_err(|e|e.to_string())?;}let tabs:Vec<Tab>=load().into_iter().filter(|x|x.id!=t.id).collect();save(&tabs)?;lock(&ACCOUNT).remove(&t.id);Ok(format!("Tab {} entfernt; Rollen wurden nachgerückt.",t.id))}
++fn open_tab(t:&Tab)->Result<String,String>{launch(t,&start_url(t)).map(|b|format!("Tab {} geöffnet ({b}).",t.id))}
++
++/// Nach einem AdiCode-Neustart (z. B. Auto-Update) laufen die Co-Work-Browser weiter, Keeper und Nudger aber nicht. Wieder anwerfen, wenn Co-Work-Fenster offen sind.
++pub(crate) fn resume_background(){
++    tokio::spawn(async{
++        ensure_monitors();
++        tokio::time::sleep(Duration::from_secs(20)).await;
++        let tabs=load();
++        let running=tokio::task::spawn_blocking({let t=tabs.clone();move||running_ids(&t)}).await.unwrap_or_default();
++        if tabs.is_empty()||running.is_empty(){return;}
++        if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}
++        if !NUDGER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(nudger(tabs));}
++        tracing::info!("Co-Work: Keeper/Nudger nach Neustart fortgesetzt");
++    });
++}
++pub(crate) fn show_all_windows(){let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],false);}}
++
++fn set_browser(v:&Value)->Result<String,String>{
++    let n=v.as_str().or_else(||v.get("name").and_then(Value::as_str)).unwrap_or("").trim().to_string();
++    if n.is_empty(){return Err("Bitte einen Browser ausw\u{e4}hlen.".into());}
++    let found=installed_browsers().into_iter().find(|(x,_)|x.eq_ignore_ascii_case(&n)).ok_or(format!("{n} ist auf diesem PC nicht installiert."))?;
++    if chosen_browser().map(|c|c.eq_ignore_ascii_case(found.0)).unwrap_or(false){return Ok(format!("Browser: {}.",found.0));}
++    if !running_ids(&load()).is_empty(){return Err("Erst alle Tabs stoppen, dann den Browser wechseln.".into());}
++    std::fs::create_dir_all(base()).map_err(|e|e.to_string())?;std::fs::write(browser_file(),found.0).map_err(|e|e.to_string())?;
++    Ok(format!("Browser: {} \u{2013} alle Tabs starten ab jetzt darin.",found.0))
++}
++fn login_url(_t:&Tab)->String{["https://www.","notion",".so/login"].concat()}
++/// Gmail-Login direkt in AdiCode: der echte Tab-Browser laedt die Google-Seite (Cookies landen im Container),
++/// das Fenster wird versteckt und AdiCode zeigt/steuert es per CDP (Screenshot + Maus/Tastatur).
++fn login_view(t:Tab)->Result<String,String>{
++    if t.email.is_empty(){return Err("Erst Gmail-Konto eintragen und speichern.".into());}
++    let url=login_url(&t);let i=tab_index(t.id);
++    let running=running_ids(std::slice::from_ref(&t)).contains(&t.id);
++    if !running{launch(&t,&url)?;}
++    let msg=format!("Login-Ansicht f\u{fc}r {} ge\u{f6}ffnet.",t.email);
++    tokio::spawn(async move{
++        if running{if let Ok(ws)=any_target(cdp_port(i)).await{let _=cdp_ws(&ws,vec![json!({"method":"Page.navigate","params":{"url":url}})]).await;}}
++        else{for _ in 0..30{if any_target(cdp_port(i)).await.is_ok(){break;}tokio::time::sleep(Duration::from_millis(500)).await;}}
++        tokio::time::sleep(Duration::from_millis(1500)).await;
++        windows::set_hidden(std::slice::from_ref(&t),true);
++    });
++    Ok(msg)
++}
++async fn any_target(port:u16)->Result<String,String>{
++    let list:Vec<Value>=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await.map_err(|_|"Tab l\u{e4}uft nicht.".to_string())?.json().await.map_err(|e|e.to_string())?;
++    list.into_iter().find(|v|v["type"]=="page"&&!v["url"].as_str().unwrap_or("").starts_with("devtools://")).and_then(|v|v["webSocketDebuggerUrl"].as_str().map(str::to_string)).ok_or("Kein Browser-Fenster im Tab gefunden.".into())
++}
++fn vk(key:&str)->Option<i64>{Some(match key{"Enter"=>13,"Backspace"=>8,"Tab"=>9,"Escape"=>27,"Delete"=>46,"ArrowLeft"=>37,"ArrowUp"=>38,"ArrowRight"=>39,"ArrowDown"=>40,"Home"=>36,"End"=>35,_=>return None})}
++async fn view_op(req:Value)->Result<Value,String>{
++    let id=req["id"].as_u64().and_then(|n|u32::try_from(n).ok());let t=find(id)?;let port=cdp_port(tab_index(t.id));
++    let ws=any_target(port).await?;
++    let num=|k:&str|req[k].as_f64().unwrap_or(0.0);
++    match req["op"].as_str().unwrap_or("shot"){
++        "shot"=>{
++            let r=cdp_ws(&ws,vec![json!({"method":"Page.captureScreenshot","params":{"format":"jpeg","quality":60}}),json!({"method":"Runtime.evaluate","params":{"expression":"JSON.stringify({w:innerWidth,h:innerHeight,u:location.href,t:document.title})","returnByValue":true}})]).await?;
++            let img=r.first().and_then(|v|v.pointer("/result/data")).and_then(Value::as_str).ok_or("Kein Bild vom Tab.")?.to_string();
++            let info:Value=r.get(1).and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_str).and_then(|s|serde_json::from_str(s).ok()).unwrap_or(json!({}));
++            let url=info["u"].as_str().unwrap_or("").to_string();
++            let notion=url.contains("notion.so")||url.contains("notion.com");
++            let done=notion&&!url.contains("/login")&&!url.contains("/signup")&&logged_in(port).await;
++            Ok(json!({"ok":true,"img":img,"w":info["w"],"h":info["h"],"url":url,"title":info["t"],"logged_in":done}))
++        }
++        "click"=>{let(x,y)=(num("x"),num("y"));cdp_ws(&ws,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseMoved","x":x,"y":y}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}})]).await?;Ok(json!({"ok":true}))}
++        "type"=>{let text=req["text"].as_str().unwrap_or("").chars().take(2000).collect::<String>();if !text.is_empty(){cdp_ws(&ws,vec![json!({"method":"Input.insertText","params":{"text":text}})]).await?;}Ok(json!({"ok":true}))}
++        "key"=>{
++            let key=req["key"].as_str().unwrap_or("").to_string();let code=vk(&key).ok_or("Taste nicht unterst\u{fc}tzt.")?;
++            let mut down=json!({"type":"rawKeyDown","key":key,"code":key,"windowsVirtualKeyCode":code,"nativeVirtualKeyCode":code});
++            if key=="Enter"{down["type"]=json!("keyDown");down["text"]=json!("\r");}
++            let up=json!({"type":"keyUp","key":key,"code":key,"windowsVirtualKeyCode":code,"nativeVirtualKeyCode":code});
++            cdp_ws(&ws,vec![json!({"method":"Input.dispatchKeyEvent","params":down}),json!({"method":"Input.dispatchKeyEvent","params":up})]).await?;Ok(json!({"ok":true}))
++        }
++        "scroll"=>{cdp_ws(&ws,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseWheel","x":num("x"),"y":num("y"),"deltaX":0,"deltaY":num("dy")}})]).await?;Ok(json!({"ok":true}))}
++        "back"=>{cdp_ws(&ws,vec![json!({"method":"Runtime.evaluate","params":{"expression":"history.back()"}})]).await?;Ok(json!({"ok":true}))}
++        _=>Err("Unbekannte Aktion.".into()),
++    }
++}
++pub async fn view_handler(Json(req):Json<Value>)->impl IntoResponse{match view_op(req).await{Ok(v)=>(axum::http::StatusCode::OK,Json(v)),Err(e)=>(axum::http::StatusCode::BAD_REQUEST,Json(json!({"ok":false,"error":e})))}}
++pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();let mem=mem_all();json!({"ok":true,"stage":if running.is_empty(){0}else{STAGE.load(std::sync::atomic::Ordering::SeqCst)},"hidden":windows::any_hidden(),"auto_mcp":auto_mcp_on(),"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["account"]=acc.get(&t.id).cloned().unwrap_or_else(||json!({"usage":null,"models":[]}));v["memory"]=mem.get(t.email.to_lowercase().as_str()).cloned().unwrap_or(Value::Null);v}).collect::<Vec<_>>()})}
++pub async fn tabs_handler()->impl IntoResponse{ensure_monitors();Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e|json!({"ok":false,"error":e.to_string()})))}
++pub fn action(name:&str,v:&Value)->Option<Result<String,String>>{
++    let id=v.as_u64().or_else(||v.get("id").and_then(Value::as_u64)).and_then(|n|u32::try_from(n).ok());
++    Some(match name{
++        "cowork_add_tab"=>add_tab(),"cowork_save_tabs"=>save_tabs(v),"cowork_start_all"=>start_all(v),
++        "cowork_stop_all"=>{let ids:Vec<u32>=load().iter().map(|t|t.id).collect();Ok(format!("{} Browser-Prozesse beendet.",stop_ids(&ids)))},
++        "cowork_show_all"=>{show_all_windows();Ok("Alle Co-Work-Fenster angezeigt.".into())},
++        "cowork_check_accounts"|"cowork_check"=>check_action(),
++        "cowork_goto_chat"=>find(id).and_then(|t|{if !running_ids(std::slice::from_ref(&t)).contains(&t.id){launch(&t,&start_url(&t))?;}windows::set_hidden(std::slice::from_ref(&t),false);let i=tab_index(t.id);let msg=format!("Tab {} ({}) wird zum Chat \u{201a}Willkommen bei Notion\u{2018} gebracht.",t.id,t.role);tokio::spawn(async move{let port=cdp_port(i);if !wait_cdp(port).await{return;}let _=cdp(port,vec![json!({"method":"Page.bringToFront"})]).await;let ok=prepare_chat(&t,i).await.is_ok();mark_account(t.id,"chat_ok",json!(ok));let st=lock(&ACCOUNT).get(&t.id).and_then(|a|a["check"].as_str().map(String::from)).unwrap_or_default();if ok&&st=="Chat fehlt"{mark_account(t.id,"check",json!("OK"));}});Ok(msg)}),
++        "cowork_refresh_confirm"=>find(id).map(|t|{let i=tab_index(t.id);windows::set_hidden(std::slice::from_ref(&t),false);mark_account(t.id,"refresh_state",json!("Konto wird gel\u{f6}scht ..."));let t2=t.clone();tokio::spawn(refresh_account(t2,i));format!("Refresh f\u{fc}r Tab {} gestartet.",t.id)}),
++        "cowork_forget"=>find(id).map(|t|{mem_forget(&t.email);mark_account(t.id,"mcp_saved",json!(false));mark_account(t.id,"model_ok",Value::Null);format!("Gemerkte Checks f\u{fc}r {} gel\u{f6}scht \u{2013} n\u{e4}chster Check pr\u{fc}ft MCP und Modelle neu.",t.email)}),
++        "cowork_setup_mcp"=>find(id).map(|t|{let i=tab_index(t.id);tokio::spawn(async move{let _=setup_mcp(&t,i).await;});"MCP-Einrichtung gestartet.".into()}),
++        "cowork_takeover"=>find(id).map(|t|{lock(&PAUSED).insert(t.id);windows::set_hidden(std::slice::from_ref(&t),false);let i=tab_index(t.id);tokio::spawn(async move{stop_generation(cdp_port(i)).await;let _=cdp(cdp_port(i),vec![json!({"method":"Page.bringToFront"})]).await;});format!("Tab {} ({}) \u{fc}bernommen: AdiCode schickt keine Erinnerungen mehr, du kannst dort selbst schreiben.",t.id,t.role)}),
++        "cowork_release"=>find(id).map(|t|{lock(&PAUSED).remove(&t.id);format!("Tab {} ({}) wieder an Co-Work \u{fc}bergeben.",t.id,t.role)}),
++        "cowork_auto_mcp"=>{let on=v.as_bool().or_else(||v.get("on").and_then(Value::as_bool)).unwrap_or(false);let r=if on{std::fs::create_dir_all(base()).and_then(|_|std::fs::write(auto_mcp_file(),"1"))}else{match std::fs::remove_file(auto_mcp_file()){Err(e) if e.kind()!=std::io::ErrorKind::NotFound=>Err(e),_=>Ok(())}};ensure_monitors();r.map(|_|if on{"Auto-MCP an: neue Tabs bekommen AdiCode automatisch, sobald sie in Notion eingeloggt sind.".to_string()}else{"Auto-MCP aus.".to_string()}).map_err(|e|e.to_string())},
++        "cowork_set_browser"=>set_browser(v),
++        "cowork_hide_all"=>{let tabs=load();if tabs.len()>1{windows::set_hidden(&tabs[1..],true);}Ok("Worker-Fenster versteckt.".into())},
++        "cowork_show_tab"=>find(id).map(|t|{windows::set_hidden(std::slice::from_ref(&t),false);format!("Fenster von Tab {} angezeigt.",t.id)}),
++        "cowork_login_view"=>find(id).and_then(login_view),
++        "cowork_copy_prompt"=>find(id).map(|t|prompt_for(&t)),
++        "cowork_stop"=>find(id).map(|t|format!("Tab {} gestoppt ({} Prozesse).",t.id,stop_ids(&[t.id]))),
++        "open_notion_window"=>match id{Some(_)=>find(id).and_then(|t|open_tab(&t)),None=>add_tab().and_then(|_|load().last().cloned().ok_or("Tab fehlt.".into())).and_then(|t|open_tab(&t))},
++        "cowork_login"=>find(id).and_then(|t|{if t.email.is_empty(){return Err("Erst Gmail-Konto eintragen und speichern.".into());}let url=login_url(&t);launch(&t,&url).map(|b|format!("Google-Login für {} geöffnet ({b}).",t.email))}),
 +        "delete_notion_profile"|"cowork_delete"=>delete(id),
 +        "rename_notion_profile"=>find(id).and_then(|t|{let mut tabs=load();if let Some(x)=tabs.iter_mut().find(|x|x.id==t.id){x.label=clean(v.get("label").and_then(Value::as_str).unwrap_or(""),40);}save(&tabs).map(|_|"Name gespeichert.".into())}),
 +        _=>return None,

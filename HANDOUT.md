@@ -133,6 +133,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.58**: Auto-Login im Check (Onboarding, Trial starten und kuendigen)
 - **1.0.59**: Auto-Login im Check (Onboarding, Trial starten und kuendigen)
 - **1.0.60**: Google-400-Fix (Login ueber notion.so/login), DE-Onboarding, Klick-Entprellung (ein Willkommen-Chat), Chat-Zaehlung
+- **1.0.61**: Co-Work schneller (GATE 45 s, STEAL 25 s, wait weckt bei neuen freien Tasks, Nudger 4 s/90 s, parallele Worker-Prompts, Tempo-Hinweise in Prompts)
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.
@@ -178,3 +179,9 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - CHATS_JS zaehlte gleichnamige Chats als 1 -> jetzt Dedupe nach Position (Test: 3 Chats -> total 3 / welcome 3).
 - Testwerkzeuge: work\bugtest (harness2.js, logout.js, urltest.js, runjs.js, patch160*.js). Dateien haben gemischte Zeilenenden (CRLF+LF) -> beim Patchen nach '\n' splitten.
 - OFFEN: Test mit frischem Konto (Refresh Tab 4 adiabi26444 = Konto loeschen -> braucht OK des Nutzers), Build/Release 1.0.60 nur nach OK.
+
+- 1.0.60 RELEASED (Commit e52f5fb, fast-release). Test: Tab4-Konto per REFRESH_JS geloescht, Login ueber notion.so/login + Onboarding mit harness -> genau 1 Willkommen-Chat (vorher 3). CHATS_JS oeffnet jetzt eingeklappte Seitenleiste.
+
+## Arbeitsregeln vom Nutzer (Mia/Adrian)
+- Nicht unnoetig warten: waehrend etwas laeuft/baut/wartet IMMER andere Aufgaben erledigen (parallele Tool-Calls, Hintergrundjobs per Start-Process).
+- Co-Work-Geschwindigkeit (meine + andere Co-Work-Chats) deutlich erhoehen, aber Leistung/Qualitaet behalten. (Aufgabe offen seit 1.0.60)
