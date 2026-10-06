@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..b4fbbfe 100644
+index 07dc4c0..3106066 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -850,7 +850,7 @@ index 07dc4c0..b4fbbfe 100644
 +      var Tgt = I === 0 ? "Opus 5.5" : "Sonnet 5.5", TId = I === 0 ? "albuquerque-quinn" : "achira-donut";
 +      var Chip = function (St, Txt, Tip) { return '<span class="cwchip ' + St + '" title="' + CEsc(Tip || "") + '">' + (St === "ok" ? "\u2713 " : (St === "bad" ? "\u2715 " : "\u2022 ")) + CEsc(Txt) + '</span>'; };
 +      var McpBad = /fehlt|fallback/i.test(A.mcp || "");
-+      var McpOk = !McpBad && (A.mcp_saved === true || M.mcp_ok === true || /verbunden/i.test(A.mcp || ""));
++      var McpOk = !McpBad && (A.mcp_saved === true || M.mcp_ok2 === true || /verbunden/i.test(A.mcp || ""));
 +      var ModOk = A.model_ok === true || M.models_ok === TId, ModBad = A.model_ok === false;
 +      var ChatBad = A.chat_ok === false || (/chat/i.test(A.check || "") && /fehlt/i.test(A.check || "")) || /nicht gefunden|nicht bereit/i.test(A.chat || "");
 +      var ChatOk = !ChatBad && (A.chat_ok === true || /bereit/i.test(A.chat || ""));
@@ -4481,7 +4481,7 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..fa8b703
+index 0000000..e86b293
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
 @@ -0,0 +1,519 @@
@@ -4733,7 +4733,7 @@ index 0000000..fa8b703
 +}
 +fn set_status(s:impl Into<String>){*lock(&COWORK_STATUS)=s.into();}
 +pub(crate) fn status_text()->String{lock(&COWORK_STATUS).clone()}
-+pub(crate) fn mcp_ok(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)||load().iter().find(|t|t.id==id).map(|t|mem_get(&t.email,"mcp_ok").as_bool()==Some(true)).unwrap_or(false)}
++pub(crate) fn mcp_ok2(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)||load().iter().find(|t|t.id==id).map(|t|mem_get(&t.email,"mcp_ok2").as_bool()==Some(true)).unwrap_or(false)}
 +static CHECKING: AtomicBool = AtomicBool::new(false);
 +async fn js_eval(port:u16,expr:&str)->Result<Value,String>{Ok(cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null))}
 +async fn wait_cdp(port:u16)->bool{for _ in 0..40{if target(port).await.is_ok(){return true;}tokio::time::sleep(Duration::from_secs(1)).await;}false}
@@ -4792,8 +4792,8 @@ index 0000000..fa8b703
 +    let mut ok=false;for _ in 0..25{if logged_in(port).await{ok=true;break;}tokio::time::sleep(Duration::from_secs(1)).await;}
 +    if !ok{mark_account(t.id,"check",json!("Nicht eingeloggt \u{2013} Gmail-Login nutzen"));return Err(format!("{}: nicht in Notion eingeloggt",t.role));}
 +    step(t.id,1);let mut missing:Vec<&str>=Vec::new();let mut errs:Vec<String>=Vec::new();
-+    if mem_get(&t.email,"mcp_ok").as_bool()==Some(true){mark_account(t.id,"mcp",json!("Bereits verbunden"));mark_account(t.id,"mcp_saved",json!(true));}
-+    else{mark_account(t.id,"check",json!("Pr\u{fc}fe AdiCode-MCP \u{2026}"));match setup_mcp(&t,i).await{Ok(_)=>{mem_set(&t.email,"mcp_ok",json!(true));mark_account(t.id,"mcp_saved",json!(true));}Err(e)=>{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));missing.push("MCP");errs.push(format!("{}: MCP {e}",t.role));}}}
++    if mem_get(&t.email,"mcp_ok2").as_bool()==Some(true){mark_account(t.id,"mcp",json!("Bereits verbunden"));mark_account(t.id,"mcp_saved",json!(true));}
++    else{mark_account(t.id,"check",json!("Pr\u{fc}fe AdiCode-MCP \u{2026}"));match setup_mcp(&t,i).await{Ok(_)=>{mem_set(&t.email,"mcp_ok2",json!(true));mark_account(t.id,"mcp_saved",json!(true));}Err(e)=>{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));missing.push("MCP");errs.push(format!("{}: MCP {e}",t.role));}}}
 +    step(t.id,2);mark_account(t.id,"check",json!("Pr\u{fc}fe Modelle \u{2026}"));
 +    if let Err(e)=ensure_models(&t,i).await{missing.push("Modell");errs.push(e);}step(t.id,3);check_trial(&t,i).await;step(t.id,4);
 +    mark_account(t.id,"check",json!("Pr\u{fc}fe Usage \u{2026}"));
@@ -4859,7 +4859,7 @@ index 0000000..fa8b703
 +        if !auto_mcp_on(){continue;}
 +        let tabs=load();let running=tokio::task::spawn_blocking({let t=tabs.clone();move||running_ids(&t)}).await.unwrap_or_default();
 +        for(i,t)in tabs.iter().enumerate(){
-+            if !running.contains(&t.id)||mcp_ok(t.id)||is_paused(t.id){continue;}
++            if !running.contains(&t.id)||mcp_ok2(t.id)||is_paused(t.id){continue;}
 +            if tried.get(&t.id).map(|x|x.elapsed()<Duration::from_secs(300)).unwrap_or(false){continue;}
 +            if !logged_in(cdp_port(i)).await{continue;}
 +            tried.insert(t.id,std::time::Instant::now());

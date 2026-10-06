@@ -12,7 +12,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
-## Neu in 1.0.33
+## Neu in 1.0.34
+- **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.## Neu in 1.0.33
 - **Echte Usage**: Der Check liest den Verbrauch direkt aus Einstellungen -> Notion KI -> Usage (Monthly, "x% used", Reset-Datum) und zeigt ihn im Balken.
 - **Chat-Check**: zeigt, ob ein Konto nur den Chat "Willkommen bei Notion" hat; bei mehreren Chats wird der Chip gelb.
 ## Neu in 1.0.32
