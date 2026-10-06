@@ -241,6 +241,13 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - Kollege: seine Domain liefert ERR_NGROK_3200 (Endpoint offline) -> Notion: 'URL doesn't point to a supported MCP endpoint'. Ursache = sein ngrok-Tunnel startet nicht, NICHT der Token. Verdacht: Adrians ngrok-Authtoken in seiner ngrok.yml (Domain gehoert nicht zum Konto / ERR_NGROK_108). Loesung: eigener Authtoken (dashboard.ngrok.com > Your Authtoken) auf Notion AI > Tunnel eintragen, eigene Domain, Tunnel muss 'online' zeigen. Pruefen: curl -i https://<domain>/mcp -> 401 = ok, Header Ngrok-Error-Code = Tunnel-Problem.
 - 1.0.70: ngrok-stderr wird gesammelt (vorher nur 'ERROR:'), neue Fehlertexte 8012/121/105/107. Fenster-Waechter in notion_profiles.rs windows (WANT/PIDCACHE/APPLY, guard 0,9 s) versteckt neue Fenster versteckter Worker; Zeigen nur Hauptfenster. Backups bugtest\*.bak170.
 
+## STAND 1.0.82
+- Co-Work bis 8 Konten (MAX_TABS 8, ROLES: Main, Coder, Reviewer, Tester, Coder 2, Reviewer 2, Tester 2, Coder 3); prompt_for nutzt Basisrolle (erstes Wort), kickoff nur vorhandene Rollen; Start ab 2 Tabs.
+- Aktion cowork_check_one (Check-Knopf pro Karte, data-a=check1): startet Tab, check_one, bei allen OK hide_all_tabs, sonst nur diesen Tab verstecken.
+- Karten aufgeraeumt: nur Gmail-Login, Check, Freigeben (nur paused), Oeffnen/Stopp, Entfernen.
+- Check-Ergebnisse persistent in account-cache.json (acc_persist in mark_account, geloescht in mem_forget_all); state() mischt Cache + Live (json!-Block in Klammern!). last_check-Zeitstempel.
+- Abgelehnt: Refresh-all-Knopf.
+
 ## STAND 1.0.80 / 1.0.81
 - HARTE REGEL gilt auch fuer den Chat-Tab: NIE einen neuen Notion-Chat. 'Neuer Chat' im AdiCode-Chat = neue Unterhaltung (Sitzung) im Chat Willkommen bei Notion: control new -> ensure_welcome (prepare_chat) -> base = ID der letzten Nachricht; state?base= liefert nur Nachrichten danach; Verlauf-Schluessel url#b=<base>; UI merkt base in localStorage acBase. open/wait_composer/MCP-Setup navigieren nur zur Willkommen-URL (np::welcome_url), nie zu NOTION_URL.
 - Co-Work-Knopf (acCowork, unten links im Chat): erst ctl(new) (neue Sitzung 'Co-Work'), dann cowork_start_all. Kickoff schreibt den Main-Prompt (Hallo! AdiCode Co-Work ...) in diese Sitzung; alles Weitere dort geht an Main, der die Worker einbindet. Titel: 'Co-Work' bzw. 'Co-Work: <erste eigene Nachricht>'.
