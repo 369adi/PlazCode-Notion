@@ -156,6 +156,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Bis zu 8 Konten** in Co-Work (Rollen Main, Coder, Reviewer, Tester, Coder 2, Reviewer 2, Tester 2, Coder 3). **Check pro Konto** mit eigenem Knopf auf der Karte. Karten aufgeraeumt (nur Gmail-Login, Check, Freigeben, Oeffnen/Stopp, Entfernen). Check-Haekchen bleiben nach AdiCode-Neustart gespeichert (account-cache.json).
 ## Neu in 1.0.83
 - **Notion ohne Chat-Leiste**: laedt Notion manchmal die Ansicht ohne Chat-Leiste (nur Teamspaces/New task), oeffnet AdiCode nach 8 s automatisch wieder den Chat Willkommen bei Notion (bzw. laedt neu). Die Chat-Suche laedt in dem Fall direkt neu statt 10 s zu warten.
+## Neu in 1.0.84
+- **Neues UI-Design (UI v2)**: uebersichtlicher und schoener - weiche Seitenwechsel-Animation, Karten erscheinen gestaffelt, Hover-Glow auf Karten, animierte Navigation mit leuchtendem aktiven Eintrag, Ueberschriften mit Farbverlauf, Buttons mit Glanz-Effekt, pulsierende Status-Punkte. Respektiert die Windows-Einstellung fuer reduzierte Animationen.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

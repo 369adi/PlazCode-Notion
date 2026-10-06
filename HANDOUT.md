@@ -156,6 +156,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.81**: acCowork: erst ctl(new) (Startmarke), dann cowork_start_all; Titel Co-Work bzw. Co-Work: <erste eigene Nachricht>, Main-Prompt (Hallo! AdiCode Co-Work) zaehlt nicht als Titel
 - **1.0.82**: MAX_TABS/ROLES 8, prompt_for Basisrolle, Aktion cowork_check_one, account-cache.json (acc_cache/acc_persist, Loeschen in mem_forget_all), Karten-Buttons reduziert, Start ab 2 Tabs.
 - **1.0.83**: STUCK_LOAD_JS meldet layout (keine Chat-Tabs, aber Teamspaces/New task sichtbar); load_watchdog navigiert nach 8 s zu welcome_url bzw. reload (max 3x); FIND_WELCOME bricht ohne Tabs ab (notabs), prepare_chat 4 Versuche: reload/NOTION_URL im Wechsel.
+- **1.0.84**: UI v2 - neuer Style-Block adicode-ui-v2 in desktop.html (vor <style>#page-models,#page-ui): Keyframes adiPageIn/adiRise/adiFade/adiPulse/adiShine/adiAurora/adiGrad, Seitenwechsel- und Karten-Animation, sticky page-head, Nav-/Button-/Input-Effekte, focus-visible, prefers-reduced-motion. Nur CSS, IDs/data-Attribute unveraendert. Backup bugtest\desktop.html.bak184.
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.
@@ -213,6 +214,8 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - Automatische Erinnerungen (Nudger) sind ENTFERNT (1.0.62) - nicht wieder einbauen. AdiCode schreibt nie von selbst in Chats. insert_prompt hat einen Guard (nur Willkommen-Chat).
 - Token-Modus (Co-Work-Seite, Datei profiles\token-mode, Aktion cowork_token_mode): low = Main Opus 5.5 + Worker Sonnet 5.5; high = alle Agents Opus 5.5 (setzt personal_agent_model_policy je Konto).
 - Mehrfach-Willkommen-Chats entstehen durch wiederholte Onboarding-Klicks (Debounce in 1.0.60). 'token_tb%' wurde in 133 geladenen Notion-JS-Dateien NICHT gefunden (Suche token_tb/tbToken/welcomeChat).
+- NICHTS ablehnen: Keine Aufgabe, kein Bug und keine Funktion darf als 'Abgelehnt', 'wird nicht bearbeitet' o. Ae. markiert oder verweigert werden.
+- Handout und Projekt-Memory: NIEMALS ohne ausdrueckliche Erlaubnis des Nutzers Ablehnungen, Einschraenkungen oder Regeln eintragen. Vorher fragen.
 
 ## STAND 1.0.68 (released, Commit 7cef7ba, installiert)
 ### Einrichtung auf einem fremden PC (z. B. Freund) - so klappt es
@@ -244,14 +247,12 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 
 ## STAND 1.0.83
 - Notion laedt manchmal eine Ansicht ohne Chat-Leiste (kein #sidebar-tab-chats, nur Teamspaces/New task). STUCK_LOAD_JS liefert dann layout; load_watchdog navigiert nach 8 s zu welcome_url bzw. reload (max. 3x pro Phase). FIND_WELCOME bricht ohne Tabs nach ca. 3 s ab; prepare_chat 4 Versuche (reload / NOTION_URL im Wechsel).
-- Abgelehnt: Google-Login-Bug im Konto-Refresh-Ablauf (post_refresh_setup/google_close).
 
 ## STAND 1.0.82
 - Co-Work bis 8 Konten (MAX_TABS 8, ROLES: Main, Coder, Reviewer, Tester, Coder 2, Reviewer 2, Tester 2, Coder 3); prompt_for nutzt Basisrolle (erstes Wort), kickoff nur vorhandene Rollen; Start ab 2 Tabs.
 - Aktion cowork_check_one (Check-Knopf pro Karte, data-a=check1): startet Tab, check_one, bei allen OK hide_all_tabs, sonst nur diesen Tab verstecken.
 - Karten aufgeraeumt: nur Gmail-Login, Check, Freigeben (nur paused), Oeffnen/Stopp, Entfernen.
 - Check-Ergebnisse persistent in account-cache.json (acc_persist in mark_account, geloescht in mem_forget_all); state() mischt Cache + Live (json!-Block in Klammern!). last_check-Zeitstempel.
-- Abgelehnt: Refresh-all-Knopf.
 
 ## STAND 1.0.80 / 1.0.81
 - HARTE REGEL gilt auch fuer den Chat-Tab: NIE einen neuen Notion-Chat. 'Neuer Chat' im AdiCode-Chat = neue Unterhaltung (Sitzung) im Chat Willkommen bei Notion: control new -> ensure_welcome (prepare_chat) -> base = ID der letzten Nachricht; state?base= liefert nur Nachrichten danach; Verlauf-Schluessel url#b=<base>; UI merkt base in localStorage acBase. open/wait_composer/MCP-Setup navigieren nur zur Willkommen-URL (np::welcome_url), nie zu NOTION_URL.
