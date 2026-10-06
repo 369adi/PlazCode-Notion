@@ -91,6 +91,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Automatische Erinnerungen entfernt**: AdiCode schreibt nie mehr von selbst in Chats (kein Nudger mehr).
 - **Nur Willkommen-Chat**: Prompts werden nur gesendet, wenn der Chat Willkommen bei Notion offen ist; sonst passiert nichts.
 - **Token-Modus** in Co-Work: Wenig Token (Main Opus 5.5, Worker Sonnet 5.5) oder Viele Token (alle Agents Opus 5.5).
+## Neu in 1.0.63
+- **Aufwecken-Button** (nur auf Klick): weckt ruhende Chats mit offener Arbeit, ausschliesslich im Chat Willkommen bei Notion.
+- **Google-Login schneller**: nach dem Konto-Klick wartet AdiCode nicht mehr 30 s auf das geschlossene Popup, sondern 8 s.
+- **Projekt-Memory antwortet kurz** (spart Token): project_memory_update gibt nur noch eine Zeile zurueck statt das ganze Handout.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
