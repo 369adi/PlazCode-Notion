@@ -81,6 +81,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Refresh-Button** erscheint in Co-Work bei jedem Account.
 ## Neu in 1.0.59
 - **Refresh: schliesst sich der Tab nach dem Google-Fehler, wird er automatisch neu geoeffnet und der Gmail-Login erneut versucht**
+## Neu in 1.0.60
+- **Google-Fehler 400 behoben**: Der Login startet jetzt bei notion.so/login und nutzt dort Mit Google fortfahren (Google lehnt die alte AccountChooser-URL mit continue=notion.so immer mit 400 ab). Der Tab schliesst sich nicht mehr.
+- **Onboarding auch auf Deutsch** (Fortfahren, Wer ist sonst noch in deinem Team, Waehle dein Abo, Vorerst ueberspringen).
+- **Nur noch ein Willkommen-Chat**: Onboarding-Buttons werden nicht mehr mehrfach geklickt; die Chat-Zaehlung erkennt gleichnamige Chats und oeffnet bei Bedarf die Seitenleiste.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

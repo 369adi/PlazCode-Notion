@@ -132,6 +132,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.57**: Auto-Login im Check (Onboarding, Trial starten und kuendigen)
 - **1.0.58**: Auto-Login im Check (Onboarding, Trial starten und kuendigen)
 - **1.0.59**: Auto-Login im Check (Onboarding, Trial starten und kuendigen)
+- **1.0.60**: Google-400-Fix (Login ueber notion.so/login), DE-Onboarding, Klick-Entprellung (ein Willkommen-Chat), Chat-Zaehlung
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.
@@ -170,3 +171,10 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - Lokale API zum Testen: `http://127.0.0.1:3000/api/notion/...` mit `Authorization: Bearer <%LOCALAPPDATA%\PlazCode\bridge-key>`.
 - Update-Stolperstein: „PlazCode.exe wird von einem anderen Prozess verwendet“ → `taskkill /F /IM PlazCode.exe /T` und neu starten. Idee: Launcher killt vor dem Entpacken alle PlazCode.exe aus dem app-Ordner und versucht es erneut.
 - Als Nächstes: echter E2E-Test von Co-Work 3.0 mit vier Konten (Bewertungen, Arbeitsverteilung, Weckrufe, finale Zusammenfassung) und die Werte (Gate 150 s, Steal 90 s, Nudge 10 s/4 min) nach dem Test feinjustieren.
+## STAND 1.0.60 (in Arbeit, noch NICHT released) - Login-/Onboarding-Bugs
+- Ursache Google-400: Google lehnt `accounts.google.com/AccountChooser?...&continue=https://www.notion.so/login` IMMER mit 400 ab (continue auf Nicht-Google-Domain). Alle Google-URL-Varianten getestet (AccountChooser, ServiceLogin, v3/signin/identifier) -> 400. google_close schloss dann das einzige Fenster = 'Tab schliesst sich'.
+- Fix im Code (build-src ...\agent\src\notion_profiles.rs, Backup .bak159): login_url() = https://www.notion.so/login (Notion-Button 'Mit Google fortfahren' -> Popup funktioniert, im Test an Tab 4 erfolgreich); cowork_login nutzt login_url; google_close schliesst nie das letzte Fenster (navigiert dann zu notion.so/login); google-error-Regex enger.
+- Onboarding DE: Regexe ergaenzt (Fortfahren, 'Wer ist sonst noch in deinem Team', 'Waehle dein Abo', 'Vorerst ueberspringen'); Klick-Entprellung (window.__clk, 20 s je Schritt/Regex) gegen Mehrfach-Klicks -> vermutete Ursache der mehreren 'Willkommen bei Notion'-Chats (Beweis nur mit frischem Konto moeglich).
+- CHATS_JS zaehlte gleichnamige Chats als 1 -> jetzt Dedupe nach Position (Test: 3 Chats -> total 3 / welcome 3).
+- Testwerkzeuge: work\bugtest (harness2.js, logout.js, urltest.js, runjs.js, patch160*.js). Dateien haben gemischte Zeilenenden (CRLF+LF) -> beim Patchen nach '\n' splitten.
+- OFFEN: Test mit frischem Konto (Refresh Tab 4 adiabi26444 = Konto loeschen -> braucht OK des Nutzers), Build/Release 1.0.60 nur nach OK.
