@@ -118,6 +118,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.43**: Onboarding waehlt For work (Onboarding, Trial starten und kuendigen)
 - **1.0.44**: Uploads in Bilder-Ordner, keine Extra-Fenster (Onboarding, Trial starten und kuendigen)
 - **1.0.45**: Uploads in Screenshots-Ordner, automatisch loeschen (Onboarding, Trial starten und kuendigen)
+- **1.0.46**: Google-Login automatisch (Onboarding, Trial starten und kuendigen)
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.
