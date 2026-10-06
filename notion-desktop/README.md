@@ -65,6 +65,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.53
 - **Einrichtung nach Refresh vollstaendig**: Arbeitsbereich Marketing, Ziele, Verbinden ueberspringen, Team, Plan und Desktop-App werden automatisch durchgeklickt.
 - **Schneller**: Einrichtung prueft alle 1,5 s statt alle 3 s.
+## Neu in 1.0.54
+- **Google-Fehler beim Refresh**: Zeigt das Google-Fenster einen Fehler (400), wird es geschlossen und der Login startet erneut (alle 8 s ein neuer Versuch).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
