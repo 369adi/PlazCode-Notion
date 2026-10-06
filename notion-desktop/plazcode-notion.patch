@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..6f27490 100644
+index 07dc4c0..5599db7 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -349,7 +349,7 @@ index 07dc4c0..6f27490 100644
                <div class="action" data-go="mcp"><div class="action-ico"><svg class="navicon" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="6" cy="5" r="1"/><circle cx="18" cy="12" r="1"/><circle cx="9" cy="19" r="1"/></svg></div><div><strong>MCP Servers</strong><small>Manage optional integrations</small></div><div class="chev">›</div></div>
                <div class="action" data-go="terminal"><div class="action-ico"><svg class="navicon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg></div><div><strong>Open Terminal</strong><small>Inspect bridge and MCP logs</small></div><div class="chev">›</div></div>
                <div class="action" data-go="settings"><div class="action-ico"><svg class="navicon" viewBox="20 20 220 220" aria-hidden="true" style="stroke-width:11"><path d="M168 98L183 105L197 94L213 110L201 123L209 142H227V167H209L201 185L214 198L196 216L182 204L165 211V229H141V211L123 204L109 217L92 199L105 185L99 169"/><circle cx="154" cy="155" r="32"/><path d="M143 35C116 28 92 51 103 80L62 146C42 143 25 161 31 179C37 199 62 207 78 194C89 185 94 173 87 160L129 100C157 104 180 79 164 49L145 76L122 61Z"/><circle cx="60" cy="173" r="12"/></svg></div><div><strong>Settings</strong><small>Adjust synced preferences</small></div><div class="chev">›</div></div>
-@@ -366,14 +483,72 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -366,14 +483,73 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
            <div class="panel"><div class="panel-head recent-head"><div class="panel-title">Recent activity</div><button class="clearbtn" id="clearHome">Clear</button></div><div id="recent" class="activity"></div></div>
          </div>
        </section>
@@ -360,6 +360,7 @@ index 07dc4c0..6f27490 100644
 +          <h3>Verbindung</h3>
 +          <div class="nrow"><span class="nlabel">Lokaler Server</span><span id="nListener" class="nbadge">…</span></div>
 +          <div class="nrow"><span class="nlabel">Tunnel</span><span id="nTunnel" class="nbadge">…</span><span id="nRequests" class="nhint"></span></div>
++<div class="nrow" id="nAuthRow" style="display:none"><span class="nlabel">Abgelehnt</span><span id="nAuthFails" class="nhint" style="color:#f0a35e;white-space:normal"></span></div>
 +          <div id="nError" class="nerr" hidden></div>
 +          <div class="nrow"><span class="nlabel">Server-URL</span><input id="nUrlEdit" class="nurledit" style="flex:1;min-width:220px;padding:7px 10px" placeholder="ngrok-Domain oder URL eintragen, z. B. https://name.ngrok-free.app"><button class="softbtn" id="nSaveUrl">Speichern</button><button class="softbtn" data-ncopy="url">Kopieren</button></div>
 +          <div class="nrow"><span class="nlabel">Bearer-Token</span><span id="nToken" class="nvalue">–</span><button class="softbtn" id="nShowToken">Anzeigen</button><button class="softbtn" data-ncopy="token">Kopieren</button></div>
@@ -424,7 +425,7 @@ index 07dc4c0..6f27490 100644
        </section>
        <section class="page" id="page-terminal">
          <div class="page-head"><div><div class="page-title">Terminal</div><div class="page-sub">Live bridge, Studio, MCP, and AgentScript logs.</div></div><div style="margin-left:auto;display:flex;gap:8px"><button class="softbtn" id="restartMcp">Restart MCP</button><button class="clearbtn" id="clearTerminal">Clear</button></div></div>
-@@ -382,24 +557,165 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -382,24 +558,165 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
        <section class="page" id="page-models"><div class="page-head"><div><h1>Model Builder</h1><p>Describe a model, review the preview, then add it to Roblox Studio.</p></div></div><div id="modelWorkspace"></div></section>
        <section class="page" id="page-ui"><div class="page-head"><div><h1>UI Builder</h1><p>Describe a menu or HUD, check its layout, then add it to Roblox Studio.</p></div></div><div id="uiWorkspace"></div></section>
        <section class="page" id="page-toolkit"><div class="page-head"><div><h1>Toolkit</h1><p>Start game systems with AI, run Studio tools, and keep saved place backups.</p></div></div><div id="toolkitWorkspace"></div></section>
@@ -597,7 +598,7 @@ index 07dc4c0..6f27490 100644
              <div class="settingrow"><label>Permissions</label><select data-pref="rsPermMode"><option value="sandbox">Sandbox</option><option value="ask">Ask</option><option value="full">Full</option></select></div><p class="settinghelp"><strong>Sandbox:</strong> AgentScript stays inside the connected project folder. <strong>Ask:</strong> request approval for writes and command execution. <strong>Full:</strong> allow AgentScript to work outside the project folder and run PC commands. Roblox actions still use the connected Studio bridge.</p>
            </div>
            <div class="settingcard"><h3>Reasoning</h3><p>Matches the extension work and thinking controls.</p>
-@@ -408,7 +724,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -408,7 +725,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="settingrow"><label>Extra Thinking</label><div class="toggle" data-pref="rsExtraThinking"></div></div>
              <div class="settingrow"><label>Plan Mode</label><div class="toggle" data-pref="rsPlanMode"></div></div>
            </div>
@@ -606,7 +607,7 @@ index 07dc4c0..6f27490 100644
              <div class="settingrow"><label>Forge UI</label><div class="toggle" data-pref="rsForgeMode"></div></div>
              <div class="settingrow"><label>Auto Fix</label><div class="toggle" data-pref="rsAutoFix"></div></div>
              <div class="settingrow"><label>Background Mode</label><div class="toggle" data-pref="rsBgMode"></div></div>
-@@ -419,10 +735,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -419,10 +736,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="instructions-actions"><button class="softbtn" id="saveInstructions">Save</button><span class="instructions-status" id="instructionsStatus" role="status"></span></div>
  
            </div>
@@ -619,7 +620,7 @@ index 07dc4c0..6f27490 100644
            </div>
          </div>
        </section>
-@@ -480,7 +796,7 @@ __PLAZCODE_VERSION_UI__
+@@ -480,7 +797,7 @@ __PLAZCODE_VERSION_UI__
          window.ipc.postMessage(String(Message));
        }
      } catch (Error) {
@@ -628,7 +629,7 @@ index 07dc4c0..6f27490 100644
      }
    }
  
-@@ -520,7 +836,7 @@ __PLAZCODE_VERSION_UI__
+@@ -520,7 +837,7 @@ __PLAZCODE_VERSION_UI__
  
    function Showerror(Error) {
      var Message = Error && Error.message ? Error.message : String(Error);
@@ -637,7 +638,7 @@ index 07dc4c0..6f27490 100644
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
-@@ -538,7 +854,7 @@ __PLAZCODE_VERSION_UI__
+@@ -538,7 +855,7 @@ __PLAZCODE_VERSION_UI__
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
@@ -646,7 +647,7 @@ index 07dc4c0..6f27490 100644
      }
    }
  
-@@ -573,7 +889,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +890,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -655,7 +656,7 @@ index 07dc4c0..6f27490 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -655,7 +971,7 @@ __PLAZCODE_VERSION_UI__
+@@ -655,7 +972,7 @@ __PLAZCODE_VERSION_UI__
          Live[Server.id] = Server;
        });
  
@@ -664,7 +665,7 @@ index 07dc4c0..6f27490 100644
  
        var Catalogservers = Catalog && Catalog.servers ? Catalog.servers : [];
        Html += Catalogservers.map(function (Server) {
-@@ -892,7 +1208,7 @@ __PLAZCODE_VERSION_UI__
+@@ -892,7 +1209,7 @@ __PLAZCODE_VERSION_UI__
      var List = Byid('updateReleaseNotes'); List.replaceChildren();
      (Notes || []).forEach(function (Release, Index) {
        var Card = document.createElement('details'); Card.className='settingcard release-note'; Card.open=Index === 0;
@@ -673,7 +674,7 @@ index 07dc4c0..6f27490 100644
        var Summary=document.createElement('p'); Summary.textContent=Release.summary; Card.appendChild(Summary);
        [['added','New additions'],['improved','Improvements'],['fixed','Bug fixes']].forEach(function (Section) {
          if (!Array.isArray(Release[Section[0]]) || !Release[Section[0]].length) return;
-@@ -905,12 +1221,12 @@ __PLAZCODE_VERSION_UI__
+@@ -905,12 +1222,12 @@ __PLAZCODE_VERSION_UI__
    function Refreshupdates() {
      if (Updatepolling) return Promise.resolve(); Updatepolling = true;
      return Api('/api/desktop/update').then(function (Value) {
@@ -688,7 +689,7 @@ index 07dc4c0..6f27490 100644
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
-@@ -919,18 +1235,18 @@ __PLAZCODE_VERSION_UI__
+@@ -919,18 +1236,18 @@ __PLAZCODE_VERSION_UI__
        Byid('installUpdate').disabled = Updating || Value.available !== true;
        Byid('checkUpdates').disabled = Updating;
        Byid('updateOverlay').hidden = (!Updating || Value.background === true) && (!Value.error || UpdateerrorDismissed);
@@ -710,7 +711,7 @@ index 07dc4c0..6f27490 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1522,352 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1523,353 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -760,7 +761,8 @@ index 07dc4c0..6f27490 100644
 +    var SS = $("nSafeShell"); if (SS) SS.checked = !!S.safe_shell;
 +    if ($("nBrowser")) $("nBrowser").textContent = S.browser || "Kein Chrome/Edge/Brave gefunden";
 +    var PB = $("nProfiles"); if (PB && !PB.contains(document.activeElement)) { var Esc = function (X) { return String(X).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); }; var PH = (S.notion_profiles || []).map(function (P) { return "<div class=\"nrow\"><span class=\"nlabel\">Profil " + P.id + "</span><input data-plabel=\"" + P.id + "\" value=\"" + Esc(P.label || "") + "\" placeholder=\"Name, z. B. Main oder Coder\"><button class=\"softbtn\" data-popen=\"" + P.id + "\">Öffnen</button><button class=\"dangerbtn\" style=\"padding:6px 12px\" data-pdel=\"" + P.id + "\">Löschen</button></div>"; }).join("") || "<p class=\"nhint\">Noch keine Profile. Klick auf „Neues Notion-Fenster“.</p>"; if (PB.innerHTML !== PH) PB.innerHTML = PH; }
-+    if ($("nRequests")) $("nRequests").textContent = S.requests ? (S.requests + " Anfragen" + (S.last_request ? " · zuletzt " + S.last_request.time + " (" + S.last_request.what + ")" : "")) : "Noch keine Anfrage von Notion";
++    if ($("nAuthRow")) { const F = S.auth_failures || []; $("nAuthRow").style.display = F.length ? "" : "none"; $("nAuthFails").textContent = F.length ? (S.auth_fail_count + " abgelehnt · " + F.slice(-3).reverse().map(x => x.time + " " + x.method + " " + x.path + ": " + x.reason).join(" | ")) : ""; }
++  if ($("nRequests")) $("nRequests").textContent = S.requests ? (S.requests + " Anfragen" + (S.last_request ? " · zuletzt " + S.last_request.time + " (" + S.last_request.what + ")" : "")) : "Noch keine Anfrage von Notion";
 +    var D = $("nDomain"); if (D && document.activeElement !== D && !D.dataset.dirty) D.value = S.domain || "";
 +    ["nUrlEdit", "mUrlEdit"].forEach(function (Id) { var El = $(Id); if (El && document.activeElement !== El && !El.dataset.dirty) El.value = S.url || ""; });
 +    Badge($("mTunnel"), S.ngrok && S.ngrok.state, S.ngrok && S.ngrok.error);
@@ -3754,10 +3756,10 @@ index 0000000..ffbc6b7
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..cd3d32e
+index 0000000..b244bea
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,764 @@
+@@ -0,0 +1,865 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -4155,17 +4157,89 @@ index 0000000..cd3d32e
 +
 +// ---------------------------------------------------------------- HTTP
 +
-+fn authorized(headers: &HeaderMap, uri: &Uri, token: &str) -> bool {
-+    if token.is_empty() { return false; }
-+    // Header-Token ODER Pfad-Token (/k/<token>/mcp) - ein falscher/leerer Header darf den Pfad-Token nicht blockieren.
-+    let header = headers.get("authorization").and_then(|v| v.to_str().ok())
-+        .filter(|a| a.len() > 7 && a[..7].eq_ignore_ascii_case("bearer "))
-+        .map(|a| a[7..].trim().trim_matches('"').to_string()).unwrap_or_default();
-+    let path = uri.path().strip_prefix("/k/").map(|rest| rest.split('/').next().unwrap_or("").to_string()).unwrap_or_default();
++/// Token aus Header/Feld saeubern: Leerzeichen, Anfuehrungszeichen, <>, Zero-Width, und (mehrfach)
++/// vorangestellte "Authorization:", "Bearer ", "Token " - z. B. wenn jemand "Bearer abc" ins Bearer-Feld kopiert.
++fn clean_tok(raw: &str) -> String {
++    let strip = |s: &str| s.trim_matches(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>' | '\u{200b}' | '\u{feff}' | '\u{a0}')).to_string();
++    let mut t = strip(raw);
++    loop {
++        let low = t.to_ascii_lowercase();
++        let cut = ["authorization:", "bearer:", "bearer ", "token:", "token "].iter().find(|p| low.starts_with(**p)).map(|p| p.len());
++        match cut { Some(n) => t = strip(&t[n..]), None => break }
++    }
++    t
++}
++
++/// Alle Stellen, an denen ein Client den Token mitschicken koennte (Quelle, Wert).
++fn token_candidates(headers: &HeaderMap, uri: &Uri) -> Vec<(&'static str, String)> {
++    let mut v: Vec<(&'static str, String)> = Vec::new();
++    for name in ["authorization", "x-api-key", "api-key", "x-auth-token", "x-adicode-token"] {
++        for val in headers.get_all(name).iter() {
++            if let Ok(s) = val.to_str() { let c = clean_tok(s); if !c.is_empty() { v.push((name, c)); } }
++        }
++    }
++    if let Some(rest) = uri.path().strip_prefix("/k/") {
++        let c = clean_tok(rest.split('/').next().unwrap_or("")); if !c.is_empty() { v.push(("url-pfad /k/", c)); }
++    }
++    for pair in uri.query().unwrap_or("").split('&') {
++        if let Some((k, val)) = pair.split_once('=') {
++            if matches!(k.to_ascii_lowercase().as_str(), "token" | "key" | "apikey" | "api_key" | "access_token") {
++                let c = clean_tok(val); if !c.is_empty() { v.push(("url-parameter", c)); }
++            }
++        }
++    }
++    v
++}
++
++/// Ok = erlaubt, Err = Grund (ohne Token-Inhalt) fuer die Diagnose.
++fn auth_check(headers: &HeaderMap, uri: &Uri, token: &str) -> Result<(), String> {
++    let token = token.trim();
++    if token.is_empty() { return Err("Server hat noch keinen Token".into()); }
 +    use sha2::Digest;
-+    let b = sha2::Sha256::digest(token.trim().as_bytes());
-+    let same = |got: &str| { if got.is_empty() { return false; } let a = sha2::Sha256::digest(got.as_bytes()); a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0 };
-+    same(&header) || same(&path)
++    let b = sha2::Sha256::digest(token.as_bytes());
++    let same = |got: &str| { let a = sha2::Sha256::digest(got.as_bytes()); a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0 };
++    let cands = token_candidates(headers, uri);
++    if cands.iter().any(|(_, c)| same(c)) { return Ok(()); }
++    if cands.is_empty() {
++        return Err("kein Token mitgeschickt (kein Authorization-Header, keine URL mit Schluessel) - in Notion Bearer-Token eintragen oder die 'URL mit Schluessel' nutzen".into());
++    }
++    let what = cands.iter().map(|(k, c)| format!("{k} (Laenge {}{})", c.len(), if c.len() == token.len() { ", anderer Token" } else { "" })).collect::<Vec<_>>().join(", ");
++    Err(format!("Token passt nicht: {what}; erwartet Laenge {} - Token dieses PCs aus AdiCode > Notion AI kopieren", token.len()))
++}
++
++fn authorized(headers: &HeaderMap, uri: &Uri, token: &str) -> bool { auth_check(headers, uri, token).is_ok() }
++
++static AUTH_FAILS: Lazy<Mutex<std::collections::VecDeque<Value>>> = Lazy::new(|| Mutex::new(std::collections::VecDeque::new()));
++static AUTH_FAIL_COUNT: AtomicU64 = AtomicU64::new(0);
++
++fn redact_path(uri: &Uri) -> String {
++    let p = uri.path();
++    match p.strip_prefix("/k/") { Some(rest) => format!("/k/***{}", rest.find('/').map(|i| &rest[i..]).unwrap_or("")), None => p.to_string() }
++}
++
++fn note_auth_fail(method: &axum::http::Method, uri: &Uri, headers: &HeaderMap, reason: &str) {
++    AUTH_FAIL_COUNT.fetch_add(1, Ordering::Relaxed);
++    let ua: String = headers.get("user-agent").and_then(|v| v.to_str().ok()).unwrap_or("").chars().take(80).collect();
++    let time = chrono::Local::now();
++    let entry = json!({"time": time.format("%H:%M:%S").to_string(), "method": method.as_str(), "path": redact_path(uri), "ua": ua, "reason": reason});
++    tracing::warn!("[notion] MCP-Anfrage abgelehnt: {} {} - {}", method, redact_path(uri), reason);
++    let line = format!("{} {} {} ua={} - {}\n", time.format("%Y-%m-%d %H:%M:%S"), method, redact_path(uri), ua, reason);
++    let dir = data_dir().join("logs");
++    let _ = std::fs::create_dir_all(&dir);
++    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("mcp-auth.log")) { use std::io::Write; let _ = f.write_all(line.as_bytes()); }
++    let mut q = lock(&AUTH_FAILS);
++    q.push_back(entry);
++    while q.len() > 15 { q.pop_front(); }
++}
++
++fn with_cors(mut r: axum::response::Response) -> axum::response::Response {
++    let h = r.headers_mut();
++    for (k, v) in [("access-control-allow-origin", "*"), ("access-control-allow-methods", "GET, POST, DELETE, OPTIONS"),
++        ("access-control-allow-headers", "authorization, content-type, accept, mcp-session-id, mcp-protocol-version, last-event-id, x-api-key"),
++        ("access-control-expose-headers", "mcp-session-id, www-authenticate"), ("access-control-max-age", "600")] {
++        if let Ok(v) = axum::http::HeaderValue::from_str(v) { h.insert(k, v); }
++    }
++    r
 +}
 +
 +async fn handle_one(state: &crate::AppState, msg: &Value) -> Option<Value> {
@@ -4200,13 +4274,25 @@ index 0000000..cd3d32e
 +}
 +
 +async fn mcp_endpoint(State(state): State<crate::AppState>, method: axum::http::Method, uri: Uri, headers: HeaderMap, body: Bytes) -> axum::response::Response {
++    with_cors(mcp_inner(state, method, uri, headers, body).await)
++}
++
++fn is_mcp_path(path: &str) -> bool {
++    // "" = Root (https://<domain>/), /mcp, /k/<token>, /k/<token>/mcp
++    if path.is_empty() || path == "/mcp" { return true; }
++    match path.strip_prefix("/k/") { Some(rest) => { let parts: Vec<&str> = rest.split('/').collect(); parts.len() == 1 || (parts.len() == 2 && parts[1] == "mcp") } None => false }
++}
++
++async fn mcp_inner(state: crate::AppState, method: axum::http::Method, uri: Uri, headers: HeaderMap, body: Bytes) -> axum::response::Response {
 +    let path = uri.path().trim_end_matches('/');
 +    if path == "/health" { return "ok".into_response(); }
-+    let is_mcp = path == "/mcp" || (path.starts_with("/k/") && path.ends_with("/mcp"));
-+    if !is_mcp { return StatusCode::NOT_FOUND.into_response(); }
++    if method == axum::http::Method::OPTIONS { return StatusCode::NO_CONTENT.into_response(); }
++    if !is_mcp_path(path) { return StatusCode::NOT_FOUND.into_response(); }
 +    let token = settings().token;
-+    if !authorized(&headers, &uri, &token) {
-+        return (StatusCode::UNAUTHORIZED, [("www-authenticate", "Bearer realm=\"AdiCode\"")], "unauthorized").into_response();
++    if let Err(reason) = auth_check(&headers, &uri, &token) {
++        if path.is_empty() && method == axum::http::Method::GET { return "AdiCode MCP-Server laeuft. In Notion https://<domain>/mcp + Bearer-Token oder die URL mit Schluessel eintragen.".into_response(); }
++        note_auth_fail(&method, &uri, &headers, &reason);
++        return (StatusCode::UNAUTHORIZED, [("www-authenticate", "Bearer realm=\"AdiCode\"")], format!("unauthorized: {reason}")).into_response();
 +    }
 +    if method == axum::http::Method::DELETE { return StatusCode::OK.into_response(); }
 +    if method != axum::http::Method::POST {
@@ -4464,6 +4550,8 @@ index 0000000..cd3d32e
 +        "tools": tools,
 +        "tools_age_s": refreshed.map(|r| r.elapsed().as_secs()),
 +        "requests": SHARED.requests.load(Ordering::Relaxed),
++        "auth_fail_count": AUTH_FAIL_COUNT.load(Ordering::Relaxed),
++        "auth_failures": lock(&AUTH_FAILS).iter().cloned().collect::<Vec<_>>(),
 +        "last_request": last.map(|(t, m)| json!({"time": t.format("%H:%M:%S").to_string(), "what": m})),
 +    }))
 +}
@@ -4520,6 +4608,21 @@ index 0000000..cd3d32e
 +        assert_eq!(clean_domain("https://Veal-Zipping-Ascent.ngrok-free.dev/mcp"), "veal-zipping-ascent.ngrok-free.dev");
 +        assert_eq!(sanitize("pc_App Tool"), "pc_App_Tool");
 +        assert!(sanitize(&"x".repeat(80)).len() <= 64);
++    }
++    #[test]
++    fn notion_auth_variants() {
++        let tok = "abcdef0123456789abcdef0123456789";
++        let u: Uri = "/mcp".parse().unwrap();
++        let mk = |k: &str, v: &str| { let mut h = HeaderMap::new(); h.insert(axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(), v.parse().unwrap()); h };
++        for v in [format!("Bearer {tok}"), format!("Bearer Bearer {tok}"), format!("bearer \"{tok}\" "), tok.to_string(), format!("Authorization: Bearer {tok}"), format!("Token {tok}")] { assert!(authorized(&mk("authorization", &v), &u, tok), "{v}"); }
++        assert!(authorized(&mk("x-api-key", tok), &u, tok));
++        assert!(!authorized(&mk("authorization", "Bearer falsch"), &u, tok));
++        assert!(!authorized(&HeaderMap::new(), &u, tok));
++        assert!(authorized(&mk("authorization", "Bearer falsch"), &format!("/k/{tok}/mcp").parse().unwrap(), tok));
++        assert!(authorized(&HeaderMap::new(), &format!("/k/{tok}").parse().unwrap(), tok));
++        assert!(authorized(&HeaderMap::new(), &format!("/mcp?token={tok}").parse().unwrap(), tok));
++        assert!(is_mcp_path("") && is_mcp_path("/mcp") && is_mcp_path("/k/x") && is_mcp_path("/k/x/mcp") && !is_mcp_path("/k/x/y") && !is_mcp_path("/.well-known/oauth-protected-resource"));
++        assert_eq!(redact_path(&format!("/k/{tok}/mcp").parse().unwrap()), "/k/***/mcp");
 +    }
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs

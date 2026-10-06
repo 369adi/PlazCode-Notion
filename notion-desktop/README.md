@@ -114,6 +114,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **MCP auf jedem PC/Konto**: die Auto-Einrichtung traegt jetzt die URL mit Schluessel ein (https://<domain>/k/<token>/mcp). Damit klappt die Verbindung auch, wenn Notion kein Bearer-Feld zeigt. Der Server akzeptiert Header-Token ODER Pfad-Token.
 - **MCP-Dialog**: der Menuepunkt Custom MCP connection wird gefunden (war ein Menueeintrag statt Knopf); Verbinden wird nur im obersten Dialog geklickt.
 - **Chat-Modell**: Cookie-OK-Dialog wird bestaetigt; ohne Modell-Knopf (nur Policy-Modell erlaubt) gilt der Chat als ok; Wartezeit fuer den Willkommen-Agent 2 min.
+## Neu in 1.0.69
+- **MCP mit Bearer-Token auf fremden PCs**: der Server akzeptiert den Token jetzt auch, wenn er als "Bearer abc" ins Bearer-Feld kopiert wurde, mit Anfuehrungszeichen/Leerzeichen, ohne "Bearer", als x-api-key oder ?token=. Die Server-URL darf auch ohne /mcp eingetragen werden.
+- **CORS/OPTIONS** fuer den MCP-Endpunkt (Preflight wird nicht mehr mit 401 abgelehnt).
+- **Diagnose**: abgelehnte Notion-Anfragen erscheinen auf der Seite Notion AI (Zeile "Abgelehnt" mit Grund) und in logs\mcp-auth.log - ohne Token-Inhalt.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
