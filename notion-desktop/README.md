@@ -45,6 +45,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.44
 - **Chat-Uploads**: Dateien landen in Bilder\Bidler hochladen, die KI bekommt den Pfad (kein Upload-Limit mehr im langen Chat).
 - **Edge**: kein zweites Fenster mehr, wenn ein Tab schon laeuft.
+## Neu in 1.0.45
+- **Chat-Uploads**: Ordner ist jetzt Bilder\Screenshots. Beim AdiCode-Start wird er geleert, hochgeladene Dateien werden nach der Antwort der KI geloescht.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

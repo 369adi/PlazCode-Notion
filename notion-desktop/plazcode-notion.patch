@@ -1088,7 +1088,7 @@ index 04ebefa..16ffb12 100644
                  _ if body.starts_with("toolkit-store:") => toolkit_store_url(body).map(UiEvent::OpenExternal),
                  _ => supported_ai_url(body).map(|url|UiEvent::OpenExternal(url.to_owned())).or_else(|| body.strip_prefix("js-error:").map(|message| UiEvent::JsError(message.to_string()))),
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..a3cbbad 100644
+index 77cc050..830c13f 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
 @@ -81,6 +81,16 @@ mod media;
@@ -1138,7 +1138,7 @@ index 77cc050..a3cbbad 100644
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
-+    notion_profiles::resume_background();
++    notion_chat::clear_uploads();notion_profiles::resume_background();
      let addon_state = state.clone();
      tokio::spawn(async move {
          let (tools, servers) = addon_state.addons.lock().await.list_tools().await;
@@ -1555,10 +1555,10 @@ index 1a68aee..c63d1e2 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
-index 0000000..d52dfd0
+index 0000000..4d2cf4b
 --- /dev/null
 +++ b/agent/src/notion_chat.rs
-@@ -0,0 +1,464 @@
+@@ -0,0 +1,482 @@
 +//! AdiCode Chat: ChatGPT-aehnliche Chatbox direkt in AdiCode.
 +//! Sie steuert den Co-Work-Main-Tab (Notion AI, CDP-Port 9301): Text, Fotos, Videos und
 +//! Dateien, Notion-Diktat (Sprechbox), Stopp, neuer Chat, Verlauf und Freigabe-Knoepfe.
@@ -1581,7 +1581,7 @@ index 0000000..d52dfd0
 +
 +fn port() -> u16 { np::cdp_port(0) }
 +fn data_dir() -> PathBuf { std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion") }
-+fn uploads() -> PathBuf { let _ = &data_dir(); PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\liket".into())).join("Pictures").join("Bidler hochladen") }
++fn uploads() -> PathBuf { let _ = &data_dir(); PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\liket".into())).join("Pictures").join("Screenshots") }
 +fn history_file() -> PathBuf { data_dir().join("chat-history.json") }
 +fn ok(v: Value) -> Response { Json(v).into_response() }
 +fn fail(msg: impl Into<String>) -> Response { (StatusCode::BAD_REQUEST, Json(json!({"ok": false, "error": msg.into()}))).into_response() }
@@ -1779,6 +1779,21 @@ index 0000000..d52dfd0
 +    let n = n.trim().trim_matches('.').to_string();
 +    if n.is_empty() { "datei".into() } else { n }
 +}
++pub fn clear_uploads() {
++    let Ok(rd) = std::fs::read_dir(uploads()) else { return };
++    for e in rd.flatten() { let p = e.path(); if p.is_dir() { let _ = std::fs::remove_dir_all(&p); } else { let _ = std::fs::remove_file(&p); } }
++}
++async fn delete_after_read(files: Vec<String>) {
++    let mut seen = false; let mut w = 0u64; sleep(5000).await;
++    loop {
++        let g = match Session::page().await { Ok(mut s) => s.eval(ROWS).await.ok().and_then(|v| v["gen"].as_bool()), Err(_) => None };
++        if g == Some(true) { seen = true; } else if g == Some(false) && (seen || w > 45_000) { break; }
++        if w > 900_000 { break; }
++        sleep(3000).await; w += 3000;
++    }
++    for f in files { let _ = std::fs::remove_file(f); }
++}
++#[allow(dead_code)]
 +fn cleanup_uploads() {
 +    let Ok(rd) = std::fs::read_dir(uploads()) else { return };
 +    let limit = std::time::SystemTime::now() - Duration::from_secs(3 * 24 * 3600);
@@ -1880,7 +1895,10 @@ index 0000000..d52dfd0
 +    let text = b["text"].as_str().unwrap_or("").trim_end().to_string();
 +    let files = match checked_files(&b["files"]) { Ok(f) => f, Err(e) => return fail(e) };
 +    if text.trim().is_empty() && files.is_empty() { return fail("Nachricht ist leer."); }
-+    reply(send(text, files).await)
++    let del = files.clone();
++    let r = send(text, files).await;
++    if r.is_ok() && !del.is_empty() { tokio::spawn(delete_after_read(del)); }
++    reply(r)
 +}
 +
 +async fn click_testid(s: &mut Session, id: &str) -> Result<bool, String> {
