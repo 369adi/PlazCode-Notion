@@ -139,7 +139,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..434876f 100644
+index 07dc4c0..124feb4 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -424,7 +424,7 @@ index 07dc4c0..434876f 100644
        </section>
        <section class="page" id="page-terminal">
          <div class="page-head"><div><div class="page-title">Terminal</div><div class="page-sub">Live bridge, Studio, MCP, and AgentScript logs.</div></div><div style="margin-left:auto;display:flex;gap:8px"><button class="softbtn" id="restartMcp">Restart MCP</button><button class="clearbtn" id="clearTerminal">Clear</button></div></div>
-@@ -382,24 +557,98 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -382,24 +557,135 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
        <section class="page" id="page-models"><div class="page-head"><div><h1>Model Builder</h1><p>Describe a model, review the preview, then add it to Roblox Studio.</p></div></div><div id="modelWorkspace"></div></section>
        <section class="page" id="page-ui"><div class="page-head"><div><h1>UI Builder</h1><p>Describe a menu or HUD, check its layout, then add it to Roblox Studio.</p></div></div><div id="uiWorkspace"></div></section>
        <section class="page" id="page-toolkit"><div class="page-head"><div><h1>Toolkit</h1><p>Start game systems with AI, run Studio tools, and keep saved place backups.</p></div></div><div id="toolkitWorkspace"></div></section>
@@ -487,24 +487,61 @@ index 07dc4c0..434876f 100644
 +          #page-cowork .cwacts .lbl{display:none}
 +          #page-cowork .cwacts button.dangerbtn{margin-left:auto}
 +          #page-cowork .cwacts button.wide .lbl{display:inline;margin-left:6px}
++        #page-cowork{font-size:15px}
++          #page-cowork .cwsession{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:18px 20px}
++          #page-cowork .cwsess-k{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.6;font-weight:700}
++          #page-cowork .cwsum{font-size:20px;font-weight:800;margin:4px 0 2px}
++          #page-cowork .cwstatus{font-size:13px;opacity:.75;min-height:16px}
++          #page-cowork .cwsess-r{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
++          #page-cowork .cwsess-r button{height:40px;padding:0 16px;font-size:14px}
++          #page-cowork .cwbrow{display:flex;align-items:center;gap:8px;margin-right:6px}
++          #page-cowork .cwbrow select{height:40px;min-width:130px;font-size:14px}
++          #page-cowork .cwprimary{height:46px!important;padding:0 26px!important;font-size:16px!important;background:linear-gradient(90deg,#7c5cff,#5a8cff)!important;color:#fff!important;border-color:transparent!important;font-weight:800;box-shadow:0 6px 22px rgba(124,92,255,.35)}
++          #page-cowork .cwacc{padding:16px 20px}
++          #page-cowork .cwacc-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
++          #page-cowork .cwacc-head h3{margin:0;font-size:17px}
++          #page-cowork .cwacc-head button{height:36px;padding:0 14px;font-size:14px}
++          #page-cowork .cwgrid{display:flex!important;flex-direction:column;gap:8px}
++          #page-cowork .cwrow{display:grid;grid-template-columns:34px 170px minmax(180px,1fr) 190px auto;align-items:center;gap:14px;padding:10px 14px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.025)}
++          #page-cowork .cwrow.on{border-color:rgba(49,224,164,.35)}
++          #page-cowork .cwrow .cwnum{width:30px;height:30px;font-size:14px}
++          #page-cowork .cwwho{display:flex;flex-direction:column;min-width:0}
++          #page-cowork .cwwho b{font-size:16px}
++          #page-cowork .cwwho small{font-size:12px;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
++          #page-cowork .cwwho small:before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#677995;margin-right:6px;vertical-align:1px}
++          #page-cowork .cwrow.on .cwwho small:before{background:#31e0a4;box-shadow:0 0 8px rgba(49,224,164,.6)}
++          #page-cowork .cwrow input{height:38px;font-size:14px;margin:0;width:100%}
++          #page-cowork .cwuse{display:flex;align-items:center;gap:10px;font-size:14px}
++          #page-cowork .cwbarw{flex:1;height:8px;background:#252a39;border-radius:5px;overflow:hidden}
++          #page-cowork .cwbarw i{display:block;height:100%}
++          #page-cowork .cwpct{min-width:42px;text-align:right}
++          #page-cowork .cwrow .cwacts{margin:0;gap:6px;flex-wrap:nowrap}
++          #page-cowork .cwrow .cwacts button{width:36px;height:36px;padding:0;display:inline-flex;align-items:center;justify-content:center}
++          #page-cowork .cwrow .cwacts button svg{width:17px;height:17px;margin:0}
++          #page-cowork .cwrow .cwacts .lbl,#page-cowork .cwacts button.wide .lbl{display:none}
++          #page-cowork .cwrow .cwacts button.dangerbtn{margin-left:8px}
++          @media (max-width:1100px){#page-cowork .cwrow{grid-template-columns:34px 150px 1fr auto}#page-cowork .cwuse{grid-column:2/4}}
 +        </style>
-+        <div class="page-head cwtop"><div><div class="page-title">Co-Work</div><div class="page-sub">Main ist dein Chat &ndash; Coder, Reviewer und Tester arbeiten im Hintergrund.</div></div>
-+          <div class="cwbar"><button class="softbtn cwi solid cwprimary" id="cwStartAll" data-ic="play">Alle starten</button><button class="softbtn cwi solid" id="cwStopAll" data-ic="stop">Stoppen</button></div></div>
-+        <div class="settingcard notion-card cwtool">
-+          <div class="cwbar">
-+            <span class="cwlbl">Browser</span><select id="cwBrowserSel"><option value="">Browser ausw&auml;hlen &hellip;</option></select><span id="cwBrowser" class="nbadge warn">nicht gew&auml;hlt</span>
-+            <span class="cwsep"></span>
++        <div class="page-head"><div><div class="page-title">Co-Work</div><div class="page-sub">Main ist dein Chat &ndash; Coder, Reviewer und Tester arbeiten im Hintergrund.</div></div></div>
++        <div class="settingcard notion-card cwsession">
++          <div class="cwsess-l">
++            <div class="cwsess-k">Session</div>
++            <div id="cwUsageSum" class="cwsum">&ndash;</div>
++            <div class="cwstatus"><span id="cwMsg"></span> <span id="cwBrowserMsg"></span></div>
++          </div>
++          <div class="cwsess-r">
++            <div class="cwbrow"><select id="cwBrowserSel"><option value="">Browser ausw&auml;hlen &hellip;</option></select><span id="cwBrowser" class="nbadge warn">nicht gew&auml;hlt</span></div>
 +            <button class="softbtn cwi" id="cwCheck" data-ic="refresh" title="Startet fehlende Tabs, pr&uuml;ft AdiCode-MCP (auch asf), Usage und &ouml;ffnet den Chat Willkommen bei Notion">Check</button>
 +            <button class="softbtn" id="cwShowAll">Worker zeigen</button>
-+            <span style="flex:1"></span>
-+            <span id="cwDirty" class="nbadge warn" style="display:none">Nicht gespeichert</span>
-+            <button class="softbtn cwi cwicon" id="cwAdd" data-ic="plus" title="Tab hinzuf&uuml;gen"></button>
-+            <button class="softbtn cwi" id="cwSave" data-ic="save">Speichern</button>
++            <button class="softbtn cwi solid" id="cwStopAll" data-ic="stop">Stoppen</button>
++            <button class="softbtn cwi solid cwprimary" id="cwStartAll" data-ic="play">Alle starten</button>
 +          </div>
-+          <div class="cwstatus"><span id="cwMsg" class="nhint"></span> <span id="cwBrowserMsg" class="nhint"></span></div>
 +        </div>
-+        <div id="cwTabs" style="margin:0 0 16px"><p class="nhint">L&auml;dt &hellip;</p></div>
-+        <div class="settingcard notion-card"><h3>Usage-Dashboard (live)</h3><div class="nrow" style="margin:0 0 6px"><span id="cwUsageSum" class="nhint"></span></div><div id="cwUsage"><p class="nhint">L&auml;dt &hellip;</p></div><p class="nhint">Aktualisiert sich alle 30 s. Ist ein Account leer, sind Co-Work-Starts blockiert.</p></div>
++        <div class="settingcard notion-card cwacc">
++          <div class="cwacc-head"><h3>Konten</h3><span style="flex:1"></span><span id="cwDirty" class="nbadge warn" style="display:none">Nicht gespeichert</span><button class="softbtn cwi" id="cwAdd" data-ic="plus">Konto</button><button class="softbtn cwi" id="cwSave" data-ic="save">Speichern</button></div>
++          <div id="cwTabs"><p class="nhint">L&auml;dt &hellip;</p></div>
++        </div>
++        <div class="settingcard notion-card" style="display:none"><h3>Usage-Dashboard (live)</h3><div id="cwUsage"><p class="nhint">L&auml;dt &hellip;</p></div><p class="nhint">Aktualisiert sich alle 30 s. Ist ein Account leer, sind Co-Work-Starts blockiert.</p></div>
 +        <p class="nhint">Logins liegen in <code>%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N</code>; &bdquo;Entfernen&ldquo; l&ouml;scht den Tab inklusive Login.</p>
 +        <div id="cwLogin"><div class="box">
 +          <div class="cwbar"><b id="cwLoginTitle">Gmail-Login</b><span id="cwLoginState" class="nbadge"></span><span style="flex:1"></span><button class="softbtn cwi" id="cwLoginBack" data-ic="back">Zur&uuml;ck</button><button class="softbtn cwi" id="cwLoginShow" data-ic="open">Echtes Fenster zeigen</button><button class="softbtn cwi" id="cwLoginClose" data-ic="x">Schlie&szlig;en</button></div>
@@ -530,7 +567,7 @@ index 07dc4c0..434876f 100644
              <div class="settingrow"><label>Permissions</label><select data-pref="rsPermMode"><option value="sandbox">Sandbox</option><option value="ask">Ask</option><option value="full">Full</option></select></div><p class="settinghelp"><strong>Sandbox:</strong> AgentScript stays inside the connected project folder. <strong>Ask:</strong> request approval for writes and command execution. <strong>Full:</strong> allow AgentScript to work outside the project folder and run PC commands. Roblox actions still use the connected Studio bridge.</p>
            </div>
            <div class="settingcard"><h3>Reasoning</h3><p>Matches the extension work and thinking controls.</p>
-@@ -408,7 +657,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -408,7 +694,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="settingrow"><label>Extra Thinking</label><div class="toggle" data-pref="rsExtraThinking"></div></div>
              <div class="settingrow"><label>Plan Mode</label><div class="toggle" data-pref="rsPlanMode"></div></div>
            </div>
@@ -539,7 +576,7 @@ index 07dc4c0..434876f 100644
              <div class="settingrow"><label>Forge UI</label><div class="toggle" data-pref="rsForgeMode"></div></div>
              <div class="settingrow"><label>Auto Fix</label><div class="toggle" data-pref="rsAutoFix"></div></div>
              <div class="settingrow"><label>Background Mode</label><div class="toggle" data-pref="rsBgMode"></div></div>
-@@ -419,10 +668,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -419,10 +705,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="instructions-actions"><button class="softbtn" id="saveInstructions">Save</button><span class="instructions-status" id="instructionsStatus" role="status"></span></div>
  
            </div>
@@ -552,7 +589,7 @@ index 07dc4c0..434876f 100644
            </div>
          </div>
        </section>
-@@ -480,7 +729,7 @@ __PLAZCODE_VERSION_UI__
+@@ -480,7 +766,7 @@ __PLAZCODE_VERSION_UI__
          window.ipc.postMessage(String(Message));
        }
      } catch (Error) {
@@ -561,7 +598,7 @@ index 07dc4c0..434876f 100644
      }
    }
  
-@@ -520,7 +769,7 @@ __PLAZCODE_VERSION_UI__
+@@ -520,7 +806,7 @@ __PLAZCODE_VERSION_UI__
  
    function Showerror(Error) {
      var Message = Error && Error.message ? Error.message : String(Error);
@@ -570,7 +607,7 @@ index 07dc4c0..434876f 100644
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
-@@ -538,7 +787,7 @@ __PLAZCODE_VERSION_UI__
+@@ -538,7 +824,7 @@ __PLAZCODE_VERSION_UI__
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
@@ -579,7 +616,7 @@ index 07dc4c0..434876f 100644
      }
    }
  
-@@ -573,7 +822,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +859,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -588,7 +625,7 @@ index 07dc4c0..434876f 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -655,7 +904,7 @@ __PLAZCODE_VERSION_UI__
+@@ -655,7 +941,7 @@ __PLAZCODE_VERSION_UI__
          Live[Server.id] = Server;
        });
  
@@ -597,7 +634,7 @@ index 07dc4c0..434876f 100644
  
        var Catalogservers = Catalog && Catalog.servers ? Catalog.servers : [];
        Html += Catalogservers.map(function (Server) {
-@@ -892,7 +1141,7 @@ __PLAZCODE_VERSION_UI__
+@@ -892,7 +1178,7 @@ __PLAZCODE_VERSION_UI__
      var List = Byid('updateReleaseNotes'); List.replaceChildren();
      (Notes || []).forEach(function (Release, Index) {
        var Card = document.createElement('details'); Card.className='settingcard release-note'; Card.open=Index === 0;
@@ -606,7 +643,7 @@ index 07dc4c0..434876f 100644
        var Summary=document.createElement('p'); Summary.textContent=Release.summary; Card.appendChild(Summary);
        [['added','New additions'],['improved','Improvements'],['fixed','Bug fixes']].forEach(function (Section) {
          if (!Array.isArray(Release[Section[0]]) || !Release[Section[0]].length) return;
-@@ -905,12 +1154,12 @@ __PLAZCODE_VERSION_UI__
+@@ -905,12 +1191,12 @@ __PLAZCODE_VERSION_UI__
    function Refreshupdates() {
      if (Updatepolling) return Promise.resolve(); Updatepolling = true;
      return Api('/api/desktop/update').then(function (Value) {
@@ -621,7 +658,7 @@ index 07dc4c0..434876f 100644
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
-@@ -919,18 +1168,18 @@ __PLAZCODE_VERSION_UI__
+@@ -919,18 +1205,18 @@ __PLAZCODE_VERSION_UI__
        Byid('installUpdate').disabled = Updating || Value.available !== true;
        Byid('checkUpdates').disabled = Updating;
        Byid('updateOverlay').hidden = (!Updating || Value.background === true) && (!Value.error || UpdateerrorDismissed);
@@ -643,7 +680,7 @@ index 07dc4c0..434876f 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1455,286 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1492,288 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -751,15 +788,17 @@ index 07dc4c0..434876f 100644
 +    var CDirty = function (D) { CW.dirty = D; var B = $("cwDirty"); if (B) B.style.display = D ? "" : "none"; };
 +    var CBtn = function (A, Ic, Label, Cls) { return '<button class="' + (Cls || "softbtn") + ' cwi' + (Ic === "stop" ? " solid" : "") + (A === "login" ? " wide" : "") + '" data-a="' + A + '" title="' + Label + '">' + CI(Ic) + '<span class="lbl">' + (A === "login" ? "Login" : Label) + '</span></button>'; };
 +    var CRow = function (T, I) {
-+      var A = T.account || {}, P = A.usage, Models = (A.models || []).join(", ");
-+      var Bar = A.exhausted ? '<b style="color:#ff5c7a">KI-Kontingent aufgebraucht</b>' : (P == null ? '<span class="nhint">Usage unbekannt</span>' : '<div style="height:6px;background:#252a39;border-radius:4px;overflow:hidden"><i style="display:block;height:100%;width:' + P + '%;background:linear-gradient(90deg,#7c5cff,#21d4fd)"></i></div><small class="nhint">Usage ' + P + '%</small>');
-+      var Meta = [A.mcp ? "MCP: " + A.mcp : "", A.chat ? "Chat: " + A.chat : "", Models ? "Modelle: " + Models : ""].filter(Boolean).map(CEsc).join("<br>");
-+      return '<div class="cwcard' + (T.running ? "" : " off") + '" data-i="' + I + '">' +
-+        '<div class="cwhead"><span class="cwnum">' + (I + 1) + '</span><b>' + CEsc(T.role) + '</b><span style="flex:1"></span>' + (T.paused ? '<span class="nbadge warn">du schreibst</span>' : '') + '<span class="nbadge' + (T.running ? ' ok' : '') + '">' + (T.running ? 'l\u00e4uft' : 'aus') + '</span></div>' +
-+        '<input data-f="label" value="' + CEsc(T.label) + '" placeholder="Name (optional)">' +
-+        '<input data-f="email" type="email" value="' + CEsc(T.email) + '" placeholder="name@gmail.com">' +
-+        '<div style="margin-top:6px">' + Bar + '</div>' + (Meta ? '<div class="cwmeta">' + Meta + '</div>' : '') +
-+        '<div class="cwacts">' + CBtn("login", "login", "Gmail-Login") + CBtn("mcp", "mcp", "MCP") + CBtn("prompt", "copy", "Prompt") + CBtn("take", T.paused ? "release" : "edit", T.paused ? "Freigeben" : "Selbst schreiben") + (T.running ? CBtn("stop", "stop", "Stoppen") : CBtn("open", "open", "\u00d6ffnen")) + CBtn("del", "trash", "Entfernen", "dangerbtn") + '</div></div>';
++      var A = T.account || {}, P = A.usage;
++      var Col = A.exhausted ? "#ff5c7a" : (P != null && P >= 80 ? "#ffb347" : "#7c5cff");
++      var Use = A.exhausted ? '<b style="color:#ff5c7a">aufgebraucht</b>' : (P == null ? '<span class="nhint">Usage \u2013</span>' : '<div class="cwbarw"><i style="width:' + P + '%;background:' + Col + '"></i></div><b class="cwpct">' + P + '%</b>');
++      var Tip = [A.check ? "Check: " + A.check : "", A.mcp ? "MCP: " + A.mcp : "", A.chat ? "Chat: " + A.chat : "", A.usage_error || ""].filter(Boolean).join(" \u00b7 ");
++      var St = T.paused ? "du schreibst" : (A.check || (T.running ? "l\u00e4uft" : "aus"));
++      return '<div class="cwrow' + (T.running ? " on" : "") + '" data-i="' + I + '" title="' + CEsc(Tip) + '">' +
++        '<span class="cwnum">' + (I + 1) + '</span>' +
++        '<div class="cwwho"><b>' + CEsc(T.role) + '</b><small>' + CEsc(St) + '</small></div>' +
++        '<div><input data-f="email" type="email" value="' + CEsc(T.email) + '" placeholder="name@gmail.com"><input data-f="label" type="hidden" value="' + CEsc(T.label) + '"></div>' +
++        '<div class="cwuse">' + Use + '</div>' +
++        '<div class="cwacts">' + CBtn("login", "login", "Gmail-Login") + CBtn("mcp", "mcp", "MCP einrichten") + CBtn("prompt", "copy", "Prompt kopieren") + CBtn("take", T.paused ? "release" : "edit", T.paused ? "Freigeben" : "Selbst schreiben") + (T.running ? CBtn("stop", "stop", "Stoppen") : CBtn("open", "open", "\u00d6ffnen")) + CBtn("del", "trash", "Entfernen", "dangerbtn") + '</div></div>';
 +    };
 +    var CRender = function () {
 +      var Box = $("cwTabs"); if (!Box) return;
@@ -4355,10 +4394,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..0e5a304
+index 0000000..d890941
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,446 @@
+@@ -0,0 +1,456 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4479,9 +4518,19 @@ index 0000000..0e5a304
 +pub(crate) mod windows {
 +    use super::*;
 +    static PIDS: Lazy<Mutex<(HashSet<u32>, bool)>> = Lazy::new(|| Mutex::new((HashSet::new(), false)));
++    // Nur echte Notion-Fenster anfassen: sichtbar beim Verstecken gemerkt, beim Zeigen nur diese (bzw. Hauptfenster mit Titel).
++    // Vorher wurden ALLE Fenster der Browser-Prozesse wiederhergestellt -> leere schwarze Hilfsfenster.
++    static HIDDEN: Lazy<Mutex<HashSet<isize>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 +    #[link(name="user32")]
-+    extern "system" { fn EnumWindows(cb: unsafe extern "system" fn(isize,isize)->i32, data:isize)->i32; fn GetWindowThreadProcessId(hwnd:isize,pid:*mut u32)->u32; fn ShowWindowAsync(hwnd:isize,cmd:i32)->i32; fn SetForegroundWindow(hwnd:isize)->i32; }
-+    unsafe extern "system" fn visit(hwnd:isize,_:isize)->i32 { let mut pid=0; GetWindowThreadProcessId(hwnd,&mut pid); let g=lock(&PIDS); if g.0.contains(&pid){if g.1{ShowWindowAsync(hwnd,9);SetForegroundWindow(hwnd);}else{ShowWindowAsync(hwnd,0);}} 1 }
++    extern "system" { fn EnumWindows(cb: unsafe extern "system" fn(isize,isize)->i32, data:isize)->i32; fn GetWindowThreadProcessId(hwnd:isize,pid:*mut u32)->u32; fn ShowWindowAsync(hwnd:isize,cmd:i32)->i32; fn SetForegroundWindow(hwnd:isize)->i32; fn IsWindowVisible(hwnd:isize)->i32; fn GetWindowTextLengthW(hwnd:isize)->i32; fn GetWindow(hwnd:isize,cmd:u32)->isize; fn GetClassNameW(hwnd:isize,buf:*mut u16,max:i32)->i32; }
++    unsafe fn real_window(hwnd:isize)->bool { let mut b=[0u16;64]; let n=GetClassNameW(hwnd,b.as_mut_ptr(),64).max(0) as usize; String::from_utf16_lossy(&b[..n])=="Chrome_WidgetWin_1" && GetWindowTextLengthW(hwnd)>0 && GetWindow(hwnd,4)==0 }
++    unsafe extern "system" fn visit(hwnd:isize,_:isize)->i32 {
++        let mut pid=0; GetWindowThreadProcessId(hwnd,&mut pid); let g=lock(&PIDS); if !g.0.contains(&pid){return 1;}
++        let mut h=lock(&HIDDEN);
++        if g.1 { let ours=h.remove(&hwnd); if ours||real_window(hwnd){ShowWindowAsync(hwnd,9);SetForegroundWindow(hwnd);} }
++        else if IsWindowVisible(hwnd)!=0 && real_window(hwnd) { h.insert(hwnd); ShowWindowAsync(hwnd,0); }
++        1
++    }
 +    pub fn set_hidden(tabs:&[Tab], hidden:bool){
 +        let cmds=browser_cmds(); let mut p=HashSet::new();
 +        for t in tabs { let d=dir(t.id).display().to_string(); for(pid,c) in &cmds { if cmd_uses(c,&d){p.insert(pid.as_u32());} } }

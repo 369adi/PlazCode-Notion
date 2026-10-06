@@ -12,6 +12,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.30
+- **Co-Work neu gedacht**: oben eine Session-Leiste mit Status (x von 4 bereit), Browser, Check, Worker zeigen, Stoppen und dem grossen Alle-starten-Button rechts daneben. Die Konten sind kompakte Zeilen (Rolle + Status, E-Mail, Usage-Balken, Icon-Buttons) - das separate Usage-Dashboard ist darin aufgegangen.
+- **Keine schwarzen Fenster mehr**: Zeigen/Verstecken fasst nur noch echte Notion-Fenster an statt aller unsichtbaren Browser-Hilfsfenster.
 ## Neu in 1.0.29
 - **Co-Work aufgeraeumt**: "Alle starten" / "Stoppen" stehen jetzt ganz oben neben dem Titel. Browser, Check, Worker zeigen, Tab hinzufuegen und Speichern sind in einer kompakten Leiste. Die Konto-Karten haben nur noch Icon-Buttons (Name als Tooltip), "Entfernen" sitzt rechts abgesetzt.
 - **Schnelle Releases**: Updates werden lokal inkrementell gebaut (ca. 5 s) und direkt als GitHub-Release hochgeladen - kein 5-Minuten-Build in GitHub Actions mehr.
