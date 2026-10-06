@@ -12,6 +12,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Neue Katalog-Einträge unter **MCP Servers**: „PC (Windows-MCP)“ und „Browser (Playwright)“.
 - Automatische Updates sind deaktiviert, damit der Fork nicht durch die Original-Version ersetzt wird.
 
+## Neu in 1.0.29
+- **Co-Work aufgeraeumt**: "Alle starten" / "Stoppen" stehen jetzt ganz oben neben dem Titel. Browser, Check, Worker zeigen, Tab hinzufuegen und Speichern sind in einer kompakten Leiste. Die Konto-Karten haben nur noch Icon-Buttons (Name als Tooltip), "Entfernen" sitzt rechts abgesetzt.
+- **Schnelle Releases**: Updates werden lokal inkrementell gebaut (ca. 5 s) und direkt als GitHub-Release hochgeladen - kein 5-Minuten-Build in GitHub Actions mehr.
 ## Neu in 1.0.28
 - **Ein einziger Check** (Button "Check (MCP - Usage - Chat)"): startet fehlende Tabs, wartet bis sie erreichbar und eingeloggt sind, prueft ob der AdiCode-MCP installiert ist (auch unter dem Namen "asf" oder "PlazCode") und richtet ihn sonst ein, liest das echte Usage-Limit und oeffnet am Ende den Chat "Willkommen bei Notion". Jeder Co-Work-Start macht diesen Check automatisch - auch fuer den Main-Tab.
 - **Echtes Usage**: Basis-KI (z. B. 143/50, im Plan "unlimited") und Premium-Credits (z. B. 0/300) werden getrennt angezeigt. Vorher stand faelschlich immer 0/300.
