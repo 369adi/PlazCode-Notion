@@ -58,6 +58,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.50
 - **Haengende Notion-Tabs**: Leere Seite nach dem Login wird nach 15 s automatisch neu geladen, Cookie-Banner wird abgelehnt.
 - **Chat**: Neue Buttons 'Verlauf kuerzen' (blendet alte Nachrichten aus, weniger Lag) und 'Neu + Zusammenfassung'.
+## Neu in 1.0.51
+- **Google-Login**: Cookie-Hinweis wird zuerst komplett abgearbeitet (ablehnen, dann Okay bei dem Neuladen-Dialog), erst danach wird Google geklickt. Das Neuladen mitten im Google-Fenster hatte den Fehler 400 ausgeloest.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
