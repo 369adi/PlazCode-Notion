@@ -186,3 +186,9 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 ## Arbeitsregeln vom Nutzer (Mia/Adrian)
 - Nicht unnoetig warten: waehrend etwas laeuft/baut/wartet IMMER andere Aufgaben erledigen (parallele Tool-Calls, Hintergrundjobs per Start-Process).
 - Co-Work-Geschwindigkeit (meine + andere Co-Work-Chats) deutlich erhoehen, aber Leistung/Qualitaet behalten. (Aufgabe offen seit 1.0.60)
+
+## HARTE REGELN (Nutzer, 1.0.62)
+- NIEMALS ein anderer Chat als 'Willkommen bei Notion' (auch nicht von AdiCode automatisch). Mehrere Willkommen-Chats sind erlaubt: jeder ist ein eigenes Kontextfeld. Andere Chats machen Konten kaputt. Kontextlimit wird erfasst (Opus 5.5 sehr hoch).
+- Automatische Erinnerungen (Nudger) sind ENTFERNT (1.0.62) - nicht wieder einbauen. AdiCode schreibt nie von selbst in Chats. insert_prompt hat einen Guard (nur Willkommen-Chat).
+- Token-Modus (Co-Work-Seite, Datei profiles\token-mode, Aktion cowork_token_mode): low = Main Opus 5.5 + Worker Sonnet 5.5; high = alle Agents Opus 5.5 (setzt personal_agent_model_policy je Konto).
+- Mehrfach-Willkommen-Chats entstehen durch wiederholte Onboarding-Klicks (Debounce in 1.0.60). 'token_tb%' wurde in 133 geladenen Notion-JS-Dateien NICHT gefunden (Suche token_tb/tbToken/welcomeChat).
