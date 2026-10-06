@@ -238,3 +238,34 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - 'ngrok ist zu alt' beim Kollegen: find_ngrok nahm altes ngrok aus PATH, Neu-installieren landete in base_dir und wurde ignoriert. Jetzt: eigenes ngrok zuerst, install killt alte Prozesse + setzt ngrok_path, Schnellstart reinstalliert bei 'zu alt'.
 - Authtoken-Feld leert sich nach Speichern (Absicht) - jetzt Anzeige 'gespeichert abcd...wxyz' (authtoken_mask). Store-ngrok: Config liegt unter Packages\ngrok.ngrok_*\LocalCache\Local\ngrok, wird erkannt und nach %LOCALAPPDATA%\ngrok kopiert.
 - Offen: Schnellstart live auf Adrians PC testen (trennt Tunnel kurz), Kollege 1.0.74 Start druecken.
+## SCHNELL-ARBEITSREGELN FUER AI-CHATS (immer zuerst lesen und befolgen)
+Ziel: maximal schnell antworten, ohne Qualitaet zu verlieren. Wenige, grosse, gezielte Schritte statt vieler kleiner.
+
+**1. Start**
+- Nur `project_memory_open "PlazCode-Notion"` laden, dann sofort loslegen. Keine Tool-Listen, Docs oder Status vorab abrufen, wenn das Handout reicht.
+- Pfade, Ablaeufe und Skripte stehen hier: nicht neu erkunden, direkt benutzen.
+
+**2. Tool-Calls buendeln**
+- Ein `pc_PowerShell`-Call macht mehrere Dinge: lesen + suchen + Backup + Patch + Check in einem Befehl.
+- Unabhaengige Calls parallel im selben Schritt (z. B. project_memory_update + HANDOUT-Commit).
+- Code lesen: `Select-String -Pattern 'a|b|c'` mit Zeilennummern, dann gezielt `(Get-Content f)[x..y]`. Nie ganze grosse Dateien ausgeben.
+- Ausgaben klein halten: `Select -First N`, `-Tail N`, `Select-String 'error|test result|TEST'`.
+
+**3. Aendern**
+- Patches als Node-Skript `work\bugtest\patchNNN.js` per `files_write_file` (exakte Anker, Abbruch bei fehlendem/doppeltem Anker). Vorher Backups `bugtest\<datei>.bakNNN` (nie in agent/src, sonst landen sie im Patch).
+- JS in desktop.html pruefen: `node work\bugtest\chk169.js` (muss `bad 0` melden).
+- Bei Unsicherheit ueber Ursache: erst EIN gezielter Messbefehl (curl -i auf die URL, Header `Ngrok-Error-Code`, Logs), dann fixen. Nicht raten.
+
+**4. Testen + Release in EINEM Hintergrundjob**
+- `tr74.ps1` kopieren -> `trNN.ps1` (cargo test, nur bei Erfolg relNN.ps1). `relNN.ps1` aus dem letzten relXX.ps1 ableiten (Versionen + Notizen ersetzen). Start mit `Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',...` OHNE -RedirectStandardOutput (das blockiert den Call) - Logs per `*>` im Skript.
+- Dauer: Test ~40 s, Release ~80 s. NICHT mit `sleep`/`Start-Sleep` darauf warten. In der Zwischenzeit HANDOUT/Memory schreiben oder den naechsten Fix vorbereiten, dann EINMAL Log pruefen.
+- MCP-Timeout 55 s: nie laengere Befehle synchron.
+- Nach einem Release startet AdiCode neu (Tunnel ~30-60 s weg, 'ERR_NGROK_3004'/'Unknown tool'). Nicht pollen; erst die Antwort an den Nutzer schreiben, spaeter verifizieren.
+
+**5. Abschluss**
+- HANDOUT (Abschnitt STAND x.y.z) + `project_memory_update` parallel in einem Schritt, Commit mit `[skip ci]`.
+- Antwort kurz: Ergebnis zuerst, Ursache in 1-2 Saetzen, was der Nutzer/Kollege tun soll, was noch nicht getestet ist. Keine langen Erklaerungen.
+
+**6. Nicht tun**
+- Keine Mehrfach-Abfragen desselben Status, keine Warte-Schleifen, keine erneuten Tool-Beschreibungen fuer bekannte Tools.
+- Keine Rueckfragen, wenn die naechste Aktion klar ist - einfach machen. Nur fragen, wenn die Antwort die Arbeit wirklich aendert.
