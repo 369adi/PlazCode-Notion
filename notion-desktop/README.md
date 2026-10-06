@@ -42,6 +42,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Auto-Einrichtung nach Refresh**: Onboarding (Schritte 1-3), Business-Trial ueber Notion KI starten, danach unter Billing kuendigen.
 ## Neu in 1.0.43
 - **Onboarding**: Auto-Einrichtung waehlt jetzt For work.
+## Neu in 1.0.44
+- **Chat-Uploads**: Dateien landen in Bilder\Bidler hochladen, die KI bekommt den Pfad (kein Upload-Limit mehr im langen Chat).
+- **Edge**: kein zweites Fenster mehr, wenn ein Tab schon laeuft.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

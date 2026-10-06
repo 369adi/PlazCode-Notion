@@ -1555,10 +1555,10 @@ index 1a68aee..c63d1e2 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
-index 0000000..c2d8448
+index 0000000..d52dfd0
 --- /dev/null
 +++ b/agent/src/notion_chat.rs
-@@ -0,0 +1,463 @@
+@@ -0,0 +1,464 @@
 +//! AdiCode Chat: ChatGPT-aehnliche Chatbox direkt in AdiCode.
 +//! Sie steuert den Co-Work-Main-Tab (Notion AI, CDP-Port 9301): Text, Fotos, Videos und
 +//! Dateien, Notion-Diktat (Sprechbox), Stopp, neuer Chat, Verlauf und Freigabe-Knoepfe.
@@ -1581,7 +1581,7 @@ index 0000000..c2d8448
 +
 +fn port() -> u16 { np::cdp_port(0) }
 +fn data_dir() -> PathBuf { std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion") }
-+fn uploads() -> PathBuf { data_dir().join("chat-uploads") }
++fn uploads() -> PathBuf { let _ = &data_dir(); PathBuf::from(std::env::var("USERPROFILE").unwrap_or_else(|_| "C:\\Users\\liket".into())).join("Pictures").join("Bidler hochladen") }
 +fn history_file() -> PathBuf { data_dir().join("chat-history.json") }
 +fn ok(v: Value) -> Response { Json(v).into_response() }
 +fn fail(msg: impl Into<String>) -> Response { (StatusCode::BAD_REQUEST, Json(json!({"ok": false, "error": msg.into()}))).into_response() }
@@ -1790,10 +1790,9 @@ index 0000000..c2d8448
 +pub async fn upload_handler(Query(q): Query<UploadQuery>, body: Bytes) -> Response {
 +    if body.is_empty() { return fail("Leere Datei."); }
 +    let name = safe_name(q.name.as_deref().unwrap_or("datei"));
-+    cleanup_uploads();
-+    let dir = uploads().join(chrono::Utc::now().timestamp_millis().to_string());
++    let dir = uploads();
 +    if let Err(e) = tokio::fs::create_dir_all(&dir).await { return fail(e.to_string()); }
-+    let path = dir.join(&name);
++    let path = dir.join(format!("{}_{}", chrono::Utc::now().timestamp_millis(), name));
 +    match tokio::fs::write(&path, &body).await {
 +        Ok(_) => ok(json!({"ok": true, "path": path.display().to_string(), "name": name, "size": body.len()})),
 +        Err(e) => fail(e.to_string()),
@@ -1835,6 +1834,8 @@ index 0000000..c2d8448
 +}
 +
 +async fn send(text: String, files: Vec<String>) -> Result<Value, String> {
++    let mut text = text; let mut files = files;
++    if !files.is_empty() { text = format!("{}\n\n[Anhang von AdiCode] Die Datei(en) liegen auf dem PC in {}:\n{}\nGreife per AdiCode (files_*/pc_*-Tools) auf diese Pfade zu, um die Bilder oder Videos anzusehen.", text, uploads().display(), files.join("\n")); files.clear(); }
 +    ensure_main().await?;
 +    let mut s = Session::page().await?;
 +    let st = s.eval(ROWS).await?;
@@ -4483,10 +4484,10 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..72a5792
+index 0000000..293a8a7
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,525 @@
+@@ -0,0 +1,526 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -4678,6 +4679,7 @@ index 0000000..72a5792
 +    mark_account(t.id,"usage_error",Value::Null);mark_account(t.id,"check",json!("Tab startet \u{2026}"));
 +    let(name,exe)=browser().ok_or("Erst unter Co-Work einen Browser ausw\u{e4}hlen.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;
 +    let port=cdp_port(tab_index(t.id));
++    if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],port)),Duration::from_millis(300)).is_ok(){return Ok(name);}
 +    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion"]).arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;Ok(name)
 +}
 +fn find(id:Option<u32>)->Result<Tab,String>{let id=id.ok_or("Tab-Nummer fehlt.")?;load().into_iter().find(|t|t.id==id).ok_or(format!("Tab {id} gibt es nicht."))}
