@@ -2657,7 +2657,7 @@ index 0000000..87e32b6
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..690346e
+index 0000000..04f060b
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
 @@ -0,0 +1,1047 @@
@@ -3167,7 +3167,7 @@ index 0000000..690346e
 +        || (!p.tasks.is_empty() && p.tasks.iter().all(|t| t.status == "done"))
 +}
 +
-+const PROTOCOL: &str = "Co-Work-Ablauf: 0) Deine Rolle ist dein Schwerpunkt und deine Bewertungs-Brille, keine Grenze - du hilfst bei ALLEN Tasks. 1) cowork_claim holt den naechsten passenden Task: zuerst Bewertungen neuer Prompts (aus Sicht deiner Rolle bewerten, fehlende Teilaufgaben als tasks mitschicken), dann Tasks deiner Rolle, dann Reviews, dann alles andere, sobald der Experte dafuer beschaeftigt ist. 2) Passenden Skill laden (adicode_skill), Dateien vor dem Bearbeiten lesen, nur die Dateien des Tasks aendern; weitere Dateien vorher mit cowork_lock sperren. Ist ein Task zu gross: in cowork_update tasks=[...] Teilaufgaben anlegen, damit andere mithelfen. 3) cowork_update status=done result=<kurz und praezise: was gemacht, welche Dateien>. Review-Tasks: status=done (ok) oder status=changes mit konkreten Punkten. 4) Sofort wieder cowork_claim. Kein freier Task: cowork_wait (mehrmals) bis neue Tasks/Nachrichten kommen. Bei Problemen: status=blocked + Grund (geht an den Lead). Nachrichten, die mit Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): beginnen, sind Weckrufe des Systems: einfach weitermachen. Fertig, wenn das Board ALLE TASKS ERLEDIGT meldet.";
++const PROTOCOL: &str = "Co-Work: Rolle = Schwerpunkt, du hilfst bei allem. Loop: cowork_claim -> Task erledigen (Skill per adicode_skill, nur Task-Dateien, weitere vorher cowork_lock; zu gross: cowork_update tasks=[..]) -> cowork_update status=done result=<1 Satz + Dateien> (Review: done oder changes + Punkte) -> sofort wieder cowork_claim. Bewertungen neuer Prompts zuerst, fehlende Teilaufgaben als tasks. Nichts frei: cowork_wait. Blockiert: status=blocked + Grund. Antworten knapp: Diffs und Dateinamen statt Volltext, nichts wiederholen. Nachrichten mit Kurze automatische Erinnerung von AdiCode (von mir eingerichtet): sind Systemweckrufe: weitermachen. Fertig bei ALLE TASKS ERLEDIGT.";
 +
 +fn dispatch(board: &mut Board, name: &str, args: &Value) -> Result<(String, bool), String> {
 +    if name == "cowork_start" {
@@ -4481,7 +4481,7 @@ index 0000000..6e08718
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..40417df
+index 0000000..732996b
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
 @@ -0,0 +1,519 @@
@@ -4689,8 +4689,8 @@ index 0000000..40417df
 +async fn trusted_click(port:u16,point:&Value)->Result<(),String>{let x=point["x"].as_f64().ok_or("Klickposition X fehlt")?;let y=point["y"].as_f64().ok_or("Klickposition Y fehlt")?;cdp(port,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mousePressed","x":x,"y":y,"button":"left","clickCount":1}}),json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseReleased","x":x,"y":y,"button":"left","clickCount":1}})]).await?;Ok(())}
 +fn prompt_for(t:&Tab)->String {
 +    const CONN:&str="Die Tools kommen von meinem AdiCode-MCP-Server (in Notion als Verbindung \"asf\" oder \"AdiCode\" eingetragen).";
-+    if t.role=="Main" { format!("Hallo! Ich nutze AdiCode Co-Work: Drei weitere Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel mit dir ueber die cowork_*-Tools an meinen Projekten. {CONN} Du bist der Main-Chat (Lead) und mein einziger Ansprechpartner.\n\nSo arbeiten wir:\n1. Nenne ich eine Aufgabe oder ein Projekt: lies den Skill cowork (adicode_skill), oeffne project_memory, dann cowork_start mit 4-12 moeglichst parallelen Tasks (role = Schwerpunkt, review=reviewer fuer Code, files angeben), damit alle vier gleichzeitig arbeiten. Kleine Fragen beantwortest du einfach selbst.\n2. Die Worker bewerten jeden Auftrag zuerst aus Sicht ihrer Rolle und schlagen Teilaufgaben vor. Ihre Bewertungen bekommst du per cowork_wait - arbeite sie ein.\n3. Schreibe ich waehrend eines laufenden Projekts etwas Neues: gib es zuerst mit cowork_prompt ans Board.\n4. Waehrend die Worker arbeiten: cowork_wait, Probleme klaeren und selbst Tasks uebernehmen (cowork_claim), wenn nichts zu koordinieren ist.\n5. Am Ende cowork_results und mir EINE zusammengefasste Antwort geben; HANDOUT.md und project_memory aktualisieren.\n\nAdiCode schickt dir manchmal eine kurze automatische Erinnerung in meinem Namen (z. B. wenn Bewertungen da oder alle Tasks fertig sind). Antworte jetzt bitte nur kurz: Co-Work bereit.") }
-+    else { let role=t.role.to_ascii_lowercase();format!("Hallo! Ich nutze AdiCode Co-Work: Mehrere Notion-AI-Chats arbeiten ueber die cowork_*-Tools gemeinsam an meinem Projekt. {CONN} In diesem Chat bist du bitte mein {r}. Die Rolle ist dein Schwerpunkt, du darfst aber bei allen Aufgaben mithelfen.\n\nSo geht es:\n1. Tritt dem neuesten Projekt bei: cowork_join mit role \"{role}\" und agent \"AdiCode-{r}\" (gibt es mehrere Projekte, nimm das neueste aus cowork_board).\n2. Arbeite die Aufgaben ab: cowork_claim, Aufgabe erledigen, cowork_update mit kurzem Ergebnis, dann wieder cowork_claim. Beim Schreiben mit safe_write_file immer agent \"AdiCode-{r}\" mitgeben.\n3. Bewertungs-Aufgaben zu einem neuen Auftrag zuerst: knapp aus Sicht deiner Rolle einschaetzen und fehlende Teilaufgaben als tasks vorschlagen.\n4. Ist gerade nichts frei: cowork_wait.\n\nIch bin nicht am Rechner, bitte arbeite selbststaendig weiter. Fragen bitte per cowork_message an den Lead (Main-Chat). AdiCode schickt dir ab und zu eine kurze automatische Erinnerung in meinem Namen, wenn neue Aufgaben da sind.",r=t.role) }
++    if t.role=="Main" { format!("Hallo! AdiCode Co-Work: Drei Notion-AI-Chats (Coder, Reviewer, Tester) arbeiten parallel ueber cowork_*-Tools mit dir. {CONN} Du bist Main/Lead und mein einziger Ansprechpartner.\n1. Neue Aufgabe/Projekt: project_memory oeffnen, Skill cowork lesen, cowork_start mit 4-12 parallelen Tasks (role, review=reviewer fuer Code, files). Kleine Fragen selbst beantworten.\n2. Bewertungen der Worker per cowork_wait einarbeiten; Neues waehrend des Projekts zuerst per cowork_prompt.\n3. Ende: cowork_results, mir EINE kurze Antwort, HANDOUT.md und project_memory aktualisieren.\nSpare Token: knapp antworten, Diffs statt Volltext, nichts wiederholen. AdiCode schickt kurze Erinnerungen in meinem Namen. Antworte jetzt nur: Co-Work bereit.") }
++    else { let role=t.role.to_ascii_lowercase();format!("Hallo! AdiCode Co-Work: Mehrere Notion-AI-Chats arbeiten ueber cowork_*-Tools gemeinsam. {CONN} Du bist mein {r} (Schwerpunkt, hilf bei allem).\n1. cowork_join mit role \"{role}\" und agent \"AdiCode-{r}\" (neuestes Projekt aus cowork_board).\n2. Loop: cowork_claim, erledigen, cowork_update mit 1-Satz-Ergebnis, wieder cowork_claim. safe_write_file immer mit agent \"AdiCode-{r}\".\n3. Bewertungs-Tasks zuerst, knapp aus Sicht deiner Rolle.\n4. Nichts frei: cowork_wait.\nIch bin nicht am Rechner: arbeite selbststaendig, antworte knapp, Diffs statt Volltext. Fragen per cowork_message an Main. Kurze automatische Erinnerungen von AdiCode sind von mir.",r=t.role) }
 +}
 +/// Chat is idle: Notion AI is not generating/recording and the composer is empty.
 +async fn chat_idle(port:u16)->bool{
