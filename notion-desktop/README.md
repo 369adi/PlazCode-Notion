@@ -49,6 +49,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Chat-Uploads**: Ordner ist jetzt Bilder\Screenshots. Beim AdiCode-Start wird er geleert, hochgeladene Dateien werden nach der Antwort der KI geloescht.
 ## Neu in 1.0.46
 - **Auto-Login**: Nach dem Refresh waehlt AdiCode im Google-Login das Konto mit derselben E-Mail aus und klickt Weiter.
+## Neu in 1.0.47
+- **Auto-Login**: Auf der Notion-Anmeldeseite klickt AdiCode selbst auf Google, waehlt dann das Konto zur E-Mail und klickt Weiter.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
