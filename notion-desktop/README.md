@@ -140,6 +140,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.77
 - **Chat im Vollbild**: oeffnet Notion den Chat als Seitenleiste oder schwebend (anderes Layout), stellt AdiCode ihn auf Full screen um.
 - **Verbindungen-Seite in allen Layouts**: findet die bestehende AdiCode-Verbindung unter Connected/Manage und den Hinzufuegen-Knopf auch als Configure oben rechts.
+## Neu in 1.0.78
+- **Kein endloses Laden mehr**: haengt Notion laenger als 20 s im Lade-Bildschirm, laedt AdiCode die Seite automatisch neu.
+- **Cookies automatisch ablehnen**: Cookie-Banner werden in allen Tabs automatisch abgelehnt (EN/DE).
+- **Jeder Check nur einmal pro Konto**: Englisch, MCP, Modelle und Usage-Seite werden pro Konto gemerkt und beim naechsten Check uebersprungen. Refresh/Vergessen setzt alles zurueck ausser der Sprache.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
