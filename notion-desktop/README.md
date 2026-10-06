@@ -87,6 +87,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Nur noch ein Willkommen-Chat**: Onboarding-Buttons werden nicht mehr mehrfach geklickt; die Chat-Zaehlung erkennt gleichnamige Chats und oeffnet bei Bedarf die Seitenleiste.
 ## Neu in 1.0.61
 - **Co-Work deutlich schneller**: Bewertungs-Gate 150 s -> 45 s, Rollen-Vorrang 90 s -> 25 s, Wartende Agents wachen sofort auf, wenn neue Tasks frei werden (alle 3 s Zeitcheck), Nudger prueft alle 4 s statt 10 s und erinnert nach 90 s statt 240 s, Worker-Startprompts gleichzeitig statt nacheinander, Tempo-Hinweise (parallele Tool-Calls, keine Zwischenberichte).
+## Neu in 1.0.62
+- **Automatische Erinnerungen entfernt**: AdiCode schreibt nie mehr von selbst in Chats (kein Nudger mehr).
+- **Nur Willkommen-Chat**: Prompts werden nur gesendet, wenn der Chat Willkommen bei Notion offen ist; sonst passiert nichts.
+- **Token-Modus** in Co-Work: Wenig Token (Main Opus 5.5, Worker Sonnet 5.5) oder Viele Token (alle Agents Opus 5.5).
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 

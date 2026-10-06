@@ -134,6 +134,7 @@ Als Nächstes Nutzerentscheidung einholen: Sollen in Settings **Engram, Executio
 - **1.0.59**: Auto-Login im Check (Onboarding, Trial starten und kuendigen)
 - **1.0.60**: Google-400-Fix (Login ueber notion.so/login), DE-Onboarding, Klick-Entprellung (ein Willkommen-Chat), Chat-Zaehlung
 - **1.0.61**: Co-Work schneller (GATE 45 s, STEAL 25 s, wait weckt bei neuen freien Tasks, Nudger 4 s/90 s, parallele Worker-Prompts, Tempo-Hinweise in Prompts)
+- **1.0.62**: Nudger entfernt, Willkommen-Chat-Guard in insert_prompt, Token-Modus low/high (Datei profiles/token-mode)
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.34** - Memory-Schluessel mcp_ok -> mcp_ok2 (alte falsche Merkung ungueltig).
 - **1.0.33** - USAGE_UI_JS liest Settings>Notion KI>Usage (x% used, Resets on) -> ui_pct/usage; CHATS_JS zaehlt Sidebar-Chats (chats_multi gelb); inspect_account behaelt ui_pct.
