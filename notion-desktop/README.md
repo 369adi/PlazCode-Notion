@@ -121,6 +121,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.70
 - **Worker-Fenster bleiben versteckt**: ein Waechter versteckt jede Sekunde neu aufgetauchte Fenster der Co-Work-Tabs (Popups, Fenster ohne Titel). Keine schwarzen/weissen Fenster mehr in der Brave-/Edge-Taskleiste; beim Zeigen nur echte Hauptfenster.
 - **Tunnel-Fehler lesbar**: statt nur ERROR: zeigt AdiCode den vollstaendigen ngrok-Fehler (z. B. Authtoken ungueltig, andere Sitzung aktiv, Domain gehoert nicht zum Konto).
+## Neu in 1.0.71
+- **ngrok-Schnellstart**: Auf Notion AI > Tunnel nur noch den ngrok-Authtoken einfuegen und Start druecken. AdiCode installiert ngrok, speichert den Token, ermittelt automatisch die Gratis-Domain deines ngrok-Kontos, startet den Tunnel und testet die oeffentliche URL.
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
