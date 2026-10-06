@@ -30,6 +30,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Usage-Check**: Zeitlimit der Browser-Verbindung erhoeht, damit die echte Usage aus den Einstellungen gelesen wird
 - **Refresh-Button** erscheint auch bei Konten ohne Chat oder ohne Notion-KI-Zugang
 - Update-Notizen werden wieder sauber untereinander angezeigt
+## Neu in 1.0.40
+- **Refresh**: Nach dem Loeschen des Notion-Kontos oeffnet sich automatisch der Gmail-Login mit derselben E-Mail-Adresse
 ## Neu in 1.0.34
 - **MCP-Check**: veraltete MCP-Merkung wird verworfen; Main bekommt AdiCode zuverlaessig eingetragen.
 
