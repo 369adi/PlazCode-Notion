@@ -9,6 +9,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.113
+- **Weniger Tokens, schnellere Antworten**: Ungenutzte bzw. doppelte Add-ons entfernt (Memory, Sequential Thinking, Serena, SQLite, Time, PostgreSQL, Sentry) - auch aus bestehenden Konfigurationen. Code-Navigation laeuft ueber codebase, Gedaechtnis ueber project_memory. Anleitung und Toolbox entsprechend gekuerzt.
+- **Notion-Fenster immer sichtbar**: Co-Work- und Haupt-Tabs werden nicht mehr versteckt; von aelteren Versionen versteckte Fenster erscheinen beim Start wieder.
+- **1.0.111 wiederhergestellt**: Codebase immer sichtbar, Auto-Index und ADR im Projekt-Gedaechtnis waren in 1.0.112 versehentlich verloren gegangen.
+
 ## Neu in 1.0.112
 - **Co-Work-Tabs**: Beim Sichtbarmachen (Alle zeigen) erscheint keine "Wiederherstellen?"-Leiste mehr - das Profil wird vor dem Start als sauber beendet markiert.
 ## Neu in 1.0.111
