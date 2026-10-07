@@ -9,6 +9,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.112
+- **Co-Work-Tabs**: Beim Sichtbarmachen (Alle zeigen) erscheint keine "Wiederherstellen?"-Leiste mehr - das Profil wird vor dem Start als sauber beendet markiert.
 ## Neu in 1.0.111
 - **Codebase immer sichtbar**: Die codebase-Tools (schnelle Code-Suche und -Lesen) sind jetzt in jedem Tool-Profil direkt verfuegbar statt versteckt.
 - **Auto-Index**: project_memory_open und project_memory_update indexieren das Projekt-Repo (repo_path) automatisch inkrementell in codebase neu - der Index ist immer aktuell.
