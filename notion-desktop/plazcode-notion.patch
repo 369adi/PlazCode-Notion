@@ -1400,7 +1400,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..b0228c7 100644
+index 07dc4c0..3a15420 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -1680,7 +1680,7 @@ index 07dc4c0..b0228c7 100644
                <div class="action" data-go="mcp"><div class="action-ico"><svg class="navicon" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="6" cy="5" r="1"/><circle cx="18" cy="12" r="1"/><circle cx="9" cy="19" r="1"/></svg></div><div><strong>MCP Servers</strong><small>Manage optional integrations</small></div><div class="chev">›</div></div>
                <div class="action" data-go="terminal"><div class="action-ico"><svg class="navicon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg></div><div><strong>Open Terminal</strong><small>Inspect bridge and MCP logs</small></div><div class="chev">›</div></div>
                <div class="action" data-go="settings"><div class="action-ico"><svg class="navicon" viewBox="20 20 220 220" aria-hidden="true" style="stroke-width:11"><path d="M168 98L183 105L197 94L213 110L201 123L209 142H227V167H209L201 185L214 198L196 216L182 204L165 211V229H141V211L123 204L109 217L92 199L105 185L99 169"/><circle cx="154" cy="155" r="32"/><path d="M143 35C116 28 92 51 103 80L62 146C42 143 25 161 31 179C37 199 62 207 78 194C89 185 94 173 87 160L129 100C157 104 180 79 164 49L145 76L122 61Z"/><circle cx="60" cy="173" r="12"/></svg></div><div><strong>Settings</strong><small>Adjust synced preferences</small></div><div class="chev">›</div></div>
-@@ -366,14 +553,50 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -366,14 +553,51 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
            <div class="panel"><div class="panel-head recent-head"><div class="panel-title">Recent activity</div><button class="clearbtn" id="clearHome">Clear</button></div><div id="recent" class="activity"></div></div>
          </div>
        </section>
@@ -1696,6 +1696,7 @@ index 07dc4c0..b0228c7 100644
 +          <div class="nrow"><span class="nlabel">Server-URL</span><input id="nUrlEdit" class="nurledit" style="flex:1;min-width:220px;padding:7px 10px" placeholder="ngrok-Domain oder URL eintragen, z. B. https://name.ngrok-free.app"><button class="softbtn" id="nSaveUrl">Speichern</button><button class="softbtn" data-ncopy="url">Kopieren</button></div>
 +          <div class="nrow"><span class="nlabel">ngrok-Authtoken</span><input id="nAuthtoken" type="password" autocomplete="off" style="flex:1;min-width:220px;padding:7px 10px" placeholder="von dashboard.ngrok.com &rarr; Your Authtoken"><button class="softbtn" id="nSaveAuth">Speichern</button><span id="nAuthState" class="nbadge">&hellip;</span></div>
 +          <div class="nrow"><span class="nlabel">Anfrage-Drossel</span><input id="nThrottle" type="number" min="0" max="30000" step="100" style="width:110px;padding:7px 10px" placeholder="0"><span class="nhint">ms Mindestabstand zwischen Tool-Aufrufen von Notion (0 = aus, z. B. 1500)</span><button class="softbtn" id="nSaveThrottle">Speichern</button><span id="nThrottleState" class="nbadge">aus</span></div>
++<div class="nrow"><span class="nlabel">Hintergrund-Jobs</span><input id="nSoft" type="number" min="0" max="50" step="1" style="width:110px;padding:7px 10px" placeholder="20"><span class="nhint">s – braucht ein Tool länger, antwortet AdiCode sofort und Notion arbeitet parallel weiter; das Ergebnis kommt automatisch nach (0 = aus, empfohlen 15–20)</span><button class="softbtn" id="nSaveSoft">Speichern</button><span id="nSoftState" class="nbadge">aus</span></div>
 +          <div class="nrow"><span class="nlabel">Bearer-Token</span><span id="nToken" class="nvalue">–</span><button class="softbtn" id="nShowToken">Anzeigen</button><button class="softbtn" data-ncopy="token">Kopieren</button></div>
 +          <div class="nrow"><span class="nlabel">URL mit Schlüssel</span><span id="nKeyUrl" class="nvalue">–</span><button class="softbtn" data-ncopy="key_url">Kopieren</button></div>
 +          <p class="nhint"><b>Empfohlen:</b> In Notion die „URL mit Schlüssel“ eintragen – sie enthält den Token, ein Bearer-Feld ist dann nicht nötig (klappt auf jedem PC/Konto). Behandle sie wie ein Passwort.</p>
@@ -1733,7 +1734,7 @@ index 07dc4c0..b0228c7 100644
        </section>
        <section class="page" id="page-terminal">
          <div class="page-head"><div><div class="page-title">Terminal</div><div class="page-sub">Live bridge, Studio, MCP, and AgentScript logs.</div></div><div style="margin-left:auto;display:flex;gap:8px"><button class="softbtn" id="restartMcp">Restart MCP</button><button class="clearbtn" id="clearTerminal">Clear</button></div></div>
-@@ -382,24 +605,165 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -382,24 +606,165 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
        <section class="page" id="page-models"><div class="page-head"><div><h1>Model Builder</h1><p>Describe a model, review the preview, then add it to Roblox Studio.</p></div></div><div id="modelWorkspace"></div></section>
        <section class="page" id="page-ui"><div class="page-head"><div><h1>UI Builder</h1><p>Describe a menu or HUD, check its layout, then add it to Roblox Studio.</p></div></div><div id="uiWorkspace"></div></section>
        <section class="page" id="page-toolkit"><div class="page-head"><div><h1>Toolkit</h1><p>Start game systems with AI, run Studio tools, and keep saved place backups.</p></div></div><div id="toolkitWorkspace"></div></section>
@@ -1906,7 +1907,7 @@ index 07dc4c0..b0228c7 100644
              <div class="settingrow"><label>Permissions</label><select data-pref="rsPermMode"><option value="sandbox">Sandbox</option><option value="ask">Ask</option><option value="full">Full</option></select></div><p class="settinghelp"><strong>Sandbox:</strong> AgentScript stays inside the connected project folder. <strong>Ask:</strong> request approval for writes and command execution. <strong>Full:</strong> allow AgentScript to work outside the project folder and run PC commands. Roblox actions still use the connected Studio bridge.</p>
            </div>
            <div class="settingcard"><h3>Reasoning</h3><p>Matches the extension work and thinking controls.</p>
-@@ -408,7 +772,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -408,7 +773,7 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="settingrow"><label>Extra Thinking</label><div class="toggle" data-pref="rsExtraThinking"></div></div>
              <div class="settingrow"><label>Plan Mode</label><div class="toggle" data-pref="rsPlanMode"></div></div>
            </div>
@@ -1915,7 +1916,7 @@ index 07dc4c0..b0228c7 100644
              <div class="settingrow"><label>Forge UI</label><div class="toggle" data-pref="rsForgeMode"></div></div>
              <div class="settingrow"><label>Auto Fix</label><div class="toggle" data-pref="rsAutoFix"></div></div>
              <div class="settingrow"><label>Background Mode</label><div class="toggle" data-pref="rsBgMode"></div></div>
-@@ -419,10 +783,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
+@@ -419,10 +784,10 @@ html[data-desktop-gradients=off] .navbtn.active{background-image:none!important;
              <div class="instructions-actions"><button class="softbtn" id="saveInstructions">Save</button><span class="instructions-status" id="instructionsStatus" role="status"></span></div>
  
            </div>
@@ -1928,7 +1929,7 @@ index 07dc4c0..b0228c7 100644
            </div>
          </div>
        </section>
-@@ -480,7 +844,7 @@ __PLAZCODE_VERSION_UI__
+@@ -480,7 +845,7 @@ __PLAZCODE_VERSION_UI__
          window.ipc.postMessage(String(Message));
        }
      } catch (Error) {
@@ -1937,7 +1938,7 @@ index 07dc4c0..b0228c7 100644
      }
    }
  
-@@ -520,7 +884,7 @@ __PLAZCODE_VERSION_UI__
+@@ -520,7 +885,7 @@ __PLAZCODE_VERSION_UI__
  
    function Showerror(Error) {
      var Message = Error && Error.message ? Error.message : String(Error);
@@ -1946,7 +1947,7 @@ index 07dc4c0..b0228c7 100644
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
-@@ -538,7 +902,7 @@ __PLAZCODE_VERSION_UI__
+@@ -538,7 +903,7 @@ __PLAZCODE_VERSION_UI__
      var Fatal = Byid("fatal");
      if (Fatal) {
        Fatal.style.display = "block";
@@ -1955,7 +1956,7 @@ index 07dc4c0..b0228c7 100644
      }
    }
  
-@@ -573,7 +937,7 @@ __PLAZCODE_VERSION_UI__
+@@ -573,7 +938,7 @@ __PLAZCODE_VERSION_UI__
    }
  
    function Go(Name) {
@@ -1964,7 +1965,7 @@ index 07dc4c0..b0228c7 100644
      Toarray(document.querySelectorAll(".page")).forEach(function (Node) {
        Node.classList.toggle("active", Node.id === "page-" + Name);
      });
-@@ -655,7 +1019,7 @@ __PLAZCODE_VERSION_UI__
+@@ -655,7 +1020,7 @@ __PLAZCODE_VERSION_UI__
          Live[Server.id] = Server;
        });
  
@@ -1973,7 +1974,7 @@ index 07dc4c0..b0228c7 100644
  
        var Catalogservers = Catalog && Catalog.servers ? Catalog.servers : [];
        Html += Catalogservers.map(function (Server) {
-@@ -680,7 +1044,7 @@ __PLAZCODE_VERSION_UI__
+@@ -680,7 +1045,7 @@ __PLAZCODE_VERSION_UI__
          return '<div class="mcpcard"><div class="mcptop"><div class="mcpname">' + Escape(Server.name) + '</div><span class="mcpstate ' + (Alive ? "on" : "") + '">' + (Isblender ? (Blenderready ? "Blender responding" : Alive ? "MCP process ready" : Enabled ? "Configured" : "Available") : (Alive ? "Active" : Enabled ? "Configured" : "Available")) + '</span></div><div class="mcpdesc">' + Escape(Server.description) + '</div><div class="mcpcommand">' + Escape(Server.command + " " + Args.join(" ")) + '</div>' + Extra + '<div class="mcpactions"><button class="' + (Enabled ? "dangerbtn" : "accentbtn") + '" data-mcp="' + Escape(Server.id) + '" data-enabled="' + (!Enabled) + '">' + (Enabled ? "Disable" : "Enable") + '</button>' + (Isblender ? '<button class="softbtn" id="testBlenderConnection"' + (Blenderchecking ? ' disabled' : '') + '>Test Blender connection</button><button class="softbtn" id="openBlenderSetupGuide">Blender addon setup guide</button>' : '') + '</div></div>';
        }).join("");
  
@@ -1982,7 +1983,7 @@ index 07dc4c0..b0228c7 100644
        var Blenderguide=Byid("openBlenderSetupGuide");if(Blenderguide)Blenderguide.onclick=function(){if(window.ipc)window.ipc.postMessage("open:blender-guide");};
        var Blenderbutton=Byid("testBlenderConnection");
        if(Blenderbutton) Blenderbutton.onclick=function(){
-@@ -717,7 +1081,7 @@ __PLAZCODE_VERSION_UI__
+@@ -717,7 +1082,7 @@ __PLAZCODE_VERSION_UI__
          };
        });
      }).catch(function (Error) {
@@ -1991,7 +1992,7 @@ index 07dc4c0..b0228c7 100644
      });
    }
  
-@@ -892,7 +1256,7 @@ __PLAZCODE_VERSION_UI__
+@@ -892,7 +1257,7 @@ __PLAZCODE_VERSION_UI__
      var List = Byid('updateReleaseNotes'); List.replaceChildren();
      (Notes || []).forEach(function (Release, Index) {
        var Card = document.createElement('details'); Card.className='settingcard release-note'; Card.open=Index === 0;
@@ -2000,7 +2001,7 @@ index 07dc4c0..b0228c7 100644
        var Summary=document.createElement('p'); Summary.textContent=Release.summary; Card.appendChild(Summary);
        [['added','New additions'],['improved','Improvements'],['fixed','Bug fixes']].forEach(function (Section) {
          if (!Array.isArray(Release[Section[0]]) || !Release[Section[0]].length) return;
-@@ -905,12 +1269,12 @@ __PLAZCODE_VERSION_UI__
+@@ -905,12 +1270,12 @@ __PLAZCODE_VERSION_UI__
    function Refreshupdates() {
      if (Updatepolling) return Promise.resolve(); Updatepolling = true;
      return Api('/api/desktop/update').then(function (Value) {
@@ -2015,7 +2016,7 @@ index 07dc4c0..b0228c7 100644
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
-@@ -919,18 +1283,18 @@ __PLAZCODE_VERSION_UI__
+@@ -919,18 +1284,18 @@ __PLAZCODE_VERSION_UI__
        Byid('installUpdate').disabled = Updating || Value.available !== true;
        Byid('checkUpdates').disabled = Updating;
        Byid('updateOverlay').hidden = (!Updating || Value.background === true) && (!Value.error || UpdateerrorDismissed);
@@ -2037,7 +2038,7 @@ index 07dc4c0..b0228c7 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1570,379 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1571,381 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -2085,7 +2086,7 @@ index 07dc4c0..b0228c7 100644
 +    if ($("nWebToken")) $("nWebToken").textContent = ShowToken ? (S.web_token || "–") : Mask(S.web_token);
 +    var DA = S.direct_agent || {}; if ($("nDirect")) $("nDirect").textContent = DA.active ? ("Direkt-Agent aktiv: " + (DA.provider || "?") + " · " + (DA.tool_calls || 0) + " Aufrufe") : "Kein Direkt-Agent aktiv";
 +    var SS = $("nSafeShell"); if (SS) SS.checked = !!S.safe_shell;
-+        var TH = $("nThrottle"); if (TH && document.activeElement !== TH && !TH.dataset.dirty) TH.value = S.throttle_ms || 0; var THS = $("nThrottleState"); if (THS) { THS.textContent = S.throttle_ms ? ("an · " + S.throttle_ms + " ms") : "aus"; THS.style.color = S.throttle_ms ? "#5ec27a" : ""; }
++        var TH = $("nThrottle"); if (TH && document.activeElement !== TH && !TH.dataset.dirty) TH.value = S.throttle_ms || 0; var THS = $("nThrottleState"); if (THS) { THS.textContent = S.throttle_ms ? ("an · " + S.throttle_ms + " ms") : "aus"; THS.style.color = S.throttle_ms ? "#5ec27a" : ""; } var SO = $("nSoft"); if (SO && document.activeElement !== SO && !SO.dataset.dirty) SO.value = (S.soft_timeout_s == null ? 20 : S.soft_timeout_s); var SOS = $("nSoftState"); if (SOS) { SOS.textContent = S.soft_timeout_s ? ("an · " + S.soft_timeout_s + " s") : "aus"; SOS.style.color = S.soft_timeout_s ? "#5ec27a" : ""; }
 +    if ($("nBrowser")) $("nBrowser").textContent = S.browser || "Kein Chrome/Edge/Brave gefunden";
 +    var PB = $("nProfiles"); if (PB && !PB.contains(document.activeElement)) { var Esc = function (X) { return String(X).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); }; var PH = (S.notion_profiles || []).map(function (P) { return "<div class=\"nrow\"><span class=\"nlabel\">Profil " + P.id + "</span><input data-plabel=\"" + P.id + "\" value=\"" + Esc(P.label || "") + "\" placeholder=\"Name, z. B. Main oder Coder\"><button class=\"softbtn\" data-popen=\"" + P.id + "\">Öffnen</button><button class=\"dangerbtn\" style=\"padding:6px 12px\" data-pdel=\"" + P.id + "\">Löschen</button></div>"; }).join("") || "<p class=\"nhint\">Noch keine Profile. Klick auf „Neues Notion-Fenster“.</p>"; if (PB.innerHTML !== PH) PB.innerHTML = PH; }
 +    if ($("nAuthRow")) { const F = S.auth_failures || []; $("nAuthRow").style.display = F.length ? "" : "none"; $("nAuthFails").textContent = F.length ? (S.auth_fail_count + " abgelehnt · " + F.slice(-3).reverse().map(x => x.time + " " + x.method + " " + x.path + ": " + x.reason).join(" | ")) : ""; }
@@ -2129,6 +2130,8 @@ index 07dc4c0..b0228c7 100644
 +    var SSC = $("nSafeShell"); if (SSC) SSC.onchange = function () { Act("toggle_safe_shell", SSC.checked); };
 +        var THI = $("nThrottle"); if (THI) THI.addEventListener("input", function () { THI.dataset.dirty = "1"; });
 +        On("nSaveThrottle", function () { var El = $("nThrottle"); delete El.dataset.dirty; Act("set_throttle", Math.max(0, Math.min(30000, Number(El.value) || 0))); });
++var SOI = $("nSoft"); if (SOI) SOI.addEventListener("input", function () { SOI.dataset.dirty = "1"; });
++On("nSaveSoft", function () { var El = $("nSoft"); delete El.dataset.dirty; Act("set_soft_timeout", Math.max(0, Math.min(50, Math.round(Number(El.value) || 0)))); });
 +    On("nSaveDomain", function () { var El = $("nDomain"); delete El.dataset.dirty; Act("set_domain", El.value); });
 +    On("nSavePath", function () { var El = $("nNgrokPath"); delete El.dataset.dirty; Act("set_ngrok_path", El.value); });
 +    [["nDomain", "nSaveDomain"], ["nNgrokPath", "nSavePath"], ["nAuthtoken", "nSaveAuth"]].forEach(function (Pair) { var El = $(Pair[0]); if (!El) return; El.addEventListener("input", function () { El.dataset.dirty = "1"; }); El.addEventListener("keydown", function (Ev) { if (Ev.key === "Enter") { Ev.preventDefault(); var B = $(Pair[1]); if (B) B.click(); } }); });
@@ -8298,10 +8301,10 @@ index 0000000..307aeb4
 \ No newline at end of file
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..ce1033c
+index 0000000..b3975d3
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1270 @@
+@@ -0,0 +1,1369 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -8338,11 +8341,13 @@ index 0000000..ce1033c
 +    pub safe_shell: bool,
 +    /// Anfrage-Drossel: Mindestabstand in ms zwischen zwei Tool-Aufrufen von Notion (0 = aus).
 +    pub throttle_ms: u64,
++    /// Hintergrund-Jobs: nach so vielen Sekunden antwortet AdiCode sofort, der Tool-Aufruf laeuft als Job weiter (0 = aus).
++    pub soft_timeout_s: u64,
 +}
 +
 +impl Default for NotionSettings {
 +    fn default() -> Self {
-+        Self { token: String::new(), domain: String::new(), port: 8787, ngrok_enabled: true, ngrok_path: String::new(), web_token: String::new(), safe_shell: false, throttle_ms: 0 }
++        Self { token: String::new(), domain: String::new(), port: 8787, ngrok_enabled: true, ngrok_path: String::new(), web_token: String::new(), safe_shell: false, throttle_ms: 0, soft_timeout_s: 20 }
 +    }
 +}
 +
@@ -8513,6 +8518,7 @@ index 0000000..ce1033c
 +fn rebuild(state: &crate::AppState) {
 +    let mut out = vec![
 +        ExposedTool { exposed: "adicode_status".into(), internal: String::new(), schema: status_tool() },
++        ExposedTool { exposed: "adicode_job".into(), internal: String::new(), schema: job_tool() },
 +        ExposedTool { exposed: "adicode_skill".into(), internal: String::new(), schema: crate::notion_skills::skill_tool() },
 +        ExposedTool { exposed: "adicode_restart_server".into(), internal: String::new(), schema: crate::notion_skills::restart_tool() },
 +        ExposedTool { exposed: "adicode_find_tools".into(), internal: String::new(), schema: find_tools_schema() },
@@ -8652,6 +8658,9 @@ index 0000000..ce1033c
 +    }
 +    if let Some(out) = crate::notion_roblox_plus::call(state, &name, &args).await {
 +        return out;
++    }
++    if name == "adicode_job" {
++        return job_call(&args).await;
 +    }
 +    if name == "adicode_status" {
 +        return json!({"content": [{"type": "text", "text": status_text(state)}]});
@@ -8813,26 +8822,118 @@ index 0000000..ce1033c
 +static THROTTLE_NEXT: Lazy<tokio::sync::Mutex<Option<Instant>>> = Lazy::new(|| tokio::sync::Mutex::new(None));
 +async fn throttle_gate() { let ms = lock(&SHARED.settings).throttle_ms; if ms == 0 { return; } let mut next = THROTTLE_NEXT.lock().await; let now = Instant::now(); if let Some(t) = *next { if t > now { tokio::time::sleep(t - now).await; } } *next = Some(Instant::now() + Duration::from_millis(ms)); }
 +
++/// Hintergrund-Jobs: braucht ein Tool laenger als soft_timeout_s, antwortet AdiCode sofort und der Aufruf
++/// laeuft weiter. Notion kann parallel weiterarbeiten; das Ergebnis haengt sich an die naechste Tool-Antwort.
++struct BgJob { name: String, session: String, started: Instant, done: Option<(Value, u64)>, delivered: bool }
++static BG_JOBS: Lazy<Mutex<std::collections::HashMap<u64, BgJob>>> = Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
++static BG_NEXT: AtomicU64 = AtomicU64::new(1);
++
++fn job_tool() -> Value {
++    json!({
++        "name": "adicode_job",
++        "description": "AdiCode Hintergrund-Jobs: Tool-Aufrufe ueber dem Soft-Limit laufen als Job weiter, die Antwort kommt sofort und du arbeitest parallel weiter. Fertige Ergebnisse haengen sich automatisch an deine naechste Tool-Antwort. Gezielt abholen: id und optional wait_s (0-45 s warten). Ohne id: Liste aller Jobs.",
++        "inputSchema": {"type": "object", "properties": {
++            "id": {"type": "integer", "description": "Job-Nummer"},
++            "wait_s": {"type": "integer", "minimum": 0, "maximum": 45, "description": "max. Sekunden warten, bis der Job fertig ist"}
++        }}
++    })
++}
++
++fn job_text(v: &Value) -> String {
++    v.get("content").and_then(|c| c.as_array()).map(|a| a.iter().filter_map(|i| i.get("text").and_then(|t| t.as_str())).collect::<Vec<_>>().join("\n")).unwrap_or_default()
++}
++
++fn attach_finished_jobs(out: &mut Value, session: &str) {
++    let mut notes = Vec::new();
++    {
++        let mut map = lock(&BG_JOBS);
++        map.retain(|_, j| j.started.elapsed() < Duration::from_secs(1800));
++        let mut ids: Vec<u64> = map.iter().filter(|(_, j)| j.done.is_some() && !j.delivered && (session.is_empty() || j.session.is_empty() || j.session == session)).map(|(k, _)| *k).collect();
++        ids.sort();
++        for id in ids {
++            if let Some(j) = map.get_mut(&id) {
++                j.delivered = true;
++                let Some((v, secs)) = j.done.as_ref() else { continue; };
++                let mut txt = job_text(v);
++                if txt.len() > 6000 { let mut c = 6000; while !txt.is_char_boundary(c) { c -= 1; } txt.truncate(c); txt.push_str(&format!("\n[... gekuerzt - komplett mit adicode_job {{\"id\":{id}}}]")); }
++                let err = v["isError"].as_bool() == Some(true);
++                notes.push(format!("[AdiCode-Job {id} fertig{}: {} nach {secs} s]\n{txt}", if err { " (Fehler)" } else { "" }, j.name));
++            }
++        }
++    }
++    if notes.is_empty() { return; }
++    if let Some(arr) = out.get_mut("content").and_then(|c| c.as_array_mut()) {
++        for n in notes { arr.push(json!({"type": "text", "text": n})); }
++    }
++}
++
++async fn job_call(args: &Value) -> Value {
++    let wait = args["wait_s"].as_u64().or_else(|| args["wait_s"].as_str().and_then(|s| s.trim().parse().ok())).unwrap_or(0).min(45);
++    let id = args["id"].as_u64().or_else(|| args["id"].as_str().and_then(|s| s.trim().trim_start_matches(|c| c == 'j' || c == 'J').parse().ok()));
++    let Some(id) = id else {
++        let map = lock(&BG_JOBS);
++        let mut rows: Vec<(u64, String)> = map.iter().map(|(k, j)| (*k, format!("Job {k}: {} - {}", j.name, match &j.done {
++            Some((_, s)) => format!("fertig nach {s} s{}", if j.delivered { " (gemeldet)" } else { "" }),
++            None => format!("laeuft seit {} s", j.started.elapsed().as_secs()),
++        }))).collect();
++        rows.sort_by_key(|r| r.0);
++        let txt = if rows.is_empty() { "Keine Hintergrund-Jobs.".to_string() } else { rows.into_iter().map(|r| r.1).collect::<Vec<_>>().join("\n") };
++        return json!({"content": [{"type": "text", "text": txt}]});
++    };
++    let end = Instant::now() + Duration::from_secs(wait);
++    loop {
++        {
++            let mut map = lock(&BG_JOBS);
++            let Some(j) = map.get_mut(&id) else { return tool_error(format!("Job {id} unbekannt (nach 30 min verworfen oder nie gestartet).")); };
++            if let Some((v, secs)) = j.done.clone() {
++                j.delivered = true;
++                let mut out = v;
++                if let Some(arr) = out.get_mut("content").and_then(|c| c.as_array_mut()) { arr.insert(0, json!({"type": "text", "text": format!("[AdiCode-Job {id}: {} fertig nach {secs} s]", j.name)})); }
++                return out;
++            }
++            if Instant::now() >= end {
++                return json!({"content": [{"type": "text", "text": format!("Job {id} ({}) laeuft noch seit {} s. Arbeite parallel weiter; das Ergebnis kommt automatisch mit einer naechsten Tool-Antwort.", j.name, j.started.elapsed().as_secs())}]});
++            }
++        }
++        tokio::time::sleep(Duration::from_millis(250)).await;
++    }
++}
++
 +async fn call_tool_guarded(state: &crate::AppState, params: &Value) -> Value {
-+    throttle_gate().await;
 +    let name = params["name"].as_str().unwrap_or("").to_string();
++    let session = params["_session"].as_str().unwrap_or("").to_string();
++    let is_job = name == "adicode_job";
++    if !is_job { throttle_gate().await; }
++    let soft = { let v = lock(&SHARED.settings).soft_timeout_s; if v == 0 || is_job { TOOL_TIMEOUT_SECS } else { v.clamp(3, TOOL_TIMEOUT_SECS) } };
 +    let task_state = state.clone();
 +    let task_params = params.clone();
-+    let handle = tokio::spawn(async move { call_tool(&task_state, &task_params).await });
-+    let out = match tokio::time::timeout(Duration::from_secs(TOOL_TIMEOUT_SECS), handle).await {
-+        Ok(Ok(value)) => value,
++    let started = Instant::now();
++    let mut handle = tokio::spawn(async move { call_tool(&task_state, &task_params).await });
++    let res = tokio::time::timeout(Duration::from_secs(soft), &mut handle).await;
++    let mut out = match res {
++        Ok(Ok(value)) => if name.starts_with("roblox") { compact_roblox_output(value) } else { value },
 +        Ok(Err(error)) => {
 +            tracing::error!("[notion] tool {name} crashed: {error}");
 +            tool_error(format!("Tool '{name}' ist intern abgestuerzt ({error}). Der Server laeuft weiter. Bitte erneut versuchen oder adicode_restart_server nutzen."))
 +        }
++        Err(_) if soft >= TOOL_TIMEOUT_SECS && is_job => tool_error("adicode_job: Zeitlimit".into()),
 +        Err(_) => {
-+            tracing::warn!("[notion] tool {name} exceeded {TOOL_TIMEOUT_SECS}s");
-+            tool_error(format!("Tool '{name}' braucht laenger als {TOOL_TIMEOUT_SECS} s und laeuft im Hintergrund weiter; das Ergebnis kommt nicht mehr zurueck. Lange Jobs im Hintergrund starten (z. B. Start-Process mit Log-Datei) und danach den Log abfragen."))
++            let id = BG_NEXT.fetch_add(1, Ordering::SeqCst);
++            lock(&BG_JOBS).insert(id, BgJob { name: name.clone(), session: session.clone(), started, done: None, delivered: false });
++            tracing::info!("[notion] tool {name} > {soft}s -> Hintergrund-Job {id}");
++            let jname = name.clone();
++            tokio::spawn(async move {
++                let v = match handle.await { Ok(v) => v, Err(e) => tool_error(format!("Tool '{jname}' ist intern abgestuerzt ({e}).")) };
++                let v = truncate_output(if jname.starts_with("roblox") { compact_roblox_output(v) } else { v });
++                let secs = started.elapsed().as_secs();
++                if let Some(j) = lock(&BG_JOBS).get_mut(&id) { j.done = Some((v, secs)); }
++            });
++            json!({"content": [{"type": "text", "text": format!("[AdiCode] '{name}' braucht laenger als {soft} s und laeuft jetzt als Hintergrund-Job {id} weiter. Nicht warten und nicht neu starten: mach direkt mit dem naechsten Schritt weiter, andere Tools laufen parallel. Das Ergebnis haengt sich automatisch an eine deiner naechsten Tool-Antworten; gezielt abholen mit adicode_job {{\"id\":{id},\"wait_s\":30}}.")}]})
 +        }
 +    };
-+    truncate_output(if name.starts_with("roblox") { compact_roblox_output(out) } else { out })
++    if !is_job { attach_finished_jobs(&mut out, &session); }
++    truncate_output(out)
 +}
-+
 +// ---------------------------------------------------------------- HTTP
 +
 +/// Token aus Header/Feld saeubern: Leerzeichen, Anfuehrungszeichen, <>, Zero-Width, und (mehrfach)
@@ -9340,6 +9441,7 @@ index 0000000..ce1033c
 +        "direct_agent": crate::notion_web_agents::direct_session_info(),
 +        "safe_shell": s.safe_shell,
 +        "throttle_ms": s.throttle_ms,
++        "soft_timeout_s": s.soft_timeout_s,
 +        "notion_profiles": crate::notion_profiles::list(),
 +        "browser": crate::notion_profiles::browser_name(),
 +        "ngrok_found": find_ngrok(&s).is_some(),
@@ -9392,7 +9494,7 @@ index 0000000..ce1033c
 +            "restart_ngrok" => { SHARED.restart.notify_one(); Ok("Tunnel wird neu gestartet.") }
 +            "regenerate_web_token" => { s.web_token = random_token(); save_settings(&s)?; Ok("Neuer Erweiterungs-Token erstellt. Trage ihn in den Optionen der Browser-Erweiterung ein.") }
 +            "set_throttle" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(30_000); s.throttle_ms = v; save_settings(&s)?; Ok(if v == 0 { "Anfrage-Drossel aus." } else { "Anfrage-Drossel gespeichert." }) }
-+            "toggle_safe_shell" => { s.safe_shell = req.value.as_bool().unwrap_or(!s.safe_shell); save_settings(&s)?; Ok(if s.safe_shell { "Sicherheitsmodus an: Shell nur mit erlaubten Einzelbefehlen." } else { "Sicherheitsmodus aus." }) }
++            "set_soft_timeout" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(50); s.soft_timeout_s = v; save_settings(&s)?; Ok(if v == 0 { "Hintergrund-Jobs aus (Antwort erst nach max. 55 s)." } else { "Hintergrund-Jobs gespeichert." }) }            "toggle_safe_shell" => { s.safe_shell = req.value.as_bool().unwrap_or(!s.safe_shell); save_settings(&s)?; Ok(if s.safe_shell { "Sicherheitsmodus an: Shell nur mit erlaubten Einzelbefehlen." } else { "Sicherheitsmodus aus." }) }
 +            "refresh_tools" => Ok("Tools werden aktualisiert."),
 +            other => anyhow::bail!("Unbekannte Aktion: {other}"),
 +        }
@@ -12070,7 +12172,7 @@ index 0000000..bd8d635
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
 new file mode 100644
-index 0000000..5ff30d9
+index 0000000..02350fe
 --- /dev/null
 +++ b/agent/src/notion_skills.rs
 @@ -0,0 +1,175 @@
@@ -12080,7 +12182,7 @@ index 0000000..5ff30d9
 +
 +use serde_json::{json, Value};
 +
-+pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. Lange Befehle (Builds, Tests, Installationen, Releases, alles ueber ~50 s) mit pc_job starten und per action=status abfragen statt pc_PowerShell. Selten genutzte Add-ons (blenderwright, comfyui, robloxstudio, codebase) sind ausgeblendet: mit adicode_find_tools suchen und mit adicode_call aufrufen. Mehrere Tabs an einer neuen Version: vor Code-Aenderungen cowork_release action=join (version, feature, files), fertig mit action=ready, veroeffentlichen nur nach cowork_release action=publish, danach action=done. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
++pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. Tempo: unabhaengige Tool-Aufrufe immer parallel im selben Schritt starten. Braucht ein Tool laenger als ~20 s, antwortet AdiCode sofort mit Hintergrund-Job N - dann NICHT warten oder neu starten, sondern direkt weiterarbeiten; das Ergebnis haengt sich automatisch an eine der naechsten Tool-Antworten (gezielt: adicode_job). Lange Befehle (Builds, Tests, Installationen, Releases, alles ueber ~50 s) mit pc_job starten und per action=status abfragen statt pc_PowerShell. Selten genutzte Add-ons (blenderwright, comfyui, robloxstudio, codebase) sind ausgeblendet: mit adicode_find_tools suchen und mit adicode_call aufrufen. Mehrere Tabs an einer neuen Version: vor Code-Aenderungen cowork_release action=join (version, feature, files), fertig mit action=ready, veroeffentlichen nur nach cowork_release action=publish, danach action=done. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
 +
 +struct Skill { id: &'static str, title: &'static str, body: &'static str }
 +

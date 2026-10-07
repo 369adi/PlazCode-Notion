@@ -9,7 +9,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
-## Neu in 1.0.106
+## Neu in 1.0.107
+- **Hintergrund-Jobs**: Braucht ein Tool laenger als das Soft-Limit (Standard 20 s, einstellbar unter Notion AI), antwortet AdiCode sofort und der Befehl laeuft weiter - Notion wartet nicht mehr, sondern arbeitet parallel weiter. Das Ergebnis haengt sich automatisch an die naechste Tool-Antwort; gezielt mit dem neuen Tool adicode_job (id, wait_s).
+- Notion-AI-Anweisungen: unabhaengige Tool-Aufrufe parallel starten, bei Hintergrund-Job nicht warten oder neu starten.## Neu in 1.0.106
 - **Refresh laeuft komplett durch**: Der MCP-Manage-Schritt klickt jetzt selbst auf Manage in der AdiCode-Zeile und stellt Read- und Write-Tools auf Run automatically. Du musst nicht mehr eingreifen.
 - **Kein Warten mehr**: Schliesst sich der Google-Login, macht der Refresh automatisch mit Zum Chat weiter. Ein bereits eingeloggter Tab wird sofort erkannt.
 - **Chats heissen Tab N Kontext 1/2/3**: hoechstens so viele Tabs, wie Co-Work-Fenster offen sind. Bereits richtig benannte Chats bleiben unveraendert.
