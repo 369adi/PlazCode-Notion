@@ -243,3 +243,16 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - updater.rs: vor dem Neustart Hinweis setzen + 8 s warten (20 s wenn gerade gearbeitet wird); Marker logs/update-notice.txt -> nach Neustart Hinweis 'Update fertig, Verbindung steht wieder' (10 min gueltig).
 - Test update_notice_once_per_tab; cargo test: 104 ok, 0 failed. Commit 2bfc559, BUILT 1.0.95 (work\relbuild\r\PlazCode-Notion.exe). Noch NICHT veroeffentlicht (git push + pub.ps1 offen).
 - 1.0.94 ist veroeffentlicht (Release notion-desktop-v1.0.94).
+
+## 1.0.96 (Power-Upgrade + Release-Koordination, veroeffentlicht 07.10.2026, Release-ID 405579790)
+- Tool-Profil lean ist Standard: blenderwright, comfyui, robloxstudio, codebase ausgeblendet; nutzbar per adicode_find_tools + adicode_call.
+- pc_job: lange Befehle im Hintergrund (start/status/stop/list), Logs in .adicode/jobs.
+- Add-on-Watchdog: startet Add-ons nach App-Start/Update, alle 5 min Neustart toter Add-ons (max 3/h).
+- adicode_status kompakt (laufen/fehler, aktive Co-Work-Projekte, Profil, hidden_tools).
+- cowork_release: Tabs tragen sich pro Version ein (join version feature files), sehen sich gegenseitig, Datei-Ueberschneidungen werden gemeldet, ready meldet fertig, publish sperrt das Release fuer einen Tab und blockiert solange andere noch arbeiten, done markiert veroeffentlicht. Persistiert in %LOCALAPPDATA%\PlazCodeNotion\releases.json, sichtbar in cowork_board.
+- Commits: f63290a SQLite-Fix, 697242b Brave entfernt, eaf7076 v1.0.96. Anderer Tab: 0475fa2 (VERSION/README/HANDOUT fuer 1.0.96).
+- Offen: Git-Checkpoints + Serena-Diagnose, Projektgedaechtnis automatisch laden, Co-Work-Auto-Claim-Fix.
+
+## 1.0.97 (Main2, 07.10.2026)
+- Code identisch mit eaf7076 (zweiter 1.0.96-Build hatte die exe im bestehenden 1.0.96-Release ersetzt -> Nutzer mit dem ersten 1.0.96 bekamen kein Update). Enthaelt Co-Work-Fixes (auto_join_group, canonical_worker, insert_prompt robust, Keeper/Nudger nach Neustart) und release_status()/release_notice() (notion_live.rs, Anzeige in adicode_status).
+- work\release-status.ps1 (%LOCALAPPDATA%\PlazCodeNotion\logs\release-status.json): rel.ps1 bricht ab, wenn ein anderer Prozess baut, wenn VERSION schon published ist oder $env:ADICODE_AGENT fehlt. pub.ps1 bricht ab, wenn das GitHub-Release schon eine PlazCode-Notion.exe hat (bewusst ersetzen nur mit $env:PUB_REPLACE='1').
