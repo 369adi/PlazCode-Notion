@@ -4118,7 +4118,7 @@ index 77cc050..d9efcd0 100644
      }
      let mut mcp = state.roblox_mcp.lock().await;
 diff --git a/agent/src/mcp_addons.rs b/agent/src/mcp_addons.rs
-index 1a68aee..1500c3c 100644
+index 1a68aee..c8658a5 100644
 --- a/agent/src/mcp_addons.rs
 +++ b/agent/src/mcp_addons.rs
 @@ -47,6 +47,34 @@ pub struct ServerSummary {
@@ -4184,7 +4184,7 @@ index 1a68aee..1500c3c 100644
          CatalogEntry {
              id: "memory",
              name: "Memory",
-@@ -89,7 +131,48 @@ pub fn catalog() -> Vec<CatalogEntry> {
+@@ -89,7 +131,41 @@ pub fn catalog() -> Vec<CatalogEntry> {
              command: "npx",
              args: &["-y", "@modelcontextprotocol/server-sequential-thinking"],
          },
@@ -4195,13 +4195,6 @@ index 1a68aee..1500c3c 100644
 +            description: "Code wie in einer IDE: Symbole finden, Referenzen, projektweites Umbenennen, Edits auf Symbol-Ebene (Language Server, 40+ Sprachen inkl. Rust, TS, Python, Luau). Braucht uv und Git; erster Start laedt Serena von GitHub.",
 +            command: "uvx",
 +            args: &["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server"],
-+        },
-+        CatalogEntry {
-+            id: "search",
-+            name: "Brave Search",
-+            description: "Websuche fuer Fehlermeldungen, Changelogs und Doku. Vorher einen Brave Search API Key als Benutzer-Umgebungsvariable BRAVE_API_KEY setzen und AdiCode neu starten.",
-+            command: "npx",
-+            args: &["-y", "@brave/brave-search-mcp-server"],
 +        },
 +        CatalogEntry {
 +            id: "sqlite",
@@ -4234,7 +4227,7 @@ index 1a68aee..1500c3c 100644
  }
  
  pub fn config_path() -> PathBuf {
-@@ -104,10 +187,22 @@ pub fn config_path() -> PathBuf {
+@@ -104,10 +180,22 @@ pub fn config_path() -> PathBuf {
  
  pub fn read_config() -> McpConfig {
      let path = config_path();
@@ -4258,7 +4251,7 @@ index 1a68aee..1500c3c 100644
      cfg.servers.entry("roblox".to_string()).or_insert_with(|| ServerSpec {
          command: "launch_studio_mcp.py".to_string(),
          args: Vec::new(),
-@@ -137,9 +232,31 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -137,9 +225,31 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
          .ok_or_else(|| anyhow::anyhow!("unknown catalog server '{id}'"))?;
      let mut cfg = read_config();
      if enabled {
@@ -4291,7 +4284,7 @@ index 1a68aee..1500c3c 100644
              env: HashMap::new(),
          });
      } else {
-@@ -148,6 +265,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -148,6 +258,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
      write_config(&cfg)
  }
  
@@ -4316,7 +4309,7 @@ index 1a68aee..1500c3c 100644
  pub fn add_server(id: &str, spec: ServerSpec) -> anyhow::Result<()> {
      let id = id.trim();
      anyhow::ensure!(!id.is_empty(), "server id is required");
-@@ -269,6 +404,9 @@ impl AddonRuntime {
+@@ -269,6 +397,9 @@ impl AddonRuntime {
                      }
                      cmd.env("PATH", std::env::join_paths(paths)?);
                      cmd.current_dir(&app).creation_flags(CREATE_NO_WINDOW);
@@ -4326,7 +4319,7 @@ index 1a68aee..1500c3c 100644
                      return Ok(cmd);
                  }
                  anyhow::bail!("[{}] {} runtime unavailable; first-use setup requires internet access.", self.id, low);
-@@ -411,13 +549,23 @@ impl AddonRuntime {
+@@ -411,13 +542,23 @@ impl AddonRuntime {
      }
  }
  
@@ -4352,7 +4345,7 @@ index 1a68aee..1500c3c 100644
      }
  
      async fn sync_config(&mut self) {
-@@ -425,36 +573,51 @@ impl AddonManager {
+@@ -425,36 +566,51 @@ impl AddonManager {
          let wanted: HashMap<String, ServerSpec> = cfg.servers.into_iter()
              .filter(|(id, _)| id != "roblox")
              .collect();
@@ -4418,7 +4411,7 @@ index 1a68aee..1500c3c 100644
      }
  
      pub async fn list_tools(&mut self) -> (Vec<serde_json::Value>, Vec<ServerSummary>) {
-@@ -463,9 +626,21 @@ impl AddonManager {
+@@ -463,9 +619,21 @@ impl AddonManager {
          let mut summaries = Vec::new();
          let ids: Vec<String> = self.runtimes.keys().cloned().collect();
          for id in ids {
@@ -4442,7 +4435,7 @@ index 1a68aee..1500c3c 100644
                      for mut tool in server_tools {
                          let Some(real) = tool.get("name").and_then(|v| v.as_str()).map(str::to_string) else { continue; };
                          tool["name"] = serde_json::Value::String(format!("{id}__{real}"));
-@@ -475,23 +650,10 @@ impl AddonManager {
+@@ -475,23 +643,10 @@ impl AddonManager {
                          tool["server"] = serde_json::Value::String(id.clone());
                          tools.push(tool);
                      }
@@ -4468,7 +4461,7 @@ index 1a68aee..1500c3c 100644
                  }
              }
          }
-@@ -499,20 +661,45 @@ impl AddonManager {
+@@ -499,20 +654,45 @@ impl AddonManager {
          (tools, summaries)
      }
  
@@ -9841,10 +9834,10 @@ index 0000000..26bed3e
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..19f475b
+index 0000000..78de064
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1382 @@
+@@ -0,0 +1,1385 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -10210,11 +10203,14 @@ index 0000000..19f475b
 +}
 +
 +/// Worker joint mit frei gewaehltem Namen (z. B. Kontoname): auf den kanonischen Tab-Namen abbilden,
-+/// wenn genau ein noch nicht beigetretener Worker-Tab gerade generiert. Sonst bleibt der Name.
++/// wenn eindeutig ist, welcher Worker-Tab gerade generiert (bevorzugt noch nicht beigetretene). Sonst bleibt der Name.
 +fn canonical_worker(p: &Project, wanted: &str) -> String {
 +    let tabs = crate::notion_profiles::worker_tab_agents();
 +    if tabs.iter().any(|t| t == wanted) { return wanted.to_string(); }
-+    let c: Vec<&String> = tabs.iter().filter(|t| !p.agents.contains_key(*t) && crate::notion_live::is_generating(t)).collect();
++    // Generierende Worker-Tabs (auch wenn der Main sie schon automatisch eingetragen hat): genau einer = der Joiner.
++    let gen: Vec<&String> = tabs.iter().filter(|t| crate::notion_live::is_generating(t)).collect();
++    let fresh: Vec<&String> = gen.iter().copied().filter(|t| !p.agents.contains_key(*t)).collect();
++    let c = if fresh.len() == 1 { fresh } else { gen };
 +    if c.len() == 1 { c[0].clone() } else { wanted.to_string() }
 +}
 +fn join_agent(p: &mut Project, wanted: &str, role: &str) -> String {
@@ -17146,7 +17142,7 @@ index 0000000..bd8d635
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
 new file mode 100644
-index 0000000..ee73d38
+index 0000000..3f79ef3
 --- /dev/null
 +++ b/agent/src/notion_skills.rs
 @@ -0,0 +1,175 @@
@@ -17156,7 +17152,7 @@ index 0000000..ee73d38
 +
 +use serde_json::{json, Value};
 +
-+pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, search_* = Websuche (Brave), sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
++pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
 +
 +struct Skill { id: &'static str, title: &'static str, body: &'static str }
 +
@@ -17274,7 +17270,7 @@ index 0000000..ee73d38
 +    Skill { id: "verify", title: "Verify: build/typecheck/lint/tests before claiming done", body: crate::notion_skills_dev::VERIFY },
 +    Skill { id: "finish", title: "Finish a branch: verify, review, docs, merge/PR options", body: crate::notion_skills_dev::FINISH },
 +    Skill { id: "webapp-test", title: "Test web apps with Playwright browser tools", body: crate::notion_skills_dev::WEBAPP_TEST },
-+    Skill { id: "research", title: "Research: Context7, Brave Search, fetch, GitHub", body: crate::notion_skills_dev::RESEARCH },
++    Skill { id: "research", title: "Research: Context7, fetch, GitHub", body: crate::notion_skills_dev::RESEARCH },
 +    Skill { id: "mcp-builder", title: "Build high-quality MCP servers/tools", body: crate::notion_skills_dev::MCP_BUILDER },
 +    Skill { id: "toolbox", title: "Which AdiCode tool for what", body: crate::notion_skills_dev::TOOLBOX },
 +];
@@ -17328,7 +17324,7 @@ index 0000000..ee73d38
 \ No newline at end of file
 diff --git a/agent/src/notion_skills_dev.rs b/agent/src/notion_skills_dev.rs
 new file mode 100644
-index 0000000..38dd74f
+index 0000000..30c6120
 --- /dev/null
 +++ b/agent/src/notion_skills_dev.rs
 @@ -0,0 +1,93 @@
@@ -17399,7 +17395,7 @@ index 0000000..38dd74f
 +
 +pub(crate) const RESEARCH: &str = r#"Look things up instead of guessing.
 +- Library/framework APIs: context7_resolve-library-id then context7_query-docs (current versions!).
-+- Web search: search_* (Brave Search add-on, needs BRAVE_API_KEY) for errors, changelogs, issues; then fetch_fetch the best 2-3 results and read them.
++- Web pages: fetch_fetch the best 2-3 known URLs (docs, release notes, issues) and read them; for JS/login pages use browser_*.
 +- GitHub: github_search_code / github_search_issues for real-world usage and known bugs.
 +- Prefer official docs, release notes and recent issues; note the date/version of what you read. Cite the URL in your answer."#;
 +
@@ -17419,7 +17415,7 @@ index 0000000..38dd74f
 +- Run things: pc_PowerShell (builds, tests, servers in background with logs). Checks: app_verify (background, status table).
 +- Less context: adicode_profile app|roblox|blender|all hides unrelated tools.
 +- Errors in production: sentry_* ; Postgres: postgres_* (read-only).
-+- Docs/research: context7_*, search_* (Brave), fetch_fetch, github_search_*.
++- Docs/research: context7_*, fetch_fetch, github_search_*.
 +- Data: sqlite_* (local SQLite DB in the shared folder: schema, queries).
 +- UI checks: browser_* (skill webapp-test). Time zones/dates: time_*.
 +- Planning: thinking_sequentialthinking for hard problems; skills brainstorm -> plan -> tdd -> review -> verify -> finish.
