@@ -9834,10 +9834,10 @@ index 0000000..26bed3e
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..78de064
+index 0000000..250a758
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1385 @@
+@@ -0,0 +1,1643 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -10773,6 +10773,7 @@ index 0000000..78de064
 +    }
 +    let args = &args;
 +    if name == "cowork_wait" { return Some(wait(args).await); }
++    if name == "cowork_release" { return Some(release(args, session)); }
 +    let result = {
 +        let mut board = lock_board();
 +        let r = dispatch(&mut board, name, args);
@@ -10784,7 +10785,7 @@ index 0000000..78de064
 +        r
 +    };
 +    Some(match result {
-+        Ok((out, changed)) => { if changed { CHANGED.notify_waiters(); } let out = if name == "cowork_board" { format!("{out}{}", crate::notion_live::tabs_text()) } else { out }; text(out) }
++        Ok((out, changed)) => { if changed { CHANGED.notify_waiters(); } let out = if name == "cowork_board" { format!("{out}{}{}", release_board_text(), crate::notion_live::tabs_text()) } else { out }; text(out) }
 +        Err(e) => err(e),
 +    })
 +}
@@ -10984,6 +10985,12 @@ index 0000000..78de064
 +}
 +
 +pub(crate) fn tools() -> Vec<Value> {
++    let mut v = tools_base();
++    v.push(release_schema());
++    v
++}
++
++fn tools_base() -> Vec<Value> {
 +    let role_list = ROLES.iter().map(|r| format!("{} = {}", r.id, r.title)).collect::<Vec<_>>().join(", ");
 +    let tasks = json!({"type": "array", "description": "Tasks; IDs werden fortlaufend vergeben (erster Task eines Projekts = 1).", "items": {"type": "object", "properties": {
 +        "title": {"type": "string"},
@@ -11223,12 +11230,263 @@ index 0000000..78de064
 +    }
 +    v
 +}
++
++// ---------------------------------------------------------------- Release-Koordination zwischen Tabs (1.0.96)
++// Jeder Tab, der Code fuer eine Version aendert, traegt sich mit Funktion und Dateien ein.
++// Alle sehen, wer an derselben Version arbeitet; Datei-Ueberschneidungen werden gemeldet;
++// veroeffentlicht wird nur von EINEM Tab und erst, wenn alle anderen fertig sind.
++
++#[derive(Default, Serialize, Deserialize, Clone)]
++struct RelWork {
++    #[serde(default)] feature: String,
++    #[serde(default)] files: Vec<String>,
++    #[serde(default)] ready: bool,
++    #[serde(default)] result: String,
++    #[serde(default)] since: i64,
++    #[serde(default)] seen: i64,
++}
++
++#[derive(Default, Serialize, Deserialize, Clone)]
++struct Rel {
++    #[serde(default)] workers: BTreeMap<String, RelWork>,
++    #[serde(default)] publishing: Option<(String, i64)>,
++    #[serde(default)] published: Option<(String, i64)>,
++}
++
++#[derive(Default, Serialize, Deserialize)]
++struct Releases { #[serde(default)] versions: BTreeMap<String, Rel> }
++
++/// Ein Tab ohne Lebenszeichen fuer so lange blockiert kein Release mehr.
++const REL_ACTIVE_SECS: i64 = 45 * 60;
++/// Eine Release-Sperre verfaellt nach so langer Zeit (abgestuerzter Tab).
++const REL_PUBLISH_SECS: i64 = 30 * 60;
++
++fn releases_path() -> PathBuf { board_path().with_file_name("releases.json") }
++
++static RELEASES: Lazy<Mutex<Releases>> = Lazy::new(|| Mutex::new(
++    std::fs::read_to_string(releases_path()).ok()
++        .and_then(|raw| serde_json::from_str(raw.trim_start_matches('\u{feff}')).ok())
++        .unwrap_or_default()));
++
++fn save_releases(r: &Releases) {
++    if let Ok(bytes) = serde_json::to_vec_pretty(r) {
++        let path = releases_path();
++        if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
++        let tmp = path.with_extension("json.tmp");
++        if std::fs::write(&tmp, bytes).is_ok() { let _ = std::fs::rename(&tmp, &path); }
++    }
++}
++
++fn norm_version(v: &str) -> String { v.trim().trim_start_matches(|c: char| c == 'v' || c == 'V').to_string() }
++
++fn ver_key(v: &str) -> Vec<u64> {
++    v.split(|c: char| !c.is_ascii_digit()).filter(|x| !x.is_empty()).map(|x| x.parse().unwrap_or(0)).collect()
++}
++
++fn rel_lines(ver: &str, rel: &Rel, me: &str) -> String {
++    let t = now();
++    let mut out = format!("Version {ver}");
++    if let Some((who, ts)) = &rel.published { out.push_str(&format!(" - VEROEFFENTLICHT von {who} vor {} min", (t - ts) / 60)); }
++    else if let Some((who, ts)) = &rel.publishing { out.push_str(&format!(" - wird gerade von {who} veroeffentlicht (seit {} min)", (t - ts) / 60)); }
++    out.push('\n');
++    if rel.workers.is_empty() { out.push_str("  (noch niemand eingetragen)\n"); }
++    for (name, w) in &rel.workers {
++        let state = if w.ready { "fertig" } else if t - w.seen > REL_ACTIVE_SECS { "inaktiv" } else { "arbeitet" };
++        let mine = if name.as_str() == me { " (du)" } else { "" };
++        let files = if w.files.is_empty() { String::new() } else { format!(" | Dateien: {}", w.files.join(", ")) };
++        let res = if w.result.is_empty() { String::new() } else { format!(" | Ergebnis: {}", short(&w.result, 120)) };
++        out.push_str(&format!("  - {name}{mine}: {} [{state}]{files}{res}\n", w.feature));
++    }
++    out
++}
++
++fn rel_conflicts(rel: &Rel, me: &str, files: &[String]) -> Vec<String> {
++    let t = now();
++    let mut hits = Vec::new();
++    for (name, w) in &rel.workers {
++        if name.as_str() == me || w.ready || t - w.seen > REL_ACTIVE_SECS { continue; }
++        for f in files {
++            for g in &w.files {
++                if live_same(&norm_path(f), &norm_path(g)) { hits.push(format!("{f} (auch bei {name}: {})", w.feature)); }
++            }
++        }
++    }
++    hits
++}
++
++fn release_on(r: &mut Releases, args: &Value, me: &str) -> Result<(String, bool), String> {
++    let action = { let a = s(args, "action").to_lowercase(); if a.is_empty() { "status".to_string() } else { a } };
++    let given = norm_version(&s(args, "version"));
++    let mut ver = given.clone();
++    if ver.is_empty() {
++        ver = r.versions.iter()
++            .filter(|(_, v)| v.workers.contains_key(me) && v.published.is_none())
++            .map(|(k, _)| k.clone()).max_by_key(|k| ver_key(k))
++            .or_else(|| r.versions.keys().cloned().max_by_key(|k| ver_key(k)))
++            .unwrap_or_default();
++    }
++    if action == "status" || action == "list" {
++        if r.versions.is_empty() {
++            return Ok(("Noch keine Release-Eintraege. Eintragen mit cowork_release action=join version=<X> feature=<welche Funktion> files=[...].".to_string(), false));
++        }
++        if action == "status" && !given.is_empty() {
++            return Ok((r.versions.get(&ver).map(|rel| rel_lines(&ver, rel, me)).unwrap_or_else(|| format!("Version {ver}: noch niemand eingetragen.")), false));
++        }
++        let mut keys: Vec<String> = r.versions.keys().cloned().collect();
++        keys.sort_by_key(|k| std::cmp::Reverse(ver_key(k)));
++        let out: Vec<String> = keys.iter().take(4).map(|k| rel_lines(k, &r.versions[k], me)).collect();
++        return Ok((out.join("\n"), false));
++    }
++    if me.is_empty() { return Err("agent fehlt: deinen Co-Work-Namen oder einen eindeutigen Tab-Namen angeben.".to_string()); }
++    if ver.is_empty() { return Err("version fehlt, z. B. version=1.0.96.".to_string()); }
++    let t = now();
++    let rel = r.versions.entry(ver.clone()).or_default();
++    let out = match action.as_str() {
++        "join" | "update" => {
++            if let Some((who, _)) = &rel.published {
++                return Err(format!("Version {ver} wurde schon von {who} veroeffentlicht. Fuer neue Aenderungen die naechste Version nehmen (action=status zeigt den Stand)."));
++            }
++            let feature = s(args, "feature");
++            let files: Vec<String> = args["files"].as_array()
++                .map(|a| a.iter().filter_map(|x| x.as_str()).map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect())
++                .unwrap_or_default();
++            let conflicts = rel_conflicts(rel, me, &files);
++            {
++                let w = rel.workers.entry(me.to_string()).or_insert_with(|| RelWork { since: t, ..Default::default() });
++                if !feature.is_empty() { w.feature = feature; }
++                if w.feature.is_empty() { w.feature = "(ohne Beschreibung)".to_string(); }
++                if !files.is_empty() { w.files = files; }
++                w.ready = false;
++                w.seen = t;
++            }
++            let others = rel.workers.keys().filter(|k| k.as_str() != me).count();
++            let mut msg = format!("Eingetragen fuer {ver}. {others} weitere(r) Tab(s) an dieser Version.\n{}", rel_lines(&ver, rel, me));
++            if !conflicts.is_empty() {
++                msg.push_str(&format!("\nACHTUNG Datei-Ueberschneidung: {}. Vorher per cowork_message absprechen oder andere Dateien waehlen.", conflicts.join("; ")));
++            }
++            msg.push_str("\nRegeln: nur die eigenen Dateien aendern; VERSION, Patch und Release nur nach action=publish; fertig melden mit action=ready.");
++            msg
++        }
++        "ready" => {
++            let Some(w) = rel.workers.get_mut(me) else { return Err(format!("Du bist fuer {ver} nicht eingetragen (erst action=join).")) };
++            w.ready = true;
++            w.seen = t;
++            let res = s(args, "result");
++            if !res.is_empty() { w.result = res; }
++            format!("Als fertig gemeldet fuer {ver}.\n{}", rel_lines(&ver, rel, me))
++        }
++        "leave" => {
++            rel.workers.remove(me);
++            format!("Aus {ver} ausgetragen.")
++        }
++        "publish" => {
++            if let Some((who, _)) = &rel.published { return Err(format!("{ver} ist schon von {who} veroeffentlicht. Naechste Version nehmen.")); }
++            if let Some((who, ts)) = &rel.publishing {
++                if who.as_str() != me && t - ts < REL_PUBLISH_SECS {
++                    return Err(format!("{who} veroeffentlicht {ver} gerade. Nicht parallel bauen; spaeter action=status pruefen."));
++                }
++            }
++            let force = args["force"].as_bool().unwrap_or(false);
++            let busy: Vec<String> = rel.workers.iter()
++                .filter(|(n, w)| n.as_str() != me && !w.ready && t - w.seen <= REL_ACTIVE_SECS)
++                .map(|(n, w)| format!("{n} ({})", w.feature)).collect();
++            if !busy.is_empty() && !force {
++                return Err(format!("Noch nicht veroeffentlichen: an {ver} arbeiten noch {}. Sie melden sich mit action=ready fertig; per cowork_message nachfragen. force=true nur auf ausdruecklichen Nutzerwunsch.", busy.join(", ")));
++            }
++            rel.publishing = Some((me.to_string(), t));
++            if let Some(w) = rel.workers.get_mut(me) { w.seen = t; }
++            format!("Release-Sperre fuer {ver} gehoert jetzt dir. Jetzt VERSION setzen, Patch erzeugen, bauen und veroeffentlichen; danach action=done version={ver}. Andere Tabs werden geblockt.\n{}", rel_lines(&ver, rel, me))
++        }
++        "done" => {
++            if let Some((who, ts)) = &rel.publishing {
++                if who.as_str() != me && t - ts < REL_PUBLISH_SECS { return Err(format!("Die Release-Sperre fuer {ver} gehoert {who}.")); }
++            }
++            rel.publishing = None;
++            rel.published = Some((me.to_string(), t));
++            format!("{ver} als veroeffentlicht markiert. Neue Aenderungen gehen in die naechste Version.")
++        }
++        "abort" => {
++            if rel.publishing.as_ref().map(|(w, _)| w.as_str() == me).unwrap_or(false) { rel.publishing = None; }
++            format!("Release-Sperre fuer {ver} freigegeben.")
++        }
++        other => return Err(format!("Unbekannte action '{other}'. Erlaubt: join, update, ready, leave, publish, done, abort, status, list.")),
++    };
++    Ok((out, true))
++}
++
++fn release(args: &Value, session: &str) -> Value {
++    let mut me = s(args, "agent");
++    if me.is_empty() { me = session_agent(session).unwrap_or_default(); }
++    if me.is_empty() && !session.is_empty() {
++        me = format!("tab-{}", session.chars().filter(|c| c.is_ascii_alphanumeric()).take(6).collect::<String>());
++    }
++    let result = {
++        let mut r = RELEASES.lock().unwrap_or_else(|e| e.into_inner());
++        let res = release_on(&mut r, args, &me);
++        if let Ok((_, true)) = &res { save_releases(&r); }
++        res
++    };
++    match result {
++        Ok((out, changed)) => { if changed { CHANGED.notify_waiters(); } text(out) }
++        Err(e) => err(e),
++    }
++}
++
++/// Laufende Releases fuer cowork_board, damit jeder Tab sieht, wer an welcher Version arbeitet.
++pub(crate) fn release_board_text() -> String {
++    let r = RELEASES.lock().unwrap_or_else(|e| e.into_inner());
++    let t = now();
++    let mut keys: Vec<&String> = r.versions.iter()
++        .filter(|(_, v)| v.published.is_none() && (v.publishing.is_some() || v.workers.values().any(|w| t - w.seen <= REL_ACTIVE_SECS)))
++        .map(|(k, _)| k).collect();
++    if keys.is_empty() { return String::new(); }
++    keys.sort_by_key(|k| std::cmp::Reverse(ver_key(k)));
++    let lines: Vec<String> = keys.iter().map(|k| rel_lines(k, &r.versions[*k], "")).collect();
++    format!("\n\nReleases in Arbeit (cowork_release):\n{}", lines.join("\n"))
++}
++
++fn release_schema() -> Value {
++    json!({
++        "name": "cowork_release",
++        "description": "AdiCode Co-Work: Release-Koordination zwischen ALLEN Notion-AI-Tabs. Wer Code fuer eine neue Version aendert, traegt sich ZUERST ein: action=join version=1.0.96 feature=<welche Funktion> files=[Dateien]. Dann sieht jeder Tab, wer an derselben Version arbeitet und welche Dateien er aendert; Ueberschneidungen werden gemeldet. Fertig: action=ready result=<kurz>. Veroeffentlichen NUR ueber action=publish: blockiert, solange andere Tabs noch an der Version arbeiten oder ein anderer Tab gerade veroeffentlicht. Nach dem Release action=done. action=status/list zeigt den Stand, leave traegt aus, abort gibt die Release-Sperre frei.",
++        "inputSchema": {"type": "object", "properties": {
++            "action": {"type": "string", "enum": ["join", "update", "ready", "leave", "publish", "done", "abort", "status", "list"], "default": "status"},
++            "version": {"type": "string", "description": "Zielversion, z. B. 1.0.96 (leer = deine aktuelle bzw. neueste)"},
++            "agent": {"type": "string", "description": "Dein Co-Work-Name (sonst automatisch aus der Session)"},
++            "feature": {"type": "string", "description": "Welche Funktion du fuer diese Version baust"},
++            "files": {"type": "array", "items": {"type": "string"}, "description": "Dateien, die du aenderst"},
++            "result": {"type": "string", "description": "Kurzes Ergebnis bei action=ready"},
++            "force": {"type": "boolean", "description": "Nur auf ausdruecklichen Nutzerwunsch: trotz laufender Arbeit anderer veroeffentlichen"}
++        }}
++    })
++}
++
++#[cfg(test)]
++mod release_tests {
++    use super::*;
++
++    #[test]
++    fn two_tabs_coordinate_one_version() {
++        let mut r = Releases::default();
++        release_on(&mut r, &json!({"action": "join", "version": "v1.0.96", "feature": "Login", "files": ["src/a.rs"]}), "coder-1").unwrap();
++        let (out, _) = release_on(&mut r, &json!({"action": "join", "version": "1.0.96", "feature": "Shop", "files": ["src/a.rs", "src/b.rs"]}), "coder-2").unwrap();
++        assert!(out.contains("coder-1"));
++        assert!(out.contains("Ueberschneidung"));
++        assert!(release_on(&mut r, &json!({"action": "publish", "version": "1.0.96"}), "coder-2").is_err());
++        release_on(&mut r, &json!({"action": "ready", "version": "1.0.96", "result": "ok"}), "coder-1").unwrap();
++        release_on(&mut r, &json!({"action": "publish", "version": "1.0.96"}), "coder-2").unwrap();
++        assert!(release_on(&mut r, &json!({"action": "publish", "version": "1.0.96"}), "coder-1").is_err());
++        release_on(&mut r, &json!({"action": "done", "version": "1.0.96"}), "coder-2").unwrap();
++        assert!(release_on(&mut r, &json!({"action": "join", "version": "1.0.96", "feature": "x"}), "coder-3").is_err());
++        assert!(ver_key("1.0.100") > ver_key("1.0.96"));
++    }
++}
 diff --git a/agent/src/notion_devtools.rs b/agent/src/notion_devtools.rs
 new file mode 100644
-index 0000000..26e66a2
+index 0000000..5e66c1b
 --- /dev/null
 +++ b/agent/src/notion_devtools.rs
-@@ -0,0 +1,320 @@
+@@ -0,0 +1,473 @@
 +//! AdiCode: app_verify (build/typecheck/lint/tests im Hintergrund) und
 +//! adicode_profile (Tool-Profile gegen Kontext-Bloat: all, app, roblox, blender).
 +
@@ -11239,7 +11497,9 @@ index 0000000..26e66a2
 +use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 +
 +static PROFILE: Mutex<Option<String>> = Mutex::new(None);
-+const PROFILES: &[&str] = &["all", "app", "roblox", "blender"];
++const PROFILES: &[&str] = &["lean", "all", "app", "roblox", "blender"];
++/// Profil lean: selten genutzte, sehr grosse Add-ons aus tools/list nehmen (bleiben per adicode_call nutzbar).
++const LEAN_HIDDEN: &[&str] = &["blenderwright_", "comfyui_", "robloxstudio_", "codebase_"];
 +const CHECKS: &[&str] = &["install", "typecheck", "lint", "test", "build"];
 +
 +fn state_dir() -> PathBuf { crate::mcp_addons::shared_dir().join(".adicode") }
@@ -11255,15 +11515,16 @@ index 0000000..26e66a2
 +    let mut g = PROFILE.lock().unwrap_or_else(|e| e.into_inner());
 +    if g.is_none() {
 +        let p = std::fs::read_to_string(profile_file()).map(|s| s.trim().to_ascii_lowercase()).unwrap_or_default();
-+        *g = Some(if PROFILES.contains(&p.as_str()) { p } else { "all".to_string() });
++        *g = Some(if PROFILES.contains(&p.as_str()) { p } else { "lean".to_string() });
 +    }
-+    g.clone().unwrap_or_else(|| "all".to_string())
++    g.clone().unwrap_or_else(|| "lean".to_string())
 +}
 +
 +fn allows(profile: &str, tool: &str) -> bool {
 +    let is_roblox = tool.starts_with("roblox");
 +    let is_blender = tool.starts_with("blender") || tool.starts_with("adicode_blender");
 +    match profile {
++        "lean" => !LEAN_HIDDEN.iter().any(|p| tool.starts_with(p)),
 +        "app" => !is_roblox && !is_blender,
 +        "roblox" => !is_blender,
 +        "blender" => !is_roblox,
@@ -11280,6 +11541,133 @@ index 0000000..26e66a2
 +    std::fs::write(profile_file(), p).map_err(|e| e.to_string())?;
 +    *PROFILE.lock().unwrap_or_else(|e| e.into_inner()) = Some(p.to_string());
 +    Ok(())
++}
++
++// ------------------------------------------------------------ pc_job (lange Befehle im Hintergrund)
++
++fn jobs_dir() -> PathBuf { state_dir().join("jobs") }
++
++fn job_ids() -> Vec<String> {
++    let mut v: Vec<String> = std::fs::read_dir(jobs_dir())
++        .map(|r| r.filter_map(|e| e.ok())
++            .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".log")).map(str::to_string))
++            .collect())
++        .unwrap_or_default();
++    v.sort();
++    v
++}
++
++fn job_id_arg(args: &Value) -> Option<String> {
++    let id = args["job_id"].as_str().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string).or_else(|| job_ids().pop())?;
++    if id.contains('/') || id.contains('\\') || id.contains("..") { return None; }
++    Some(id)
++}
++
++fn job_state(id: &str) -> String {
++    match std::fs::read_to_string(jobs_dir().join(format!("{id}.exit"))) {
++        Ok(code) => format!("fertig (Exit-Code {})", code.trim()),
++        Err(_) => "laeuft noch".to_string(),
++    }
++}
++
++fn pc_job_schema() -> Value {
++    json!({
++        "name": "pc_job",
++        "description": "AdiCode: lange PowerShell-Befehle im Hintergrund (Builds, Tests, Installationen, Releases, alles ueber ~50 s). action=start (command, cwd, timeout_minutes) liefert sofort eine job_id; action=status zeigt laeuft/fertig, Exit-Code und die letzten Log-Zeilen; action=stop beendet den ganzen Prozessbaum; action=list zeigt die letzten Jobs. Statt pc_PowerShell nutzen, sobald ein Befehl lange dauern kann.",
++        "inputSchema": {"type": "object", "properties": {
++            "action": {"type": "string", "enum": ["start", "status", "stop", "list"], "default": "start"},
++            "command": {"type": "string", "description": "PowerShell-Befehl (fuer action=start)."},
++            "cwd": {"type": "string", "description": "Arbeitsordner, relativ zum Shared-Ordner oder absolut. Standard: Shared-Ordner."},
++            "timeout_minutes": {"type": "integer", "default": 60, "description": "1-360 Minuten, danach wird der Job beendet."},
++            "job_id": {"type": "string", "description": "Fuer status/stop; leer = letzter Job."},
++            "lines": {"type": "integer", "default": 40, "description": "Log-Zeilen bei status (5-400)."}
++        }}
++    })
++}
++
++fn job_start(args: &Value) -> Value {
++    if crate::notion_mcp::safe_shell_enabled() { return err("Sicherheitsmodus ist an: pc_job ist gesperrt."); }
++    let cmd = args["command"].as_str().unwrap_or("").trim().to_string();
++    if cmd.is_empty() { return err("command fehlt."); }
++    let dir = args["cwd"].as_str().map(str::trim).filter(|s| !s.is_empty()).map(resolve).unwrap_or_else(crate::mcp_addons::shared_dir);
++    if !dir.is_dir() { return err(format!("Ordner nicht gefunden: {}", dir.display())); }
++    let minutes = args["timeout_minutes"].as_u64().unwrap_or(60).clamp(1, 360);
++    let _ = std::fs::create_dir_all(jobs_dir());
++    let id = format!("job-{}", SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0));
++    let log = jobs_dir().join(format!("{id}.log"));
++    let Ok(file) = std::fs::File::create(&log) else { return err("Log-Datei konnte nicht angelegt werden.") };
++    let Ok(file2) = file.try_clone() else { return err("Log-Datei konnte nicht geoeffnet werden.") };
++    let _ = std::fs::write(jobs_dir().join(format!("{id}.cmd")), &cmd);
++    #[cfg(windows)]
++    let mut c = {
++        use std::os::windows::process::CommandExt;
++        let full = format!("[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ProgressPreference='SilentlyContinue'; {cmd}");
++        let mut c = std::process::Command::new("powershell");
++        c.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &full]).creation_flags(0x0800_0000);
++        c
++    };
++    #[cfg(not(windows))]
++    let mut c = {
++        let mut c = std::process::Command::new("sh");
++        c.arg("-c").arg(&cmd);
++        c
++    };
++    c.current_dir(&dir).stdin(Stdio::null()).stdout(Stdio::from(file)).stderr(Stdio::from(file2));
++    let mut child = match c.spawn() { Ok(ch) => ch, Err(e) => return err(format!("Start fehlgeschlagen: {e}")) };
++    let pid = child.id();
++    let _ = std::fs::write(jobs_dir().join(format!("{id}.pid")), pid.to_string());
++    let exit = jobs_dir().join(format!("{id}.exit"));
++    std::thread::spawn(move || {
++        let deadline = Instant::now() + Duration::from_secs(minutes * 60);
++        let result = loop {
++            match child.try_wait() {
++                Ok(Some(st)) => break st.code().map(|c| c.to_string()).unwrap_or_else(|| "beendet".to_string()),
++                Ok(None) => {
++                    if Instant::now() > deadline { kill_tree(&mut child); break "timeout".to_string(); }
++                    std::thread::sleep(Duration::from_millis(500));
++                }
++                Err(e) => break format!("fehler {e}"),
++            }
++        };
++        let _ = std::fs::write(exit, result);
++    });
++    text(format!("Job {id} gestartet (PID {pid}, Ordner {}, Timeout {minutes} min). Abfragen mit pc_job action=status job_id={id}.", dir.display()))
++}
++
++fn job_status(args: &Value) -> Value {
++    let Some(id) = job_id_arg(args) else { return err("Kein Job gefunden (job_id pruefen).") };
++    let log = jobs_dir().join(format!("{id}.log"));
++    if !log.exists() { return err(format!("Job {id} nicht gefunden.")); }
++    let n = args["lines"].as_u64().unwrap_or(40).clamp(5, 400) as usize;
++    let cmd: String = std::fs::read_to_string(jobs_dir().join(format!("{id}.cmd"))).unwrap_or_default().chars().take(160).collect();
++    text(format!("Job {id}: {}\nBefehl: {cmd}\nLog: {}\n--- letzte {n} Zeilen ---\n{}", job_state(&id), log.display(), tail(&log, n)))
++}
++
++fn job_stop(args: &Value) -> Value {
++    let Some(id) = job_id_arg(args) else { return err("job_id fehlt oder ist ungueltig.") };
++    let Ok(pid) = std::fs::read_to_string(jobs_dir().join(format!("{id}.pid"))) else { return err(format!("Job {id} nicht gefunden.")) };
++    let pid = pid.trim().to_string();
++    #[cfg(windows)]
++    {
++        use std::os::windows::process::CommandExt;
++        let _ = std::process::Command::new("taskkill").args(["/T", "/F", "/PID", &pid])
++            .stdout(Stdio::null()).stderr(Stdio::null()).creation_flags(0x0800_0000).status();
++    }
++    #[cfg(not(windows))]
++    { let _ = std::process::Command::new("kill").arg(&pid).status(); }
++    text(format!("Job {id} gestoppt (PID {pid})."))
++}
++
++fn job_list() -> Value {
++    let mut ids = job_ids();
++    ids.reverse();
++    ids.truncate(8);
++    if ids.is_empty() { return text("Noch keine Jobs."); }
++    let lines: Vec<String> = ids.iter().map(|id| {
++        let cmd: String = std::fs::read_to_string(jobs_dir().join(format!("{id}.cmd"))).unwrap_or_default().chars().take(80).collect();
++        format!("{id}: {} | {cmd}", job_state(id))
++    }).collect();
++    text(lines.join("\n"))
 +}
 +
 +// ------------------------------------------------------------ app_verify
@@ -11475,6 +11863,12 @@ index 0000000..26e66a2
 +// ------------------------------------------------------------ MCP-Schnittstelle
 +
 +pub(crate) fn tools() -> Vec<Value> {
++    let mut v = tools_base();
++    v.push(pc_job_schema());
++    v
++}
++
++fn tools_base() -> Vec<Value> {
 +    vec![
 +        json!({
 +            "name": "app_verify",
@@ -11489,7 +11883,7 @@ index 0000000..26e66a2
 +        }),
 +        json!({
 +            "name": "adicode_profile",
-+            "description": "AdiCode: Tool-Profil gegen Kontext-Bloat. all = alles, app = ohne Roblox/Blender, roblox = ohne Blender, blender = ohne Roblox. Ohne Argument: aktuelles Profil. Notion uebernimmt die neue Tool-Liste beim naechsten Neuladen/Verbinden.",
++            "description": "AdiCode: Tool-Profil gegen Kontext-Bloat. lean (Standard) = alles ausser den selten genutzten Add-ons blenderwright, comfyui, robloxstudio, codebase (per adicode_find_tools + adicode_call trotzdem nutzbar), all = alles, app = ohne Roblox/Blender, roblox = ohne Blender, blender = ohne Roblox. Ohne Argument: aktuelles Profil. Notion uebernimmt die neue Tool-Liste beim naechsten Neuladen/Verbinden.",
 +            "inputSchema": {"type": "object", "properties": {
 +                "profile": {"type": "string", "enum": PROFILES}
 +            }}
@@ -11506,6 +11900,12 @@ index 0000000..26e66a2
 +            }
 +            _ => start_verify(args),
 +        }),
++        "pc_job" => Some(match args["action"].as_str().unwrap_or("start") {
++            "status" => job_status(args),
++            "stop" => job_stop(args),
++            "list" => job_list(),
++            _ => job_start(args),
++        }),
 +        "adicode_profile" => Some(match args["profile"].as_str().map(|s| s.trim().to_ascii_lowercase()) {
 +            Some(p) if !p.is_empty() => match set_profile(&p) {
 +                Ok(()) => text(format!("Tool-Profil jetzt '{p}'. Notion-Tools ggf. neu laden, damit die kuerzere Liste greift.")),
@@ -11520,6 +11920,17 @@ index 0000000..26e66a2
 +#[cfg(test)]
 +mod tests {
 +    use super::*;
++
++    #[test]
++    fn lean_hides_rare_addons() {
++        assert!(!allows("lean", "blenderwright_render"));
++        assert!(!allows("lean", "comfyui_queue_prompt"));
++        assert!(!allows("lean", "robloxstudio_get_file_tree"));
++        assert!(allows("lean", "roblox_studio"));
++        assert!(allows("lean", "blender_get_scene_info"));
++        assert!(allows("lean", "pc_job"));
++        assert!(allows("all", "comfyui_queue_prompt"));
++    }
 +
 +    #[test]
 +    fn profiles_filter_tools() {
@@ -11551,10 +11962,10 @@ index 0000000..26e66a2
 +}
 diff --git a/agent/src/notion_live.rs b/agent/src/notion_live.rs
 new file mode 100644
-index 0000000..f542157
+index 0000000..00fff8b
 --- /dev/null
 +++ b/agent/src/notion_live.rs
-@@ -0,0 +1,624 @@
+@@ -0,0 +1,659 @@
 +//! Live-Bridge (immer an): Alle Notion-AI-Tabs sehen sich gegenseitig - auch ohne
 +//! "Co-Work starten". Jeder Tool-Aufruf landet mit deutscher Klartext-Beschreibung im Live-Feed,
 +//! den der AdiCode-Chat live anzeigt. Eine Datei ist fuer einen Chat genau so lange reserviert,
@@ -12140,6 +12551,41 @@ index 0000000..f542157
 +    Some(format!("[AdiCode-Hinweis] {}", n.text))
 +}
 +
++fn release_file() -> std::path::PathBuf { crate::platform::installation_root().join("logs").join("release-status.json") }
++
++/// Release-Status (geschrieben von work\release-status.ps1 aus rel.ps1/pub.ps1). Null, wenn nichts Aktuelles.
++pub(crate) fn release_status() -> serde_json::Value {
++    let v: serde_json::Value = std::fs::read_to_string(release_file()).ok()
++        .and_then(|s| serde_json::from_str(s.trim_start_matches('\u{feff}')).ok())
++        .unwrap_or(serde_json::Value::Null);
++    if !v.is_object() { return serde_json::Value::Null; }
++    let age = now() - v["updated"].as_i64().unwrap_or(0);
++    let busy = matches!(v["state"].as_str(), Some("building" | "built" | "publishing"));
++    if age < if busy { 3 * 3600 } else { 30 * 60 } { v } else { serde_json::Value::Null }
++}
++
++static RELEASE_SEEN: Lazy<Mutex<std::collections::HashSet<String>>> = Lazy::new(|| Mutex::new(std::collections::HashSet::new()));
++
++/// Jeder Chat (auch ohne Co-Work) bekommt einmal pro Release-Zustand einen Hinweis an sein naechstes Tool-Ergebnis.
++pub(crate) fn release_notice(key: &str) -> Option<String> {
++    if key.is_empty() { return None; }
++    let v = release_status();
++    if v.is_null() { return None; }
++    let ver = v["version"].as_str().unwrap_or("?");
++    let state = v["state"].as_str().unwrap_or("?");
++    let by = v["by"].as_str().unwrap_or("ein Chat");
++    if !RELEASE_SEEN.lock().unwrap_or_else(|e| e.into_inner()).insert(format!("{key}|{ver}|{state}")) { return None; }
++    let what = match state {
++        "building" => "wird gerade gebaut",
++        "built" => "ist gebaut und wird gleich veroeffentlicht",
++        "publishing" => "wird gerade veroeffentlicht",
++        "published" => "ist veroeffentlicht (Auto-Update folgt)",
++        "failed" => "ist fehlgeschlagen",
++        _ => state,
++    };
++    let warn = if matches!(state, "building" | "built" | "publishing") { " Nicht parallel releasen; uncommittete Aenderungen in build-src landen sonst im naechsten Patch. Details: adicode_status -> release." } else { "" };
++    Some(format!("[AdiCode-Release] Version {ver} {what} (von {by}).{warn}"))
++}
 +fn notice_marker() -> std::path::PathBuf { crate::platform::installation_root().join("logs").join("update-notice.txt") }
 +
 +/// Vor dem Update-Neustart: alle Tabs warnen und ihnen kurz Zeit geben, den Hinweis abzuholen.
@@ -12182,10 +12628,10 @@ index 0000000..f542157
 \ No newline at end of file
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..91f5f44
+index 0000000..5a48fbc
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1095 @@
+@@ -0,0 +1,1254 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -12230,6 +12676,9 @@ index 0000000..91f5f44
 +
 +#[derive(Clone, Debug)]
 +struct ExposedTool { exposed: String, internal: String, schema: Value }
++
++/// Vom Tool-Profil ausgeblendete Tools: nicht in tools/list, aber per adicode_call oder Namen aufrufbar.
++static HIDDEN: Lazy<Mutex<Vec<ExposedTool>>> = Lazy::new(|| Mutex::new(Vec::new()));
 +
 +struct Shared {
 +    settings: Mutex<NotionSettings>,
@@ -12325,6 +12774,8 @@ index 0000000..91f5f44
 +    let s1 = state.clone();
 +    tokio::spawn(async move { run_listener(s1).await });
 +    tokio::spawn(async move { run_ngrok().await });
++    let s2 = state.clone();
++    tokio::spawn(async move { addon_watchdog(s2).await });
 +    crate::notion_project_memory::start();
 +    tokio::spawn(async move {
 +        loop {
@@ -12392,6 +12843,8 @@ index 0000000..91f5f44
 +        ExposedTool { exposed: "adicode_status".into(), internal: String::new(), schema: status_tool() },
 +        ExposedTool { exposed: "adicode_skill".into(), internal: String::new(), schema: crate::notion_skills::skill_tool() },
 +        ExposedTool { exposed: "adicode_restart_server".into(), internal: String::new(), schema: crate::notion_skills::restart_tool() },
++        ExposedTool { exposed: "adicode_find_tools".into(), internal: String::new(), schema: find_tools_schema() },
++        ExposedTool { exposed: "adicode_call".into(), internal: String::new(), schema: call_schema() },
 +    ];
 +    for schema in crate::notion_cowork::tools().into_iter()
 +        .chain(crate::notion_roblox_plus::tools())
@@ -12434,7 +12887,8 @@ index 0000000..91f5f44
 +    }
 +    let mut seen = std::collections::HashSet::new();
 +    out.retain(|t| seen.insert(t.exposed.clone()));
-+    out.retain(|t| crate::notion_devtools::profile_allows(&t.exposed));
++    let (mut out, hidden): (Vec<ExposedTool>, Vec<ExposedTool>) = out.into_iter().partition(|t| crate::notion_devtools::profile_allows(&t.exposed));
++    *HIDDEN.lock().unwrap_or_else(|e| e.into_inner()) = hidden;
 +    for t in out.iter_mut() { crate::notion_cowork::extend_write_schema(&t.exposed, &mut t.schema); }
 +    *lock(&SHARED.tools) = (out, Some(Instant::now()));
 +}
@@ -12451,11 +12905,14 @@ index 0000000..91f5f44
 +        "app": format!("AdiCode {} (basiert auf PlazCode, GPL-3.0)", env!("CARGO_PKG_VERSION")),
 +        "roblox_studio_running": state.roblox_proc.load(Ordering::Relaxed),
 +        "roblox_studio_connected": state.roblox_editor_connected.load(Ordering::Relaxed),
-+        "mcp_servers": servers,
++        "mcp_servers": compact_servers(&servers),
 +        "tunnel": {"state": ngrok.0, "error": ngrok.1},
 +        "tools": lock(&SHARED.tools).0.len(),
-+        "cowork_projects": crate::notion_cowork::status(),
++        "cowork_projects": compact_cowork(crate::notion_cowork::status()),
++        "tool_profile": crate::notion_devtools::current_profile(),
++        "hidden_tools": HIDDEN.lock().map(|v| v.len()).unwrap_or(0),
 +        "web_extension_connected": crate::notion_web_agents::extension_connected(),
++        "release": crate::notion_live::release_status(),
 +        "direct_agent": crate::notion_web_agents::direct_session_info(),
 +        "safe_shell": safe_shell_enabled(),
 +    })).unwrap_or_default()
@@ -12477,6 +12934,8 @@ index 0000000..91f5f44
 +}
 +
 +async fn call_tool(state: &crate::AppState, params: &Value) -> Value {
++    let unwrapped = unwrap_meta_call(params);
++    let params = &unwrapped;
 +    let name = params["name"].as_str().unwrap_or("").to_string();
 +    let args = params.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
 +    let session = params["_session"].as_str().unwrap_or("").to_string();
@@ -12486,6 +12945,7 @@ index 0000000..91f5f44
 +    crate::notion_live::tool_finished(&who, &name);
 +    attach_delta(&mut out, crate::notion_live::delta_for(&who));
 +    attach_delta(&mut out, crate::notion_live::notice_for(if session.is_empty() { &who } else { &session }));
++    attach_delta(&mut out, crate::notion_live::release_notice(if session.is_empty() { &who } else { &session }));
 +    out
 +}
 +
@@ -12538,10 +12998,17 @@ index 0000000..91f5f44
 +        refresh_tools(state, true).await;
 +        return json!({"content": [{"type": "text", "text": format!("Add-on '{server}' neu gestartet.\n{}", status_text(state))}]});
 +    }
++    if name == "adicode_find_tools" { return find_tools(&args); }
++    if name == "adicode_call" {
++        return json!({"isError": true, "content": [{"type": "text", "text": "adicode_call braucht 'tool' (Name aus adicode_find_tools) und optional 'arguments'."}]});
++    }
 +    let mut route = lock(&SHARED.tools).0.iter().find(|t| t.exposed == name).cloned();
 +    if route.is_none() {
 +        rebuild(state);
 +        route = lock(&SHARED.tools).0.iter().find(|t| t.exposed == name).cloned();
++    }
++    if route.is_none() {
++        route = HIDDEN.lock().unwrap_or_else(|e| e.into_inner()).iter().find(|t| t.exposed == name).cloned();
 +    }
 +    let Some(route) = route else {
 +        return json!({"isError": true, "content": [{"type": "text", "text": format!("Unbekanntes Tool '{name}'. Ist der zugehörige Server aktiv? Nutze adicode_status.")}]});
@@ -13279,6 +13746,144 @@ index 0000000..91f5f44
 +        assert!(authorized(&HeaderMap::new(), &format!("/mcp?token={tok}").parse().unwrap(), tok));
 +        assert!(is_mcp_path("") && is_mcp_path("/mcp") && is_mcp_path("/k/x") && is_mcp_path("/k/x/mcp") && !is_mcp_path("/k/x/y") && !is_mcp_path("/.well-known/oauth-protected-resource"));
 +        assert_eq!(redact_path(&format!("/k/{tok}/mcp").parse().unwrap()), "/k/***/mcp");
++    }
++}
++
++// ---------------------------------------------------------------- AdiCode Power-Upgrade (1.0.96)
++
++fn find_tools_schema() -> Value {
++    json!({
++        "name": "adicode_find_tools",
++        "description": "AdiCode: durchsucht ALLE Tools, auch die vom Tool-Profil ausgeblendeten Add-ons (lean blendet blenderwright, comfyui, robloxstudio, codebase aus). Liefert Name, Beschreibung und inputSchema. Ausgeblendete Tools (hidden=true) danach mit adicode_call aufrufen.",
++        "inputSchema": {"type": "object", "properties": {
++            "query": {"type": "string", "description": "Suchwoerter, z. B. 'comfyui workflow' oder 'blender material'."},
++            "limit": {"type": "integer", "default": 15, "description": "1-50"}
++        }, "required": ["query"]}
++    })
++}
++
++fn call_schema() -> Value {
++    json!({
++        "name": "adicode_call",
++        "description": "AdiCode: ruft ein beliebiges AdiCode-Tool per Namen auf, auch ausgeblendete (siehe adicode_find_tools). arguments = die Argumente des Ziel-Tools.",
++        "inputSchema": {"type": "object", "properties": {
++            "tool": {"type": "string", "description": "Exakter Tool-Name aus adicode_find_tools."},
++            "arguments": {"type": "object", "description": "Argumente fuer das Ziel-Tool."}
++        }, "required": ["tool"]}
++    })
++}
++
++/// adicode_call {tool, arguments} wird vor allen Guards in einen normalen Aufruf des Ziel-Tools umgeschrieben.
++fn unwrap_meta_call(params: &Value) -> Value {
++    let mut p = params.clone();
++    if params["name"].as_str() == Some("adicode_call") {
++        let target = params["arguments"]["tool"].as_str().unwrap_or("").trim().to_string();
++        if !target.is_empty() && target != "adicode_call" {
++            let inner = params["arguments"]["arguments"].clone();
++            p["arguments"] = if inner.is_object() { inner } else { json!({}) };
++            p["name"] = Value::String(target);
++        }
++    }
++    p
++}
++
++fn find_tools(args: &Value) -> Value {
++    let q = args["query"].as_str().unwrap_or("").trim().to_ascii_lowercase();
++    let limit = args["limit"].as_u64().unwrap_or(15).clamp(1, 50) as usize;
++    let words: Vec<&str> = q.split_whitespace().collect();
++    let hidden = HIDDEN.lock().unwrap_or_else(|e| e.into_inner()).clone();
++    let visible = lock(&SHARED.tools).0.clone();
++    let mut hits: Vec<(usize, bool, ExposedTool)> = Vec::new();
++    for (is_hidden, t) in hidden.into_iter().map(|t| (true, t)).chain(visible.into_iter().map(|t| (false, t))) {
++        let name_l = t.exposed.to_ascii_lowercase();
++        let hay = format!("{} {}", name_l, t.schema["description"].as_str().unwrap_or("").to_ascii_lowercase());
++        let score = if words.is_empty() { 1 } else {
++            words.iter().filter(|w| hay.contains(**w)).count() * 2 + words.iter().filter(|w| name_l.contains(**w)).count()
++        };
++        if score > 0 { hits.push((score, is_hidden, t)); }
++    }
++    hits.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.2.exposed.cmp(&b.2.exposed)));
++    let total = hits.len();
++    let list: Vec<Value> = hits.into_iter().take(limit).map(|(_, h, t)| json!({
++        "name": t.exposed,
++        "hidden": h,
++        "description": t.schema["description"].as_str().unwrap_or("").chars().take(300).collect::<String>(),
++        "inputSchema": t.schema["inputSchema"].clone(),
++    })).collect();
++    let body = json!({"query": q, "treffer": total, "tools": list, "hinweis": "hidden=true: mit adicode_call {tool, arguments} aufrufen. Sichtbare Tools direkt aufrufen."});
++    json!({"content": [{"type": "text", "text": serde_json::to_string_pretty(&body).unwrap_or_default()}]})
++}
++
++/// Kurzer Add-on-Status: laufende Add-ons als Liste, Fehler mit gekuerzter Meldung.
++fn compact_servers(servers: &[crate::mcp_addons::ServerSummary]) -> Value {
++    let alive: Vec<String> = servers.iter().filter(|s| s.alive).map(|s| format!("{} ({})", s.id, s.tools)).collect();
++    let broken: Vec<Value> = servers.iter().filter(|s| !s.alive).map(|s| json!({
++        "id": s.id,
++        "error": s.error.clone().unwrap_or_default().chars().take(300).collect::<String>(),
++    })).collect();
++    json!({"laufen": alive, "fehler": broken})
++}
++
++/// Nur Co-Work-Projekte mit beigetretenen Agents ausfuehrlich, der Rest als Anzahl.
++fn compact_cowork(v: Value) -> Value {
++    let Some(arr) = v.as_array().cloned() else { return v };
++    let active: Vec<Value> = arr.iter().filter(|p| p["agents"].as_u64().unwrap_or(0) > 0).cloned().collect();
++    let inactive = arr.len() - active.len();
++    json!({"aktiv": active, "inaktiv": inactive})
++}
++
++/// Startet nach dem App-Start (auch nach Updates) alle eingeschalteten Add-ons und haelt sie am Leben:
++/// alle 5 Minuten Gesundheitscheck, tote Add-ons werden neu gestartet (max. 3 Versuche pro Stunde und Add-on).
++async fn addon_watchdog(state: crate::AppState) {
++    tokio::time::sleep(Duration::from_secs(8)).await;
++    refresh_tools(&state, true).await;
++    let mut tries: std::collections::HashMap<String, (u32, Instant)> = std::collections::HashMap::new();
++    loop {
++        tokio::time::sleep(Duration::from_secs(300)).await;
++        let recent = lock(&SHARED.last_request).as_ref()
++            .map(|(t, _)| (chrono::Local::now() - *t).num_seconds() < 20)
++            .unwrap_or(false);
++        if recent { continue; }
++        refresh_tools(&state, true).await;
++        let dead: Vec<String> = state.ui.servers.lock()
++            .map(|v| v.iter().filter(|s| !s.alive && s.error.as_deref() != Some("busy")).map(|s| s.id.clone()).collect())
++            .unwrap_or_default();
++        let mut restarted = Vec::new();
++        for id in dead {
++            let entry = tries.entry(id.clone()).or_insert((0, Instant::now()));
++            if entry.1.elapsed() > Duration::from_secs(3600) { *entry = (0, Instant::now()); }
++            if entry.0 >= 3 { continue; }
++            entry.0 += 1;
++            state.addons.lock().await.reset_tool(&format!("{id}__restart")).await;
++            restarted.push(id);
++        }
++        if !restarted.is_empty() {
++            tracing::info!("[notion] Watchdog: Add-ons neu gestartet: {}", restarted.join(", "));
++            refresh_tools(&state, true).await;
++        }
++    }
++}
++
++#[cfg(test)]
++mod power_upgrade_tests {
++    use super::*;
++
++    #[test]
++    fn adicode_call_is_unwrapped() {
++        let p = json!({"name": "adicode_call", "arguments": {"tool": "comfyui_queue_prompt", "arguments": {"x": 1}}, "_session": "s"});
++        let u = unwrap_meta_call(&p);
++        assert_eq!(u["name"], "comfyui_queue_prompt");
++        assert_eq!(u["arguments"]["x"], 1);
++        assert_eq!(u["_session"], "s");
++        let bad = unwrap_meta_call(&json!({"name": "adicode_call", "arguments": {}}));
++        assert_eq!(bad["name"], "adicode_call");
++    }
++
++    #[test]
++    fn cowork_is_compacted() {
++        let v = compact_cowork(json!([{"id": "p1", "agents": 0}, {"id": "p2", "agents": 2}]));
++        assert_eq!(v["inaktiv"], 1);
++        assert_eq!(v["aktiv"][0]["id"], "p2");
 +    }
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
@@ -17142,7 +17747,7 @@ index 0000000..bd8d635
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
 new file mode 100644
-index 0000000..3f79ef3
+index 0000000..5ff30d9
 --- /dev/null
 +++ b/agent/src/notion_skills.rs
 @@ -0,0 +1,175 @@
@@ -17152,7 +17757,7 @@ index 0000000..3f79ef3
 +
 +use serde_json::{json, Value};
 +
-+pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
++pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. Lange Befehle (Builds, Tests, Installationen, Releases, alles ueber ~50 s) mit pc_job starten und per action=status abfragen statt pc_PowerShell. Selten genutzte Add-ons (blenderwright, comfyui, robloxstudio, codebase) sind ausgeblendet: mit adicode_find_tools suchen und mit adicode_call aufrufen. Mehrere Tabs an einer neuen Version: vor Code-Aenderungen cowork_release action=join (version, feature, files), fertig mit action=ready, veroeffentlichen nur nach cowork_release action=publish, danach action=done. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
 +
 +struct Skill { id: &'static str, title: &'static str, body: &'static str }
 +
