@@ -282,3 +282,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - RELEASE-ZUG: work\release-queue.ps1 (Submit/List/Apply/Released/Reject/Withdraw, Mutex, Konflikterkennung per SHA256-Basis, Ablage work\release-queue\) + Tool release_queue (notion_release.rs, duenne Huelle ums Skript, 7 Tests). release-status.ps1 -Check stoppt, solange Beitraege pending sind (bewusst ueberspringen: ADICODE_QUEUE_OK=1). Ablauf Release-Chat: release-queue.ps1 -Apply -Agent <Name> VOR dem Patch, bauen/testen, Changelog-Zeilen uebernehmen. pub.ps1 markiert danach automatisch released.
 - rel.ps1 stoppt ohne [skip ci] im letzten Commit (Ursache doppelter 1.0.101-Upload: GitHub Actions baute parallel). pub.ps1: Assets gleichen Namens vor dem Upload loeschen, bis 3 Versuche.
 - Release-Skripte nur noch mit gestagten Dateien (kein git add -A agent/src), damit fremde WIP nicht mitkommt.
+
+## 1.0.104 (Blender-Chat, 07.10.2026)
+- blender_capture (Screenshots ohne Fenster): notion_blender.rs + blender_headless.py (include_str). target=auto: GUI-Blender auf 9876 (Fenster darf minimiert sein), sonst versteckter Hintergrund-Blender (-b --factory-startup) auf 9877, gestartet per ensure_headless(). action=capture/start/stop. Args: views, size, engine, samples, objects, target, file, use_scene_camera, preview_px, return_image. Ausgabe in PlazCode-Shared\blender-out\captures (Kontaktbogen + Einzelbilder), JPEG-Vorschau ~17 KB als Bild im Chat. Eigener base64-Encoder. Blender-Profil laesst blender_* automatisch durch.
+- Kam ueber den Release-Zug (release_queue) rein.

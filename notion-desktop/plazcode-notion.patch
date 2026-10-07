@@ -1,3 +1,250 @@
+diff --git a/agent/src/blender_headless.py b/agent/src/blender_headless.py
+new file mode 100644
+index 0000000..3b8c751
+--- /dev/null
++++ b/agent/src/blender_headless.py
+@@ -0,0 +1,241 @@
++﻿# AdiCode Headless Blender: Blender ohne Fenster, spricht das blender-mcp-Protokoll (Port 9876).
++import bpy, sys, os, json, socket, select, time, io, math, traceback, contextlib, tempfile
++from mathutils import Vector
++
++VERSION = "1.0"
++argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
++def arg(name, default):
++    return argv[argv.index(name) + 1] if name in argv else default
++PORT = int(arg("--port", "9876"))
++OUT = arg("--out", os.path.join(tempfile.gettempdir(), "adicode_capture"))
++AUTOSAVE = arg("--autosave", "")
++os.makedirs(OUT, exist_ok=True)
++NS = {"bpy": bpy}
++
++VIEWS = {  # Richtung VOM Objekt ZUR Kamera
++    "front": (0, -1, 0), "back": (0, 1, 0), "left": (-1, 0, 0), "right": (1, 0, 0),
++    "top": (0, 0, 1), "bottom": (0, 0, -1), "persp": (1, -1.25, 0.8), "iso": (1, -1, 1),
++    "persp_back": (-1, 1.25, 0.8),
++}
++
++def _bounds(names=None):
++    objs = [o for o in bpy.context.scene.objects if o.visible_get() and o.type in {"MESH", "CURVE", "SURFACE", "META", "FONT", "GPENCIL", "GREASEPENCIL", "VOLUME", "POINTCLOUD", "CURVES"}]
++    if names:
++        objs = [o for o in objs if o.name in names]
++    if not objs:
++        return Vector((0, 0, 0)), 1.0
++    lo = Vector((1e18,) * 3); hi = Vector((-1e18,) * 3)
++    for o in objs:
++        for c in o.bound_box:
++            w = o.matrix_world @ Vector(c)
++            lo = Vector(map(min, lo, w)); hi = Vector(map(max, hi, w))
++    return (lo + hi) / 2, max((hi - lo).length / 2, 1e-3)
++
++def capture(views=("persp",), size=768, engine="EEVEE", samples=16, objects=None, use_scene_camera=False,
++            ortho=None, filepath=None, grid=True, shading="auto", margin=1.15, preview_px=800):
++    """Rendert die Szene ohne sichtbares Fenster. views: front/back/left/right/top/bottom/persp/iso/camera.
++    Gibt Pfade zurueck; bei mehreren Ansichten zusaetzlich ein Raster-Bild (grid)."""
++    sc = bpy.context.scene
++    r = sc.render
++    saved = dict(engine=r.engine, rx=r.resolution_x, ry=r.resolution_y, pct=r.resolution_percentage,
++                 cam=sc.camera, fp=r.filepath, fmt=r.image_settings.file_format, film=r.film_transparent)
++    eng = {"EEVEE": "BLENDER_EEVEE", "WORKBENCH": "BLENDER_WORKBENCH", "CYCLES": "CYCLES"}.get(engine.upper(), engine)
++    tmp = []
++    try:
++        r.engine = eng
++        r.resolution_x = r.resolution_y = int(size); r.resolution_percentage = 100
++        r.image_settings.file_format = "PNG"
++        if eng == "BLENDER_EEVEE":
++            sc.eevee.taa_render_samples = int(samples)
++        elif eng == "CYCLES":
++            sc.cycles.samples = int(samples)
++            try:
++                p = bpy.context.preferences.addons["cycles"].preferences
++                for t in ("OPTIX", "CUDA"):
++                    try:
++                        p.compute_device_type = t; p.get_devices(); break
++                    except Exception:
++                        pass
++                for dv in p.devices:
++                    dv.use = True
++                sc.cycles.device = "GPU"
++            except Exception:
++                pass
++        elif eng == "BLENDER_WORKBENCH":
++            sc.display.shading.light = "STUDIO"; sc.display.shading.color_type = "MATERIAL"
++            sc.display.shading.show_cavity = True
++        # Licht/Welt ergaenzen, wenn die Szene keins hat (sonst schwarzes Bild)
++        has_light = any(o.type == "LIGHT" and o.visible_get() for o in sc.objects)
++        if sc.world is None:
++            w = bpy.data.worlds.new("AdiCodeWorld"); sc.world = w; tmp.append(("world", w))
++        if not has_light and eng != "BLENDER_WORKBENCH":
++            for nm, rot, en in (("Key", (50, 0, 35), 4.0), ("Fill", (60, 0, -140), 1.5)):
++                ld = bpy.data.lights.new("AdiCode" + nm, "SUN"); ld.energy = en
++                lo = bpy.data.objects.new("AdiCode" + nm, ld); sc.collection.objects.link(lo)
++                lo.rotation_euler = [math.radians(a) for a in rot]; tmp.append(("obj", lo)); tmp.append(("light", ld))
++        center, radius = _bounds(objects)
++        paths = []
++        for v in views:
++            path = os.path.join(OUT, "view_%s.png" % v) if not filepath or len(views) > 1 else filepath
++            if v == "camera" or (use_scene_camera and sc.camera and len(views) == 1):
++                if not saved["cam"]:
++                    continue
++                sc.camera = saved["cam"]
++            else:
++                cd = bpy.data.cameras.new("AdiCodeCam"); co = bpy.data.objects.new("AdiCodeCam", cd)
++                sc.collection.objects.link(co); tmp.append(("obj", co)); tmp.append(("cam", cd))
++                d = Vector(VIEWS.get(v, VIEWS["persp"])).normalized()
++                is_ortho = (v in ("front", "back", "left", "right", "top", "bottom")) if ortho is None else ortho
++                if is_ortho:
++                    cd.type = "ORTHO"; cd.ortho_scale = radius * 2 * margin; dist = radius * 4
++                else:
++                    cd.lens = 50; fov = 2 * math.atan(18 / 50); dist = radius * margin / math.sin(fov / 2)
++                cd.clip_start = max(dist - radius * 3, 0.001); cd.clip_end = dist + radius * 3
++                co.location = center + d * dist
++                up = Vector((0, 1, 0)) if abs(d.z) > 0.99 else Vector((0, 0, 1))
++                co.rotation_euler = (-d).to_track_quat("-Z", "Y" if abs(d.z) > 0.99 else "Y").to_euler()
++                sc.camera = co
++            r.filepath = path
++            bpy.ops.render.render(write_still=True)
++            paths.append(path)
++        result = {"paths": paths, "views": list(views), "size": int(size), "engine": eng}
++        if grid and len(paths) > 1:
++            result["grid"] = _grid(paths, filepath or os.path.join(OUT, "grid.png"))
++        src = result.get("grid") or (paths[0] if paths else None)
++        if src and preview_px:
++            result["preview"] = _preview(src, os.path.join(OUT, "preview.jpg"), int(preview_px))
++        return result
++    finally:
++        for kind, d in reversed(tmp):
++            try:
++                if kind == "obj": bpy.data.objects.remove(d, do_unlink=True)
++                elif kind == "cam": bpy.data.cameras.remove(d)
++                elif kind == "light": bpy.data.lights.remove(d)
++                elif kind == "world": sc.world = None; bpy.data.worlds.remove(d)
++            except Exception:
++                pass
++        sc.camera = saved["cam"]; r.engine = saved["engine"]; r.resolution_x = saved["rx"]; r.resolution_y = saved["ry"]
++        r.resolution_percentage = saved["pct"]; r.filepath = saved["fp"]; r.image_settings.file_format = saved["fmt"]
++
++def _grid(paths, out):
++    import numpy as np
++    imgs = [bpy.data.images.load(p, check_existing=False) for p in paths]
++    try:
++        w, h = imgs[0].size; n = len(imgs); cols = 2 if n <= 4 else 3; rows = math.ceil(n / cols)
++        canvas = np.ones((rows * h, cols * w, 4), dtype=np.float32) * 0.15
++        for i, im in enumerate(imgs):
++            a = np.empty(w * h * 4, dtype=np.float32); im.pixels.foreach_get(a)
++            a = a.reshape(h, w, 4); rr = rows - 1 - i // cols; cc = i % cols
++            canvas[rr * h:(rr + 1) * h, cc * w:(cc + 1) * w] = a
++        g = bpy.data.images.new("AdiCodeGrid", cols * w, rows * h, alpha=True)
++        g.pixels.foreach_set(canvas.ravel()); g.filepath_raw = out; g.file_format = "PNG"; g.save()
++        bpy.data.images.remove(g)
++        return out
++    finally:
++        for im in imgs:
++            bpy.data.images.remove(im)
++
++def _preview(src, out, px, quality=82):
++    im = bpy.data.images.load(src, check_existing=False)
++    try:
++        w, h = im.size; s = min(1.0, px / float(max(w, h)))
++        if s < 1.0:
++            im.scale(max(1, int(w * s)), max(1, int(h * s)))
++        im.file_format = "JPEG"; im.filepath_raw = out
++        try:
++            im.save(filepath=out, quality=quality)
++        except TypeError:
++            im.save()
++        return out
++    finally:
++        bpy.data.images.remove(im)
++
++NS["capture"] = capture
++
++def scene_info():
++    sc = bpy.context.scene
++    return {"name": sc.name, "headless": True, "object_count": len(sc.objects),
++            "objects": [{"name": o.name, "type": o.type, "location": [round(x, 3) for x in o.location]} for o in list(sc.objects)[:50]],
++            "materials_count": len(bpy.data.materials), "file": bpy.data.filepath}
++
++def handle(cmd):
++    t = cmd.get("type"); p = cmd.get("params", {}) or {}
++    if t == "ping":
++        return {"pong": True, "headless": True}
++    if t == "get_scene_info":
++        return scene_info()
++    if t == "execute_code":
++        buf = io.StringIO()
++        with contextlib.redirect_stdout(buf):
++            exec(p.get("code", ""), NS)
++        return {"executed": True, "result": buf.getvalue()}
++    if t == "get_object_info":
++        o = bpy.data.objects.get(p.get("name") or p.get("object_name", ""))
++        if not o:
++            raise ValueError("Object not found")
++        return {"name": o.name, "type": o.type, "location": list(o.location), "rotation": list(o.rotation_euler),
++                "scale": list(o.scale), "dimensions": list(o.dimensions), "materials": [m.name for m in getattr(o.data, "materials", []) if m]}
++    if t == "get_viewport_screenshot":
++        size = int(p.get("max_size", 800)); fp = p.get("filepath") or os.path.join(OUT, "viewport.png")
++        res = capture(views=(p.get("view", "persp"),), size=size, filepath=fp, use_scene_camera=False)
++        return {"success": True, "width": size, "height": size, "filepath": res["paths"][0]}
++    if t == "capture":
++        return capture(**{k: (tuple(v) if k == "views" else v) for k, v in p.items()})
++    if t == "save":
++        fp = p.get("filepath") or AUTOSAVE
++        bpy.ops.wm.save_as_mainfile(filepath=fp, copy=bool(p.get("copy", False)))
++        return {"saved": fp}
++    if t == "open":
++        bpy.ops.wm.open_mainfile(filepath=p["filepath"]); NS.clear(); NS.update({"bpy": bpy, "capture": capture})
++        return scene_info()
++    if t == "get_addon_info":
++        return {"headless": True, "version": VERSION, "blender": bpy.app.version_string}
++    if t == "shutdown":
++        raise SystemExit
++    raise ValueError("Unknown command type in headless mode: %s" % t)
++
++def serve():
++    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
++    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
++    srv.bind(("127.0.0.1", PORT)); srv.listen(8); srv.setblocking(False)
++    print("ADICODE_HEADLESS_READY port=%d out=%s" % (PORT, OUT), flush=True)
++    clients = {}; last_save = time.time(); dirty = False
++    while True:
++        rl, _, _ = select.select([srv] + list(clients), [], [], 1.0)
++        for s in rl:
++            if s is srv:
++                c, _ = srv.accept(); c.setblocking(True); c.settimeout(None); clients[c] = b""; continue
++            try:
++                data = s.recv(65536)
++            except Exception:
++                data = b""
++            if not data:
++                clients.pop(s, None); s.close(); continue
++            clients[s] += data
++            try:
++                cmd = json.loads(clients[s].decode("utf-8"))
++            except (ValueError, UnicodeDecodeError):
++                continue
++            clients[s] = b""
++            try:
++                resp = {"status": "success", "result": handle(cmd)}
++                dirty = dirty or cmd.get("type") == "execute_code"
++            except SystemExit:
++                s.sendall(json.dumps({"status": "success", "result": {"bye": True}}).encode()); return
++            except Exception as e:
++                resp = {"status": "error", "message": "%s: %s" % (type(e).__name__, e), "trace": traceback.format_exc()[-1500:]}
++            try:
++                s.sendall(json.dumps(resp, default=str).encode("utf-8"))
++            except Exception:
++                clients.pop(s, None)
++        if AUTOSAVE and dirty and time.time() - last_save > 20:
++            try:
++                bpy.ops.wm.save_as_mainfile(filepath=AUTOSAVE, copy=True)
++            except Exception as e:
++                print("autosave failed", e)
++            last_save = time.time(); dirty = False
++
++if __name__ == "__main__":
++    if AUTOSAVE and os.path.exists(AUTOSAVE) and "--fresh" not in argv:
++        bpy.ops.wm.open_mainfile(filepath=AUTOSAVE)
++    serve()
 diff --git a/agent/src/blender_helpers.py b/agent/src/blender_helpers.py
 new file mode 100644
 index 0000000..54dc30e
@@ -2848,10 +3095,10 @@ index 1a68aee..9922e3c 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_blender.rs b/agent/src/notion_blender.rs
 new file mode 100644
-index 0000000..2e7e066
+index 0000000..f0b17c5
 --- /dev/null
 +++ b/agent/src/notion_blender.rs
-@@ -0,0 +1,321 @@
+@@ -0,0 +1,470 @@
 +﻿//! AdiCode Blender Pro: expert skills, an in-Blender helper library
 +//! (`adicode_blender`, installed into every Blender user modules folder),
 +//! and the `blender_pro` tool (doctor / setup / helpers).
@@ -3141,6 +3388,149 @@ index 0000000..2e7e066
 +    format!("In execute_blender_code zuerst:\nimport adicode_blender as A, importlib; importlib.reload(A)\n(Fehlt das Modul: blender_pro action=install_helpers. Fallback: import sys; sys.path.insert(0, r'{}'); import adicode_blender as A)\nAusgaben landen in %USERPROFILE%\\PlazCode-Shared\\blender-out.\n\nFunktionen:\n{}", local().display(), lines.join("\n"))
 +}
 +
++// ---------------------------------------------------------------- capture
++// blender_capture: renders views of the scene offscreen. Uses the running
++// GUI Blender (blender-mcp on 9876, window may be minimised/hidden) or a
++// hidden background Blender (-b) on 9877 - no window ever needed.
++pub(crate) const HEADLESS: &str = include_str!("blender_headless.py");
++const GUI_PORT: u16 = 9876;
++const HL_PORT: u16 = 9877;
++
++fn capture_dir() -> PathBuf {
++    std::env::var_os("USERPROFILE").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCode-Shared").join("blender-out").join("captures")
++}
++
++fn b64(data: &[u8]) -> String {
++    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
++    let mut o = String::with_capacity((data.len() + 2) / 3 * 4);
++    for c in data.chunks(3) {
++        let n = ((c[0] as u32) << 16) | ((*c.get(1).unwrap_or(&0) as u32) << 8) | *c.get(2).unwrap_or(&0) as u32;
++        o.push(T[(n >> 18 & 63) as usize] as char);
++        o.push(T[(n >> 12 & 63) as usize] as char);
++        o.push(if c.len() > 1 { T[(n >> 6 & 63) as usize] as char } else { '=' });
++        o.push(if c.len() > 2 { T[(n & 63) as usize] as char } else { '=' });
++    }
++    o
++}
++
++fn bl_send(port: u16, cmd: &Value, secs: u64) -> Result<Value, String> {
++    use std::io::{Read, Write};
++    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
++    let mut s = std::net::TcpStream::connect_timeout(&addr, Duration::from_secs(2)).map_err(|e| format!("Blender auf Port {port} nicht erreichbar: {e}"))?;
++    let _ = s.set_read_timeout(Some(Duration::from_secs(secs)));
++    s.write_all(cmd.to_string().as_bytes()).map_err(|e| e.to_string())?;
++    let mut buf = Vec::new();
++    let mut chunk = [0u8; 65536];
++    loop {
++        let n = s.read(&mut chunk).map_err(|e| format!("Blender antwortet nicht ({e})"))?;
++        if n == 0 { break; }
++        buf.extend_from_slice(&chunk[..n]);
++        if let Ok(v) = serde_json::from_slice::<Value>(&buf) { return Ok(v); }
++    }
++    serde_json::from_slice(&buf).map_err(|e| format!("Ungueltige Blender-Antwort: {e}"))
++}
++
++/// Starts a hidden background Blender (no window) on HL_PORT if needed.
++pub(crate) fn ensure_headless() -> Result<String, String> {
++    if port_open(HL_PORT) { return Ok("laeuft bereits".into()); }
++    let exe = blender_exes().pop().ok_or("Blender nicht gefunden (installieren: blender.org)")?;
++    let dir = local();
++    let _ = std::fs::create_dir_all(&dir);
++    let _ = std::fs::create_dir_all(capture_dir());
++    let script = dir.join("adicode_headless.py");
++    std::fs::write(&script, HEADLESS).map_err(|e| e.to_string())?;
++    let log = std::fs::File::create(dir.join("headless.log")).map_err(|e| e.to_string())?;
++    let err = log.try_clone().map_err(|e| e.to_string())?;
++    let mut cmd = Command::new(&exe);
++    cmd.args(["-b", "--factory-startup", "--python"]).arg(&script)
++        .args(["--", "--port", &HL_PORT.to_string(), "--out"]).arg(capture_dir())
++        .arg("--autosave").arg(dir.join("headless.blend"))
++        .stdout(log).stderr(err).stdin(std::process::Stdio::null());
++    hidden(&mut cmd).spawn().map_err(|e| format!("Start fehlgeschlagen: {e}"))?;
++    for _ in 0..80 {
++        std::thread::sleep(Duration::from_millis(250));
++        if port_open(HL_PORT) { return Ok(format!("gestartet ({})", exe.display())); }
++    }
++    Err(format!("Hintergrund-Blender startet nicht - Log: {}", dir.join("headless.log").display()))
++}
++
++fn capture_params(args: &Value) -> Value {
++    let views = match &args["views"] {
++        Value::Array(a) if !a.is_empty() => Value::Array(a.clone()),
++        Value::String(s) if !s.is_empty() => Value::Array(s.split(',').map(|x| json!(x.trim())).collect()),
++        _ => json!(["persp", "front", "right", "top"]),
++    };
++    let mut p = json!({
++        "views": views,
++        "size": args["size"].as_u64().unwrap_or(512).clamp(64, 4096),
++        "engine": args["engine"].as_str().unwrap_or("EEVEE"),
++        "samples": args["samples"].as_u64().unwrap_or(16).clamp(1, 4096),
++        "preview_px": args["preview_px"].as_u64().unwrap_or(768).clamp(128, 2048),
++        "use_scene_camera": args["use_scene_camera"].as_bool().unwrap_or(false),
++    });
++    if let Some(o) = args["objects"].as_array() { p["objects"] = Value::Array(o.clone()); }
++    p
++}
++
++fn capture(args: &Value) -> Value {
++    let err = |m: String| json!({"isError": true, "content": [{"type": "text", "text": m}]});
++    match args["action"].as_str().unwrap_or("capture") {
++        "stop" => {
++            let r = bl_send(HL_PORT, &json!({"type": "shutdown"}), 5);
++            return json!({"content": [{"type": "text", "text": if r.is_ok() { "Hintergrund-Blender beendet (Szene gespeichert)." } else { "Kein Hintergrund-Blender aktiv." }}]});
++        }
++        "start" => return match ensure_headless() { Ok(m) => json!({"content": [{"type": "text", "text": format!("Hintergrund-Blender {m} - Port {HL_PORT}, kein Fenster.")}]}), Err(e) => err(e) },
++        _ => {}
++    }
++    let target = args["target"].as_str().unwrap_or("auto");
++    let gui = target == "gui" || (target == "auto" && port_open(GUI_PORT) && args["file"].is_null());
++    let port = if gui { GUI_PORT } else {
++        if let Err(e) = ensure_headless() { return err(e); }
++        if let Some(file) = args["file"].as_str() {
++            if let Err(e) = bl_send(HL_PORT, &json!({"type": "open", "params": {"filepath": file}}), 30) { return err(e); }
++        }
++        HL_PORT
++    };
++    let out = capture_dir();
++    let _ = std::fs::create_dir_all(&out);
++    let code = format!("{HEADLESS}\nOUT = r'{}'\nos.makedirs(OUT, exist_ok=True)\nimport json as _j\nprint('ADICODE_CAPTURE' + _j.dumps(capture(**_j.loads(r'''{}'''))))\n", out.display(), capture_params(args));
++    let t0 = std::time::Instant::now();
++    let resp = match bl_send(port, &json!({"type": "execute_code", "params": {"code": code}}), 55) { Ok(v) => v, Err(e) => return err(e) };
++    if resp["status"] != "success" {
++        return err(format!("Capture-Fehler: {}", resp["message"].as_str().unwrap_or(&resp.to_string())));
++    }
++    let stdout = resp["result"]["result"].as_str().or(resp["result"]["stdout"].as_str()).unwrap_or("").to_string();
++    let info: Value = stdout.lines().find_map(|l| l.split_once("ADICODE_CAPTURE").and_then(|(_, j)| serde_json::from_str(j).ok())).unwrap_or(Value::Null);
++    if info.is_null() { return err(format!("Capture lieferte kein Ergebnis: {}", stdout.chars().take(800).collect::<String>())); }
++    let backend = if gui { "laufendes Blender (offscreen, Fenster egal)" } else { "Hintergrund-Blender ohne Fenster" };
++    let mut content = vec![json!({"type": "text", "text": format!("Capture ok in {:.1}s via {backend}.\n{}", t0.elapsed().as_secs_f32(), serde_json::to_string_pretty(&info).unwrap_or_default())})];
++    if args["return_image"].as_bool().unwrap_or(true) {
++        if let Some(p) = info["preview"].as_str() {
++            if let Ok(bytes) = std::fs::read(p) { content.push(json!({"type": "image", "data": b64(&bytes), "mimeType": "image/jpeg"})); }
++        }
++    }
++    json!({"content": content})
++}
++
++fn capture_tool() -> Value {
++    json!({
++        "name": "blender_capture",
++        "description": "Bilder der Blender-Szene OHNE sichtbares Fenster: rendert offscreen mehrere Ansichten (persp, front, back, left, right, top, bottom, iso, camera) mit Auto-Kamera-Fit und Kontaktbogen, gibt eine Vorschau als Bild zurueck (PNG-Pfade im Text). target=auto nutzt das laufende Blender (auch minimiert) oder startet automatisch einen versteckten Hintergrund-Blender (kein Fenster, Szene wird autosaved). action=start/stop steuert den Hintergrund-Blender; file=.blend oeffnet eine Datei headless. Fuer Referenzvergleich statt get_viewport_screenshot verwenden.",
++        "inputSchema": {"type": "object", "properties": {
++            "action": {"type": "string", "enum": ["capture", "start", "stop"]},
++            "views": {"type": "array", "items": {"type": "string", "enum": ["persp", "front", "back", "left", "right", "top", "bottom", "iso", "persp_back", "camera"]}},
++            "size": {"type": "integer", "description": "Pixel pro Ansicht (Standard 512)"},
++            "engine": {"type": "string", "enum": ["EEVEE", "CYCLES", "WORKBENCH"]},
++            "samples": {"type": "integer"},
++            "objects": {"type": "array", "items": {"type": "string"}, "description": "Nur diese Objekte einrahmen"},
++            "target": {"type": "string", "enum": ["auto", "gui", "headless"]},
++            "file": {"type": "string", "description": ".blend headless oeffnen"},
++            "use_scene_camera": {"type": "boolean"},
++            "preview_px": {"type": "integer", "description": "Groesse des zurueckgegebenen Vorschaubilds (Standard 768)"},
++            "return_image": {"type": "boolean"}
++        }}
++    })
++}
 +pub(crate) fn tools() -> Vec<Value> {
 +    static ONCE: std::sync::Once = std::sync::Once::new();
 +    ONCE.call_once(|| { std::thread::spawn(|| { let _ = install_helpers(); }); });
@@ -3148,10 +3538,11 @@ index 0000000..2e7e066
 +        "name": "blender_pro",
 +        "description": "AdiCode Blender Pro: doctor = Blender/Addon/Port/GPU/Extensions pruefen; setup = Extensions (LoopTools, Bool Tool, Extra Objects), Rigify, Node Wrangler, Importer, Cycles-GPU einrichten (Hintergrund); install_helpers = Python-Helfer adicode_blender in Blender installieren; helpers = Funktionsliste der Helfer (A.studio, A.camera, A.hard_surface, A.procedural, A.bounce, A.human_rig, A.render_video ...). Vor Blender-Arbeit adicode_skill blender laden.",
 +        "inputSchema": {"type": "object", "properties": {"action": {"type": "string", "enum": ["doctor", "setup", "install_helpers", "helpers"]}}, "required": ["action"]}
-+    })]
++    }), capture_tool()]
 +}
 +
 +pub(crate) fn call(name: &str, args: &Value) -> Option<Value> {
++    if name == "blender_capture" { return Some(capture(args)); }
 +    if name != "blender_pro" { return None; }
 +    let text = match args["action"].as_str().unwrap_or("doctor") {
 +        "setup" => setup(),
@@ -3171,6 +3562,11 @@ index 0000000..2e7e066
 +        assert!(helpers_doc().contains("A.render_video"));
 +        assert_eq!(tools()[0]["name"], "blender_pro");
 +        assert!(call("x", &json!({})).is_none());
++        assert_eq!(tools()[1]["name"], "blender_capture");
++        assert!(HEADLESS.contains("def capture") && HEADLESS.contains("_preview"));
++        assert_eq!(b64(b"Man"), "TWFu"); assert_eq!(b64(b"Ma"), "TWE="); assert_eq!(b64(b"M"), "TQ==");
++        let p = capture_params(&json!({"views": "front, top", "size": 10}));
++        assert_eq!(p["views"], json!(["front", "top"])); assert_eq!(p["size"], 64);
 +    }
 +}
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs

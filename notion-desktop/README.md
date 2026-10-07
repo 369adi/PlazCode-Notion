@@ -9,6 +9,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.104
+- **Blender-Screenshots ohne Fenster**: Neues Tool blender_capture rendert Ansichten der Szene (Perspektive, vorne, rechts, oben ...) als Kontaktbogen mit kleiner Vorschau direkt in den Chat. Laeuft Blender (auch minimiert), wird das genutzt, sonst startet AdiCode unsichtbar ein Hintergrund-Blender. Blender muss nicht offen sein.
 ## Neu in 1.0.103
 - **Release-Zug fuer mehrere Tabs**: Neues Tool release_queue. Hat ein Tab fertige, getestete Aenderungen, waehrend ein anderer gerade baut, haengt er sie an dessen naechstes Release an statt parallel zu releasen. Konflikte (gleiche Datei inzwischen geaendert) werden erkannt, ein Release startet erst, wenn alle wartenden Beitraege uebernommen sind.
 - **Robustere Releases**: Kein doppelter Upload mehr durch den automatischen GitHub-Build, halb hochgeladene Dateien werden ersetzt und der Upload bis zu 3x versucht.
