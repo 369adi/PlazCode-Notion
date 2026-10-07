@@ -9,6 +9,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.117
+- **Co-Work Auto-Join**: Neue Tabs, die noch keinem Projekt beigetreten sind, werden automatisch eingeladen, dem neuesten Projekt mit offenen Tasks beizutreten, und uebernehmen danach Tasks (max. 3 Erinnerungen, mind. 90 s Abstand, Main-Chat nie).
+- **Weniger Update-Hinweise**: Der Hinweis auf neue Versionen erscheint nur noch selten.
 ## Neu in 1.0.116
 
 - **AdiCode erstellt nie einen neuen Notion-Chat:** Co-Work und jeder Chat bedienen nur bestehende Chats. **+ Chat** holt einen freien *bestehenden* Chat des Kontos dazu (zuerst Tab-n-Kontext-/Willkommen-Chats, dann zuletzt genutzte).
