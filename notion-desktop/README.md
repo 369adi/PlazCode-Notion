@@ -9,6 +9,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.114
+
+- **Mehrere Chats pro Konto im Co-Work:** Knopf **+ Chat** holt einen weiteren Chat desselben Kontos dazu (eigener Hintergrund-Tab, eigener Agent-Name wie Tab1-K2). Bis zu 8 Chats pro Konto; neue Chats hoechstens alle 20 s (Notion verwirft sonst neue Chats), RAM-Waechter (mind. 1,2 GB frei). **- Chat** nimmt den letzten Zusatz-Chat wieder raus.
+- **Live-Chat-Zaehler:** Alle Chats eines Kontos werden direkt aus den Notion-Daten gelesen (alle 10 s): Anzahl, wie viele gerade laufen und welche als Tab offen sind (Tooltip mit Titeln).
+- **Live-Usage aus dem echten Limit:** Notion-KI-Kredite im 6-Stunden-Fenster (z. B. 44/100) inkl. Reset-Zeit; Usage-Balken nutzt diesen Wert.
+- Getestet: 10 bestehende Chats eines Kontos laufen gleichzeitig stabil; mehr als ca. 5 *neue* Chats kurz hintereinander verwirft Notion; pro Chat-Tab ca. 350-400 MB RAM.
+
 ## Neu in 1.0.113
 - **Weniger Tokens, schnellere Antworten**: Ungenutzte bzw. doppelte Add-ons entfernt (Memory, Sequential Thinking, Serena, SQLite, Time, PostgreSQL, Sentry) - auch aus bestehenden Konfigurationen. Code-Navigation laeuft ueber codebase, Gedaechtnis ueber project_memory. Anleitung und Toolbox entsprechend gekuerzt.
 - **Notion-Fenster immer sichtbar**: Co-Work- und Haupt-Tabs werden nicht mehr versteckt; von aelteren Versionen versteckte Fenster erscheinen beim Start wieder.
