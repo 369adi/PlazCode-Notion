@@ -256,3 +256,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 ## 1.0.97 (Main2, 07.10.2026)
 - Code identisch mit eaf7076 (zweiter 1.0.96-Build hatte die exe im bestehenden 1.0.96-Release ersetzt -> Nutzer mit dem ersten 1.0.96 bekamen kein Update). Enthaelt Co-Work-Fixes (auto_join_group, canonical_worker, insert_prompt robust, Keeper/Nudger nach Neustart) und release_status()/release_notice() (notion_live.rs, Anzeige in adicode_status).
 - work\release-status.ps1 (%LOCALAPPDATA%\PlazCodeNotion\logs\release-status.json): rel.ps1 bricht ab, wenn ein anderer Prozess baut, wenn VERSION schon published ist oder $env:ADICODE_AGENT fehlt. pub.ps1 bricht ab, wenn das GitHub-Release schon eine PlazCode-Notion.exe hat (bewusst ersetzen nur mit $env:PUB_REPLACE='1').
+
+## 1.0.98 (Main2, 07.10.2026)
+- Live-Bridge ohne Co-Work: notion_cowork.rs in_project_chat()/live_message() - cowork_message ohne gemeinsames Projekt laeuft ueber notion_live::note_msg; notion_profiles.rs wake_agent() weckt den AdiCode-Tab des Empfaengers (wartet bis frei + niemand tippt, max 10 min, max 1x/2 min, auch Mains, Nutzerwunsch Mia). notion_live.rs: intro() beim ersten delta_for eines Chats (offene Chats + wartende Nachrichten), known_agents(), msg-Texte bis 600 Zeichen. Backups cowork_fix_backup\*.bak198. cargo test notion: 30 ok.
+- Nicht enthalten (anderer Chat, in Arbeit): throttle_ms in notion_mcp.rs/desktop.html.

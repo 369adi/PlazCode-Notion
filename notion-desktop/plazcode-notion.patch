@@ -9834,10 +9834,10 @@ index 0000000..26bed3e
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..250a758
+index 0000000..04d2938
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1643 @@
+@@ -0,0 +1,1672 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -10774,6 +10774,7 @@ index 0000000..250a758
 +    let args = &args;
 +    if name == "cowork_wait" { return Some(wait(args).await); }
 +    if name == "cowork_release" { return Some(release(args, session)); }
++    if name == "cowork_message" && !in_project_chat(args) { return Some(live_message(args)); }
 +    let result = {
 +        let mut board = lock_board();
 +        let r = dispatch(&mut board, name, args);
@@ -10788,6 +10789,34 @@ index 0000000..250a758
 +        Ok((out, changed)) => { if changed { CHANGED.notify_waiters(); } let out = if name == "cowork_board" { format!("{out}{}{}", release_board_text(), crate::notion_live::tabs_text()) } else { out }; text(out) }
 +        Err(e) => err(e),
 +    })
++}
++
++// ---------------------------------------------------------------- Live-Bridge: Nachrichten ohne Projekt
++
++/// Absender und Empfaenger im selben Co-Work-Projekt? Sonst laeuft die Nachricht ueber die Live-Bridge.
++fn in_project_chat(args: &Value) -> bool {
++    let board = lock_board();
++    let (from, to) = (s(args, "agent"), s(args, "to"));
++    project_id(&board, args).ok()
++        .and_then(|pid| board.projects.get(&pid).map(|p| p.agents.contains_key(&from) && (to.is_empty() || p.agents.contains_key(&to))))
++        .unwrap_or(false)
++}
++
++/// Nachricht an jeden offenen Chat, auch ohne Co-Work: kommt beim naechsten Tool-Aufruf des
++/// Empfaengers an; ist sein AdiCode-Tab frei (nicht am Generieren, niemand tippt), wird er geweckt.
++fn live_message(args: &Value) -> Value {
++    let (from, to, msg) = (s(args, "agent"), s(args, "to"), s(args, "text"));
++    if from.is_empty() { return err("agent fehlt (dein Name, z. B. Main1)".to_string()); }
++    if msg.is_empty() { return err("text fehlt".to_string()); }
++    crate::notion_live::note_msg(&from, &to, &msg);
++    let woke = !to.is_empty() && crate::notion_profiles::wake_agent(&to, format!(
++        "[AdiCode Live-Bridge] Nachricht von {from}: {msg}\n\nBitte lesen und bei Bedarf antworten mit cowork_message (agent: {to}, to: {from}, text: ...) - geht auch ohne Co-Work-Projekt."));
++    let known = to.is_empty() || woke || crate::notion_live::known_agents().contains(&to);
++    let target = if to.is_empty() { "an alle offenen Chats".to_string() } else { format!("an {to}") };
++    let how = if woke { "; sein Tab ist frei und wird geweckt" }
++        else if known { "; kommt bei seinem naechsten Tool-Aufruf an" }
++        else { " - Achtung: ein Chat mit diesem Namen war noch nicht aktiv, die Nachricht wartet, bis er AdiCode benutzt" };
++    text(format!("Nachricht ueber die Live-Bridge {target} gesendet{how}."))
 +}
 +
 +// ---------------------------------------------------------------- Bridge: tabs see each other's files
@@ -11962,10 +11991,10 @@ index 0000000..5e66c1b
 +}
 diff --git a/agent/src/notion_live.rs b/agent/src/notion_live.rs
 new file mode 100644
-index 0000000..00fff8b
+index 0000000..0df3eb1
 --- /dev/null
 +++ b/agent/src/notion_live.rs
-@@ -0,0 +1,659 @@
+@@ -0,0 +1,682 @@
 +//! Live-Bridge (immer an): Alle Notion-AI-Tabs sehen sich gegenseitig - auch ohne
 +//! "Co-Work starten". Jeder Tool-Aufruf landet mit deutscher Klartext-Beschreibung im Live-Feed,
 +//! den der AdiCode-Chat live anzeigt. Eine Datei ist fuer einen Chat genau so lange reserviert,
@@ -12238,7 +12267,7 @@ index 0000000..00fff8b
 +        let b = &mut *bus();
 +        b.seq += 1;
 +        let seq = b.seq;
-+        b.evs.push_back(Ev { seq, ts: now(), agent: agent.to_string(), kind, to: to.to_string(), text: cut(&text, 120) });
++        b.evs.push_back(Ev { seq, ts: now(), agent: agent.to_string(), kind, to: to.to_string(), text: cut(&text, if kind == "msg" { 600 } else { 120 }) });
 +        while b.evs.len() > MAX_EVENTS { b.evs.pop_front(); }
 +        seq
 +    };
@@ -12257,7 +12286,7 @@ index 0000000..00fff8b
 +    if agent.is_empty() { return None; }
 +    let b = &mut *bus();
 +    let cur = b.seq;
-+    let from = b.cursor.insert(agent.to_string(), cur)?;
++    let Some(from) = b.cursor.insert(agent.to_string(), cur) else { return if cfg!(test) { None } else { intro(b, agent) }; };
 +    let mut msgs: Vec<String> = Vec::new();
 +    let mut latest: BTreeMap<&str, &Ev> = BTreeMap::new();
 +    for e in b.evs.iter().filter(|e| e.seq > from && e.agent != agent && e.kind != "tool_end") {
@@ -12279,6 +12308,29 @@ index 0000000..00fff8b
 +    if lines.is_empty() { return None; }
 +    Some(format!("[Live] {}", lines.join("\n[Live] ")))
 +}
++
++/// Erster Kontakt eines Chats mit der Live-Bridge: wer sonst offen ist, wie man sich abstimmt und
++/// Nachrichten, die schon auf ihn warten (gilt fuer alle Chats, auch ohne Co-Work-Projekt).
++fn intro(b: &Bus, agent: &str) -> Option<String> {
++    let t = now();
++    let others: Vec<String> = b.agents.iter()
++        .filter(|(n, _)| n.as_str() != agent && b.evs.iter().rev().any(|e| &e.agent == *n && t - e.ts < ACTIVE_SECS))
++        .map(|(n, a)| if a.generating || a.inflight > 0 {
++            format!("{n} (arbeitet{})", if a.tool.is_empty() { String::new() } else { format!(": {}", cut(&a.tool, 60)) })
++        } else { n.clone() })
++        .collect();
++    let msgs: Vec<String> = b.evs.iter().filter(|e| e.kind == "msg" && e.to == agent && t - e.ts < 86_400)
++        .map(|e| format!("{}\u{2192}dich: {}", e.agent, e.text)).collect();
++    if others.is_empty() && msgs.is_empty() { return None; }
++    let mut s = format!(
++        "[Live-Bridge] Du bist {agent}. Offene Chats: {}. Alle Chats sind immer verbunden, auch ohne Co-Work: abstimmen mit cowork_message (agent: {agent}, to: <Name>, text: ...), freie Tabs werden dabei geweckt. Dateien, die ein anderer Chat gerade schreibt, sind automatisch gesperrt. Releases nur ueber work\\rel.ps1 + pub.ps1 (pruefen, wer gerade baut und ob die Version schon raus ist).",
++        if others.is_empty() { "keine".to_string() } else { others.join(", ") });
++    for m in msgs.iter().rev().take(3).rev() { s.push_str(&format!("\n[Live] {m}")); }
++    Some(s)
++}
++
++/// Alle Agents, die die Live-Bridge schon gesehen hat.
++pub(crate) fn known_agents() -> Vec<String> { bus().agents.keys().cloned().collect() }
 +
 +/// Tool-Aufruf beginnt (inflight + Live-Status). Leerer Agent = unbekannt, wird ignoriert.
 +pub(crate) fn tool_started(agent: &str, name: &str, args: &Value) {
@@ -13888,10 +13940,10 @@ index 0000000..5a48fbc
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..0874a26
+index 0000000..3d310ca
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,889 @@
+@@ -0,0 +1,909 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -14182,7 +14234,27 @@ index 0000000..0874a26
 +    let tabs=load();let name=|i:u32|tabs.iter().find(|t|t.id==i).map(|t|format!("{} ({})",t.role,if t.email.is_empty(){t.label.clone()}else{t.email.clone()})).unwrap_or(format!("Tab {i}"));
 +    Ok(if main==id{format!("{} ist jetzt ein eigener Main mit eigenem Projekt.",name(id))}else{format!("{} arbeitet jetzt f\u{fc}r {}.",name(id),name(main))})
 +}
-+fn is_main(t:&Tab)->bool{t.role.starts_with("Main")}
++static WAKE_LAST: Lazy<Mutex<BTreeMap<String,std::time::Instant>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
++/// Live-Bridge: AdiCode-Tab des Agents mit einer Nachricht wecken, sobald er frei ist (nicht am Generieren,
++/// niemand tippt darin; wartet max. 10 min). Max. 1x pro 2 min pro Agent. true = Tab gefunden, Wecken laeuft.
++pub(crate) fn wake_agent(agent:&str,text:String)->bool{
++    if cfg!(test){return false;}
++    let tabs=load();
++    let Some(i)=tabs.iter().position(|t|agent_of(t)==agent&&!skipped(t.id)&&!is_paused(t.id)) else {return false};
++    {let mut w=lock(&WAKE_LAST);if w.get(agent).map(|t|t.elapsed()<Duration::from_secs(120)).unwrap_or(false){return false;}w.insert(agent.to_string(),std::time::Instant::now());}
++    let port=cdp_port(i);let agent=agent.to_string();
++    tokio::spawn(async move{
++        for _ in 0..60{
++            if !user_present(port).await&&chat_idle(port).await{
++                tokio::time::sleep(Duration::from_secs(2)).await;
++                if chat_idle(port).await{let r=insert_prompt(port,text.clone()).await;tl(&format!("LIVE-WAKE {agent}: {:?}",r));return;}
++            }
++            tokio::time::sleep(Duration::from_secs(10)).await;
++        }
++        tl(&format!("LIVE-WAKE {agent}: Tab 10 min nicht frei, Nachricht kommt beim naechsten Tool-Aufruf"));
++    });
++    true
++}fn is_main(t:&Tab)->bool{t.role.starts_with("Main")}
 +pub(crate) fn agent_of(t:&Tab)->String{let r=t.role.replace(' ',"");if is_main(t){r}else{format!("AdiCode-{r}")}}
 +/// Co-Work: kanonische Agent-Namen der Worker-Tabs in der Gruppe des Main-Agents `lead`.
 +pub(crate) fn group_workers(lead:&str)->Vec<String>{if cfg!(test){return Vec::new();}let tabs=load();let g=groups_of(&tabs);let Some(m)=tabs.iter().find(|t|is_main(t)&&agent_of(t)==lead).map(|t|t.id) else {return Vec::new()};tabs.iter().filter(|t|!is_main(t)&&!skipped(t.id)&&g.get(&t.id)==Some(&m)).map(agent_of).collect()}

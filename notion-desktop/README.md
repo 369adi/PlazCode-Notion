@@ -9,6 +9,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.98
+- Alle offenen Notion-Chats sind immer verbunden, auch ohne Co-Work: cowork_message geht an jeden Chat (to = Name, z. B. Main1), freie Tabs werden mit der Nachricht geweckt
+- Jeder Chat bekommt beim ersten AdiCode-Aufruf eine Uebersicht: welche Chats offen sind, was sie gerade tun und wartende Nachrichten
+- Nachrichten werden nicht mehr nach 120 Zeichen abgeschnitten
+
 ## Neu in 1.0.97
 - Gleicher Stand wie der zweite 1.0.96-Build (lean Tool-Profil, pc_job, Add-on-Watchdog, cowork_release) – neu nummeriert, damit alle mit dem ersten 1.0.96 das Update auch bekommen
 - Co-Work-Fixes: Main trägt Gruppen-Tabs automatisch ein, Prompts werden zuverlässig abgeschickt, Wecker/Keeper laufen auch nach Neustart weiter
