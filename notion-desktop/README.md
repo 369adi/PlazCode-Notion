@@ -139,6 +139,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Co-Work starten**: Der Knopf ist waehrend des Starts ausgegraut und schickt keinen Prompt mehr automatisch.
 - **Sofort-Update**: "Jetzt aktualisieren" installiert ein verfuegbares Update sofort (Knopf zeigt die neue Version an). Laeuft der Launcher nicht, laedt AdiCode das Update selbst.
 - Neuer Chat denkt nicht mehr sofort los; Chat allgemein stabiler.
+## Neu in 1.0.91
+- Mehrere Mains: jeder Tab kann Main sein und leitet ein eigenes Projekt. Tabs werden per Auswahlfeld im Fensterkopf einem Main zugewiesen (z. B. Main 1 + Tab 1, Main 2 + Tab 2).
+- Keine festen Rollen mehr (Coder/Reviewer/Tester entfernt): jeder Tab hilft bei allem und schickt Ergebnisse und Kritik an seinen Main, der so lange neue Runden ausgibt, bis das Ergebnis perfekt ist.
+- Fenster-Wall: alle Tabs gleichzeitig live sehen und steuern, Groessen per Trennlinien ziehen, Doppelklick zum Vergroessern, Vollbild-Modus, Groessen werden gespeichert.
+- Neuer Chat im AdiCode-Chat startet einen eigenen Notion-AI-Chat nur fuer AdiCode - Co-Work-Chats der Tabs bleiben unberuehrt.
 ## Neu in 1.0.34–1.0.23
 (fixiert in 1.0.29: lokale schnelle Releases; Kompaktversion der alten Einzelnachrichten)
 
