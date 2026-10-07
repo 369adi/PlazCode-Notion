@@ -293,3 +293,10 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - check_one_inner: prepare_chat-Fehler ist kein Chat-Fehler mehr; neues Feld ai_off (persistiert, PERSIST 23). Nur ai_off=true -> chat_ok=false / Chat fehlt.
 - desktop.html Co-Work-Chips: ChatBad nur bei ai_off; Chat ok auch bei gemerkter welcome_url bzw. chats_total>0; MCP ok auch bei mcp_perm3; Modell ok bei gemerktem models_ok.
 - Live-Usage: usage_monitor (30 s) setzt usage_live, ueberspringt pausierte Tabs; inspect_account nutzt ui_pct nur noch als Fallback. Chip 'live HH:MM:SS'.
+
+## 1.0.106 (Blender-Chat, 07.10.2026)
+- Ursache Manage-Haenger: Die AdiCode-Zeile in Connected ist ein TR ohne role, der Text beginnt mit 'A ' (Avatar). Die Suche nach der Zeile hat nie getroffen. Jetzt findet MCP_FINISH_JS zuerst die tr/[role=row] mit AdiCode und klickt darin auf Manage, danach erst der alte Fallback.
+- post_refresh_setup: Statt wait_cdp (40 s) jetzt ein schneller target-Check. Ist der Tab weg, ruft goto_chat_auto launch(start_url) bzw. Page.navigate auf und zeigt das Fenster an (wie der Knopf Zum Chat). Ab Iteration 6 gilt logged_in als Workspace erreicht.
+- pick_chat_tab: N <= Anzahl Co-Work-Tabs. name_chats: positionsgenau Tab N Kontext 1..3. Bei Erfolg wird mem chats_named gesetzt.
+- Nach erfolgreichem check_one ruft mcp_start_prompt nacheinander prepare_chat und insert_prompt mit MCP_START_TEXT auf und setzt Account-Feld mcp_start (true oder Fehler).
+- desktop.html: Neue Chips Run automatically (mcp_perm3/mcp_perm), Chats benannt (chats_named/chat_tab_state), MCP gestartet (mcp_start).

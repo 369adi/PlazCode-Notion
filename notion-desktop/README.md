@@ -9,6 +9,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.106
+- **Refresh laeuft komplett durch**: Der MCP-Manage-Schritt klickt jetzt selbst auf Manage in der AdiCode-Zeile und stellt Read- und Write-Tools auf Run automatically. Du musst nicht mehr eingreifen.
+- **Kein Warten mehr**: Schliesst sich der Google-Login, macht der Refresh automatisch mit Zum Chat weiter. Ein bereits eingeloggter Tab wird sofort erkannt.
+- **Chats heissen Tab N Kontext 1/2/3**: hoechstens so viele Tabs, wie Co-Work-Fenster offen sind. Bereits richtig benannte Chats bleiben unveraendert.
+- **Letzter Schritt**: In den Chat wird Verbinde dich mit AdiCode MCP Server. geschrieben.
+- **Neue Co-Work-Haken**: Run automatically, Chats benannt, MCP gestartet.
 ## Neu in 1.0.105
 - **Chaterkennung**: Kein Chat wird nur noch angezeigt, wenn Notion meldet: KI fuer diesen Workspace deaktiviert (EN/DE). Jeder vorhandene Chat zaehlt, nicht nur Willkommen bei Notion; es wird nie ein neuer Chat angelegt.
 - **Co-Work-Haken stimmen**: MCP configured und Modell nutzen die gemerkten Checks, erledigte Schritte stehen nicht mehr als offen da.
