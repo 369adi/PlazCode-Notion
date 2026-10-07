@@ -9,7 +9,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
-## Neu in 1.0.107
+## Neu in 1.0.108
+- **Blender**: Das doppelte Add-on blenderwright ist entfernt - AdiCode nutzt nur noch MCP for Blender (blender-mcp), keine Port-Konflikte/30-s-Timeouts mehr.
+- **Blender-Helfer 1.3**: Kamera und Lichter zielen korrekt aufs Motiv (kein graues Erst-Render mehr), Kamera rahmt auch hohe Objekte komplett, Boden/Hintergrund wird bei Framing und Lichtstaerke ignoriert (keine Ueberbelichtung), Holz-Material sieht nach Holz aus, neue Material-Presets (Messing, Gold, Kupfer, Stahl, Chrom, Glas, Kunststoff, Gummi, Keramik, Holz, Stoff, Beton ...), Grundformen mit Radius/Tiefe.
+- Blender-Skills korrigiert (Vorschau-Render, Presets, Kamera-Hinweise).## Neu in 1.0.107
 - **Hintergrund-Jobs**: Braucht ein Tool laenger als das Soft-Limit (Standard 20 s, einstellbar unter Notion AI), antwortet AdiCode sofort und der Befehl laeuft weiter - Notion wartet nicht mehr, sondern arbeitet parallel weiter. Das Ergebnis haengt sich automatisch an die naechste Tool-Antwort; gezielt mit dem neuen Tool adicode_job (id, wait_s).
 - Notion-AI-Anweisungen: unabhaengige Tool-Aufrufe parallel starten, bei Hintergrund-Job nicht warten oder neu starten.## Neu in 1.0.106
 - **Refresh laeuft komplett durch**: Der MCP-Manage-Schritt klickt jetzt selbst auf Manage in der AdiCode-Zeile und stellt Read- und Write-Tools auf Run automatically. Du musst nicht mehr eingreifen.

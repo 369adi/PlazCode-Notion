@@ -247,10 +247,10 @@ index 0000000..3b8c751
 +    serve()
 diff --git a/agent/src/blender_helpers.py b/agent/src/blender_helpers.py
 new file mode 100644
-index 0000000..54dc30e
+index 0000000..b7385a5
 --- /dev/null
 +++ b/agent/src/blender_helpers.py
-@@ -0,0 +1,1008 @@
+@@ -0,0 +1,1097 @@
 +"""AdiCode Blender helpers (adicode_blender).
 +
 +Loaded inside a running Blender (MCP execute_blender_code) or headless
@@ -269,7 +269,7 @@ index 0000000..54dc30e
 +import os
 +from mathutils import Vector
 +
-+VERSION = "1.2"
++VERSION = "1.3"
 +OUT_DIR = os.path.join(os.environ.get("USERPROFILE", os.path.expanduser("~")), "PlazCode-Shared", "blender-out")
 +
 +
@@ -386,19 +386,22 @@ index 0000000..54dc30e
 +    return link(bpy.data.objects.new(name, me), coll)
 +
 +
-+def primitive(kind="cube", name=None, size=1.0, location=(0, 0, 0), segments=32, coll=None):
-+    """Data-API primitive: cube, sphere, ico, cylinder, cone, plane, torus-less. Returns object."""
++def primitive(kind="cube", name=None, size=1.0, location=(0, 0, 0), segments=32, coll=None, radius=None, depth=None, radius2=None):
++    """Data-API primitive: cube|sphere|ico|cylinder|cone|plane. size = edge/diameter; optional radius, depth (cylinder/cone height), radius2 (cone tip radius)."""
++    r1 = radius if radius is not None else size / 2
++    h = depth if depth is not None else size
++
 +    def build(bm):
 +        if kind == "cube":
 +            bmesh.ops.create_cube(bm, size=size)
 +        elif kind == "sphere":
-+            bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=max(8, segments // 2), radius=size / 2)
++            bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=max(8, segments // 2), radius=r1)
 +        elif kind == "ico":
-+            bmesh.ops.create_icosphere(bm, subdivisions=3, radius=size / 2)
++            bmesh.ops.create_icosphere(bm, subdivisions=3, radius=r1)
 +        elif kind == "cylinder":
-+            bmesh.ops.create_cone(bm, cap_ends=True, segments=segments, radius1=size / 2, radius2=size / 2, depth=size)
++            bmesh.ops.create_cone(bm, cap_ends=True, segments=segments, radius1=r1, radius2=r1, depth=h)
 +        elif kind == "cone":
-+            bmesh.ops.create_cone(bm, cap_ends=True, segments=segments, radius1=size / 2, radius2=0, depth=size)
++            bmesh.ops.create_cone(bm, cap_ends=True, segments=segments, radius1=r1, radius2=radius2 or 0, depth=h)
 +        elif kind == "plane":
 +            bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=size / 2)
 +        else:
@@ -568,15 +571,36 @@ index 0000000..54dc30e
 +
 +
 +def procedural(name, color_a=(0.05, 0.05, 0.05), color_b=(0.6, 0.6, 0.6), scale=6.0, detail=8.0, metallic=0.0, rough=(0.35, 0.8), bump=0.25, kind="noise"):
-+    """Procedural PBR: noise/voronoi/wave -> color ramp (color + roughness) + bump. kind=noise|voronoi|wave."""
++    """Procedural PBR: noise/voronoi/wave/wood -> color ramp (color + roughness) + bump. kind=noise|voronoi|wave|wood (wood = tree rings + grain, defaults to brown)."""
++    if kind == "wood":
++        if color_a == (0.05, 0.05, 0.05) and color_b == (0.6, 0.6, 0.6):
++            color_a, color_b = (0.10, 0.042, 0.015), (0.36, 0.17, 0.065)
++        if rough == (0.35, 0.8):
++            rough = (0.45, 0.65)
++        if bump == 0.25:
++            bump = 0.08
++        if scale == 6.0:
++            scale = 3.0
++    m = bpy.data.materials.get(name)
++    if m:
++        bpy.data.materials.remove(m)
 +    m = material(name, color_b, metallic, rough[0])
 +    nt, b = m.node_tree, _bsdf(m)
 +    N, L = nt.nodes, nt.links
 +    coord, mapping = N.new("ShaderNodeTexCoord"), N.new("ShaderNodeMapping")
 +    L.new(coord.outputs["Object"], mapping.inputs["Vector"])
-+    tex = N.new({"noise": "ShaderNodeTexNoise", "voronoi": "ShaderNodeTexVoronoi", "wave": "ShaderNodeTexWave"}[kind])
++    tex = N.new({"noise": "ShaderNodeTexNoise", "voronoi": "ShaderNodeTexVoronoi", "wave": "ShaderNodeTexWave", "wood": "ShaderNodeTexWave"}[kind])
 +    tex.inputs["Scale"].default_value = scale
-+    if "Detail" in tex.inputs:
++    if kind == "wood":
++        # rings around the X axis, stretched along X = long grain; noise distortion breaks up the rings
++        tex.wave_type = "RINGS"
++        tex.rings_direction = "X"
++        mapping.inputs["Scale"].default_value = (0.15, 1.0, 1.0)
++        tex.inputs["Distortion"].default_value = 6.0
++        tex.inputs["Detail"].default_value = 4.0
++        if "Detail Scale" in tex.inputs:
++            tex.inputs["Detail Scale"].default_value = 1.5
++    elif "Detail" in tex.inputs:
 +        tex.inputs["Detail"].default_value = detail
 +    L.new(mapping.outputs["Vector"], tex.inputs["Vector"])
 +    fac = tex.outputs["Fac"] if "Fac" in tex.outputs else tex.outputs["Distance"]
@@ -628,7 +652,49 @@ index 0000000..54dc30e
 +    return m
 +
 +
++def preset(kind="steel", name=None, color=None, roughness=None):
++    """Material preset: brass|gold|copper|steel|chrome|aluminum|iron|glass|frosted_glass|tinted_glass|plastic|rubber|ceramic|wood|dark_wood|fabric|concrete. Optional color/roughness override."""
++    P = {
++        "brass": dict(color=(0.89, 0.66, 0.30), metallic=1.0, roughness=0.25),
++        "gold": dict(color=(1.0, 0.77, 0.34), metallic=1.0, roughness=0.2),
++        "copper": dict(color=(0.95, 0.64, 0.54), metallic=1.0, roughness=0.25),
++        "steel": dict(color=(0.56, 0.57, 0.58), metallic=1.0, roughness=0.3),
++        "chrome": dict(color=(0.55, 0.56, 0.55), metallic=1.0, roughness=0.05),
++        "aluminum": dict(color=(0.91, 0.92, 0.92), metallic=1.0, roughness=0.35),
++        "iron": dict(color=(0.20, 0.20, 0.21), metallic=1.0, roughness=0.6),
++        "glass": dict(color=(1.0, 1.0, 1.0), roughness=0.0, transmission=1.0),
++        "frosted_glass": dict(color=(1.0, 1.0, 1.0), roughness=0.35, transmission=1.0),
++        "tinted_glass": dict(color=(0.05, 0.45, 0.15), roughness=0.05, transmission=1.0),
++        "plastic": dict(color=(0.6, 0.05, 0.05), roughness=0.35),
++        "rubber": dict(color=(0.02, 0.02, 0.02), roughness=0.9),
++        "ceramic": dict(color=(0.85, 0.85, 0.82), roughness=0.15, coat=0.6),
++        "fabric": dict(color=(0.3, 0.3, 0.35), roughness=1.0, sss=0.05),
++        "concrete": dict(color=(0.35, 0.34, 0.32), roughness=0.9),
++    }
++    nm = name or "ADC_" + kind
++    if kind in ("wood", "dark_wood"):
++        a, b = ((0.10, 0.042, 0.015), (0.36, 0.17, 0.065)) if kind == "wood" else ((0.025, 0.010, 0.004), (0.12, 0.05, 0.018))
++        if color:
++            b = tuple(color[:3])
++            a = tuple(c * 0.3 for c in b)
++        return procedural(nm, a, b, kind="wood", rough=(roughness or 0.45, (roughness or 0.45) + 0.2))
++    if kind not in P:
++        raise ValueError("preset kind: " + "|".join(sorted(list(P) + ["wood", "dark_wood"])))
++    kw = dict(P[kind])
++    if color is not None:
++        kw["color"] = tuple(color[:3])
++    if roughness is not None:
++        kw["roughness"] = roughness
++    m = material(nm, **kw)
++    if kw.get("transmission"):
++        b = _bsdf(m)
++        if "IOR" in b.inputs:
++            b.inputs["IOR"].default_value = 1.45
++    return m
++
++
 +def assign(obj, mat, slot=None):
++    """Put mat on obj: slot=None replaces all materials, slot=i sets material slot i."""
 +    if slot is None:
 +        obj.data.materials.clear()
 +        obj.data.materials.append(mat)
@@ -640,10 +706,24 @@ index 0000000..54dc30e
 +# ------------------------------------------------------- light & camera
 +def look_at(obj, target):
 +    """Rotate obj (camera/light) to point at target (object or vector)."""
-+    t = target.matrix_world.translation if hasattr(target, "matrix_world") else Vector(target)
-+    d = t - obj.matrix_world.translation
++    # matrix_world is stale right after setting .location -> refresh first (fixes cameras/lights pointing up)
++    bpy.context.view_layer.update()
++    t = target.matrix_world.translation.copy() if hasattr(target, "matrix_world") else Vector(target)
++    src = obj.matrix_world.translation.copy() if obj.parent else obj.location.copy()
++    d = t - src
++    if d.length < 1e-9:
++        return obj
 +    obj.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
 +    return obj
++
++
++_GROUND = ("ADC_Floor", "ADC_Ground", "ADC_Backdrop", "ADC_Studio")
++
++
++def _subjects():
++    """Visible meshes without floor/backdrop (they would blow up framing + light power)."""
++    return [o for o in bpy.context.scene.objects if o.type == "MESH" and not o.hide_render
++            and not o.name.startswith(_GROUND) and not o.get("adc_ground")]
 +
 +
 +def _bounds(objs):
@@ -655,16 +735,25 @@ index 0000000..54dc30e
 +    return (lo + hi) / 2, max((hi - lo).length, 0.01)
 +
 +
-+def camera(objs=None, lens=50.0, angle=(35.0, 20.0), margin=1.25, name="ADC_Camera"):
-+    """Create/reuse a camera that frames objs (default: all meshes). angle=(azimuth, elevation) degrees."""
-+    objs = objs or [o for o in bpy.context.scene.objects if o.type == "MESH" and not o.hide_render]
++def _fit_dist(cam, size, margin):
++    """Distance so a bounding sphere (diameter size) fits the SMALLER image side of the render aspect."""
++    r = bpy.context.scene.render
++    aspect = (r.resolution_x * r.pixel_aspect_x) / max(1e-6, r.resolution_y * r.pixel_aspect_y)
++    cam.data.sensor_fit = "AUTO"  # sensor_width spans the larger side
++    half = math.atan(cam.data.sensor_width / (2 * cam.data.lens))
++    small = math.atan(math.tan(half) / aspect) if aspect >= 1 else math.atan(math.tan(half) * aspect)
++    return (size / 2) * margin / math.sin(min(half, small))
++
++
++def camera(objs=None, lens=50.0, angle=(35.0, 20.0), margin=1.1, name="ADC_Camera"):
++    """Create/reuse a camera that frames objs fully (default: all meshes, respects render aspect). angle=(azimuth, elevation) degrees."""
++    objs = objs or _subjects()
 +    center, size = _bounds(objs)
 +    cam = bpy.data.objects.get(name)
 +    if not cam:
 +        cam = link(bpy.data.objects.new(name, bpy.data.cameras.new(name)))
 +    cam.data.lens = lens
-+    fov = 2 * math.atan(cam.data.sensor_width / (2 * lens))
-+    dist = (size * margin / 2) / math.tan(fov / 2)
++    dist = _fit_dist(cam, size, margin)
 +    az, el = math.radians(angle[0]), math.radians(angle[1])
 +    cam.location = center + Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el))) * dist
 +    look_at(cam, center)
@@ -675,7 +764,7 @@ index 0000000..54dc30e
 +
 +def studio(target=None, strength=1.0, style="three_point", world=0.05, hdri=None):
 +    """Lighting: three_point | rim | soft. Physically scaled area lights, AgX view, optional HDRI path."""
-+    objs = [target] if target else [o for o in bpy.context.scene.objects if o.type == "MESH"]
++    objs = [target] if target else _subjects()
 +    center, size = _bounds(objs)
 +    coll = collection("ADC_Lights")
 +    for o in list(coll.objects):
@@ -792,7 +881,7 @@ index 0000000..54dc30e
 +    """Turntable camera: empty at target center rotates linearly; camera parented and framed."""
 +    objs = [target] if target else None
 +    cam = camera(objs, lens, (0, elevation), margin)
-+    center, _ = _bounds(objs or [o for o in bpy.context.scene.objects if o.type == "MESH"])
++    center, _ = _bounds(objs or _subjects())
 +    piv = bpy.data.objects.get("ADC_Orbit") or link(bpy.data.objects.new("ADC_Orbit", None))
 +    piv.location = center
 +    cam.parent = piv
@@ -2655,7 +2744,7 @@ index 77cc050..61e0c45 100644
      }
      let mut mcp = state.roblox_mcp.lock().await;
 diff --git a/agent/src/mcp_addons.rs b/agent/src/mcp_addons.rs
-index 1a68aee..9922e3c 100644
+index 1a68aee..aa11a3a 100644
 --- a/agent/src/mcp_addons.rs
 +++ b/agent/src/mcp_addons.rs
 @@ -11,6 +11,41 @@ use std::os::windows::process::CommandExt;
@@ -2735,21 +2824,7 @@ index 1a68aee..9922e3c 100644
          CatalogEntry {
              id: "blender",
              name: "Blender",
-@@ -54,6 +117,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
-             command: "uvx",
-             args: &["blender-mcp"],
-         },
-+        CatalogEntry {
-+            id: "blenderwright",
-+            name: "Blender (blenderwright, 191 Tools)",
-+            description: "Alternative Blender-Bruecke mit 191 Tools (Modeling, Mesh-Edit, Shader-Nodes, Geometry Nodes, Rigging, Sculpting, UV, Physik, Mesh-Qualitaetsanalyse, Experten-Prompts). Addon-ZIP von github.com/HoldMyBeer-gg/blenderwright/releases in Blender installieren (Edit > Preferences > Get Extensions > Install from Disk). Nutzt ebenfalls Port 9876: vorher das Add-on 'Blender' (MCP for Blender) hier deaktivieren und dessen Blender-Addon ausschalten, oder im N-Panel einen anderen Port waehlen.",
-+            command: "uvx",
-+            args: &["blenderwright"],
-+        },
-         CatalogEntry {
-             id: "context7",
-             name: "Context7",
-@@ -75,6 +145,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
+@@ -75,6 +138,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
              command: "uvx",
              args: &["mcp-server-git"],
          },
@@ -2763,7 +2838,7 @@ index 1a68aee..9922e3c 100644
          CatalogEntry {
              id: "memory",
              name: "Memory",
-@@ -89,7 +166,41 @@ pub fn catalog() -> Vec<CatalogEntry> {
+@@ -89,7 +159,41 @@ pub fn catalog() -> Vec<CatalogEntry> {
              command: "npx",
              args: &["-y", "@modelcontextprotocol/server-sequential-thinking"],
          },
@@ -2806,7 +2881,7 @@ index 1a68aee..9922e3c 100644
  }
  
  pub fn config_path() -> PathBuf {
-@@ -104,10 +215,22 @@ pub fn config_path() -> PathBuf {
+@@ -104,10 +208,22 @@ pub fn config_path() -> PathBuf {
  
  pub fn read_config() -> McpConfig {
      let path = config_path();
@@ -2830,7 +2905,7 @@ index 1a68aee..9922e3c 100644
      cfg.servers.entry("roblox".to_string()).or_insert_with(|| ServerSpec {
          command: "launch_studio_mcp.py".to_string(),
          args: Vec::new(),
-@@ -137,9 +260,31 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -137,9 +253,31 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
          .ok_or_else(|| anyhow::anyhow!("unknown catalog server '{id}'"))?;
      let mut cfg = read_config();
      if enabled {
@@ -2863,7 +2938,7 @@ index 1a68aee..9922e3c 100644
              env: HashMap::new(),
          });
      } else {
-@@ -148,6 +293,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -148,6 +286,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
      write_config(&cfg)
  }
  
@@ -2888,7 +2963,7 @@ index 1a68aee..9922e3c 100644
  pub fn add_server(id: &str, spec: ServerSpec) -> anyhow::Result<()> {
      let id = id.trim();
      anyhow::ensure!(!id.is_empty(), "server id is required");
-@@ -269,6 +432,9 @@ impl AddonRuntime {
+@@ -269,6 +425,9 @@ impl AddonRuntime {
                      }
                      cmd.env("PATH", std::env::join_paths(paths)?);
                      cmd.current_dir(&app).creation_flags(CREATE_NO_WINDOW);
@@ -2898,7 +2973,7 @@ index 1a68aee..9922e3c 100644
                      return Ok(cmd);
                  }
                  anyhow::bail!("[{}] {} runtime unavailable; first-use setup requires internet access.", self.id, low);
-@@ -293,6 +459,7 @@ impl AddonRuntime {
+@@ -293,6 +452,7 @@ impl AddonRuntime {
              return Ok(());
          }
          self.reset().await;
@@ -2906,7 +2981,7 @@ index 1a68aee..9922e3c 100644
          let command = self.command();
          #[cfg(windows)]
          let command = match command {
-@@ -411,13 +578,23 @@ impl AddonRuntime {
+@@ -411,13 +571,23 @@ impl AddonRuntime {
      }
  }
  
@@ -2932,7 +3007,7 @@ index 1a68aee..9922e3c 100644
      }
  
      async fn sync_config(&mut self) {
-@@ -425,36 +602,51 @@ impl AddonManager {
+@@ -425,36 +595,51 @@ impl AddonManager {
          let wanted: HashMap<String, ServerSpec> = cfg.servers.into_iter()
              .filter(|(id, _)| id != "roblox")
              .collect();
@@ -2998,7 +3073,7 @@ index 1a68aee..9922e3c 100644
      }
  
      pub async fn list_tools(&mut self) -> (Vec<serde_json::Value>, Vec<ServerSummary>) {
-@@ -463,9 +655,21 @@ impl AddonManager {
+@@ -463,9 +648,21 @@ impl AddonManager {
          let mut summaries = Vec::new();
          let ids: Vec<String> = self.runtimes.keys().cloned().collect();
          for id in ids {
@@ -3022,7 +3097,7 @@ index 1a68aee..9922e3c 100644
                      for mut tool in server_tools {
                          let Some(real) = tool.get("name").and_then(|v| v.as_str()).map(str::to_string) else { continue; };
                          tool["name"] = serde_json::Value::String(format!("{id}__{real}"));
-@@ -475,23 +679,10 @@ impl AddonManager {
+@@ -475,23 +672,10 @@ impl AddonManager {
                          tool["server"] = serde_json::Value::String(id.clone());
                          tools.push(tool);
                      }
@@ -3048,7 +3123,7 @@ index 1a68aee..9922e3c 100644
                  }
              }
          }
-@@ -499,20 +690,45 @@ impl AddonManager {
+@@ -499,20 +683,45 @@ impl AddonManager {
          (tools, summaries)
      }
  
@@ -3105,10 +3180,10 @@ index 1a68aee..9922e3c 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_blender.rs b/agent/src/notion_blender.rs
 new file mode 100644
-index 0000000..f0b17c5
+index 0000000..70276ae
 --- /dev/null
 +++ b/agent/src/notion_blender.rs
-@@ -0,0 +1,470 @@
+@@ -0,0 +1,472 @@
 +﻿//! AdiCode Blender Pro: expert skills, an in-Blender helper library
 +//! (`adicode_blender`, installed into every Blender user modules folder),
 +//! and the `blender_pro` tool (doctor / setup / helpers).
@@ -3136,6 +3211,7 @@ index 0000000..f0b17c5
 +
 +2. Code rules (Blender 4.2-5.x)
 +- One logical step per execute_blender_code call (< ~120 lines), print a compact result, check it before the next step.
++- Check renders small and fast: A.render_settings('EEVEE', res=(1280,720), quality='draft') (quality only draft|high|final), A.render('check.png', scale=40-50), then blender_look image=<path> max_size=640. Finals later with quality='high'/'final'.
 +- Prefer data API / bmesh / A.* helpers over bpy.ops; if an operator is needed use A.op(bpy.ops.x.y, objects=[...]) (context override). Never rely on the user's selection or mode; return to OBJECT mode.
 +- Apply scale (A.apply_transforms) before bevel, booleans, physics, rigging and export.
 +- 5.x API: EEVEE engine id 'BLENDER_EEVEE' (A.render_settings handles it), Principled sockets 'Emission Color', 'Coat Weight', 'Subsurface Weight', 'Transmission Weight'; layered actions (use A._fcurves(obj)); shade_smooth_by_angle; geometry nodes interface via ng.interface.new_socket. Unsure about an API: context7 'blender python api' or introspect (bpy.types.X.bl_rna.properties.keys()) instead of guessing.
@@ -3156,9 +3232,10 @@ index 0000000..f0b17c5
 +
 +4. Quality bar ('krass' instead of 'okay')
 +- Bevel every hard edge (A.hard_surface), weighted normals; organic forms use subdivision (A.organic). Silhouette must read from the camera.
++- Fast realistic materials: A.preset(kind, color=None, roughness=None) with brass|gold|copper|steel|chrome|aluminum|iron|glass|frosted_glass|tinted_glass|plastic|rubber|ceramic|wood|dark_wood|fabric|concrete (wood = procedural grain, A.procedural(..., kind='wood')).
 +- Materials always vary: roughness/colour variation (A.procedural), bump or normal map, edge wear/dirt for realism. Real textures: Poly Haven/ambientCG via blender_search_assets + A.pbr_textures(folder).
 +- Lighting: A.studio('three_point'|'rim'|'soft') or an HDRI (Poly Haven) + one key light; AgX view transform; shadows grounded (A.floor, contact shadows).
-+- Camera: 35-85 mm, rule of thirds, depth of field on hero shots (cam.data.dof.use_dof, focus_object), slight elevation.
++- Camera: A.camera(objs, lens, angle=(azimuth, elevation), margin=1.1) frames the whole bounding box (tall objects included) and points at it; lights from A.studio also aim at the target. 35-85 mm, rule of thirds, depth of field on hero shots (cam.data.dof.use_dof, focus_object), slight elevation.
 +- Render: EEVEE for previews, Cycles GPU OptiX for finals (A.gpu(), A.render_settings('CYCLES', quality='high')), denoise on, motion blur for animation.
 +
 +5. Assets and AI (big quality boost, use them)
@@ -3171,7 +3248,7 @@ index 0000000..f0b17c5
 +
 +Workflow
 +1. Reference: ask for or generate (comfyui_generate_image) a reference/concept; derive proportions in metres (door 2.0 m, table 0.75 m, human 1.75 m, car 4.5 m).
-+2. Blockout from primitives (A.primitive) at true scale; check silhouette from the camera (A.camera + blender_look).
++2. Blockout from primitives (A.primitive(kind, size=..., radius=..., depth=..., radius2=...) for cylinders/cones/tori at exact dimensions) at true scale; check silhouette from the camera (A.camera + blender_look).
 +3. Primary -> secondary -> tertiary forms. Detail density must vary (calm areas vs. detailed areas).
 +4. Topology: quads on deforming/curved surfaces, ngons only on flat faces, support loops or bevels for crisp subdivided edges.
 +5. UV (A.uv_unwrap) only when image textures or baking are needed; procedural materials use Object coordinates.
@@ -7117,7 +7194,7 @@ index 0000000..2fa12b1
 +}
 diff --git a/agent/src/notion_devtools.rs b/agent/src/notion_devtools.rs
 new file mode 100644
-index 0000000..72d539c
+index 0000000..5e2fa42
 --- /dev/null
 +++ b/agent/src/notion_devtools.rs
 @@ -0,0 +1,489 @@
@@ -7170,7 +7247,7 @@ index 0000000..72d539c
 +pub(crate) fn profile_allows(tool: &str) -> bool { allows(&current_profile(), tool) }
 +
 +/// Laedt die KI einen Blender-Skill, wechselt AdiCode automatisch aufs schlanke Blender-Profil
-+/// (Roblox, blenderwright, Code-Navigation ausgeblendet). Roblox-Skill aus Blender-Profil -> lean.
++/// (Roblox, Code-Navigation ausgeblendet). Roblox-Skill aus Blender-Profil -> lean.
 +/// Gibt einen Hinweistext zurueck, wenn gewechselt wurde.
 +pub(crate) fn auto_profile_for_skill(skill: &str) -> Option<String> {
 +    let s = skill.trim().to_ascii_lowercase();
@@ -7529,7 +7606,7 @@ index 0000000..72d539c
 +        }),
 +        json!({
 +            "name": "adicode_profile",
-+            "description": "AdiCode: Tool-Profil gegen Kontext-Bloat. lean (Standard) = alles ausser den selten genutzten Add-ons blenderwright, comfyui, robloxstudio, codebase (per adicode_find_tools + adicode_call trotzdem nutzbar), all = alles, app = ohne Roblox/Blender, roblox = ohne Blender, blender = schlank fuer Blender (blender_*, comfyui, pc/files; ohne Roblox, blenderwright, serena, codebase - wird beim Laden des blender-Skills automatisch gesetzt). Ohne Argument: aktuelles Profil. Notion uebernimmt die neue Tool-Liste beim naechsten Neuladen/Verbinden.",
++            "description": "AdiCode: Tool-Profil gegen Kontext-Bloat. lean (Standard) = alles ausser den selten genutzten Add-ons comfyui, robloxstudio, codebase (per adicode_find_tools + adicode_call trotzdem nutzbar), all = alles, app = ohne Roblox/Blender, roblox = ohne Blender, blender = schlank fuer Blender (blender_*, comfyui, pc/files; ohne Roblox, serena, codebase - wird beim Laden des blender-Skills automatisch gesetzt). Ohne Argument: aktuelles Profil. Notion uebernimmt die neue Tool-Liste beim naechsten Neuladen/Verbinden.",
 +            "inputSchema": {"type": "object", "properties": {
 +                "profile": {"type": "string", "enum": PROFILES}
 +            }}
@@ -8301,10 +8378,10 @@ index 0000000..307aeb4
 \ No newline at end of file
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..b3975d3
+index 0000000..ed1c26e
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1369 @@
+@@ -0,0 +1,1423 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -8574,7 +8651,7 @@ index 0000000..b3975d3
 +
 +async fn list_tools(state: &crate::AppState) -> Vec<Value> {
 +    rebuild(state);
-+    lock(&SHARED.tools).0.iter().map(|t| t.schema.clone()).collect()
++    lock(&SHARED.tools).0.iter().map(|t| slim_tool(t.schema.clone())).collect()
 +}
 +
 +fn status_text(state: &crate::AppState) -> String {
@@ -8802,20 +8879,74 @@ index 0000000..b3975d3
 +    }
 +}
 +
++const SPILL_AT: usize = 80_000;
++const SPILL_HEAD: usize = 60_000;
++const SPILL_TAIL: usize = 15_000;
++const SLIM_DESC: usize = 1500;
++const SLIM_PROP_DESC: usize = 600;
++
++fn floor_cb(s: &str, mut i: usize) -> usize { if i >= s.len() { return s.len(); } while !s.is_char_boundary(i) { i -= 1; } i }
++fn ceil_cb(s: &str, mut i: usize) -> usize { while i < s.len() && !s.is_char_boundary(i) { i += 1; } i }
++
++/// 1.0.108 Token-Diaet: tools/list ohne JSON-Schema-Ballast ($schema, title, additionalProperties:false, default:null),
++/// sehr lange Add-on-Beschreibungen gekappt. Volltext + Originalschema bleiben ueber adicode_find_tools abrufbar.
++fn slim_cut(s: &str, max: usize) -> Option<String> { if s.len() <= max { return None; } let c = floor_cb(s, max); Some(format!("{}\u{2026}", s[..c].trim_end())) }
++fn slim_schema_obj(v: &mut Value) {
++    match v {
++        Value::Array(a) => { for x in a.iter_mut() { slim_schema_obj(x); } }
++        Value::Object(m) => {
++            m.remove("$schema");
++            if matches!(m.get("title"), Some(Value::String(_))) { m.remove("title"); }
++            if matches!(m.get("additionalProperties"), Some(Value::Bool(false))) { m.remove("additionalProperties"); }
++            if matches!(m.get("default"), Some(Value::Null)) { m.remove("default"); }
++            let nd = m.get("description").and_then(|d| d.as_str()).and_then(|d| slim_cut(d, SLIM_PROP_DESC));
++            if let Some(d) = nd { m.insert("description".to_string(), Value::String(d)); }
++            if let Some(Value::Object(props)) = m.get_mut("properties") { for (_, p) in props.iter_mut() { slim_schema_obj(p); } }
++            for k in ["items", "additionalProperties", "not", "anyOf", "oneOf", "allOf"] {
++                if let Some(x) = m.get_mut(k) { if x.is_object() || x.is_array() { slim_schema_obj(x); } }
++            }
++        }
++        _ => {}
++    }
++}
++fn slim_tool(mut t: Value) -> Value {
++    let name = t.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
++    let own = ["adicode_", "roblox_", "cowork_", "blender_pro", "project_memory", "safe_"].iter().any(|p| name.starts_with(p));
++    if !own {
++        let nd = t.get("description").and_then(|d| d.as_str()).and_then(|d| slim_cut(d, SLIM_DESC));
++        if let Some(d) = nd { t["description"] = Value::String(format!("{d} (Volltext: adicode_find_tools)")); }
++    }
++    if let Some(is) = t.get_mut("inputSchema") { slim_schema_obj(is); }
++    t
++}
++
++/// Sehr grosse Ausgaben: Anfang + Ende an Notion, die komplette Ausgabe landet als Datei im Shared-Ordner.
++fn spill_full_output(text: &str) -> Option<String> {
++    let dir = crate::mcp_addons::shared_dir().join(".adicode").join("out");
++    std::fs::create_dir_all(&dir).ok()?;
++    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
++    let name = format!("out-{ts}.txt");
++    std::fs::write(dir.join(&name), text).ok()?;
++    Some(format!(".adicode/out/{name}"))
++}
++
 +fn truncate_output(mut out: Value) -> Value {
 +    if let Some(items) = out.get_mut("content").and_then(|c| c.as_array_mut()) {
 +        for item in items.iter_mut() {
 +            let Some(text) = item.get("text").and_then(|t| t.as_str()) else { continue; };
-+            if text.len() <= MAX_TOOL_TEXT { continue; }
-+            let mut cut = MAX_TOOL_TEXT;
-+            while !text.is_char_boundary(cut) { cut -= 1; }
-+            let short = format!("{}\n\n[AdiCode] Ausgabe gekuerzt: {} von {} Zeichen. Bitte gezielter abfragen (Filter, Ausschnitt, Datei).", &text[..cut], cut, text.len());
++            let text = if text.contains("\r\n") { text.replace("\r\n", "\n") } else { text.to_string() };
++            if text.len() <= SPILL_AT { item["text"] = Value::String(text); continue; }
++            let h = floor_cb(&text, SPILL_HEAD);
++            let t = ceil_cb(&text, text.len().saturating_sub(SPILL_TAIL).max(h));
++            let hint = spill_full_output(&text)
++                .map(|p| format!("Volle Ausgabe ({} Zeichen) liegt in {p} (relativ zum Shared-Ordner; mit files_read_text_file head/tail gezielt lesen).", text.len()))
++                .unwrap_or_else(|| "Bitte gezielter abfragen (Filter, Ausschnitt, Datei).".to_string());
++            let short = format!("{}\n\n[AdiCode] \u{2026} {} Zeichen ausgelassen. {}\n\n{}", &text[..h], t - h, hint, &text[t..]);
 +            item["text"] = Value::String(short);
 +        }
 +    }
 +    out
 +}
-+
 +/// Jeder Tool-Aufruf laeuft in einer eigenen Task: ein Panic reisst den Server nicht mit,
 +/// und nach TOOL_TIMEOUT_SECS bekommt Notion sofort eine Antwort (der Job laeuft weiter).
 +/// Anfrage-Drossel: verteilt Tool-Aufrufe zeitlich (Warteschlange), statt sie abzulehnen.
@@ -9542,7 +9673,7 @@ index 0000000..b3975d3
 +fn find_tools_schema() -> Value {
 +    json!({
 +        "name": "adicode_find_tools",
-+        "description": "AdiCode: durchsucht ALLE Tools, auch die vom Tool-Profil ausgeblendeten Add-ons (lean blendet blenderwright, comfyui, robloxstudio, codebase aus). Liefert Name, Beschreibung und inputSchema. Ausgeblendete Tools (hidden=true) danach mit adicode_call aufrufen.",
++        "description": "AdiCode: durchsucht ALLE Tools, auch die vom Tool-Profil ausgeblendeten Add-ons (lean blendet comfyui, robloxstudio, codebase aus). Liefert Name, Beschreibung und inputSchema. Ausgeblendete Tools (hidden=true) danach mit adicode_call aufrufen.",
 +        "inputSchema": {"type": "object", "properties": {
 +            "query": {"type": "string", "description": "Suchwoerter, z. B. 'comfyui workflow' oder 'blender material'."},
 +            "limit": {"type": "integer", "default": 15, "description": "1-50"}
@@ -12172,7 +12303,7 @@ index 0000000..bd8d635
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
 new file mode 100644
-index 0000000..02350fe
+index 0000000..badd791
 --- /dev/null
 +++ b/agent/src/notion_skills.rs
 @@ -0,0 +1,175 @@
@@ -12182,7 +12313,7 @@ index 0000000..02350fe
 +
 +use serde_json::{json, Value};
 +
-+pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. Tempo: unabhaengige Tool-Aufrufe immer parallel im selben Schritt starten. Braucht ein Tool laenger als ~20 s, antwortet AdiCode sofort mit Hintergrund-Job N - dann NICHT warten oder neu starten, sondern direkt weiterarbeiten; das Ergebnis haengt sich automatisch an eine der naechsten Tool-Antworten (gezielt: adicode_job). Lange Befehle (Builds, Tests, Installationen, Releases, alles ueber ~50 s) mit pc_job starten und per action=status abfragen statt pc_PowerShell. Selten genutzte Add-ons (blenderwright, comfyui, robloxstudio, codebase) sind ausgeblendet: mit adicode_find_tools suchen und mit adicode_call aufrufen. Mehrere Tabs an einer neuen Version: vor Code-Aenderungen cowork_release action=join (version, feature, files), fertig mit action=ready, veroeffentlichen nur nach cowork_release action=publish, danach action=done. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
++pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. Tempo: unabhaengige Tool-Aufrufe immer parallel im selben Schritt starten. Braucht ein Tool laenger als ~20 s, antwortet AdiCode sofort mit Hintergrund-Job N - dann NICHT warten oder neu starten, sondern direkt weiterarbeiten; das Ergebnis haengt sich automatisch an eine der naechsten Tool-Antworten (gezielt: adicode_job). Lange Befehle (Builds, Tests, Installationen, Releases, alles ueber ~50 s) mit pc_job starten und per action=status abfragen statt pc_PowerShell. Selten genutzte Add-ons (comfyui, robloxstudio, codebase) sind ausgeblendet: mit adicode_find_tools suchen und mit adicode_call aufrufen. Mehrere Tabs an einer neuen Version: vor Code-Aenderungen cowork_release action=join (version, feature, files), fertig mit action=ready, veroeffentlichen nur nach cowork_release action=publish, danach action=done. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
 +
 +struct Skill { id: &'static str, title: &'static str, body: &'static str }
 +
