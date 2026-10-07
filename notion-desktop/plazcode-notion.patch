@@ -1489,7 +1489,7 @@ index 0000000..5543ac6
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..b736a76 100644
+index 07dc4c0..1015d01 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -2127,7 +2127,7 @@ index 07dc4c0..b736a76 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1571,377 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1571,401 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -2330,11 +2330,11 @@ index 07dc4c0..b736a76 100644
 +    };
 +    var CLoad = function (Full) {
 +      return Call("/api/notion/cowork-tabs").then(function (R) {
-+        CBrowser(R); if (R.status) CMsg(R.status);
++        CW.pollErr = false; CBrowser(R); if (R.status) CMsg(R.status);
 +        var Tabs = R.tabs || [], Sig = Tabs.map(function (T) { return T.id; }).join(",");
 +        if (Full || !CW.dirty) { CW.tabs = Tabs; CW.sig = Sig; CDirty(false); CRender(); return; }
 +        Tabs.forEach(function (T, I) { if (CW.tabs[I] && CW.tabs[I].id === T.id) CW.tabs[I] = Object.assign({}, CW.tabs[I], { running: T.running, paused: T.paused, account: T.account, role: T.role }); }); CRender();
-+      }).catch(function (E) { CMsg(E.message || String(E)); });
++      }).catch(function (E) { CW.pollErr = true; CMsg(E.message || String(E)); });
 +    };
 +    var CAct = function (Action, Value) {
 +      CMsg("\u2026"); return Call("/api/notion/action", { action: Action, value: Value === undefined ? null : Value }).then(function (R) { CMsg(R.message || "OK"); return CLoad(!CW.dirty).then(function(){return R;}); }).catch(function (E) { CMsg(E.message || String(E)); throw E; });
@@ -2433,7 +2433,31 @@ index 07dc4c0..b736a76 100644
 +    On("cwRefreshAll", function () { if (confirm("Refresh all: ALLE Notion-Konten nacheinander komplett l\u00f6schen und neu einloggen (wie Refresh bei jedem Konto)? Das kann nicht r\u00fcckg\u00e4ngig gemacht werden. Bei fremden Workspaces NICHT best\u00e4tigen.")) CAct("cowork_refresh_all").then(function(){[3000,15000,40000,90000,180000].forEach(function(ms){setTimeout(function(){CLoad(true);},ms);});}).catch(function () {}); });
 +    On("cwStopAll", function () { if (confirm("Alle Co-Work-Tabs schlie\u00dfen?")) CAct("cowork_stop_all").then(function () { CW.shown = false; CRender(); }).catch(function () {}); });
 +    document.querySelectorAll("[data-page=cowork]").forEach(function (B) { B.addEventListener("click", function () { CLoad(false); }); });
-+    setInterval(function () { if (document.querySelector("#page-cowork.active")) CLoad(false); }, 3000);
++    // Robustes Polling: Jitter +-20 %, Backoff bei Fehlern (max 60 s), Pause wenn das Fenster minimiert/verdeckt ist.
++    window.AdiPoll = window.AdiPoll || (function () {
++      var Min = false, Jobs = [];
++      var Paused = function () { return document.hidden || Min; };
++      var Resume = function () { if (!Paused()) Jobs.forEach(function (J) { J.kick(); }); };
++      document.addEventListener("click", function (Ev) { if (Ev.target && Ev.target.closest && Ev.target.closest("[data-ipc=minimize]")) Min = true; }, true);
++      ["focus", "pointerdown", "keydown"].forEach(function (N) { window.addEventListener(N, function () { if (Min) { Min = false; Resume(); } }, true); });
++      document.addEventListener("visibilitychange", function () { if (!document.hidden) { Min = false; Resume(); } });
++      return function (Base, Active, Tick) {
++        var Errs = 0, Timer = 0, Busy = false, Idle = false;
++        var Delay = function () { return Math.round(Math.min(Base * Math.pow(2, Errs), 60000) * (0.8 + Math.random() * 0.4)); };
++        var Plan = function (Ms) { clearTimeout(Timer); Idle = false; Timer = setTimeout(Run, Ms); };
++        var Run = function () {
++          if (Paused()) { Idle = true; return; }
++          if (Busy) return;
++          if (!Active()) { Plan(Delay()); return; }
++          Busy = true;
++          Promise.resolve().then(Tick).then(function () { Errs = 0; }, function () { Errs = Math.min(Errs + 1, 5); }).then(function () { Busy = false; Plan(Delay()); });
++        };
++        var Job = { kick: function () { if (Idle && !Busy) Plan(Math.round(200 + Math.random() * 400)); }, state: function () { return { errs: Errs, idle: Idle, paused: Paused(), next: Delay() }; } };
++        Jobs.push(Job); Plan(Delay());
++        return Job;
++      };
++    })();
++    CW.poll = window.AdiPoll(3000, function () { return !!document.querySelector("#page-cowork.active"); }, function () { return CLoad(false).then(function () { if (CW.pollErr) throw new Error("poll"); }); });
 +    window.addEventListener("beforeunload", function (Ev) { if (CW.dirty) { Ev.preventDefault(); Ev.returnValue = ""; } });
 +    var UD = { tabs: [], auto: false };
 +    var UMcpOk = function (A) { return A && (A.mcp === "Verbunden" || A.mcp === "Bereits verbunden"); };
@@ -2456,7 +2480,7 @@ index 07dc4c0..b736a76 100644
 +    };
 +    var ULoad = function () { return Call("/api/notion/cowork-tabs").then(URender).catch(function () {}); };
 +    var UMsg = function (T) { var M = $("nMcpMsg"); if (M) M.textContent = T || ""; };
-+    setInterval(function () { if (document.querySelector("#page-cowork.active,#page-notion.active")) ULoad(); }, 3000);
++    window.AdiPollUsage = window.AdiPoll(3000, function () { return !!document.querySelector("#page-cowork.active,#page-notion.active"); }, function () { return Call("/api/notion/cowork-tabs").then(URender); });
 +    ULoad();
 +    On("nMcpSetup", function () { var Sel = $("nMcpTab"); if (!Sel || !Sel.value) { UMsg("Erst unter Co-Work einen Tab anlegen."); return; } UMsg("..."); Call("/api/notion/action", { action: "cowork_setup_mcp", value: Number(Sel.value) }).then(function (R) { UMsg((R.message || "Gestartet.") + " Der Tab muss laufen und eingeloggt sein."); setTimeout(ULoad, 6000); setTimeout(ULoad, 15000); }).catch(function (E) { UMsg(E.message || String(E)); }); });
 +    On("nMcpOpen", function () { var Sel = $("nMcpTab"); if (!Sel || !Sel.value) { UMsg("Erst unter Co-Work einen Tab anlegen."); return; } Call("/api/notion/action", { action: "open_notion_window", value: Number(Sel.value) }).then(function (R) { UMsg(R.message || "Ge\u00f6ffnet."); ULoad(); }).catch(function (E) { UMsg(E.message || String(E)); }); });
@@ -2553,10 +2577,10 @@ index 04ebefa..61103d4 100644
              Event::UserEvent(UiEvent::Maximize) => window.set_maximized(!window.is_maximized()),
              Event::UserEvent(UiEvent::Drag) => {
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..3db47e5 100644
+index 77cc050..61e0c45 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,20 @@ mod media;
+@@ -81,6 +81,21 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -2564,6 +2588,7 @@ index 77cc050..3db47e5 100644
 +mod notion_skills;
 +mod notion_cowork;
 +mod notion_roblox_plus;
++mod notion_web_agents;
 +mod notion_safety;
 +mod notion_profiles;
 +mod notion_project_memory;
@@ -2577,7 +2602,7 @@ index 77cc050..3db47e5 100644
  
  #[cfg(windows)]
  mod win_msg {
-@@ -188,6 +202,23 @@ impl AppState {
+@@ -188,6 +203,23 @@ impl AppState {
  }
  
  /// Persistent stdio client for Roblox Studio's built-in MCP server.
@@ -2601,7 +2626,7 @@ index 77cc050..3db47e5 100644
  struct McpRuntime {
      child: Option<Child>,
      stdin: Option<ChildStdin>,
-@@ -335,7 +366,23 @@ impl McpRuntime {
+@@ -335,7 +367,23 @@ impl McpRuntime {
          Ok(())
      }
  
@@ -2626,7 +2651,7 @@ index 77cc050..3db47e5 100644
          self.ensure().await?;
          if self.tools.is_empty() { self.list_tools().await?; }
          let targeted = studio_session::needs_id(&self.tools, name);
-@@ -726,13 +773,13 @@ fn main() {
+@@ -726,13 +774,13 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -2642,7 +2667,7 @@ index 77cc050..3db47e5 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +878,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +879,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -2652,7 +2677,7 @@ index 77cc050..3db47e5 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +928,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +929,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -2664,7 +2689,7 @@ index 77cc050..3db47e5 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -937,6 +989,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -937,6 +990,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
      updater::start_checker();
@@ -2672,7 +2697,7 @@ index 77cc050..3db47e5 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +1001,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +1002,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -2680,7 +2705,7 @@ index 77cc050..3db47e5 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +1031,16 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +1032,16 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -2697,7 +2722,7 @@ index 77cc050..3db47e5 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1252,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1253,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -2705,7 +2730,7 @@ index 77cc050..3db47e5 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1268,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1269,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -2713,7 +2738,7 @@ index 77cc050..3db47e5 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1526,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1527,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -2721,7 +2746,7 @@ index 77cc050..3db47e5 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1598,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1599,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -2729,7 +2754,7 @@ index 77cc050..3db47e5 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1607,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1608,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -4258,10 +4283,10 @@ index 0000000..f116c23
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..018e145
+index 0000000..af61ac7
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,1242 @@
+@@ -0,0 +1,1243 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -4806,9 +4831,10 @@ index 0000000..018e145
 +    roblox_studio: "Roblox Studio steuern", roblox_execute_luau: "Luau-Code in Roblox ausf\u00fchren", roblox_workflow: "Roblox-Anleitung laden", roblox_project_memory: "Roblox-Projektwissen nutzen",
 +    git_status: "Git-Status pr\u00fcfen", git_diff: "\u00c4nderungen ansehen", git_diff_unstaged: "\u00c4nderungen ansehen", git_diff_staged: "Vorgemerkte \u00c4nderungen ansehen",
 +    git_log: "Git-Verlauf ansehen", git_add: "\u00c4nderungen vormerken", git_commit: "\u00c4nderungen speichern (Commit)", git_show: "Commit ansehen", git_checkout: "Branch wechseln", git_create_branch: "Branch anlegen",
++    web_agents: "KI-Chat-Tabs anzeigen", web_sites: "KI-Webseiten anzeigen", web_chat: "Anderen KI-Chat fragen",
 +    search: "Suchen", view: "Ansehen", runScript: "Skript ausf\u00fchren"
 +  };
-+  var AC_PRE = [["pc_", "Windows"], ["files_", "Dateien"], ["git_", "Git"], ["roblox_", "Roblox"], ["browser_", "Browser"], ["github_", "GitHub"], ["context7_", "Doku nachschlagen"], ["thinking_", "Schrittweise planen"], ["memory_", "Ged\u00e4chtnis"], ["cowork_", "Co-Work"]];
++  var AC_PRE = [["pc_", "Windows"], ["files_", "Dateien"], ["git_", "Git"], ["roblox_", "Roblox"], ["browser_", "Browser"], ["github_", "GitHub"], ["context7_", "Doku nachschlagen"], ["thinking_", "Schrittweise planen"], ["memory_", "Ged\u00e4chtnis"], ["cowork_", "Co-Work"], ["web_", "KI-Chat"]];
 +  function acTool(t) {
 +    t = String(t || ""); var k = t.replace(/^.*__/, "");
 +    if (AC_TOOLS[k]) return AC_TOOLS[k];
@@ -5506,10 +5532,10 @@ index 0000000..018e145
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..cd71d13
+index 0000000..2fa12b1
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1833 @@
+@@ -0,0 +1,1676 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -5864,23 +5890,14 @@ index 0000000..cd71d13
 +}
 +
 +/// Main startet/prompted: alle Worker-Tabs seiner Gruppe automatisch eintragen, damit der Nudger sie weckt.
-+fn auto_join_group(p: &mut Project, lead: &str, wave: u64) -> usize {
-+    crate::notion_profiles::ensure_cowork_bridge();
-+    let mut list = crate::notion_profiles::group_workers(lead);
-+    // Main-Fenster aus: der Lead-Chat laeuft dann in einem Worker-Tab (der gerade generiert) -> sich nicht selbst als Worker eintragen.
-+    if crate::notion_profiles::main_offline(lead).is_some() { list.retain(|w| !crate::notion_live::is_generating(w)); }
-+    // Lead ohne Main-Namen (z. B. lead-1): keine Gruppe bekannt -> alle Worker-Tabs eintragen, sonst weckt der Nudger niemanden.
-+    if list.is_empty() && !lead.starts_with("Main") { list = crate::notion_profiles::worker_tab_agents(); }
-+    let mut added = 0;
-+    for wk in list {
++fn auto_join_group(p: &mut Project, lead: &str, wave: u64) {
++    for wk in crate::notion_profiles::group_workers(lead) {
 +        if wk == lead || p.agents.contains_key(&wk) { continue; }
-+        added += 1;
 +        let me = join_agent(p, &wk, "worker");
 +        ensure_lane(p, &me);
 +        if wave > 0 { let _ = add_assess(p, wave, &me); }
 +        post(p, &me, "", format!("{me} automatisch hinzugefuegt (Gruppe von {lead})."));
 +    }
-+    added
 +}
 +
 +/// Worker joint mit frei gewaehltem Namen (z. B. Kontoname): auf den kanonischen Tab-Namen abbilden,
@@ -6152,7 +6169,7 @@ index 0000000..cd71d13
 +        let brief = format!("{}\n{}", p.title, p.goal);
 +        let w = if assess { open_wave(&mut p, &agent, &brief) } else { 0 };
 +        add_tasks(&mut p, &args["tasks"], w);
-+        let auto = auto_join_group(&mut p, &agent, w);
++        auto_join_group(&mut p, &agent, w);
 +        let goal = p.goal.clone();
 +        post(&mut p, &agent, "", format!("Projekt gestartet: {goal}"));
 +        let mut roles: Vec<String> = Vec::new();
@@ -6160,16 +6177,10 @@ index 0000000..cd71d13
 +            for r in [&t.role, &t.review] { if !r.is_empty() && !roles.contains(r) { roles.push(r.clone()); } }
 +        }
 +        let tabs = if roles.is_empty() {
-+            format!("Die Worker-Tabs von AdiCode treten automatisch bei (der Nutzer muss nichts tun). Nur falls nach 60 s niemand beigetreten ist: Nutzer bitten, in AdiCode Co-Work zu starten oder in weiteren Notion-AI-Tabs zu schreiben: Tritt Co-Work-Projekt {id} bei.")
++            format!("Die Worker-Tabs von AdiCode treten automatisch bei (der Nutzer muss nichts tun). Nur falls nach 2 Minuten niemand beigetreten ist: Nutzer bitten, in AdiCode Co-Work zu starten oder in weiteren Notion-AI-Tabs zu schreiben: Tritt Co-Work-Projekt {id} bei.")
 +        } else {
-+            format!("Benoetigte Schwerpunkte: {}. Die Worker-Tabs von AdiCode (Coder, Reviewer, Tester) treten automatisch bei und helfen bei allen Rollen mit - den Nutzer NICHT bitten, Tabs zu oeffnen. Nur falls nach 60 s niemand beigetreten ist: Nutzer bitten, in AdiCode Co-Work zu starten (oder in weiteren Notion-AI-Tabs zu schreiben: Tritt Co-Work-Projekt {id} bei als {}).", roles.iter().map(|r| format!("{} ({r})", role_title(r))).collect::<Vec<_>>().join(", "), roles[0])
++            format!("Benoetigte Schwerpunkte: {}. Die Worker-Tabs von AdiCode (Coder, Reviewer, Tester) treten automatisch bei und helfen bei allen Rollen mit - den Nutzer NICHT bitten, Tabs zu oeffnen. Nur falls nach 2 Minuten niemand beigetreten ist: Nutzer bitten, in AdiCode Co-Work zu starten (oder in weiteren Notion-AI-Tabs zu schreiben: Tritt Co-Work-Projekt {id} bei als {}).", roles.iter().map(|r| format!("{} ({r})", role_title(r))).collect::<Vec<_>>().join(", "), roles[0])
 +        };
-+        let workers = p.agents.len().saturating_sub(1);
-+        let names: Vec<String> = p.agents.keys().filter(|n| n.as_str() != agent.as_str()).cloned().collect();
-+        let offline = crate::notion_profiles::offline_workers(&names);
-+        let tabs = if offline.is_empty() { tabs } else { format!("{tabs}\nACHTUNG: Fenster nicht offen fuer {} - die Bridge kann diese Tabs nicht wecken. Nutzer bitten, sie in AdiCode zu oeffnen, oder im Tab einzufuegen: Tritt dem Co-Work-Projekt {id} bei (cowork_join project {id}, role worker, agent <Tab-Name>) und arbeite Aufgaben ab, bis keine mehr da sind. Bis dahin Tasks selbst mit cowork_claim erledigen.", offline.join(", ")) };
-+        let tabs = match crate::notion_profiles::main_offline(&agent) { Some((l, e)) => format!("{tabs}\nACHTUNG: Das Main-Fenster {l} ({e}) ist nicht gestartet. Du laeufst vermutlich in einem Worker-Tab, waehrend die Worker fuer das (ausgeschaltete) Main arbeiten. Nutzer bitten: in AdiCode diesen Tab als Main einstellen (oder das Main-Fenster starten und dort den Lead machen). Bis dahin Tasks selbst mit cowork_claim erledigen."), None => tabs };
-+        let tabs = if workers == 0 { format!("{tabs}\nACHTUNG: kein Worker-Tab gefunden (Lead {agent}, automatisch {auto}). cowork_start mit agent=<Main-Name, z. B. Main2> wiederholen oder in AdiCode Co-Work starten.") } else { format!("{tabs}\nAutomatisch eingetragen und geweckt: {workers} Worker-Tab(s).") };
 +        let gate = if w > 0 { format!("\nJeder Worker bewertet den Auftrag zuerst aus Sicht seiner Rolle und schlaegt fehlende Teilaufgaben vor; die Tasks werden freigegeben, sobald alle Bewertungen da sind (spaetestens nach {GATE_SECS} s). Rollen sind Schwerpunkte: ist ein Experte beschaeftigt, helfen die anderen mit.") } else { String::new() };
 +        let out = format!("Co-Work-Projekt '{id}' erstellt. Du bist der Lead (Main Chat), dein Agent-Name ist '{agent}' (bei jedem cowork_*-Aufruf als agent mitgeben).\n{tabs}{gate}\nNeue Nutzer-Nachrichten waehrend des Projekts: sofort cowork_prompt.\nDanach: mit cowork_wait den Fortschritt verfolgen, Fragen/blockierte Tasks klaeren, bei Bedarf cowork_add_tasks. Am Ende cowork_results lesen und die finale Antwort zusammenfuehren.\n\n{}", summary(&p));
 +        board.projects.insert(id, p);
@@ -6235,7 +6246,7 @@ index 0000000..cd71d13
 +            touch(p, &agent)?;
 +            let msg = s(args, "text");
 +            if msg.is_empty() { return Err("text fehlt (die neue Nutzer-Nachricht)".into()); }
-+            if agent == p.lead { let _ = auto_join_group(p, &agent, 0); }
++            if agent == p.lead { auto_join_group(p, &agent, 0); }
 +            let w = open_wave(p, &agent, &msg);
 +            let ids = add_tasks(p, &args["tasks"], w);
 +            let n = p.tasks.iter().filter(|t| t.kind == "assess" && t.wave == w).count();
@@ -6437,19 +6448,6 @@ index 0000000..cd71d13
 +    Ok(Some(out))
 +}
 +
-+/// Lead: Worker, die 60 s nach dem Eintragen noch keinen Aufruf gemacht haben -> fertiger Einfuegetext, und der Lead arbeitet selbst mit.
-+fn stall_note(args: &Value) -> String {
-+    let agent = s(args, "agent");
-+    if agent.is_empty() { return String::new(); }
-+    let board = lock_board();
-+    let Some(p) = board.projects.values().filter(|p| p.lead == agent).max_by_key(|p| p.created) else { return String::new() };
-+    let t = now();
-+    let silent: Vec<String> = p.agents.values().filter(|a| a.name != p.lead && a.last_seen == a.joined && t - a.joined >= 60).map(|a| a.name.clone()).collect();
-+    if silent.is_empty() { return String::new(); }
-+    let selfwork = if p.tasks.iter().any(|x| x.status != "done") { format!("\nBis dahin selbst mitarbeiten: cowork_claim (project {}, agent {agent}) und Tasks erledigen.", p.id) } else { String::new() };
-+    format!("\n\nHINWEIS (Bridge): {} hat sich seit ueber 60 s nicht gemeldet. Den Nutzer bitten, im jeweiligen Tab einzufuegen:\nTritt dem Co-Work-Projekt {} bei (cowork_join project {}, role worker, agent <Tab-Name>) und arbeite Aufgaben ab, bis keine mehr da sind.{selfwork}", silent.join(", "), p.id, p.id)
-+}
-+
 +async fn wait(args: &Value) -> Value {
 +    let secs = args["seconds"].as_u64().unwrap_or(40).clamp(1, MAX_WAIT_SECS);
 +    let deadline = tokio::time::Instant::now() + Duration::from_secs(secs); let mut base: Option<usize> = None;
@@ -6457,7 +6455,7 @@ index 0000000..cd71d13
 +        let notified = CHANGED.notified();
 +        match wait_step(args, deadline, &mut base) {
 +            Err(e) => return err(e),
-+            Ok(Some(out)) => { let note = stall_note(args); return text(format!("{out}{note}")); }
++            Ok(Some(out)) => return text(out),
 +            Ok(None) => { let tick = (tokio::time::Instant::now() + Duration::from_secs(3)).min(deadline); let _ = tokio::time::timeout_at(tick, notified).await; }
 +        }
 +    }
@@ -6468,10 +6466,6 @@ index 0000000..cd71d13
 +    if !name.starts_with("cowork_") { return None; }
 +    let mut args = args.clone();
 +    let joining = name == "cowork_start" || name == "cowork_join";
-+    // Lead ohne Namen: an die Session gebundenen Namen (z. B. Main2) nehmen, damit seine Gruppe automatisch beitritt.
-+    if name == "cowork_start" && args.is_object() && s(&args, "agent").is_empty() {
-+        if let Some(a) = session_agent(session) { args["agent"] = Value::String(a); }
-+    }
 +    if !joining && args.is_object() && s(&args, "agent").is_empty() {
 +        if let Some(a) = session_agent(session) { args["agent"] = Value::String(a); }
 +    }
@@ -6988,7 +6982,6 @@ index 0000000..cd71d13
 +    #[serde(default)] workers: BTreeMap<String, RelWork>,
 +    #[serde(default)] publishing: Option<(String, i64)>,
 +    #[serde(default)] published: Option<(String, i64)>,
-+    #[serde(default)] depart: i64,
 +}
 +
 +#[derive(Default, Serialize, Deserialize)]
@@ -7025,8 +7018,7 @@ index 0000000..cd71d13
 +    let t = now();
 +    let mut out = format!("Version {ver}");
 +    if let Some((who, ts)) = &rel.published { out.push_str(&format!(" - VEROEFFENTLICHT von {who} vor {} min", (t - ts) / 60)); }
-+    else if let Some((who, ts)) = &rel.publishing { out.push_str(&format!(" - wird gerade von {who} veroeffentlicht (seit {} min; Nachzuegler: action=ready)", (t - ts) / 60)); }
-+    else if rel.depart > t { out.push_str(&format!(" - Release-Zug faehrt in {} min ab (anhaengen mit action=ready)", (rel.depart - t + 59) / 60)); }
++    else if let Some((who, ts)) = &rel.publishing { out.push_str(&format!(" - wird gerade von {who} veroeffentlicht (seit {} min)", (t - ts) / 60)); }
 +    out.push('\n');
 +    if rel.workers.is_empty() { out.push_str("  (noch niemand eingetragen)\n"); }
 +    for (name, w) in &rel.workers {
@@ -7051,49 +7043,6 @@ index 0000000..cd71d13
 +        }
 +    }
 +    hits
-+}
-+
-+/// Release-Zug: so lange wartet ein Release hoechstens auf Tabs, die noch anhaengen wollen.
-+const REL_WAIT_SECS: i64 = 10 * 60;
-+
-+fn bump(v: &str) -> String {
-+    let mut parts: Vec<String> = v.split('.').map(|x| x.to_string()).collect();
-+    if let Some(last) = parts.last_mut() {
-+        let n: u64 = last.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse().unwrap_or(0);
-+        *last = (n + 1).to_string();
-+    }
-+    parts.join(".")
-+}
-+
-+/// Naechster Release-Zug nach `ver`: kleinste noch offene Version darueber, sonst ver+1.
-+fn next_train(r: &Releases, ver: &str) -> String {
-+    let base = ver_key(ver);
-+    r.versions.iter()
-+        .filter(|(k, v)| v.published.is_none() && ver_key(k) > base)
-+        .map(|(k, _)| k.clone()).min_by_key(|k| ver_key(k))
-+        .unwrap_or_else(|| bump(ver))
-+}
-+
-+/// Baut rel.ps1/pub.ps1 diese Version schon? Dann ist der Zug fuer Nachzuegler zu.
-+fn build_started(ver: &str) -> bool {
-+    if cfg!(test) { return false; }
-+    let v = crate::notion_live::release_status();
-+    v["version"].as_str().map(norm_version).as_deref() == Some(ver)
-+        && matches!(v["state"].as_str(), Some("building" | "built" | "publishing" | "published"))
-+}
-+
-+/// Tabs `names` von `from` in den naechsten Zug verschieben; gibt die Zielversion zurueck.
-+fn carry(r: &mut Releases, from: &str, names: &[String]) -> String {
-+    let to = next_train(r, from);
-+    let moved: Vec<(String, RelWork)> = match r.versions.get_mut(from) {
-+        Some(rel) => names.iter().filter_map(|n| rel.workers.remove(n).map(|w| (n.clone(), w))).collect(),
-+        None => Vec::new(),
-+    };
-+    if !moved.is_empty() {
-+        let dst = r.versions.entry(to.clone()).or_default();
-+        for (n, mut w) in moved { w.ready = false; dst.workers.insert(n, w); }
-+    }
-+    to
 +}
 +
 +fn release_on(r: &mut Releases, args: &Value, me: &str) -> Result<(String, bool), String> {
@@ -7122,72 +7071,12 @@ index 0000000..cd71d13
 +    if me.is_empty() { return Err("agent fehlt: deinen Co-Work-Namen oder einen eindeutigen Tab-Namen angeben.".to_string()); }
 +    if ver.is_empty() { return Err("version fehlt, z. B. version=1.0.96.".to_string()); }
 +    let t = now();
-+    let force = args["force"].as_bool().unwrap_or(false);
-+
-+    // Zug schon abgefahren (veroeffentlicht oder ein anderer Tab baut schon) -> automatisch der naechste Zug.
-+    let mut note = String::new();
-+    if matches!(action.as_str(), "join" | "update" | "ready") {
-+        let closed = r.versions.get(&ver).map(|v| v.published.is_some()
-+            || (build_started(&ver) && v.publishing.as_ref().map(|(w, _)| w.as_str() != me).unwrap_or(false))).unwrap_or(false);
-+        if closed {
-+            let from = ver.clone();
-+            let mine = r.versions.get(&from).map(|v| v.workers.contains_key(me)).unwrap_or(false);
-+            let to = if mine { carry(r, &from, &[me.to_string()]) } else { next_train(r, &from) };
-+            note = format!("Hinweis: {from} ist schon veroeffentlicht bzw. wird gerade gebaut - du faehrst automatisch mit {to}.\n");
-+            ver = to;
-+        }
-+    }
-+
-+    if action == "publish" {
-+        if let Some((who, _)) = r.versions.get(&ver).and_then(|v| v.published.clone()) {
-+            return Err(format!("{ver} ist schon von {who} veroeffentlicht. Naechster Zug: {}.", next_train(r, &ver)));
-+        }
-+        let rel = r.versions.entry(ver.clone()).or_default();
-+        if let Some((who, ts)) = &rel.publishing {
-+            if who.as_str() != me && t - ts < REL_PUBLISH_SECS {
-+                return Err(format!("{who} veroeffentlicht {ver} gerade - nicht parallel bauen. Haenge dich an: action=join + action=ready version={ver}; solange {who} noch nicht baut, nimmt er dich mit, sonst faehrst du automatisch mit dem naechsten Zug."));
-+            }
-+        }
-+        let busy: Vec<String> = rel.workers.iter()
-+            .filter(|(n, w)| n.as_str() != me && !w.ready && t - w.seen <= REL_ACTIVE_SECS)
-+            .map(|(n, _)| n.clone()).collect();
-+        if !busy.is_empty() && !force {
-+            if rel.depart == 0 { rel.depart = t + REL_WAIT_SECS; }
-+            if t < rel.depart {
-+                let mins = (rel.depart - t + 59) / 60;
-+                return Ok((format!("Release-Zug {ver} faehrt in {mins} min ab. Noch nicht fertig: {}. Schick ihnen cowork_message: 'Release {ver} faehrt in {mins} min - mit action=ready anhaengen, sonst naechste Version.' Bis dahin weiterarbeiten oder cowork_wait, dann erneut action=publish (faehrt dann ohne sie). Kein Nutzer-OK noetig.\n{}", busy.join(", "), rel_lines(&ver, rel, me)), true));
-+            }
-+        }
-+        let left = if busy.is_empty() { String::new() } else {
-+            let to = carry(r, &ver, &busy);
-+            format!("\nNicht dabei (fahren mit {to}): {}. Deren halbfertige Dateien duerfen den Build nicht brechen - ist cargo build deswegen rot, per cowork_message abstimmen.", busy.join(", "))
-+        };
-+        let rel = r.versions.entry(ver.clone()).or_default();
-+        rel.publishing = Some((me.to_string(), t));
-+        rel.depart = 0;
-+        if let Some(w) = rel.workers.get_mut(me) { w.seen = t; }
-+        return Ok((format!("Release-Sperre fuer {ver} gehoert dir - veroeffentlichen ohne Nutzer-OK. Ablauf: release-queue.ps1 -Apply, VERSION={ver}, Changelog aller fertigen Tabs, Patch, Commit [skip ci], rel.ps1, pub.ps1, dann action=done version={ver}. Wer action=ready meldet, bevor rel.ps1 baut, faehrt mit.{left}\n{}", rel_lines(&ver, rel, me)), true));
-+    }
-+
-+    if action == "done" {
-+        let rel = r.versions.entry(ver.clone()).or_default();
-+        if let Some((who, ts)) = &rel.publishing {
-+            if who.as_str() != me && t - ts < REL_PUBLISH_SECS { return Err(format!("Die Release-Sperre fuer {ver} gehoert {who}.")); }
-+        }
-+        rel.publishing = None;
-+        rel.published = Some((me.to_string(), t));
-+        rel.depart = 0;
-+        let rest: Vec<String> = rel.workers.iter().filter(|(n, w)| n.as_str() != me && !w.ready).map(|(n, _)| n.clone()).collect();
-+        let tail = if rest.is_empty() { String::new() } else {
-+            let to = carry(r, &ver, &rest);
-+            format!(" Nicht fertige Tabs ({}) sind jetzt im Zug {to}.", rest.join(", "))
-+        };
-+        return Ok((format!("{ver} als veroeffentlicht markiert. Neue Aenderungen fahren mit {}.{tail}", next_train(r, &ver)), true));
-+    }
-+
 +    let rel = r.versions.entry(ver.clone()).or_default();
 +    let out = match action.as_str() {
 +        "join" | "update" => {
++            if let Some((who, _)) = &rel.published {
++                return Err(format!("Version {ver} wurde schon von {who} veroeffentlicht. Fuer neue Aenderungen die naechste Version nehmen (action=status zeigt den Stand)."));
++            }
 +            let feature = s(args, "feature");
 +            let files: Vec<String> = args["files"].as_array()
 +                .map(|a| a.iter().filter_map(|x| x.as_str()).map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect())
@@ -7202,14 +7091,11 @@ index 0000000..cd71d13
 +                w.seen = t;
 +            }
 +            let others = rel.workers.keys().filter(|k| k.as_str() != me).count();
-+            let mut msg = format!("{note}Eingetragen fuer {ver}. {others} weitere(r) Tab(s) an dieser Version.\n{}", rel_lines(&ver, rel, me));
++            let mut msg = format!("Eingetragen fuer {ver}. {others} weitere(r) Tab(s) an dieser Version.\n{}", rel_lines(&ver, rel, me));
 +            if !conflicts.is_empty() {
 +                msg.push_str(&format!("\nACHTUNG Datei-Ueberschneidung: {}. Vorher per cowork_message absprechen oder andere Dateien waehlen.", conflicts.join("; ")));
 +            }
-+            if let Some((who, _)) = &rel.publishing {
-+                if who.as_str() != me { msg.push_str(&format!("\n{who} veroeffentlicht {ver} gerade: melde action=ready, bevor er baut, dann faehrst du mit - sonst automatisch naechste Version.")); }
-+            }
-+            msg.push_str("\nRegeln: nur eigene Dateien aendern, build-src immer kompilierbar halten. Fertig + getestet = action=ready (haengt dich an). Veroeffentlichen darf jeder Tab ohne Nutzer-OK mit action=publish; der Zug wartet hoechstens 10 min auf Tabs, die noch anhaengen.");
++            msg.push_str("\nRegeln: nur die eigenen Dateien aendern; VERSION, Patch und Release nur nach action=publish; fertig melden mit action=ready.");
 +            msg
 +        }
 +        "ready" => {
@@ -7218,18 +7104,37 @@ index 0000000..cd71d13
 +            w.seen = t;
 +            let res = s(args, "result");
 +            if !res.is_empty() { w.result = res; }
-+            let feat = w.feature.clone();
-+            let mut m = format!("{note}Fertig gemeldet fuer {ver} - du bist angehaengt.\n{}", rel_lines(&ver, rel, me));
-+            if let Some((who, _)) = &rel.publishing {
-+                if who.as_str() != me { m.push_str(&format!("\n{who} baut {ver}: schick ihm cowork_message 'Fertig, bitte mitnehmen: {feat}'.")); }
-+            } else {
-+                m.push_str(&format!("\nNiemand veroeffentlicht {ver} gerade - du darfst selbst action=publish (ohne Nutzer-OK)."));
-+            }
-+            m
++            format!("Als fertig gemeldet fuer {ver}.\n{}", rel_lines(&ver, rel, me))
 +        }
 +        "leave" => {
 +            rel.workers.remove(me);
 +            format!("Aus {ver} ausgetragen.")
++        }
++        "publish" => {
++            if let Some((who, _)) = &rel.published { return Err(format!("{ver} ist schon von {who} veroeffentlicht. Naechste Version nehmen.")); }
++            if let Some((who, ts)) = &rel.publishing {
++                if who.as_str() != me && t - ts < REL_PUBLISH_SECS {
++                    return Err(format!("{who} veroeffentlicht {ver} gerade. Nicht parallel bauen; spaeter action=status pruefen."));
++                }
++            }
++            let force = args["force"].as_bool().unwrap_or(false);
++            let busy: Vec<String> = rel.workers.iter()
++                .filter(|(n, w)| n.as_str() != me && !w.ready && t - w.seen <= REL_ACTIVE_SECS)
++                .map(|(n, w)| format!("{n} ({})", w.feature)).collect();
++            if !busy.is_empty() && !force {
++                return Err(format!("Noch nicht veroeffentlichen: an {ver} arbeiten noch {}. Sie melden sich mit action=ready fertig; per cowork_message nachfragen. force=true nur auf ausdruecklichen Nutzerwunsch.", busy.join(", ")));
++            }
++            rel.publishing = Some((me.to_string(), t));
++            if let Some(w) = rel.workers.get_mut(me) { w.seen = t; }
++            format!("Release-Sperre fuer {ver} gehoert jetzt dir. Jetzt VERSION setzen, Patch erzeugen, bauen und veroeffentlichen; danach action=done version={ver}. Andere Tabs werden geblockt.\n{}", rel_lines(&ver, rel, me))
++        }
++        "done" => {
++            if let Some((who, ts)) = &rel.publishing {
++                if who.as_str() != me && t - ts < REL_PUBLISH_SECS { return Err(format!("Die Release-Sperre fuer {ver} gehoert {who}.")); }
++            }
++            rel.publishing = None;
++            rel.published = Some((me.to_string(), t));
++            format!("{ver} als veroeffentlicht markiert. Neue Aenderungen gehen in die naechste Version.")
 +        }
 +        "abort" => {
 +            if rel.publishing.as_ref().map(|(w, _)| w.as_str() == me).unwrap_or(false) { rel.publishing = None; }
@@ -7274,7 +7179,7 @@ index 0000000..cd71d13
 +fn release_schema() -> Value {
 +    json!({
 +        "name": "cowork_release",
-+        "description": "AdiCode Co-Work: Release-Koordination zwischen ALLEN Notion-AI-Tabs. Wer Code fuer eine neue Version aendert, traegt sich ZUERST ein: action=join version=1.0.96 feature=<welche Funktion> files=[Dateien]. Dann sieht jeder Tab, wer an derselben Version arbeitet und welche Dateien er aendert; Ueberschneidungen werden gemeldet. Fertig + getestet: action=ready result=<kurz> = an den naechsten Release anhaengen. Release-Zug: JEDER Tab darf ohne Nutzer-OK veroeffentlichen (action=publish). Arbeiten noch andere Tabs an der Version, startet publish einen 10-min-Countdown - sie haengen sich mit action=ready an oder fahren automatisch mit der naechsten Version; danach erneut publish. Es baut immer nur ein Tab (Sperre, verfaellt nach 30 min); wer waehrenddessen ready meldet, faehrt mit, solange rel.ps1 noch nicht baut. Veroeffentlichte/gerade gebaute Versionen leiten join/ready automatisch auf die naechste Version um - so laeuft immer der neueste Stand. Nach dem Release action=done. action=status/list zeigt den Stand, leave traegt aus, abort gibt die Release-Sperre frei.",
++        "description": "AdiCode Co-Work: Release-Koordination zwischen ALLEN Notion-AI-Tabs. Wer Code fuer eine neue Version aendert, traegt sich ZUERST ein: action=join version=1.0.96 feature=<welche Funktion> files=[Dateien]. Dann sieht jeder Tab, wer an derselben Version arbeitet und welche Dateien er aendert; Ueberschneidungen werden gemeldet. Fertig: action=ready result=<kurz>. Veroeffentlichen NUR ueber action=publish: blockiert, solange andere Tabs noch an der Version arbeiten oder ein anderer Tab gerade veroeffentlicht. Nach dem Release action=done. action=status/list zeigt den Stand, leave traegt aus, abort gibt die Release-Sperre frei.",
 +        "inputSchema": {"type": "object", "properties": {
 +            "action": {"type": "string", "enum": ["join", "update", "ready", "leave", "publish", "done", "abort", "status", "list"], "default": "status"},
 +            "version": {"type": "string", "description": "Zielversion, z. B. 1.0.96 (leer = deine aktuelle bzw. neueste)"},
@@ -7282,7 +7187,7 @@ index 0000000..cd71d13
 +            "feature": {"type": "string", "description": "Welche Funktion du fuer diese Version baust"},
 +            "files": {"type": "array", "items": {"type": "string"}, "description": "Dateien, die du aenderst"},
 +            "result": {"type": "string", "description": "Kurzes Ergebnis bei action=ready"},
-+            "force": {"type": "boolean", "description": "Sofort abfahren ohne die 10-min-Wartezeit (nur wenn die noch arbeitenden Tabs per cowork_message zugestimmt haben); sie fahren dann mit der naechsten Version"}
++            "force": {"type": "boolean", "description": "Nur auf ausdruecklichen Nutzerwunsch: trotz laufender Arbeit anderer veroeffentlichen"}
 +        }}
 +    })
 +}
@@ -7298,50 +7203,14 @@ index 0000000..cd71d13
 +        let (out, _) = release_on(&mut r, &json!({"action": "join", "version": "1.0.96", "feature": "Shop", "files": ["src/a.rs", "src/b.rs"]}), "coder-2").unwrap();
 +        assert!(out.contains("coder-1"));
 +        assert!(out.contains("Ueberschneidung"));
-+        // coder-1 arbeitet noch: publish startet nur den Countdown, keine Sperre
-+        let (out, _) = release_on(&mut r, &json!({"action": "publish", "version": "1.0.96"}), "coder-2").unwrap();
-+        assert!(out.contains("faehrt in"));
-+        assert!(r.versions["1.0.96"].publishing.is_none());
-+        // coder-1 haengt sich an -> sofort los
++        assert!(release_on(&mut r, &json!({"action": "publish", "version": "1.0.96"}), "coder-2").is_err());
 +        release_on(&mut r, &json!({"action": "ready", "version": "1.0.96", "result": "ok"}), "coder-1").unwrap();
-+        let (out, _) = release_on(&mut r, &json!({"action": "publish", "version": "1.0.96"}), "coder-2").unwrap();
-+        assert!(out.contains("gehoert dir"));
++        release_on(&mut r, &json!({"action": "publish", "version": "1.0.96"}), "coder-2").unwrap();
 +        assert!(release_on(&mut r, &json!({"action": "publish", "version": "1.0.96"}), "coder-1").is_err());
 +        release_on(&mut r, &json!({"action": "done", "version": "1.0.96"}), "coder-2").unwrap();
-+        // Nachzuegler wird automatisch auf die naechste Version umgeleitet
-+        let (out, _) = release_on(&mut r, &json!({"action": "join", "version": "1.0.96", "feature": "x"}), "coder-3").unwrap();
-+        assert!(out.contains("1.0.97"));
-+        assert!(r.versions["1.0.97"].workers.contains_key("coder-3"));
++        assert!(release_on(&mut r, &json!({"action": "join", "version": "1.0.96", "feature": "x"}), "coder-3").is_err());
 +        assert!(ver_key("1.0.100") > ver_key("1.0.96"));
 +    }
-+
-+    #[test]
-+    fn four_tabs_one_train_and_late_tab_moves_on() {
-+        let mut r = Releases::default();
-+        for n in ["a", "b", "c", "d"] {
-+            release_on(&mut r, &json!({"action": "join", "version": "1.0.200", "feature": n, "files": [format!("src/{n}.rs")]}), n).unwrap();
-+        }
-+        for n in ["a", "b", "c"] { release_on(&mut r, &json!({"action": "ready", "version": "1.0.200"}), n).unwrap(); }
-+        let (out, _) = release_on(&mut r, &json!({"action": "publish", "version": "1.0.200"}), "a").unwrap();
-+        assert!(out.contains("faehrt in"));
-+        // Wartezeit abgelaufen: d faehrt mit dem naechsten Zug
-+        r.versions.get_mut("1.0.200").unwrap().depart = now() - 1;
-+        let (out, _) = release_on(&mut r, &json!({"action": "publish", "version": "1.0.200"}), "a").unwrap();
-+        assert!(out.contains("gehoert dir"));
-+        assert!(out.contains("1.0.201"));
-+        assert!(r.versions["1.0.201"].workers.contains_key("d"));
-+        assert!(!r.versions["1.0.200"].workers.contains_key("d"));
-+        // waehrend a baut: ein neuer Tab haengt sich noch an
-+        release_on(&mut r, &json!({"action": "join", "version": "1.0.200", "feature": "e"}), "e").unwrap();
-+        let (out, _) = release_on(&mut r, &json!({"action": "ready", "version": "1.0.200"}), "e").unwrap();
-+        assert!(out.contains("mitnehmen"));
-+        release_on(&mut r, &json!({"action": "done", "version": "1.0.200"}), "a").unwrap();
-+        // d darf 1.0.201 selbst veroeffentlichen
-+        release_on(&mut r, &json!({"action": "ready", "version": "1.0.201"}), "d").unwrap();
-+        let (out, _) = release_on(&mut r, &json!({"action": "publish"}), "d").unwrap();
-+        assert!(out.contains("1.0.201"));
-+    }
-+
 +}
 diff --git a/agent/src/notion_devtools.rs b/agent/src/notion_devtools.rs
 new file mode 100644
@@ -7840,7 +7709,7 @@ index 0000000..5e2fa42
 +}
 diff --git a/agent/src/notion_live.rs b/agent/src/notion_live.rs
 new file mode 100644
-index 0000000..4c0faa9
+index 0000000..307aeb4
 --- /dev/null
 +++ b/agent/src/notion_live.rs
 @@ -0,0 +1,682 @@
@@ -8172,7 +8041,7 @@ index 0000000..4c0faa9
 +        .map(|e| format!("{}\u{2192}dich: {}", e.agent, e.text)).collect();
 +    if others.is_empty() && msgs.is_empty() { return None; }
 +    let mut s = format!(
-+        "[Live-Bridge] Du bist {agent}. Offene Chats: {}. Alle Chats sind immer verbunden, auch ohne Co-Work: abstimmen mit cowork_message (agent: {agent}, to: <Name>, text: ...), freie Tabs werden dabei geweckt. Dateien, die ein anderer Chat gerade schreibt, sind automatisch gesperrt. Releases: jeder Chat darf ohne Nutzer-OK veroeffentlichen - erst cowork_release action=join/ready (anhaengen), dann action=publish (wartet max. 10 min auf Tabs, die noch anhaengen), danach work\\rel.ps1 + pub.ps1 und action=done.",
++        "[Live-Bridge] Du bist {agent}. Offene Chats: {}. Alle Chats sind immer verbunden, auch ohne Co-Work: abstimmen mit cowork_message (agent: {agent}, to: <Name>, text: ...), freie Tabs werden dabei geweckt. Dateien, die ein anderer Chat gerade schreibt, sind automatisch gesperrt. Releases nur ueber work\\rel.ps1 + pub.ps1 (pruefen, wer gerade baut und ob die Version schon raus ist).",
 +        if others.is_empty() { "keine".to_string() } else { others.join(", ") });
 +    for m in msgs.iter().rev().take(3).rev() { s.push_str(&format!("\n[Live] {m}")); }
 +    Some(s)
@@ -8529,10 +8398,10 @@ index 0000000..4c0faa9
 \ No newline at end of file
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..8f30e76
+index 0000000..ed1c26e
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1406 @@
+@@ -0,0 +1,1423 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -8665,6 +8534,7 @@ index 0000000..8f30e76
 +}
 +
 +fn settings() -> NotionSettings { lock(&SHARED.settings).clone() }
++pub(crate) fn web_token() -> String { lock(&SHARED.settings).web_token.clone() }
 +/// URL fuer die automatische Einrichtung: der Token steckt im Pfad (/k/<token>/mcp). So klappt die
 +/// Verbindung auch, wenn Notion kein Bearer-Feld anzeigt oder das Feld anders heisst (andere PCs/Konten).
 +pub(crate) fn cowork_connection() -> (String, String) { let s = settings(); (if s.domain.is_empty() || s.token.is_empty() { String::new() } else { format!("https://{}/k/{}/mcp", s.domain, s.token) }, s.token) }
@@ -8753,6 +8623,7 @@ index 0000000..8f30e76
 +    ];
 +    for schema in crate::notion_cowork::tools().into_iter()
 +        .chain(crate::notion_roblox_plus::tools())
++        .chain(crate::notion_web_agents::tools())
 +        .chain(crate::notion_safety::tools())
 +        .chain(crate::notion_project_memory::tools())
 +        .chain(crate::notion_blender::tools())
@@ -8816,7 +8687,9 @@ index 0000000..8f30e76
 +        "cowork_projects": compact_cowork(crate::notion_cowork::status()),
 +        "tool_profile": crate::notion_devtools::current_profile(),
 +        "hidden_tools": HIDDEN.lock().map(|v| v.len()).unwrap_or(0),
++        "web_extension_connected": crate::notion_web_agents::extension_connected(),
 +        "release": crate::notion_live::release_status(),
++        "direct_agent": crate::notion_web_agents::direct_session_info(),
 +        "safe_shell": safe_shell_enabled(),
 +    })).unwrap_or_default()
 +}
@@ -8877,6 +8750,9 @@ index 0000000..8f30e76
 +    if let Some(out) = crate::notion_safety::call(&name, &args) {
 +        return out;
 +    }
++    if let Some(out) = crate::notion_web_agents::call(&name, &args).await {
++        return out;
++    }
 +    if let Some(out) = crate::notion_roblox_plus::call(state, &name, &args).await {
 +        return out;
 +    }
@@ -8926,6 +8802,9 @@ index 0000000..8f30e76
 +    let is_studio = name.starts_with("roblox_") && !route.internal.contains("__");
 +    let mut snapshot = None;
 +    if is_studio && crate::notion_roblox_plus::is_guarded(&route.internal) {
++        if let Err(e) = crate::notion_web_agents::notion_write_allowed() {
++            return json!({"isError": true, "content": [{"type": "text", "text": e}]});
++        }
 +        snapshot = crate::notion_roblox_plus::before_native_write(state, &route.internal, &args).await;
 +    }
 +    let mut args = args;
@@ -9391,6 +9270,8 @@ index 0000000..8f30e76
 +    set_listener("online", "");
 +    tracing::info!("[notion] MCP-Endpunkt bereit: http://{addr}/mcp");
 +    let app = Router::new()
++        .route("/extension/ws", axum::routing::get(crate::notion_web_agents::ws_handler))
++        .route("/direct-agent/:op", axum::routing::post(crate::notion_web_agents::direct_handler))
 +        .fallback(mcp_endpoint)
 +        .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024))
 +        .with_state(state);
@@ -9705,6 +9586,10 @@ index 0000000..8f30e76
 +        "port": s.port,
 +        "ngrok_enabled": s.ngrok_enabled,
 +        "ngrok_path": s.ngrok_path,
++        "web_token": s.web_token,
++        "web_ws_url": format!("ws://127.0.0.1:{}/extension/ws", s.port),
++        "web_connected": crate::notion_web_agents::extension_connected(),
++        "direct_agent": crate::notion_web_agents::direct_session_info(),
 +        "safe_shell": s.safe_shell,
 +        "throttle_ms": s.throttle_ms,
 +        "soft_timeout_s": s.soft_timeout_s,
@@ -9758,6 +9643,7 @@ index 0000000..8f30e76
 +            "set_ngrok_path" => { s.ngrok_path = req.value.as_str().unwrap_or("").trim().trim_matches('"').to_string(); save_settings(&s)?; SHARED.restart.notify_one(); Ok("ngrok-Pfad gespeichert.") }
 +            "toggle_ngrok" => { s.ngrok_enabled = req.value.as_bool().unwrap_or(!s.ngrok_enabled); save_settings(&s)?; SHARED.restart.notify_one(); Ok("Tunnel-Einstellung gespeichert.") }
 +            "restart_ngrok" => { SHARED.restart.notify_one(); Ok("Tunnel wird neu gestartet.") }
++            "regenerate_web_token" => { s.web_token = random_token(); save_settings(&s)?; Ok("Neuer Erweiterungs-Token erstellt. Trage ihn in den Optionen der Browser-Erweiterung ein.") }
 +            "set_throttle" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(30_000); s.throttle_ms = v; save_settings(&s)?; Ok(if v == 0 { "Anfrage-Drossel aus." } else { "Anfrage-Drossel gespeichert." }) }
 +            "set_soft_timeout" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(50); s.soft_timeout_s = v; save_settings(&s)?; Ok(if v == 0 { "Hintergrund-Jobs aus (Antwort erst nach max. 55 s)." } else { "Hintergrund-Jobs gespeichert." }) }            "toggle_safe_shell" => { s.safe_shell = req.value.as_bool().unwrap_or(!s.safe_shell); save_settings(&s)?; Ok(if s.safe_shell { "Sicherheitsmodus an: Shell nur mit erlaubten Einzelbefehlen." } else { "Sicherheitsmodus aus." }) }
 +            "refresh_tools" => Ok("Tools werden aktualisiert."),
@@ -9941,10 +9827,10 @@ index 0000000..8f30e76
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..a72d81d
+index 0000000..60aa359
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1049 @@
+@@ -0,0 +1,1042 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -10197,7 +10083,6 @@ index 0000000..a72d81d
 +    let(name,exe)=browser().ok_or("Erst unter Co-Work einen Browser ausw\u{e4}hlen.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;
 +    let port=cdp_port(tab_index(t.id));
 +    if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],port)),Duration::from_millis(300)).is_ok(){return Ok(name);}
-+    if !t.email.is_empty(){let tabs=load();if let Some(o)=tabs.iter().find(|o|o.id!=t.id&&o.email.eq_ignore_ascii_case(&t.email)){if running_ids(std::slice::from_ref(o)).contains(&o.id){windows::set_hidden(std::slice::from_ref(o),false);return Err(format!("Das Konto {} ist schon in {} offen - dieses Fenster wurde nach vorn geholt. Ein Konto laeuft nur in einem Fenster, sonst teilen sich zwei Fenster den Speicher und Notion wird fehlerhaft.",t.email,o.label));}}}
 +    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion","--disable-popup-blocking"]).arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;Ok(name)
 +}
 +fn find(id:Option<u32>)->Result<Tab,String>{let id=id.ok_or("Tab-Nummer fehlt.")?;load().into_iter().find(|t|t.id==id).ok_or(format!("Tab {id} gibt es nicht."))}
@@ -10261,13 +10146,7 @@ index 0000000..a72d81d
 +        tl(&format!("LIVE-WAKE {agent}: Tab 10 min nicht frei, Nachricht kommt beim naechsten Tool-Aufruf"));
 +    });
 +    true
-+}
-+/// Co-Work nur ueber die Bridge (CDP, keine Browser-Erweiterung): Keeper und Nudger laufen, sobald ein Main ein Projekt startet oder promptet - nicht erst nach dem Start-Knopf.
-+pub(crate) fn ensure_cowork_bridge(){if cfg!(test)||tokio::runtime::Handle::try_current().is_err(){return;}let tabs=load();if tabs.is_empty(){return;}if !KEEPER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(keep_alive(tabs.clone()));}if !NUDGER_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(nudger(tabs));}}
-+/// Worker-Tabs, deren Fenster gerade nicht laeuft (kein CDP-Port): die Bridge kann sie nicht wecken.
-+pub(crate) fn offline_workers(names:&[String])->Vec<String>{if cfg!(test){return Vec::new();}load().iter().enumerate().filter(|(_,t)|names.contains(&agent_of(t))).filter(|(i,_)|std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],cdp_port(*i))),Duration::from_millis(200)).is_err()).map(|(_,t)|agent_of(t)).collect()}
-+/// Main-Tab des Leads, dessen Fenster nicht laeuft (z. B. Main angelegt, aber Lead-Chat sitzt in einem Worker-Tab) -> (Label, E-Mail).
-+pub(crate) fn main_offline(lead:&str)->Option<(String,String)>{if cfg!(test){return None;}let tabs=load();let (i,t)=tabs.iter().enumerate().find(|(_,t)|is_main(t)&&agent_of(t)==lead)?;if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],cdp_port(i))),Duration::from_millis(200)).is_ok(){return None;}Some((t.label.clone(),t.email.clone()))}fn is_main(t:&Tab)->bool{t.role.starts_with("Main")}
++}fn is_main(t:&Tab)->bool{t.role.starts_with("Main")}
 +pub(crate) fn agent_of(t:&Tab)->String{let r=t.role.replace(' ',"");if is_main(t){r}else{format!("AdiCode-{r}")}}
 +/// Co-Work: kanonische Agent-Namen der Worker-Tabs in der Gruppe des Main-Agents `lead`.
 +pub(crate) fn group_workers(lead:&str)->Vec<String>{if cfg!(test){return Vec::new();}let tabs=load();let g=groups_of(&tabs);let Some(m)=tabs.iter().find(|t|is_main(t)&&agent_of(t)==lead).map(|t|t.id) else {return Vec::new()};tabs.iter().filter(|t|!is_main(t)&&!skipped(t.id)&&g.get(&t.id)==Some(&m)).map(agent_of).collect()}
@@ -10802,7 +10681,7 @@ index 0000000..a72d81d
 +    let j=crate::notion_cowork::joined_agents();let missing:Vec<String>=wanted.iter().filter(|a|!ready(&j,a)).cloned().collect();windows::set_hidden(&tabs,false);stage(6);set_status(format!("Verbindungstest fehlgeschlagen. Nicht beigetreten: {}. Fenster wurden zur Kontrolle gezeigt.{note}",missing.join(", ")));
 +}
 +fn add_tab()->Result<String,String>{let mut tabs=load();if tabs.len()>=MAX_TABS as usize{return Err("Maximal 8 Tabs.".into());}let id=(1..=MAX_TABS).find(|id|!tabs.iter().any(|t|t.id==*id)).ok_or("Maximal 8 Tabs.")?;std::fs::create_dir_all(dir(id)).map_err(|e|e.to_string())?;tabs.push(Tab{id,label:format!("Tab {}",tabs.len()+1),autostart:true,..Default::default()});save(&tabs)?;Ok(format!("Tab {} angelegt.",tabs.len()))}
-+fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 8 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}{let mut seen:Vec<String>=Vec::new();for o in &out{let e=o.email.trim().to_ascii_lowercase();if e.is_empty(){continue;}if seen.contains(&e){return Err(format!("Das Konto {} ist in mehreren Tabs eingetragen. Pro Konto nur ein Tab, sonst wird Notion fehlerhaft.",o.email));}seen.push(e);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
++fn save_tabs(v:&Value)->Result<String,String>{let incoming:Vec<Tab>=serde_json::from_value(v.clone()).map_err(|e|format!("Ungültige Daten: {e}"))?;if incoming.len()>MAX_TABS as usize{return Err("Maximal 8 Tabs.".into());}let known=load();let mut out=Vec::new();for t in &incoming{if !known.iter().any(|k|k.id==t.id){return Err(format!("Tab {} gibt es nicht mehr.",t.id));}if !out.iter().any(|o:&Tab|o.id==t.id){out.push(sanitize(t)?);}}for k in known{if !out.iter().any(|o|o.id==k.id){out.push(k);}}normalize(&mut out);save(&out)?;Ok(format!("{} Tabs gespeichert.",out.len()))}
 +fn start_all(_: &Value)->Result<String,String>{let tabs=load();if tabs.len()<2||tabs.iter().any(|t|t.email.is_empty()){return Err("Start erst möglich, wenn mindestens 2 Tabs (Main + Worker) mit E-Mail eingetragen sind.".into());}let running=running_ids(&tabs);{let s=STAGE.load(Ordering::SeqCst);if (1..=2).contains(&s){return Err("Co-Work startet bereits \u{2013} bitte kurz warten.".into());}if (3..=5).contains(&s)&&!running.is_empty(){return Ok("Co-Work l\u{e4}uft bereits. Schreibe einfach deine Aufgabe in den Chat.".into());}}for t in tabs.iter().filter(|t|!running.contains(&t.id)&&!skipped(t.id)){launch(t,&start_url(t))?;}tl("START_ALL");STAGE.store(1,Ordering::SeqCst);let baseline=crate::notion_cowork::project_count();tokio::spawn(kickoff(tabs,baseline));Ok("Co-Work startet. Schreibe deine Aufgabe im AdiCode-Chat (oder im Main-Fenster); die Tabs treten danach automatisch ihrem Main bei.".into())}
 +fn delete(id:Option<u32>)->Result<String,String>{let t=find(id)?;if running_ids(std::slice::from_ref(&t)).contains(&t.id){return Err("Tab läuft noch. Erst stoppen.".into());}if dir(t.id).is_dir(){std::fs::remove_dir_all(dir(t.id)).map_err(|e|e.to_string())?;}let tabs:Vec<Tab>=load().into_iter().filter(|x|x.id!=t.id).collect();save(&tabs)?;lock(&ACCOUNT).remove(&t.id);Ok(format!("Tab {} entfernt; Rollen wurden nachgerückt.",t.id))}
 +fn open_tab(t:&Tab)->Result<String,String>{launch(t,&start_url(t)).map(|b|format!("Tab {} geöffnet ({b}).",t.id))}
@@ -11168,10 +11047,10 @@ index 0000000..d694a1d
 \ No newline at end of file
 diff --git a/agent/src/notion_roblox_plus.rs b/agent/src/notion_roblox_plus.rs
 new file mode 100644
-index 0000000..726ff1d
+index 0000000..be8820a
 --- /dev/null
 +++ b/agent/src/notion_roblox_plus.rs
-@@ -0,0 +1,989 @@
+@@ -0,0 +1,992 @@
 +//! AdiCode 1.0.8: Roblox-Funktionen aus Secretscript (Notion Bridge) portiert.
 +//!
 +//! * `roblox_studio` - 23 High-Level-Aktionen (bauen, lesen, patchen, loeschen ...)
@@ -11204,6 +11083,7 @@ index 0000000..726ff1d
 +- roblox_studio(action, arguments): sichere High-Level-Aktionen (project_info, get_game_tree, read_instance, read_script, search_scripts, create_part/model/ui/vfx/script/instance_tree, modify_instance, clone_instance, patch_script, set_script_source, delete_*, get_errors). Jede Aenderung legt automatisch einen Snapshot an; rueckgaengig mit action=restore_snapshot.\n\
 +- roblox_execute_luau laedt die BW-Helfer automatisch, sobald der Code BW.* nutzt (BW.model, BW.ui, BW.particles, BW.patch, BW.weldAll, BW.leaderstats, BW.logs ...). Optional snapshot_paths.\n\
 +- roblox_workflow(category) liefert Playbooks; roblox_project_memory merkt sich wichtige Scripts/GUIs/Systeme pro Place.\n\
++- web_agents/web_sites/web_chat steuern freigegebene KI-Chat-Tabs (ChatGPT, Claude, Gemini, DeepSeek ...) ueber die AdiCode-Browser-Erweiterung.\n\
 +- safe_read_file/safe_write_file: Dateien im Shared-Ordner mit SHA-256-Schutz (zuerst lesen, dann mit expected_sha256 schreiben).";
 +
 +static GUARDED: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)(create|edit|modify|delete|remove|insert|upload|generate|set_|update|clone|multi_edit|execute_luau|start_stop_play|user_keyboard_input|user_mouse_input)").unwrap());
@@ -12101,6 +11981,7 @@ index 0000000..726ff1d
 +            let action = args["action"].as_str().unwrap_or("").to_string();
 +            let nested = args.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
 +            let write = !STUDIO_READS.contains(&action.as_str());
++            if write { if let Err(e) = crate::notion_web_agents::notion_write_allowed() { return Some(err_text(e)); } }
 +            let timeout = num(args, "timeout_seconds", 30) as u64;
 +            Some(match run_action(state, &action, &nested, timeout).await {
 +                Ok(v) => {
@@ -12117,6 +11998,7 @@ index 0000000..726ff1d
 +            })
 +        }
 +        "roblox_execute_luau" => {
++            if let Err(e) = crate::notion_web_agents::notion_write_allowed() { return Some(err_text(e)); }
 +            Some(match execute_luau(state, args).await {
 +                Ok(v) => {
 +                    let paths = args["snapshot_paths"].as_array().map(|l| l.iter().filter_map(|p| p.as_str()).collect::<Vec<_>>().join(",")).unwrap_or_default();
@@ -12975,6 +12857,392 @@ index 0000000..4509484
 +        assert_eq!(notes_for(body, "1.0.10"), "Updates\n- a");
 +        assert_eq!(notes_for(body, "1.0.1"), "- b");
 +        assert_eq!(notes_for(body, "1.0.2"), "");
++    }
++}
+diff --git a/agent/src/notion_web_agents.rs b/agent/src/notion_web_agents.rs
+new file mode 100644
+index 0000000..1e46702
+--- /dev/null
++++ b/agent/src/notion_web_agents.rs
+@@ -0,0 +1,380 @@
++//! AdiCode 1.0.8: Multi-KI-Web-Agenten + Direkt-Modus (aus Secretscript portiert).
++//!
++//! Die AdiCode-Browser-Erweiterung verbindet sich per WebSocket mit
++//! `ws://127.0.0.1:<port>/extension/ws` (Token = Erweiterungs-Token). Notion AI steuert
++//! damit nur Tabs, die du in der Erweiterung ausdruecklich freigegeben hast
++//! (ChatGPT, Claude, Gemini, DeepSeek, Qwen, Kimi, GLM, Arena, Notion AI).
++//!
++//! Direkt-Modus: Ein freigegebener KI-Tab steuert Roblox Studio selbst ueber
++//! `/direct-agent/*`; jede Aenderung braucht eine frische Freigabe im Seiten-Panel.
++
++use axum::{
++    extract::{ws::{CloseFrame, Message, WebSocket, WebSocketUpgrade}, Path, State},
++    http::{HeaderMap, StatusCode},
++    response::{IntoResponse, Response},
++    Json,
++};
++use futures::{SinkExt, StreamExt};
++use once_cell::sync::Lazy;
++use serde_json::{json, Value};
++use std::{collections::{HashMap, HashSet}, sync::Mutex, time::{Duration, Instant}};
++
++const SESSION_TTL: Duration = Duration::from_secs(300);
++const MAX_TOOL_CALLS: u32 = 50;
++
++fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> { m.lock().unwrap_or_else(|e| e.into_inner()) }
++
++fn providers() -> Value {
++    json!([
++        {"id":"deepseek","name":"DeepSeek","hosts":["chat.deepseek.com"],"status":"beta","maxMessageChars":60000},
++        {"id":"chatgpt","name":"ChatGPT","hosts":["chatgpt.com","chat.openai.com"],"status":"experimental","maxMessageChars":30000},
++        {"id":"claude","name":"Claude","hosts":["claude.ai"],"status":"experimental","maxMessageChars":40000},
++        {"id":"gemini","name":"Gemini","hosts":["gemini.google.com"],"status":"experimental","maxMessageChars":30000},
++        {"id":"qwen","name":"Qwen","hosts":["chat.qwen.ai"],"status":"experimental","maxMessageChars":30000},
++        {"id":"kimi","name":"Kimi","hosts":["kimi.com","kimi.ai"],"status":"experimental","maxMessageChars":30000},
++        {"id":"glm","name":"GLM (Z.ai)","hosts":["chat.z.ai"],"status":"experimental","maxMessageChars":30000},
++        {"id":"arena","name":"Arena","hosts":["lmarena.ai","arena.ai"],"status":"experimental","maxMessageChars":20000,"notes":"Nur Direkt-Modus; Battle/Side-by-side wird nicht unterstuetzt."},
++        {"id":"notion","name":"Notion AI","hosts":["notion.so","app.notion.com"],"status":"experimental","enabledByDefault":false,"maxMessageChars":12000,"notes":"Standardmaessig aus; in den Erweiterungs-Optionen aktivieren."}
++    ])
++}
++
++const PROVIDER_IDS: &[&str] = &["deepseek", "chatgpt", "claude", "gemini", "qwen", "kimi", "glm", "arena", "notion"];
++
++fn random_hex(n: usize) -> String {
++    let mut b = vec![0u8; n];
++    let _ = getrandom::getrandom(&mut b);
++    b.iter().map(|x| format!("{x:02x}")).collect()
++}
++
++fn token_eq(a: &str, b: &str) -> bool {
++    if b.is_empty() { return false; }
++    use sha2::Digest;
++    let x = sha2::Sha256::digest(a.as_bytes());
++    let y = sha2::Sha256::digest(b.as_bytes());
++    x.iter().zip(y.iter()).fold(0u8, |acc, (p, q)| acc | (p ^ q)) == 0
++}
++
++// ---------------------------------------------------------------- Broker
++
++struct Conn { id: String, tx: tokio::sync::mpsc::UnboundedSender<String> }
++
++static CONN: Lazy<Mutex<Option<Conn>>> = Lazy::new(|| Mutex::new(None));
++static PENDING: Lazy<Mutex<HashMap<String, tokio::sync::oneshot::Sender<Value>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
++
++pub fn extension_connected() -> bool { lock(&CONN).is_some() }
++
++fn detach(id: &str) {
++    let mut c = lock(&CONN);
++    if c.as_ref().map(|x| x.id == id).unwrap_or(false) {
++        *c = None;
++        drop(c);
++        let pending: Vec<_> = lock(&PENDING).drain().collect();
++        for (_, tx) in pending { let _ = tx.send(json!({"error": "Browser-Erweiterung wurde getrennt."})); }
++    }
++}
++
++pub(crate) async fn ws_handler(ws: WebSocketUpgrade, headers: HeaderMap) -> Response {
++    let origin = headers.get("origin").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
++    if !origin.is_empty() && !origin.starts_with("chrome-extension://") {
++        return StatusCode::FORBIDDEN.into_response();
++    }
++    ws.on_upgrade(handle_socket)
++}
++
++async fn handle_socket(mut socket: WebSocket) {
++    let hello = tokio::time::timeout(Duration::from_secs(10), socket.recv()).await;
++    let ok = match hello {
++        Ok(Some(Ok(Message::Text(t)))) => serde_json::from_str::<Value>(&t).ok()
++            .map(|v| v["type"] == "hello" && token_eq(v["token"].as_str().unwrap_or(""), &crate::notion_mcp::web_token()))
++            .unwrap_or(false),
++        _ => false,
++    };
++    if !ok {
++        let _ = socket.send(Message::Close(Some(CloseFrame { code: 4401, reason: "unauthorized".into() }))).await;
++        return;
++    }
++    let (mut sink, mut stream) = socket.split();
++    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<String>();
++    let id = random_hex(12);
++    *lock(&CONN) = Some(Conn { id: id.clone(), tx });
++    tracing::info!("[notion] Browser-Erweiterung verbunden");
++    let _ = sink.send(Message::Text(json!({"type": "ready", "providers": PROVIDER_IDS}).to_string())).await;
++    loop {
++        tokio::select! {
++            out = rx.recv() => match out {
++                Some(text) => if sink.send(Message::Text(text)).await.is_err() { break; },
++                None => break,
++            },
++            inc = stream.next() => match inc {
++                Some(Ok(Message::Text(t))) => {
++                    if let Ok(v) = serde_json::from_str::<Value>(&t) {
++                        if v["type"] == "response" {
++                            if let Some(rid) = v["id"].as_str() {
++                                if let Some(waiter) = lock(&PENDING).remove(rid) {
++                                    let result = if v["result"].is_object() { v["result"].clone() } else { json!({"error": "Ungueltige Antwort der Erweiterung."}) };
++                                    let _ = waiter.send(result);
++                                }
++                            }
++                        }
++                    }
++                }
++                Some(Ok(Message::Close(_))) | None | Some(Err(_)) => break,
++                _ => {}
++            },
++        }
++    }
++    detach(&id);
++    tracing::info!("[notion] Browser-Erweiterung getrennt");
++}
++
++async fn broker_call(tool: &str, args: &Value) -> Result<Value, String> {
++    if tool == "web_sites" {
++        return Ok(json!({"providers": providers(), "extensionConnected": extension_connected()}));
++    }
++    let action = args["action"].as_str().unwrap_or("");
++    let allowed: &[&str] = if tool == "web_chat" { &["inspect", "send", "wait", "read"] } else { &["list", "inspect", "run", "send", "wait", "read"] };
++    if !allowed.contains(&action) { return Err(format!("Aktion '{action}' wird von {tool} nicht unterstuetzt")); }
++    if tool == "web_agents" && action != "list" {
++        let id = args["agent_id"].as_str().unwrap_or("");
++        if !id.starts_with("agent-") { return Err("agent_id fehlt - zuerst web_agents(action='list') aufrufen".into()); }
++    }
++    if action == "send" || action == "run" {
++        let key = if action == "run" { "task" } else { "text" };
++        let text = args[key].as_str().unwrap_or("");
++        if text.trim().is_empty() { return Err(format!("{action} braucht einen nicht-leeren Wert fuer '{key}'")); }
++        if text.chars().count() > 60_000 { return Err("Text ueberschreitet 60.000 Zeichen".into()); }
++    }
++    let wait = match args.get("wait_seconds") {
++        None | Some(Value::Null) => if action == "run" { 150 } else { 30 },
++        Some(v) => v.as_i64().filter(|n| (1..=150).contains(n)).ok_or("wait_seconds muss zwischen 1 und 150 liegen")?,
++    } as u64;
++    let mut payload = args.clone();
++    payload["wait_seconds"] = json!(wait);
++    let request_id = random_hex(12);
++    let (tx, rx) = tokio::sync::oneshot::channel();
++    {
++        let conn = lock(&CONN);
++        let Some(c) = conn.as_ref() else {
++            return Err("Browser-Erweiterung ist nicht verbunden. Oeffne ihre Optionen, trage den Erweiterungs-Token aus AdiCode ein und oeffne eine unterstuetzte Chat-Seite.".into());
++        };
++        lock(&PENDING).insert(request_id.clone(), tx);
++        let msg = json!({"type": "request", "id": request_id, "tool": tool, "arguments": payload}).to_string();
++        if c.tx.send(msg).is_err() { lock(&PENDING).remove(&request_id); return Err("Browser-Erweiterung ist nicht erreichbar.".into()); }
++    }
++    let limit = if action == "wait" || action == "run" { wait + 5 } else { 60 };
++    let result = tokio::time::timeout(Duration::from_secs(limit.clamp(3, 180)), rx).await;
++    lock(&PENDING).remove(&request_id);
++    match result {
++        Err(_) => Err("Zeitueberschreitung beim Warten auf den Chat-Tab. Ist der Browser offen und die Erweiterung verbunden?".into()),
++        Ok(Err(_)) => Err("Browser-Erweiterung wurde getrennt.".into()),
++        Ok(Ok(v)) => match v.get("error").and_then(|e| e.as_str()) { Some(e) => Err(e.to_string()), None => Ok(v) },
++    }
++}
++
++pub fn tools() -> Vec<Value> {
++    vec![
++        json!({"name": "web_sites", "description": "[Web-Agenten] Listet die unterstuetzten KI-Chat-Seiten und ob die AdiCode-Browser-Erweiterung verbunden ist.",
++            "inputSchema": {"type": "object", "properties": {}}, "annotations": {"readOnlyHint": true}}),
++        json!({"name": "web_agents", "description": "[Web-Agenten] Steuert nur KI-Chat-Tabs, die du in der Browser-Erweiterung mit 'Agent aktivieren' freigegeben hast (ChatGPT, Claude, Gemini, DeepSeek, Qwen, Kimi, GLM, Arena, Notion AI). list liefert agent_ids; run schickt eine Aufgabe und wartet auf die Antwort; send/wait/read/inspect fuer einzelne Schritte. Ideal als zusaetzliche Team-Mitglieder in Co-Work.",
++            "inputSchema": {"type": "object", "required": ["action"], "properties": {
++                "action": {"type": "string", "enum": ["list", "inspect", "run", "send", "wait", "read"]},
++                "agent_id": {"type": "string", "description": "Ausser bei list erforderlich; kommt aus list."},
++                "task": {"type": "string", "description": "Fuer run: Aufgabe an die KI dieses Tabs."},
++                "text": {"type": "string", "description": "Fuer send: normale Nachricht."},
++                "wait_seconds": {"type": "integer", "minimum": 1, "maximum": 150}
++            }}}),
++        json!({"name": "web_chat", "description": "[Web-Agenten] Kompatibilitaets-Tool fuer den gerade aktiven, freigegebenen Chat-Tab: inspect, send, wait, read.",
++            "inputSchema": {"type": "object", "required": ["action"], "properties": {
++                "action": {"type": "string", "enum": ["inspect", "send", "wait", "read"]},
++                "text": {"type": "string"}, "wait_seconds": {"type": "integer", "minimum": 1, "maximum": 150}
++            }}}),
++    ]
++}
++
++pub async fn call(name: &str, args: &Value) -> Option<Value> {
++    if !["web_sites", "web_agents", "web_chat"].contains(&name) { return None; }
++    Some(match broker_call(name, args).await {
++        Ok(v) => json!({"content": [{"type": "text", "text": serde_json::to_string_pretty(&v).unwrap_or_default()}]}),
++        Err(e) => json!({"isError": true, "content": [{"type": "text", "text": e}]}),
++    })
++}
++
++// ---------------------------------------------------------------- Direkt-Modus
++
++#[derive(Clone)]
++struct Session { id: String, agent_id: String, provider: String, last: Instant, calls: u32, native: HashSet<String> }
++
++static SESSION: Lazy<Mutex<Option<Session>>> = Lazy::new(|| Mutex::new(None));
++
++fn expire() {
++    let mut s = lock(&SESSION);
++    if s.as_ref().map(|x| x.last.elapsed() > SESSION_TTL).unwrap_or(false) { *s = None; }
++}
++
++pub fn direct_session_info() -> Value {
++    expire();
++    match lock(&SESSION).as_ref() {
++        Some(s) => json!({"active": true, "provider": s.provider, "agent_id": s.agent_id, "tool_calls": s.calls}),
++        None => json!({"active": false}),
++    }
++}
++
++/// Notion-Schreibzugriffe auf Studio sind gesperrt, solange ein Direkt-Agent laeuft.
++pub fn notion_write_allowed() -> Result<(), String> {
++    expire();
++    if lock(&SESSION).is_some() {
++        return Err("Roblox Studio ist gerade fuer einen Direkt-Agenten im Browser reserviert. Stoppe ihn im Seiten-Panel, bevor Notion Aenderungen macht.".into());
++    }
++    Ok(())
++}
++
++enum DErr { Bad(String), Forbidden(String), Conflict(String) }
++impl From<String> for DErr { fn from(s: String) -> Self { DErr::Conflict(s) } }
++
++fn get_session(session_id: &str, agent_id: &str) -> Result<Session, DErr> {
++    expire();
++    match lock(&SESSION).as_ref() {
++        Some(s) if s.id == session_id && s.agent_id == agent_id => Ok(s.clone()),
++        _ => Err(DErr::Conflict("Direkt-Agent-Sitzung ist abgelaufen oder gehoert zu einer anderen Seite".into())),
++    }
++}
++
++async fn direct_start(state: &crate::AppState, body: &Value) -> Result<Value, DErr> {
++    let agent_id = body["agent_id"].as_str().unwrap_or("");
++    let provider = body["provider"].as_str().unwrap_or("");
++    let task = body["task"].as_str().unwrap_or("").trim().to_string();
++    if agent_id.len() < 7 || !agent_id.starts_with("agent-") || !agent_id[6..].chars().all(|c| c.is_ascii_digit()) { return Err(DErr::Bad("Ein registrierter Seiten-Agent ist erforderlich".into())); }
++    if !PROVIDER_IDS.contains(&provider) { return Err(DErr::Bad("Nicht unterstuetzter KI-Anbieter".into())); }
++    if task.is_empty() || task.chars().count() > 8000 { return Err(DErr::Bad("Die Aufgabe muss 1-8.000 Zeichen haben".into())); }
++    expire();
++    if lock(&SESSION).is_some() { return Err(DErr::Conflict("Ein anderer Direkt-Agent nutzt Roblox Studio bereits. Stoppe ihn zuerst.".into())); }
++    let tools: Vec<Value> = { state.roblox_mcp.lock().await.tools.clone() };
++    if tools.is_empty() { return Err(DErr::Conflict("Roblox Studio ist nicht bereit oder meldet keine MCP-Tools.".into())); }
++    let session_id = format!("direct_{}", random_hex(18));
++    let native: HashSet<String> = tools.iter().filter_map(|t| t["name"].as_str().map(String::from)).collect();
++    {
++        let mut s = lock(&SESSION);
++        if s.is_some() { return Err(DErr::Conflict("Ein anderer Direkt-Agent nutzt Roblox Studio bereits.".into())); }
++        *s = Some(Session { id: session_id.clone(), agent_id: agent_id.into(), provider: provider.into(), last: Instant::now(), calls: 0, native });
++    }
++    let native_tools: Vec<Value> = tools.iter().map(|t| {
++        let name = t["name"].as_str().unwrap_or("");
++        let desc: String = t["description"].as_str().unwrap_or("").chars().take(240).collect();
++        json!({"name": name, "description": desc, "inputSchema": t.get("inputSchema").cloned().unwrap_or_else(|| json!({})),
++               "risk": if crate::notion_roblox_plus::is_guarded(name) { "write" } else { "read" }})
++    }).collect();
++    tracing::info!("[notion] Direkt-Agent gestartet ({provider}, {agent_id})");
++    Ok(json!({
++        "session_id": session_id, "provider": provider, "task": task,
++        "studio_actions": crate::notion_roblox_plus::STUDIO_ACTIONS,
++        "native_tools": native_tools, "max_tool_calls": MAX_TOOL_CALLS,
++        "approval_policy": "Jede Aenderung braucht eine frische, ausdrueckliche Freigabe im Seiten-Panel."
++    }))
++}
++
++async fn direct_tool(state: &crate::AppState, body: &Value) -> Result<Value, DErr> {
++    let session_id = body["session_id"].as_str().unwrap_or("");
++    let agent_id = body["agent_id"].as_str().unwrap_or("");
++    let tool = body["tool"].as_str().unwrap_or("");
++    let args = body.get("arguments").cloned().unwrap_or_else(|| json!({}));
++    let approved = body["approved"].as_bool().unwrap_or(false);
++    if !args.is_object() { return Err(DErr::Bad("Tool-Argumente muessen ein Objekt sein".into())); }
++    let session = get_session(session_id, agent_id)?;
++    if session.calls >= MAX_TOOL_CALLS { return Err(DErr::Conflict("Diese Direkt-Agent-Sitzung hat das Limit von 50 Aufrufen erreicht.".into())); }
++    let risk = match tool {
++        "roblox_studio" => {
++            let action = args["action"].as_str().unwrap_or("");
++            if !crate::notion_roblox_plus::STUDIO_ACTIONS.contains(&action) { return Err(DErr::Bad("Nicht unterstuetzte roblox_studio-Aktion".into())); }
++            if !args.get("arguments").map(|v| v.is_object() || v.is_null()).unwrap_or(true) { return Err(DErr::Bad("roblox_studio arguments muss ein Objekt sein".into())); }
++            if crate::notion_roblox_plus::STUDIO_READS.contains(&action) { "read" } else { "write" }
++        }
++        "roblox_execute_luau" => "destructive",
++        "roblox_native_call" => {
++            let name = args["tool_name"].as_str().unwrap_or("");
++            if !session.native.contains(name) { return Err(DErr::Bad("Natives Tool ist nicht verfuegbar".into())); }
++            if crate::notion_roblox_plus::is_guarded(name) { "write" } else { "read" }
++        }
++        _ => return Err(DErr::Bad("Der Direkt-Agent darf nur Roblox-Studio-Tools nutzen".into())),
++    };
++    if risk != "read" && !approved { return Err(DErr::Forbidden("Diese Aenderung braucht eine frische Freigabe im Browser-Panel.".into())); }
++    {
++        let mut s = lock(&SESSION);
++        match s.as_mut() {
++            Some(x) if x.id == session_id => { x.calls += 1; x.last = Instant::now(); }
++            _ => return Err(DErr::Conflict("Direkt-Agent-Sitzung ist abgelaufen".into())),
++        }
++    }
++    match tool {
++        "roblox_studio" => {
++            let action = args["action"].as_str().unwrap_or("").to_string();
++            let nested = args.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
++            let result = crate::notion_roblox_plus::run_action(state, &action, &nested, 60).await?;
++            if risk != "read" { crate::notion_roblox_plus::record_event(state, "change", &action, &nested, "Direkt-Agent", result["snapshotId"].as_str()).await; }
++            Ok(json!({"tool": tool, "action": action, "risk": risk, "result": result}))
++        }
++        "roblox_execute_luau" => {
++            let code = args["code"].as_str().unwrap_or("");
++            if code.len() > 30_000 { return Err(DErr::Bad("Luau-Code darf hoechstens 30.000 Zeichen haben".into())); }
++            let mut a = args.clone();
++            a["timeout_seconds"] = json!(60);
++            let result = crate::notion_roblox_plus::execute_luau(state, &a).await?;
++            crate::notion_roblox_plus::record_event(state, "change", "execute_luau", &json!({}), "Direkt-Agent hat Luau ausgefuehrt", result["snapshotId"].as_str()).await;
++            Ok(json!({"tool": tool, "risk": risk, "result": result}))
++        }
++        _ => {
++            let name = args["tool_name"].as_str().unwrap_or("").to_string();
++            let native_args = args.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
++            let snapshot = if risk != "read" { crate::notion_roblox_plus::before_native_write(state, &name, &native_args).await } else { None };
++            let out = tokio::time::timeout(Duration::from_secs(65), crate::roblox_tool(state, &name, native_args.clone())).await
++                .map_err(|_| DErr::Conflict("Roblox Studio hat nicht rechtzeitig geantwortet".into()))?
++                .map_err(|e| DErr::Conflict(format!("{e:#}")))?;
++            if risk != "read" { crate::notion_roblox_plus::record_event(state, "change", &name, &native_args, "Direkt-Agent", snapshot.as_deref()).await; }
++            let text: String = out.text.chars().take(20_000).collect();
++            Ok(json!({"tool": tool, "native_tool": name, "risk": risk, "result": {"text": text, "images": out.images.len(), "snapshotId": snapshot}}))
++        }
++    }
++}
++
++pub(crate) async fn direct_handler(State(state): State<crate::AppState>, Path(op): Path<String>, headers: HeaderMap, body: axum::body::Bytes) -> Response {
++    let got = headers.get("authorization").and_then(|v| v.to_str().ok())
++        .filter(|a| a.len() > 7 && a[..7].eq_ignore_ascii_case("bearer ")).map(|a| a[7..].trim().to_string()).unwrap_or_default();
++    if !token_eq(&got, &crate::notion_mcp::web_token()) {
++        return (StatusCode::UNAUTHORIZED, Json(json!({"error": "Erweiterungs-Token ungueltig"}))).into_response();
++    }
++    let body: Value = serde_json::from_slice(&body).unwrap_or_else(|_| json!({}));
++    let result: Result<Value, DErr> = match op.as_str() {
++        "start" => direct_start(&state, &body).await,
++        "tool" => direct_tool(&state, &body).await,
++        "heartbeat" => get_session(body["session_id"].as_str().unwrap_or(""), body["agent_id"].as_str().unwrap_or("")).map(|_| {
++            if let Some(s) = lock(&SESSION).as_mut() { s.last = Instant::now(); }
++            json!({"ok": true})
++        }),
++        "stop" => {
++            let mut s = lock(&SESSION);
++            if s.as_ref().map(|x| Some(x.id.as_str()) == body["session_id"].as_str() && Some(x.agent_id.as_str()) == body["agent_id"].as_str()).unwrap_or(false) { *s = None; }
++            Ok(json!({"ok": true}))
++        }
++        _ => return StatusCode::NOT_FOUND.into_response(),
++    };
++    match result {
++        Ok(v) => Json(v).into_response(),
++        Err(DErr::Bad(e)) => (StatusCode::BAD_REQUEST, Json(json!({"error": e}))).into_response(),
++        Err(DErr::Forbidden(e)) => (StatusCode::FORBIDDEN, Json(json!({"error": e}))).into_response(),
++        Err(DErr::Conflict(e)) => (StatusCode::CONFLICT, Json(json!({"error": e}))).into_response(),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn tokens_and_writer_lock() {
++        assert!(token_eq("abc", "abc"));
++        assert!(!token_eq("abc", "abd"));
++        assert!(!token_eq("", ""));
++        assert!(notion_write_allowed().is_ok());
++        *lock(&SESSION) = Some(Session { id: "s".into(), agent_id: "agent-1".into(), provider: "claude".into(), last: Instant::now(), calls: 0, native: HashSet::new() });
++        assert!(notion_write_allowed().is_err());
++        *lock(&SESSION) = None;
 +    }
 +}
 diff --git a/agent/src/roblox_helpers.luau b/agent/src/roblox_helpers.luau

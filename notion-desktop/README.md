@@ -9,6 +9,8 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.110
+- **Co-Work-Dashboard**: Status- und Usage-Abfragen laufen mit zufaelligem Abstand (+-20 %), werden bei Fehlern schrittweise langsamer (bis 60 s) und pausieren, solange das AdiCode-Fenster minimiert oder verdeckt ist.
 ## Neu in 1.0.109
 - **Co-Work nur noch ueber die Bridge**: Die Browser-Erweiterung ist komplett entfernt (Code, Tools, Einstellungen). Alle Tabs laufen direkt ueber AdiCode auf diesem PC.
 - **Main-Fenster-Check**: cowork_start warnt, wenn das als Main eingetragene Fenster gar nicht gestartet ist oder Fenster offline sind, und liefert einen Einfuegetext mit Projekt-ID. Der eigentliche Lead-Chat wird nicht mehr faelschlich als Worker eingetragen.
