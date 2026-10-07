@@ -1,9 +1,9 @@
 diff --git a/agent/src/blender_helpers.py b/agent/src/blender_helpers.py
 new file mode 100644
-index 0000000..3be1a33
+index 0000000..54dc30e
 --- /dev/null
 +++ b/agent/src/blender_helpers.py
-@@ -0,0 +1,767 @@
+@@ -0,0 +1,1008 @@
 +"""AdiCode Blender helpers (adicode_blender).
 +
 +Loaded inside a running Blender (MCP execute_blender_code) or headless
@@ -22,7 +22,7 @@ index 0000000..3be1a33
 +import os
 +from mathutils import Vector
 +
-+VERSION = "1.1"
++VERSION = "1.2"
 +OUT_DIR = os.path.join(os.environ.get("USERPROFILE", os.path.expanduser("~")), "PlazCode-Shared", "blender-out")
 +
 +
@@ -771,6 +771,247 @@ index 0000000..3be1a33
 +    p = path or bpy.data.filepath or _out("scene.blend")
 +    op(bpy.ops.wm.save_as_mainfile, filepath=p)
 +    return p
++
++
++# ------------------------------------------------------ reference matching
++def _np():
++    import numpy as np
++    return np
++
++
++def _load_px(path):
++    """Image file -> float array (H, W, 4), row 0 = top."""
++    np = _np()
++    img = bpy.data.images.load(path, check_existing=False)
++    try:
++        w, h = img.size
++        a = np.empty(w * h * 4, dtype=np.float32)
++        img.pixels.foreach_get(a)
++        return a.reshape(h, w, 4)[::-1].copy()
++    finally:
++        bpy.data.images.remove(img)
++
++
++def _save_px(arr, path):
++    np = _np()
++    h, w = arr.shape[:2]
++    img = bpy.data.images.new("ADC_tmp_out", w, h, alpha=True)
++    try:
++        img.pixels.foreach_set(np.ascontiguousarray(arr[::-1], dtype=np.float32).ravel())
++        img.filepath_raw = path
++        img.file_format = "PNG"
++        img.save()
++    finally:
++        bpy.data.images.remove(img)
++    return path
++
++
++def _resize(arr, h, w):
++    np = _np()
++    ys = (np.arange(h) * arr.shape[0] / h).astype(int)
++    xs = (np.arange(w) * arr.shape[1] / w).astype(int)
++    return arr[ys][:, xs]
++
++
++def _mask(arr, tol=0.12):
++    """Foreground mask: alpha if the image has transparency, else distance to the border colour."""
++    np = _np()
++    al = arr[..., 3]
++    if al.min() < 0.5 and al.max() > 0.5:
++        return al > 0.5
++    border = np.concatenate([arr[0, :, :3], arr[-1, :, :3], arr[:, 0, :3], arr[:, -1, :3]])
++    bg = np.median(border, axis=0)
++    return np.linalg.norm(arr[..., :3] - bg, axis=-1) > tol
++
++
++def _bbox(m):
++    np = _np()
++    ys, xs = np.nonzero(m)
++    if len(xs) == 0:
++        return None
++    return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
++
++
++def _hex(c):
++    c = [max(0, min(255, int(round(v * 255)))) for v in c[:3]]
++    return "#%02x%02x%02x" % tuple(c)
++
++
++def _palette(px, k=5, seed=0):
++    np = _np()
++    if len(px) == 0:
++        return []
++    rng = np.random.default_rng(seed)
++    px = px[rng.choice(len(px), min(len(px), 6000), replace=False)]
++    cent = px[rng.choice(len(px), min(k, len(px)), replace=False)]
++    for _ in range(10):
++        lab = np.argmin(((px[:, None] - cent[None]) ** 2).sum(-1), 1)
++        cent = np.array([px[lab == i].mean(0) if (lab == i).any() else cent[i] for i in range(len(cent))])
++    share = np.bincount(lab, minlength=len(cent)) / len(px)
++    order = np.argsort(-share)
++    return [{"hex": _hex(cent[i]), "rgb": [round(float(v), 3) for v in cent[i]], "share": round(float(share[i]), 3)} for i in order]
++
++
++def _profile(m, box, n=10):
++    """Relative width of the silhouette at n heights (top -> bottom), 1.0 = full bbox width."""
++    x0, y0, x1, y1 = box
++    out = []
++    for i in range(n):
++        y = int(y0 + (i + 0.5) * (y1 - y0) / n)
++        row = m[y, x0:x1]
++        out.append(round(float(row.sum()) / max(1, x1 - x0), 2))
++    return out
++
++
++def measure_ref(path, tol=0.12, colors=5):
++    """Measure a reference image: silhouette bbox, aspect, width profile, dominant colours (hex). Use the numbers, don't guess."""
++    np = _np()
++    a = _load_px(path)
++    h, w = a.shape[:2]
++    m = _mask(a, tol)
++    box = _bbox(m)
++    if not box:
++        return {"error": "no foreground found; raise/lower tol", "size": [w, h]}
++    x0, y0, x1, y1 = box
++    bw, bh = x1 - x0, y1 - y0
++    return {
++        "size": [w, h],
++        "bbox_px": list(box),
++        "bbox_rel": [round(x0 / w, 3), round(y0 / h, 3), round(x1 / w, 3), round(y1 / h, 3)],
++        "aspect_w_over_h": round(bw / max(1, bh), 3),
++        "fill": round(float(m[y0:y1, x0:x1].mean()), 3),
++        "width_profile_top_to_bottom": _profile(m, box),
++        "colors": _palette(a[..., :3][m], colors),
++        "hint": "Height = 1 unit -> width = aspect_w_over_h. Pick real-world height in metres and scale all parts from these ratios.",
++    }
++
++
++def ref_camera(path, view="persp", lens=50.0, objs=None, angle=(35.0, 20.0), name="ADC_RefCam", opacity=0.5):
++    """Camera matching the reference: render aspect = image aspect, image as camera background. view=persp|front|back|side|top."""
++    sc = bpy.context.scene
++    path = os.path.abspath(path)
++    img = bpy.data.images.load(path, check_existing=True)
++    w, h = img.size
++    sc.render.resolution_x, sc.render.resolution_y = (1600, max(1, round(1600 * h / w))) if w >= h else (max(1, round(1600 * w / h)), 1600)
++    ang = {"persp": angle, "front": (0.0, 0.0), "back": (180.0, 0.0), "side": (90.0, 0.0), "top": (0.0, 89.9)}[view]
++    has_mesh = any(o.type == "MESH" for o in sc.objects)
++    cam = camera(objs if has_mesh or objs else None, lens=lens, angle=ang, name=name) if (has_mesh or objs) else None
++    if cam is None:
++        cam = bpy.data.objects.get(name) or link(bpy.data.objects.new(name, bpy.data.cameras.new(name)))
++        cam.data.lens = lens
++        cam.location = Vector((0, -6, 1)) if view != "top" else Vector((0, 0, 8))
++        look_at(cam, Vector((0, 0, 1 if view != "top" else 0)))
++        sc.camera = cam
++    cam.data.type = "PERSP" if view == "persp" else "ORTHO"
++    if view != "persp":
++        center, size = _bounds([o for o in sc.objects if o.type == "MESH"]) if has_mesh else (Vector((0, 0, 1)), 2.0)
++        cam.data.ortho_scale = size * 1.25
++    cam.data.show_background_images = True
++    bg = cam.data.background_images[0] if len(cam.data.background_images) else cam.data.background_images.new()
++    bg.image, bg.alpha, bg.display_depth, bg.frame_method = img, opacity, "FRONT", "FIT"
++    sc["adc_ref"], sc["adc_ref_view"] = path, view
++    return {"camera": cam.name, "view": view, "type": cam.data.type, "res": [sc.render.resolution_x, sc.render.resolution_y], "ref": path,
++            "next": "Block out at true scale, then A.compare() and fix what it reports. Repeat until shape_iou >= 0.85."}
++
++
++def compare(path=None, name="compare", scale=50, tol=0.12, engine=None):
++    """Render from the active camera and compare with the reference: side-by-side + overlay PNG, IoU scores, concrete fix hints."""
++    np = _np()
++    sc = bpy.context.scene
++    path = path or sc.get("adc_ref")
++    if not path:
++        return {"error": "no reference: call A.ref_camera(path) first or pass path"}
++    r = sc.render
++    old = (r.film_transparent, r.engine)
++    r.film_transparent = True
++    if engine:
++        render_settings(engine, res=(r.resolution_x, r.resolution_y), quality="draft", transparent=True)
++    try:
++        rp = render(f"{name}_render.png", scale=scale)
++    finally:
++        r.film_transparent = old[0]
++        try:
++            r.engine = old[1]
++        except Exception:
++            pass
++    ren = _load_px(rp)
++    h, w = ren.shape[:2]
++    ref = _resize(_load_px(path), h, w)
++    mr, mo = _mask(ref, tol), ren[..., 3] > 0.5
++    union = (mr | mo).sum()
++    iou = float((mr & mo).sum()) / max(1, union)
++    br, bo = _bbox(mr), _bbox(mo)
++    res = {"render": rp, "iou": round(iou, 3)}
++    hints = []
++    if not bo:
++        res["error"] = "render is empty (camera sees nothing)"
++        hints.append("Camera sees no mesh: A.ref_camera(path) again or move objects in front of it.")
++    elif br:
++        def crop(m, b):
++            return _resize(m[b[1]:b[3], b[0]:b[2]], 128, 128)
++        cr, co = crop(mr, br), crop(mo, bo)
++        res["shape_iou"] = round(float((cr & co).sum()) / max(1, (cr | co).sum()), 3)
++        ar = (br[2] - br[0]) / max(1, br[3] - br[1])
++        ao = (bo[2] - bo[0]) / max(1, bo[3] - bo[1])
++        res["aspect_ref"], res["aspect_model"] = round(ar, 3), round(ao, 3)
++        if ao > ar * 1.06:
++            hints.append(f"Model too wide/short by {round((ao / ar - 1) * 100)}%: scale width down or height up.")
++        elif ao < ar / 1.06:
++            hints.append(f"Model too narrow/tall by {round((ar / ao - 1) * 100)}%: scale width up or height down.")
++        pr, po = _profile(mr, br), _profile(mo, bo)
++        res["width_profile_ref"], res["width_profile_model"] = pr, po
++        for i, (a, b) in enumerate(zip(pr, po)):
++            if abs(a - b) > 0.12:
++                band = ["top", "upper", "middle", "lower", "bottom"][min(4, i // 2)]
++                hints.append(f"{band} band ({i * 10}-{i * 10 + 10}% from top): width ref {a} vs model {b} -> {'widen' if a > b else 'narrow'} that part.")
++        cx_r, cx_o = (br[0] + br[2]) / 2 / w, (bo[0] + bo[2]) / 2 / w
++        cy_r, cy_o = (br[1] + br[3]) / 2 / h, (bo[1] + bo[3]) / 2 / h
++        size_r, size_o = (br[3] - br[1]) / h, (bo[3] - bo[1]) / h
++        res["framing"] = {"dx": round(cx_o - cx_r, 3), "dy": round(cy_o - cy_r, 3), "size_ratio": round(size_o / max(1e-6, size_r), 3)}
++        if res["shape_iou"] > iou + 0.15:
++            hints.append("Shape fits better than placement: adjust camera/framing (dx, dy, size_ratio), not the model.")
++        pal_r = _palette(ref[..., :3][mr], 4)
++        pal_o = _palette(ren[..., :3][mo], 4)
++        res["colors_ref"], res["colors_model"] = [c["hex"] for c in pal_r], [c["hex"] for c in pal_o]
++        if pal_r and pal_o:
++            d = float(np.linalg.norm(np.array(pal_r[0]["rgb"]) - np.array(pal_o[0]["rgb"])))
++            res["main_color_diff"] = round(d, 3)
++            if d > 0.15:
++                hints.append(f"Main colour off: ref {pal_r[0]['hex']} vs model {pal_o[0]['hex']} (check material base colour and lighting).")
++    ov = np.zeros((h, w, 4), dtype=np.float32)
++    ov[..., 3] = 1.0
++    ov[mr & ~mo] = (0.9, 0.15, 0.15, 1)
++    ov[mo & ~mr] = (0.15, 0.5, 1.0, 1)
++    ov[mr & mo] = (0.95, 0.85, 0.2, 1)
++    flat = ren.copy()
++    a = flat[..., 3:4]
++    flat[..., :3] = flat[..., :3] * a + 0.12 * (1 - a)
++    flat[..., 3] = 1.0
++    refo = ref.copy()
++    refo[..., 3] = 1.0
++    gap = np.ones((h, 8, 4), dtype=np.float32)
++    comp = np.concatenate([refo, gap, flat, gap, ov], axis=1)
++    res["composite"] = _save_px(comp, _out(f"{name}.png"))
++    res["legend"] = "composite = reference | model render | overlay (yellow = match, red = missing in model, blue = extra in model)"
++    s = res.get("shape_iou", iou)
++    res["verdict"] = "good" if s >= 0.85 else ("close" if s >= 0.7 else "off")
++    res["hints"] = hints or ["Silhouette matches; refine details/materials, then compare again."]
++    return res
++
++
++def ortho_views(name="views", scale=40):
++    """Render front, side and top orthographic views (for checking proportions against multi-view references)."""
++    sc = bpy.context.scene
++    prev = sc.camera
++    out = {}
++    for v, ang in (("front", (0.0, 0.0)), ("side", (90.0, 0.0)), ("top", (0.0, 89.9))):
++        cam = camera(lens=50.0, angle=ang, name="ADC_Ortho")
++        cam.data.type = "ORTHO"
++        center, size = _bounds([o for o in sc.objects if o.type == "MESH" and not o.hide_render])
++        cam.data.ortho_scale = size * 1.1
++        out[v] = render(f"{name}_{v}.png", scale=scale)
++    sc.camera = prev or sc.camera
++    return out
 diff --git a/agent/src/cowork_ui.js b/agent/src/cowork_ui.js
 new file mode 100644
 index 0000000..5543ac6
@@ -4118,10 +4359,52 @@ index 77cc050..d9efcd0 100644
      }
      let mut mcp = state.roblox_mcp.lock().await;
 diff --git a/agent/src/mcp_addons.rs b/agent/src/mcp_addons.rs
-index 1a68aee..c8658a5 100644
+index 1a68aee..9922e3c 100644
 --- a/agent/src/mcp_addons.rs
 +++ b/agent/src/mcp_addons.rs
-@@ -47,6 +47,34 @@ pub struct ServerSummary {
+@@ -11,6 +11,41 @@ use std::os::windows::process::CommandExt;
+ #[cfg(windows)]
+ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+ 
++/// Serena oeffnet sonst bei jedem Start ein Dashboard im Browser bzw. ein Log-Fenster.
++/// Der Server laeuft unsichtbar weiter; Dashboard bei Bedarf: http://localhost:24282/dashboard/
++pub(crate) fn serena_quiet() {
++    let Some(home) = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME")) else { return };
++    let path = std::path::Path::new(&home).join(".serena").join("serena_config.yml");
++    let Ok(text) = std::fs::read_to_string(&path) else { return };
++    let out = quiet_yaml(&text);
++    if out != text { let _ = std::fs::write(&path, out); }
++}
++
++fn quiet_yaml(text: &str) -> String {
++    let mut out: Vec<String> = text.lines().map(|l| {
++        let k = l.split(':').next().unwrap_or("").trim_end();
++        if !l.starts_with(' ') && (k == "web_dashboard_open_on_launch" || k == "gui_log_window") { format!("{k}: false") } else { l.to_string() }
++    }).collect();
++    if !out.iter().any(|l| l.starts_with("web_dashboard_open_on_launch:")) { out.push("web_dashboard_open_on_launch: false".into()); }
++    let mut s = out.join("\n");
++    if text.ends_with('\n') { s.push('\n'); }
++    s
++}
++
++#[cfg(test)]
++mod serena_quiet_tests {
++    #[test]
++    fn quiet() {
++        let y = "gui_log_window: true\nweb_dashboard: true\nweb_dashboard_open_on_launch: true\n# web_dashboard_open_on_launch: true\n";
++        let q = super::quiet_yaml(y);
++        assert!(q.contains("\nweb_dashboard_open_on_launch: false\n"));
++        assert!(q.starts_with("gui_log_window: false"));
++        assert!(q.contains("web_dashboard: true"));
++        assert!(q.contains("# web_dashboard_open_on_launch: true"));
++        assert_eq!(super::quiet_yaml("a: 1"), "a: 1\nweb_dashboard_open_on_launch: false");
++    }
++}
++
+ #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+ pub struct ServerSpec {
+     pub command: String,
+@@ -47,6 +82,34 @@ pub struct ServerSummary {
  
  pub fn catalog() -> Vec<CatalogEntry> {
      vec![
@@ -4156,7 +4439,7 @@ index 1a68aee..c8658a5 100644
          CatalogEntry {
              id: "blender",
              name: "Blender",
-@@ -54,6 +82,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
+@@ -54,6 +117,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
              command: "uvx",
              args: &["blender-mcp"],
          },
@@ -4170,7 +4453,7 @@ index 1a68aee..c8658a5 100644
          CatalogEntry {
              id: "context7",
              name: "Context7",
-@@ -75,6 +110,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
+@@ -75,6 +145,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
              command: "uvx",
              args: &["mcp-server-git"],
          },
@@ -4184,7 +4467,7 @@ index 1a68aee..c8658a5 100644
          CatalogEntry {
              id: "memory",
              name: "Memory",
-@@ -89,7 +131,41 @@ pub fn catalog() -> Vec<CatalogEntry> {
+@@ -89,7 +166,41 @@ pub fn catalog() -> Vec<CatalogEntry> {
              command: "npx",
              args: &["-y", "@modelcontextprotocol/server-sequential-thinking"],
          },
@@ -4227,7 +4510,7 @@ index 1a68aee..c8658a5 100644
  }
  
  pub fn config_path() -> PathBuf {
-@@ -104,10 +180,22 @@ pub fn config_path() -> PathBuf {
+@@ -104,10 +215,22 @@ pub fn config_path() -> PathBuf {
  
  pub fn read_config() -> McpConfig {
      let path = config_path();
@@ -4251,7 +4534,7 @@ index 1a68aee..c8658a5 100644
      cfg.servers.entry("roblox".to_string()).or_insert_with(|| ServerSpec {
          command: "launch_studio_mcp.py".to_string(),
          args: Vec::new(),
-@@ -137,9 +225,31 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -137,9 +260,31 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
          .ok_or_else(|| anyhow::anyhow!("unknown catalog server '{id}'"))?;
      let mut cfg = read_config();
      if enabled {
@@ -4284,7 +4567,7 @@ index 1a68aee..c8658a5 100644
              env: HashMap::new(),
          });
      } else {
-@@ -148,6 +258,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -148,6 +293,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
      write_config(&cfg)
  }
  
@@ -4309,7 +4592,7 @@ index 1a68aee..c8658a5 100644
  pub fn add_server(id: &str, spec: ServerSpec) -> anyhow::Result<()> {
      let id = id.trim();
      anyhow::ensure!(!id.is_empty(), "server id is required");
-@@ -269,6 +397,9 @@ impl AddonRuntime {
+@@ -269,6 +432,9 @@ impl AddonRuntime {
                      }
                      cmd.env("PATH", std::env::join_paths(paths)?);
                      cmd.current_dir(&app).creation_flags(CREATE_NO_WINDOW);
@@ -4319,7 +4602,15 @@ index 1a68aee..c8658a5 100644
                      return Ok(cmd);
                  }
                  anyhow::bail!("[{}] {} runtime unavailable; first-use setup requires internet access.", self.id, low);
-@@ -411,13 +542,23 @@ impl AddonRuntime {
+@@ -293,6 +459,7 @@ impl AddonRuntime {
+             return Ok(());
+         }
+         self.reset().await;
++        if self.id == "serena" { serena_quiet(); }
+         let command = self.command();
+         #[cfg(windows)]
+         let command = match command {
+@@ -411,13 +578,23 @@ impl AddonRuntime {
      }
  }
  
@@ -4345,7 +4636,7 @@ index 1a68aee..c8658a5 100644
      }
  
      async fn sync_config(&mut self) {
-@@ -425,36 +566,51 @@ impl AddonManager {
+@@ -425,36 +602,51 @@ impl AddonManager {
          let wanted: HashMap<String, ServerSpec> = cfg.servers.into_iter()
              .filter(|(id, _)| id != "roblox")
              .collect();
@@ -4411,7 +4702,7 @@ index 1a68aee..c8658a5 100644
      }
  
      pub async fn list_tools(&mut self) -> (Vec<serde_json::Value>, Vec<ServerSummary>) {
-@@ -463,9 +619,21 @@ impl AddonManager {
+@@ -463,9 +655,21 @@ impl AddonManager {
          let mut summaries = Vec::new();
          let ids: Vec<String> = self.runtimes.keys().cloned().collect();
          for id in ids {
@@ -4435,7 +4726,7 @@ index 1a68aee..c8658a5 100644
                      for mut tool in server_tools {
                          let Some(real) = tool.get("name").and_then(|v| v.as_str()).map(str::to_string) else { continue; };
                          tool["name"] = serde_json::Value::String(format!("{id}__{real}"));
-@@ -475,23 +643,10 @@ impl AddonManager {
+@@ -475,23 +679,10 @@ impl AddonManager {
                          tool["server"] = serde_json::Value::String(id.clone());
                          tools.push(tool);
                      }
@@ -4461,7 +4752,7 @@ index 1a68aee..c8658a5 100644
                  }
              }
          }
-@@ -499,20 +654,45 @@ impl AddonManager {
+@@ -499,20 +690,45 @@ impl AddonManager {
          (tools, summaries)
      }
  
@@ -4518,10 +4809,10 @@ index 1a68aee..c8658a5 100644
  #[cfg(test)]
 diff --git a/agent/src/notion_blender.rs b/agent/src/notion_blender.rs
 new file mode 100644
-index 0000000..df1e5cd
+index 0000000..27bad64
 --- /dev/null
 +++ b/agent/src/notion_blender.rs
-@@ -0,0 +1,313 @@
+@@ -0,0 +1,321 @@
 +//! AdiCode Blender Pro: expert skills, an in-Blender helper library
 +//! (`adicode_blender`, installed into every Blender user modules folder),
 +//! and the `blender_pro` tool (doctor / setup / helpers).
@@ -4558,6 +4849,14 @@ index 0000000..df1e5cd
 +- After every major step: blender_look (viewport/camera image) and/or A.render('check.png', scale=40) and look at it; A.quality() for meshes.
 +- Fix what you see: floating objects, intersections, wrong scale, flat lighting, noisy or blown-out render, uniform plastic look, stretched textures.
 +- Animation: A.contact_sheet() at 5 frames, check poses, arcs, contact with the ground, no popping.
++
++3b. Reference image (rebuild from a picture) - mandatory loop
++- A.measure_ref(path): silhouette aspect, width profile, dominant colours. Use these numbers for proportions and base colours, never eyeball them.
++- A.ref_camera(path, view='persp'|'front'|'side'|'top'): render aspect = image aspect, reference as camera background. Match the camera first (angle, lens) until the blockout overlaps the picture.
++- Build: decompose into 3-8 main parts -> one script for the blockout at true scale -> A.compare() -> fix the hints -> forms -> A.compare() -> materials (colours from measure_ref) -> A.compare().
++- A.compare() returns iou, shape_iou, verdict, hints and a composite PNG (reference | render | overlay: yellow match, red missing, blue extra). Look at the composite (blender_look or open the PNG) every round.
++- At least 3 compare rounds. Not done before shape_iou >= 0.85 (stylised/organic: >= 0.75) and main_color_diff <= 0.15; report the final scores. Organic hero shapes: blender_generate_3d from the reference as base mesh, then compare and refine.
++- Multi-view references: A.ortho_views() and compare front/side/top separately.
 +
 +4. Quality bar ('krass' instead of 'okay')
 +- Bevel every hard edge (A.hard_surface), weighted normals; organic forms use subdivision (A.organic). Silhouette must read from the camera.
@@ -9834,10 +10133,10 @@ index 0000000..26bed3e
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..04d2938
+index 0000000..2fa12b1
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1672 @@
+@@ -0,0 +1,1676 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -10858,11 +11157,15 @@ index 0000000..04d2938
 +    Some(v)
 +}
 +
++/// Nur echte Pfade sperren: mind. 2 Zeichen und ein Buchstabe (nicht "0", "&1", "nul").
++fn plausible_lock(k: &str) -> bool { k.len() >= 2 && k != "nul" && k.chars().any(|c| c.is_ascii_alphabetic()) }
++
 +fn path_hits(target: &str, lock: &str) -> bool { same_file(target, lock) || lock.starts_with(&format!("{target}/")) }
 +
 +/// Core of the bridge: block text if agent would change a file another active tab holds;
 +/// otherwise free files get locked for agent. Returns (block message, board changed).
 +fn guard_on(board: &mut Board, name: &str, args: &Value, agent: &str) -> (Option<String>, bool) {
++    for p in board.projects.values_mut() { p.locks.retain(|k, _| plausible_lock(k)); }
 +    let mut hit: Option<(String, String, u64, String)> = None;
 +    let mut targets: Vec<String> = Vec::new();
 +    let ps_t = if name == "pc_PowerShell" { crate::notion_live::ps_targets(&s(args, "command")) } else { Vec::new() };
@@ -10873,12 +11176,12 @@ index 0000000..04d2938
 +            for (k, l) in &p.locks {
 +                if l.owner == agent || !alive(p, &l.owner) { continue; }
 +                let f = k.rsplit('/').next().unwrap_or(k);
-+                if cmd.contains(k.as_str()) || (f.len() >= 4 && cmd.contains(f)) { hit = Some((p.id.clone(), l.owner.clone(), l.task, k.clone())); break 'ps; }
++                if (k.len() >= 4 && cmd.contains(k.as_str())) || (f.len() >= 4 && cmd.contains(f)) { hit = Some((p.id.clone(), l.owner.clone(), l.task, k.clone())); break 'ps; }
 +            }
 +        }
 +    } else {
 +        let Some(list) = (if ps_t.is_empty() { write_targets(name, args) } else { Some(ps_t.clone()) }) else { return (None, false) };
-+        targets = list.iter().map(|t| norm_path(t).trim_end_matches("/.").trim_end_matches('/').to_string()).filter(|t| !t.is_empty()).collect();
++        targets = list.iter().map(|t| norm_path(t).trim_end_matches("/.").trim_end_matches('/').to_string()).filter(|t| plausible_lock(t)).collect();
 +        'files: for t in &targets {
 +            for p in board.projects.values() {
 +                for (k, l) in &p.locks {
@@ -11512,10 +11815,10 @@ index 0000000..04d2938
 +}
 diff --git a/agent/src/notion_devtools.rs b/agent/src/notion_devtools.rs
 new file mode 100644
-index 0000000..5e66c1b
+index 0000000..72d539c
 --- /dev/null
 +++ b/agent/src/notion_devtools.rs
-@@ -0,0 +1,473 @@
+@@ -0,0 +1,489 @@
 +//! AdiCode: app_verify (build/typecheck/lint/tests im Hintergrund) und
 +//! adicode_profile (Tool-Profile gegen Kontext-Bloat: all, app, roblox, blender).
 +
@@ -11556,13 +11859,25 @@ index 0000000..5e66c1b
 +        "lean" => !LEAN_HIDDEN.iter().any(|p| tool.starts_with(p)),
 +        "app" => !is_roblox && !is_blender,
 +        "roblox" => !is_blender,
-+        "blender" => !is_roblox,
++        "blender" => !is_roblox && !LEAN_HIDDEN.iter().any(|p| *p != "comfyui_" && tool.starts_with(p)) && !tool.starts_with("serena_") && !tool.starts_with("codebase_"),
 +        _ => true,
 +    }
 +}
 +
 +/// Wird in notion_mcp::rebuild benutzt: blendet Tools aus, die zum aktiven Profil nicht passen.
 +pub(crate) fn profile_allows(tool: &str) -> bool { allows(&current_profile(), tool) }
++
++/// Laedt die KI einen Blender-Skill, wechselt AdiCode automatisch aufs schlanke Blender-Profil
++/// (Roblox, blenderwright, Code-Navigation ausgeblendet). Roblox-Skill aus Blender-Profil -> lean.
++/// Gibt einen Hinweistext zurueck, wenn gewechselt wurde.
++pub(crate) fn auto_profile_for_skill(skill: &str) -> Option<String> {
++    let s = skill.trim().to_ascii_lowercase();
++    let cur = current_profile();
++    let target = if s.starts_with("blender") { "blender" } else if s.starts_with("roblox") && cur == "blender" { "lean" } else { return None };
++    if cur == target || cur == "all" { return None; }
++    set_profile(target).ok()?;
++    Some(format!("[AdiCode] Tool-Profil automatisch auf '{target}' gestellt (nur passende Tools, weniger Kontext). Seltene Tools weiter per adicode_find_tools + adicode_call."))
++}
 +
 +fn set_profile(p: &str) -> Result<(), String> {
 +    if !PROFILES.contains(&p) { return Err(format!("Unbekanntes Profil '{p}'. Erlaubt: {}", PROFILES.join(", "))); }
@@ -11912,7 +12227,7 @@ index 0000000..5e66c1b
 +        }),
 +        json!({
 +            "name": "adicode_profile",
-+            "description": "AdiCode: Tool-Profil gegen Kontext-Bloat. lean (Standard) = alles ausser den selten genutzten Add-ons blenderwright, comfyui, robloxstudio, codebase (per adicode_find_tools + adicode_call trotzdem nutzbar), all = alles, app = ohne Roblox/Blender, roblox = ohne Blender, blender = ohne Roblox. Ohne Argument: aktuelles Profil. Notion uebernimmt die neue Tool-Liste beim naechsten Neuladen/Verbinden.",
++            "description": "AdiCode: Tool-Profil gegen Kontext-Bloat. lean (Standard) = alles ausser den selten genutzten Add-ons blenderwright, comfyui, robloxstudio, codebase (per adicode_find_tools + adicode_call trotzdem nutzbar), all = alles, app = ohne Roblox/Blender, roblox = ohne Blender, blender = schlank fuer Blender (blender_*, comfyui, pc/files; ohne Roblox, blenderwright, serena, codebase - wird beim Laden des blender-Skills automatisch gesetzt). Ohne Argument: aktuelles Profil. Notion uebernimmt die neue Tool-Liste beim naechsten Neuladen/Verbinden.",
 +            "inputSchema": {"type": "object", "properties": {
 +                "profile": {"type": "string", "enum": PROFILES}
 +            }}
@@ -11972,6 +12287,10 @@ index 0000000..5e66c1b
 +        assert!(!allows("roblox", "blenderwright_render"));
 +        assert!(!allows("blender", "roblox_studio"));
 +        assert!(allows("blender", "app_verify"));
++        assert!(allows("blender", "blender_execute_blender_code"));
++        assert!(allows("blender", "comfyui_queue_prompt"));
++        assert!(!allows("blender", "blenderwright_render"));
++        assert!(!allows("blender", "serena_find_symbol"));
 +    }
 +
 +    #[test]
@@ -11991,7 +12310,7 @@ index 0000000..5e66c1b
 +}
 diff --git a/agent/src/notion_live.rs b/agent/src/notion_live.rs
 new file mode 100644
-index 0000000..0df3eb1
+index 0000000..5f9be08
 --- /dev/null
 +++ b/agent/src/notion_live.rs
 @@ -0,0 +1,682 @@
@@ -12191,7 +12510,7 @@ index 0000000..0df3eb1
 +
 +fn ps_add(out: &mut Vec<String>, p: &str) {
 +    let p = p.trim().trim_matches(|c: char| c == '(' || c == ')' || c == ',' || c == '{' || c == '}').trim_start_matches("./");
-+    if p.is_empty() || p.starts_with('$') || p.starts_with('&') || p.starts_with('-') || p == "null" { return; }
++    if p.is_empty() || p.starts_with('$') || p.starts_with('&') || p.starts_with('-') || p == "null" || p == "nul" || !p.chars().any(|c| c.is_ascii_alphabetic()) { return; }
 +    let s = p.to_string();
 +    if !out.contains(&s) { out.push(s); }
 +}
@@ -12680,10 +12999,10 @@ index 0000000..0df3eb1
 \ No newline at end of file
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..5a48fbc
+index 0000000..bcead59
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1254 @@
+@@ -0,0 +1,1259 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -13035,7 +13354,12 @@ index 0000000..5a48fbc
 +        return json!({"content": [{"type": "text", "text": status_text(state)}]});
 +    }
 +    if name == "adicode_skill" {
-+        return json!({"content": [{"type": "text", "text": crate::notion_skills::skill_text(&args)}]});
++        let mut body = crate::notion_skills::skill_text(&args);
++        if let Some(note) = crate::notion_devtools::auto_profile_for_skill(args["name"].as_str().unwrap_or("")) {
++            refresh_tools(state, true).await;
++            body = format!("{note}\n\n{body}");
++        }
++        return json!({"content": [{"type": "text", "text": body}]});
 +    }
 +    if name == "adicode_restart_server" {
 +        let server = args["server"].as_str().unwrap_or("").trim().to_ascii_lowercase();

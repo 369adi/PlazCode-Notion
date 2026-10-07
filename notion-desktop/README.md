@@ -9,6 +9,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.99
+- **Co-Work-Sperren repariert**: Es werden nur noch echte Dateipfade gesperrt. Pseudo-Ziele wie "0", "&1" oder "nul" (aus Umleitungen wie 2>&1) blockieren nicht mehr jeden PowerShell-Befehl anderer Chats.
+- **Serena versteckt**: Serena laeuft weiter im Hintergrund (sonst fehlen die serena_*-Tools), oeffnet aber kein Browser-Dashboard und kein Log-Fenster mehr.
+- **Blender nach Referenzbild**: neue Helfer measure_ref, ref_camera, compare (Umriss-Aehnlichkeit + Vergleichsbild), ortho_views; der Blender-Skill arbeitet in Runden bis der Umriss passt.
+- **Blender-Profil automatisch**: Laedt die KI den Blender-Skill, zeigt AdiCode nur noch die passenden Tools (ohne Roblox, blenderwright, Code-Navigation) - weniger Kontext, bessere Ergebnisse.
 ## Neu in 1.0.98
 - Alle offenen Notion-Chats sind immer verbunden, auch ohne Co-Work: cowork_message geht an jeden Chat (to = Name, z. B. Main1), freie Tabs werden mit der Nachricht geweckt
 - Jeder Chat bekommt beim ersten AdiCode-Aufruf eine Uebersicht: welche Chats offen sind, was sie gerade tun und wartende Nachrichten
