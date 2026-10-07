@@ -9,6 +9,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.103
+- **Release-Zug fuer mehrere Tabs**: Neues Tool release_queue. Hat ein Tab fertige, getestete Aenderungen, waehrend ein anderer gerade baut, haengt er sie an dessen naechstes Release an statt parallel zu releasen. Konflikte (gleiche Datei inzwischen geaendert) werden erkannt, ein Release startet erst, wenn alle wartenden Beitraege uebernommen sind.
+- **Robustere Releases**: Kein doppelter Upload mehr durch den automatischen GitHub-Build, halb hochgeladene Dateien werden ersetzt und der Upload bis zu 3x versucht.
 ## Neu in 1.0.102
 - **MCP-Check haengt nicht mehr**: Nach dem Einrichten wechselt AdiCode selbst auf Browse Connections, kein manueller Klick mehr noetig.
 - **Run automatically zuverlaessig**: Der Tab Manage/Verwalten wird erkannt, dann AdiCode -> Notion Agent -> alle Berechtigungen auf Run automatically.

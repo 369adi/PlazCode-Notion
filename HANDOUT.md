@@ -277,3 +277,8 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - MCP_FINISH_JS: Tab-Regex um manage/manage connections/verwalten erweitert (AdiCode -> Notion Agent -> Run automatically).
 - Chat-Benennung: pick_chat_tab() (kleinste freie Nummer ueber alle Konten in tabs.json, Memory-Key chat_tab, Mutex gegen Parallel-Checks), name_chats() + CHAT_RENAME_JS (Rechtsklick bzw. ...-Menue -> Umbenennen) -> Tab N / Tab N Kontext 2 / Tab N Kontext 3; laeuft in check_one_inner nach ensure_chat_model, Status in chat_tab_state. FIND_WELCOME bevorzugt Tab N, CHATS_JS zaehlt Tab-Chats als Willkommen-Chats, insert_prompt akzeptiert Tab N als Krumen.
 - Enthaelt Main2s Logger aus 1.0.101.
+
+## 1.0.103 (Blender-Chat, 07.10.2026)
+- RELEASE-ZUG: work\release-queue.ps1 (Submit/List/Apply/Released/Reject/Withdraw, Mutex, Konflikterkennung per SHA256-Basis, Ablage work\release-queue\) + Tool release_queue (notion_release.rs, duenne Huelle ums Skript, 7 Tests). release-status.ps1 -Check stoppt, solange Beitraege pending sind (bewusst ueberspringen: ADICODE_QUEUE_OK=1). Ablauf Release-Chat: release-queue.ps1 -Apply -Agent <Name> VOR dem Patch, bauen/testen, Changelog-Zeilen uebernehmen. pub.ps1 markiert danach automatisch released.
+- rel.ps1 stoppt ohne [skip ci] im letzten Commit (Ursache doppelter 1.0.101-Upload: GitHub Actions baute parallel). pub.ps1: Assets gleichen Namens vor dem Upload loeschen, bis 3 Versuche.
+- Release-Skripte nur noch mit gestagten Dateien (kein git add -A agent/src), damit fremde WIP nicht mitkommt.
