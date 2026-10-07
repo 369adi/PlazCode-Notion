@@ -140,6 +140,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - **1.0.91**: groups.json (Tab->Main) in profiles; Rollen Main N / Tab N; agent_of(); Worker-Prompt: Projekt 'Projekt Main N' joinen, Kritik per cowork_message an Main; kickoff wartet pro Gruppe; cowork_set_group Action; AdiCode-Chat nutzt eigenes CDP-Target (chat-own.txt), np::target schliesst es aus; UI-Wall mit Gutter-Resize, Zoom, Vollbild.
 - **1.0.92**: Neues Modul notion_blender.rs (SKILL_CORE/MODEL/ANIM, Tool blender_pro doctor/setup/install_helpers/helpers, setup laeuft im Thread, Log %LOCALAPPDATA%\PlazCodeNotion\blender\setup.log) + blender_helpers.py (include_str!, wird nach %APPDATA%\Blender Foundation\Blender\<ver>\scripts\modules\adicode_blender.py geschrieben; headless getestet mit Blender 5.2.2, 27/27). notion_skills: Skills blender, blender-model, blender-anim + INSTRUCTIONS. mcp_addons: Katalog blenderwright (uvx blenderwright, Port 9876). notion_project_memory: project_memory_delete + Store.deleted (Tombstones, sync importiert geloeschte nicht neu). Backups bltest\*.bak191.
 - **1.0.93**: STUCK_LOAD_JS 'layout' nur ohne New-chat-Button/Editor und nur auf Workspace-Root-URL; lay-Zaehler wird erst nach 600 s zurueckgesetzt (vorher Endlos-Reload), max 2 Reopens, user_present-Schutz auch beim Haenger-Reload. desktop.html: mcpGrid nur bei geaendertem HTML neu rendern. Co-Work: ChatBad -> automatisch cowork_goto_chat (Drossel 120 s pro Tab, CW.autoChat).
+- **1.0.96**: notion_profiles: check_one nur 1x pro Tab (CHECK_TABS) + 8-min-Limit; setup_mcp_safe (150 s, 2 Versuche, mcp_cleanup); mcp_finish setzt alle Rechte-Dropdowns in allen Detail-Tabs auf Run automatically (mcp_perm3), auch bei bereits verbunden/gemerkt; CONN_JS. Backup *.bak196.
 - **1.0.88** – notion_live.rs ohne LOCK_SECS (Lock = Task laufend oder Tab generiert); Identität = agent-Arg bzw. agent_of_session; Tabs am Namen erkannt (keine 15 Geister-Chats). Backups *.bak188.
 - **1.0.87** – Neues Modul notion_live.rs (Live-Feed + deutsche Übersetzung describe()/describe_ps(), Datei-Reservierung guard(), Route /api/notion/live); LIVE_AC. Backups *.bak187.
 - **1.0.86** – Helper `__q` mit Alias-Tabelle (`agent-chat-send-button` → `agent-send-message-button`, `agent-chat-stop-button` → `agent-stop-inference-button`); Stopp-Selektoren erweitert; Chat-v2-Style (adicode-chat-v2). Backups *.bak185/.bak186.
@@ -231,3 +232,14 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 1. **Refresh all** (Abschnitt 6): Neuer Knopf in der Co-Work-UI (`desktop.html`), der für jeden offenen Tab nacheinander die bestehende Aktion `cowork_refresh` über `/api/notion/action` aufruft — sequenziell, Fortschritt „n/8“, erst weiter, wenn ein Tab fertig ist. Rein UI + Sequenzsteuerung; Änderungen nur in `desktop.html` (+ ggf. eine kleine Status-Route für den Fortschritt).
 2. Echter E2E-Test von Co-Work 3.0 mit vier Konten (Bewertungen kommen, Arbeit verteilt, Wecken per Knopf, Main fasst zusammen).
 3. Entscheidung Adrian: Settings-Bereinigung (Engram, Execution, Stop mode, Permissions, Reasoning, Automation, Instructions ausblenden; leere Karte entfernen; Appearance + Desktop bleiben).
+
+## 1.0.94 (2026-10-07)
+- Co-Work: automatisches Klicken auf 'Zum Chat ->' entfernt (desktop.html, CW.autoChat); Knopf bleibt manuell.
+- 3 veraltete Rollen-Tests in notion_cowork.rs mit #[ignore] markiert (feste Rollen wurden entfernt). cargo test --release: 103 ok, 0 failed.
+- Patch neu erzeugt, VERSION 1.0.94, Commit 954bbea. rel.ps1 gebaut: work\relbuild\r\PlazCode-Notion.exe (BUILT 1.0.94). Noch NICHT veroeffentlicht (pub.ps1 / push offen).
+
+## 1.0.95 (2026-10-07)
+- Update-Hinweis an ALLE verbundenen Notion-Tabs (auch ohne Co-Work): notion_live.rs set_notice/notice_for/announce_update/startup_notice; notion_mcp.rs haengt den Hinweis einmal pro Session an das naechste Tool-Ergebnis.
+- updater.rs: vor dem Neustart Hinweis setzen + 8 s warten (20 s wenn gerade gearbeitet wird); Marker logs/update-notice.txt -> nach Neustart Hinweis 'Update fertig, Verbindung steht wieder' (10 min gueltig).
+- Test update_notice_once_per_tab; cargo test: 104 ok, 0 failed. Commit 2bfc559, BUILT 1.0.95 (work\relbuild\r\PlazCode-Notion.exe). Noch NICHT veroeffentlicht (git push + pub.ps1 offen).
+- 1.0.94 ist veroeffentlicht (Release notion-desktop-v1.0.94).

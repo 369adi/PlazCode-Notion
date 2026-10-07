@@ -9,6 +9,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.96
+- Konto-Check bleibt nicht mehr bei der MCP-Einrichtung hängen: pro Tab nur ein Check gleichzeitig, Zeitlimits, zweiter Versuch, offene Dialoge werden geschlossen
+- Nach dem Hinzufügen von AdiCode werden alle Berechtigungen (Manage, Agent, Write skill, Read/Write tools …) auf „Run automatically“ gestellt – auch bei schon verbundenen Konten
+
 ## Neu in 1.0.89
 - Chat-Spiegel robuster (Notion hat interne Strukturen geändert), Live-Anzeige der Tabs, präzisere Datei-Reservierung
 
