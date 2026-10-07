@@ -9,6 +9,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.105
+- **Chaterkennung**: Kein Chat wird nur noch angezeigt, wenn Notion meldet: KI fuer diesen Workspace deaktiviert (EN/DE). Jeder vorhandene Chat zaehlt, nicht nur Willkommen bei Notion; es wird nie ein neuer Chat angelegt.
+- **Co-Work-Haken stimmen**: MCP configured und Modell nutzen die gemerkten Checks, erledigte Schritte stehen nicht mehr als offen da.
+- **Live-Usage**: Usage jedes laufenden Tabs wird ca. alle 30 s still direkt von Notion gelesen (ohne Einstellungsfenster), Anzeige live HH:MM:SS. Pausierte Tabs fragen nicht ab.
 ## Neu in 1.0.104
 - **Blender-Screenshots ohne Fenster**: Neues Tool blender_capture rendert Ansichten der Szene (Perspektive, vorne, rechts, oben ...) als Kontaktbogen mit kleiner Vorschau direkt in den Chat. Laeuft Blender (auch minimiert), wird das genutzt, sonst startet AdiCode unsichtbar ein Hintergrund-Blender. Blender muss nicht offen sein.
 ## Neu in 1.0.103

@@ -286,3 +286,10 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 ## 1.0.104 (Blender-Chat, 07.10.2026)
 - blender_capture (Screenshots ohne Fenster): notion_blender.rs + blender_headless.py (include_str). target=auto: GUI-Blender auf 9876 (Fenster darf minimiert sein), sonst versteckter Hintergrund-Blender (-b --factory-startup) auf 9877, gestartet per ensure_headless(). action=capture/start/stop. Args: views, size, engine, samples, objects, target, file, use_scene_camera, preview_px, return_image. Ausgabe in PlazCode-Shared\blender-out\captures (Kontaktbogen + Einzelbilder), JPEG-Vorschau ~17 KB als Bild im Chat. Eigener base64-Encoder. Blender-Profil laesst blender_* automatisch durch.
 - Kam ueber den Release-Zug (release_queue) rein.
+
+## 1.0.105 (Main, 07.10.2026)
+- AI_OFF_JS erkennt jetzt auch 'AI is disabled for this workspace' und 'KI ... fuer diesen Workspace deaktiviert'.
+- FIND_WELCOME: Fallback auf obersten Chat der Seitenleiste (bevorzugt im Chats-Tabpanel), wird als welcome_url gemerkt.
+- check_one_inner: prepare_chat-Fehler ist kein Chat-Fehler mehr; neues Feld ai_off (persistiert, PERSIST 23). Nur ai_off=true -> chat_ok=false / Chat fehlt.
+- desktop.html Co-Work-Chips: ChatBad nur bei ai_off; Chat ok auch bei gemerkter welcome_url bzw. chats_total>0; MCP ok auch bei mcp_perm3; Modell ok bei gemerktem models_ok.
+- Live-Usage: usage_monitor (30 s) setzt usage_live, ueberspringt pausierte Tabs; inspect_account nutzt ui_pct nur noch als Fallback. Chip 'live HH:MM:SS'.
