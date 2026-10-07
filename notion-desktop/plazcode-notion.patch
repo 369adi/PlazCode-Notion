@@ -1,3 +1,776 @@
+diff --git a/agent/src/blender_helpers.py b/agent/src/blender_helpers.py
+new file mode 100644
+index 0000000..3be1a33
+--- /dev/null
++++ b/agent/src/blender_helpers.py
+@@ -0,0 +1,767 @@
++"""AdiCode Blender helpers (adicode_blender).
++
++Loaded inside a running Blender (MCP execute_blender_code) or headless
++(blender -b --python). Usage:
++
++    import adicode_blender as A, importlib; importlib.reload(A)
++    A.help()
++
++Every helper uses the data API where possible and wraps unavoidable
++operators in a proper context override, so it works from MCP timers and
++headless runs. Functions return plain dicts/strings that are easy to print.
++"""
++import bpy
++import bmesh
++import math
++import os
++from mathutils import Vector
++
++VERSION = "1.1"
++OUT_DIR = os.path.join(os.environ.get("USERPROFILE", os.path.expanduser("~")), "PlazCode-Shared", "blender-out")
++
++
++# ----------------------------------------------------------------- basics
++def help():
++    names = [n for n, v in globals().items() if callable(v) and not n.startswith("_") and getattr(v, "__module__", "") == __name__]
++    lines = []
++    for n in sorted(names):
++        doc = (globals()[n].__doc__ or "").strip().splitlines()
++        lines.append(f"{n}: {doc[0] if doc else ''}")
++    return "adicode_blender " + VERSION + "\n" + "\n".join(lines)
++
++
++def _ctx():
++    """Context override with a 3D view if a UI exists (empty dict headless)."""
++    wm = bpy.context.window_manager
++    for win in getattr(wm, "windows", []):
++        for area in win.screen.areas:
++            if area.type == "VIEW_3D":
++                region = next((r for r in area.regions if r.type == "WINDOW"), None)
++                return {"window": win, "screen": win.screen, "area": area, "region": region}
++    return {}
++
++
++def op(fn, *args, objects=None, active=None, **kw):
++    """Run a bpy.ops call safely: op(bpy.ops.object.shade_smooth, objects=[o])."""
++    over = _ctx()
++    if objects is not None:
++        objs = list(objects)
++        over["selected_objects"] = objs
++        over["selected_editable_objects"] = objs
++        over["active_object"] = active or (objs[0] if objs else None)
++        over["object"] = over["active_object"]
++    with bpy.context.temp_override(**over):
++        return fn(*args, **kw)
++
++
++def info():
++    """Short scene report: version, engine, fps, frames, object stats."""
++    sc = bpy.context.scene
++    meshes = [o for o in sc.objects if o.type == "MESH"]
++    tris = sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)
++    return {
++        "blender": bpy.app.version_string, "helpers": VERSION, "file": bpy.data.filepath or "(unsaved)",
++        "engine": sc.render.engine, "fps": sc.render.fps, "frames": [sc.frame_start, sc.frame_end],
++        "resolution": [sc.render.resolution_x, sc.render.resolution_y],
++        "objects": len(sc.objects), "meshes": len(meshes), "tris": tris,
++        "armatures": [o.name for o in sc.objects if o.type == "ARMATURE"],
++        "cameras": [o.name for o in sc.objects if o.type == "CAMERA"], "active_camera": sc.camera.name if sc.camera else None,
++        "actions": [a.name for a in bpy.data.actions][:30],
++    }
++
++
++def gpu(prefer=("OPTIX", "CUDA", "HIP", "ONEAPI", "METAL")):
++    """Enable GPU rendering for Cycles (OptiX on RTX) and set scene device to GPU."""
++    try:
++        cp = bpy.context.preferences.addons["cycles"].preferences
++    except KeyError:
++        return "cycles addon missing"
++    chosen = None
++    for t in prefer:
++        try:
++            cp.compute_device_type = t
++            cp.refresh_devices()
++            if any(d.type == t for d in cp.devices):
++                chosen = t
++                break
++        except Exception:
++            continue
++    for d in cp.devices:
++        d.use = (d.type != "CPU") if chosen else True
++    for sc in bpy.data.scenes:
++        if chosen:
++            sc.cycles.device = "GPU"
++    return {"compute": chosen or "CPU", "devices": [(d.name, d.type, d.use) for d in cp.devices]}
++
++
++def clean_scene(keep=()):
++    """Delete all objects (except names in keep) and purge orphan data."""
++    for o in list(bpy.data.objects):
++        if o.name not in keep:
++            bpy.data.objects.remove(o, do_unlink=True)
++    for coll in (bpy.data.meshes, bpy.data.materials, bpy.data.lights, bpy.data.cameras, bpy.data.curves, bpy.data.armatures, bpy.data.actions, bpy.data.node_groups, bpy.data.images):
++        for d in list(coll):
++            if d.users == 0:
++                coll.remove(d)
++    return "clean"
++
++
++def collection(name, parent=None):
++    """Get or create a collection linked to the scene (or to parent)."""
++    c = bpy.data.collections.get(name) or bpy.data.collections.new(name)
++    host = parent or bpy.context.scene.collection
++    if c.name not in host.children:
++        host.children.link(c)
++    return c
++
++
++def link(obj, coll=None):
++    (coll or bpy.context.scene.collection).objects.link(obj)
++    return obj
++
++
++# -------------------------------------------------------------- geometry
++def bm_object(name, build, coll=None):
++    """Create a mesh object from a bmesh builder: build(bm) adds geometry."""
++    me = bpy.data.meshes.new(name)
++    bm = bmesh.new()
++    build(bm)
++    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
++    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
++    bm.to_mesh(me)
++    bm.free()
++    return link(bpy.data.objects.new(name, me), coll)
++
++
++def primitive(kind="cube", name=None, size=1.0, location=(0, 0, 0), segments=32, coll=None):
++    """Data-API primitive: cube, sphere, ico, cylinder, cone, plane, torus-less. Returns object."""
++    def build(bm):
++        if kind == "cube":
++            bmesh.ops.create_cube(bm, size=size)
++        elif kind == "sphere":
++            bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=max(8, segments // 2), radius=size / 2)
++        elif kind == "ico":
++            bmesh.ops.create_icosphere(bm, subdivisions=3, radius=size / 2)
++        elif kind == "cylinder":
++            bmesh.ops.create_cone(bm, cap_ends=True, segments=segments, radius1=size / 2, radius2=size / 2, depth=size)
++        elif kind == "cone":
++            bmesh.ops.create_cone(bm, cap_ends=True, segments=segments, radius1=size / 2, radius2=0, depth=size)
++        elif kind == "plane":
++            bmesh.ops.create_grid(bm, x_segments=1, y_segments=1, size=size / 2)
++        else:
++            raise ValueError(kind)
++    o = bm_object(name or kind.title(), build, coll)
++    o.location = location
++    return o
++
++
++def apply_transforms(obj, loc=False, rot=True, scale=True):
++    """Apply rotation/scale (keeps modifiers, bevels and physics correct)."""
++    op(bpy.ops.object.transform_apply, objects=[obj], location=loc, rotation=rot, scale=scale)
++    return obj
++
++
++def smooth(obj, angle=30.0):
++    """Smooth shading with angle-based sharp edges (Blender 4.1+ safe)."""
++    try:
++        op(bpy.ops.object.shade_smooth_by_angle, objects=[obj], angle=math.radians(angle))
++    except Exception:
++        obj.data.polygons.foreach_set("use_smooth", [True] * len(obj.data.polygons))
++        obj.data.update()
++    return obj
++
++
++def hard_surface(obj, width=0.02, segments=3, angle=30.0, weighted=True):
++    """Hard-surface finish: angle bevel + weighted normals + smooth. Apply scale first."""
++    m = obj.modifiers.new("Bevel", "BEVEL")
++    m.width, m.segments, m.limit_method, m.angle_limit = width, segments, "ANGLE", math.radians(angle)
++    m.harden_normals = True
++    if weighted:
++        w = obj.modifiers.new("WeightedNormal", "WEIGHTED_NORMAL")
++        w.keep_sharp = True
++    smooth(obj, angle)
++    return obj
++
++
++def organic(obj, levels=2, render_levels=3):
++    """Organic finish: subdivision surface + smooth shading."""
++    m = obj.modifiers.new("Subsurf", "SUBSURF")
++    m.levels, m.render_levels = levels, render_levels
++    obj.data.polygons.foreach_set("use_smooth", [True] * len(obj.data.polygons))
++    obj.data.update()
++    return obj
++
++
++def mirror(obj, axis="X", clip=True):
++    m = obj.modifiers.new("Mirror", "MIRROR")
++    m.use_axis = [axis == "X", axis == "Y", axis == "Z"]
++    m.use_clip = clip
++    return obj
++
++
++def cleanup(obj, merge=1e-4):
++    """Merge doubles, recalc normals, delete loose geometry. Returns quality report."""
++    bm = bmesh.new()
++    bm.from_mesh(obj.data)
++    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=merge)
++    loose = [v for v in bm.verts if not v.link_edges]
++    bmesh.ops.delete(bm, geom=loose, context="VERTS")
++    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
++    bm.to_mesh(obj.data)
++    bm.free()
++    obj.data.update()
++    return quality(obj)
++
++
++def quality(obj=None):
++    """Mesh QA: tris/quads/ngons, non-manifold, loose, unapplied scale, UVs, materials."""
++    objs = [obj] if obj else [o for o in bpy.context.scene.objects if o.type == "MESH"]
++    out = []
++    for o in objs:
++        bm = bmesh.new()
++        bm.from_mesh(o.data)
++        sides = [len(f.verts) for f in bm.faces]
++        out.append({
++            "name": o.name, "verts": len(bm.verts), "faces": len(sides),
++            "tris": sides.count(3), "quads": sides.count(4), "ngons": sum(1 for s in sides if s > 4),
++            "non_manifold_edges": sum(1 for e in bm.edges if not e.is_manifold),
++            "loose_verts": sum(1 for v in bm.verts if not v.link_edges),
++            "zero_faces": sum(1 for f in bm.faces if f.calc_area() < 1e-9),
++            "scale_applied": all(abs(s - 1) < 1e-4 for s in o.scale),
++            "uv": len(o.data.uv_layers) > 0, "materials": [m.name for m in o.data.materials if m],
++            "modifiers": [m.type for m in o.modifiers],
++            "dimensions_m": [round(x, 3) for x in o.dimensions],
++        })
++        bm.free()
++    return out
++
++
++def uv_unwrap(obj, method="smart", angle=66.0, margin=0.02):
++    """UV unwrap a mesh (smart project or cube) without manual edit-mode work."""
++    over = _ctx()
++    over.update({"active_object": obj, "object": obj, "selected_objects": [obj], "edit_object": obj})
++    with bpy.context.temp_override(**over):
++        bpy.context.view_layer.objects.active = obj
++        bpy.ops.object.mode_set(mode="EDIT")
++        bpy.ops.mesh.select_all(action="SELECT")
++        if method == "cube":
++            bpy.ops.uv.cube_project()
++        else:
++            bpy.ops.uv.smart_project(angle_limit=math.radians(angle), island_margin=margin)
++        bpy.ops.object.mode_set(mode="OBJECT")
++    return obj
++
++
++def scatter(target, instance, density=10.0, seed=0, scale=(0.8, 1.2), align=True):
++    """Geometry-nodes scatter of `instance` object on `target` surface (non-destructive)."""
++    ng = bpy.data.node_groups.new("ADC_Scatter", "GeometryNodeTree")
++    ng.interface.new_socket("Geometry", in_out="INPUT", socket_type="NodeSocketGeometry")
++    ng.interface.new_socket("Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry")
++    n = ng.nodes
++    gi, go = n.new("NodeGroupInput"), n.new("NodeGroupOutput")
++    dist = n.new("GeometryNodeDistributePointsOnFaces")
++    dist.inputs["Density"].default_value = density
++    dist.inputs["Seed"].default_value = seed
++    inst = n.new("GeometryNodeInstanceOnPoints")
++    info_n = n.new("GeometryNodeObjectInfo")
++    info_n.inputs[0].default_value = instance
++    info_n.transform_space = "RELATIVE"
++    rnd = n.new("FunctionNodeRandomValue")
++    rnd.data_type = "FLOAT"
++    fl = [s for s in rnd.inputs if s.type == "VALUE"]
++    fl[0].default_value, fl[1].default_value = scale
++    join = n.new("GeometryNodeJoinGeometry")
++    L = ng.links
++    L.new(gi.outputs[0], dist.inputs["Mesh"])
++    L.new(dist.outputs["Points"], inst.inputs["Points"])
++    L.new(info_n.outputs["Geometry"], inst.inputs["Instance"])
++    L.new(next(s for s in rnd.outputs if s.type == "VALUE"), inst.inputs["Scale"])
++    if align:
++        L.new(dist.outputs["Rotation"], inst.inputs["Rotation"])
++    L.new(gi.outputs[0], join.inputs[0])
++    L.new(inst.outputs[0], join.inputs[0])
++    L.new(join.outputs[0], go.inputs[0])
++    m = target.modifiers.new("Scatter", "NODES")
++    m.node_group = ng
++    instance.hide_render = True
++    instance.hide_viewport = True
++    return m
++
++
++# ------------------------------------------------------------- materials
++def _bsdf(mat):
++    return next(n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
++
++
++def material(name, color=(0.8, 0.8, 0.8), metallic=0.0, roughness=0.5, emission=None, strength=5.0, alpha=1.0, coat=0.0, transmission=0.0, sss=0.0):
++    """Principled BSDF material (Blender 4/5 socket names). color = linear RGB 0..1."""
++    m = bpy.data.materials.get(name) or bpy.data.materials.new(name)
++    m.use_nodes = True
++    b = _bsdf(m)
++    def s(key, val):
++        if key in b.inputs:
++            b.inputs[key].default_value = val
++    s("Base Color", (*color[:3], 1.0))
++    s("Metallic", metallic)
++    s("Roughness", roughness)
++    s("Alpha", alpha)
++    s("Coat Weight", coat)
++    s("Transmission Weight", transmission)
++    s("Subsurface Weight", sss)
++    if emission:
++        s("Emission Color", (*emission[:3], 1.0))
++        s("Emission Strength", strength)
++    return m
++
++
++def procedural(name, color_a=(0.05, 0.05, 0.05), color_b=(0.6, 0.6, 0.6), scale=6.0, detail=8.0, metallic=0.0, rough=(0.35, 0.8), bump=0.25, kind="noise"):
++    """Procedural PBR: noise/voronoi/wave -> color ramp (color + roughness) + bump. kind=noise|voronoi|wave."""
++    m = material(name, color_b, metallic, rough[0])
++    nt, b = m.node_tree, _bsdf(m)
++    N, L = nt.nodes, nt.links
++    coord, mapping = N.new("ShaderNodeTexCoord"), N.new("ShaderNodeMapping")
++    L.new(coord.outputs["Object"], mapping.inputs["Vector"])
++    tex = N.new({"noise": "ShaderNodeTexNoise", "voronoi": "ShaderNodeTexVoronoi", "wave": "ShaderNodeTexWave"}[kind])
++    tex.inputs["Scale"].default_value = scale
++    if "Detail" in tex.inputs:
++        tex.inputs["Detail"].default_value = detail
++    L.new(mapping.outputs["Vector"], tex.inputs["Vector"])
++    fac = tex.outputs["Fac"] if "Fac" in tex.outputs else tex.outputs["Distance"]
++    ramp = N.new("ShaderNodeValToRGB")
++    ramp.color_ramp.elements[0].color = (*color_a, 1)
++    ramp.color_ramp.elements[1].color = (*color_b, 1)
++    L.new(fac, ramp.inputs["Fac"])
++    L.new(ramp.outputs["Color"], b.inputs["Base Color"])
++    rmap = N.new("ShaderNodeMapRange")
++    rmap.inputs[3].default_value, rmap.inputs[4].default_value = rough
++    L.new(fac, rmap.inputs[0])
++    L.new(rmap.outputs[0], b.inputs["Roughness"])
++    bn = N.new("ShaderNodeBump")
++    bn.inputs["Strength"].default_value = bump
++    L.new(fac, bn.inputs["Height"])
++    L.new(bn.outputs["Normal"], b.inputs["Normal"])
++    return m
++
++
++def pbr_textures(name, folder):
++    """Material from a texture folder (Poly Haven/ambientCG naming: diff/albedo, rough, nor_gl, disp, metal, ao)."""
++    m = material(name)
++    nt, b = m.node_tree, _bsdf(m)
++    N, L = nt.nodes, nt.links
++    files = {f.lower(): os.path.join(folder, f) for f in os.listdir(folder)}
++    def find(*keys):
++        for k, p in files.items():
++            if any(x in k for x in keys):
++                return p
++    def img(path, non_color):
++        t = N.new("ShaderNodeTexImage")
++        t.image = bpy.data.images.load(path, check_existing=True)
++        t.image.colorspace_settings.name = "Non-Color" if non_color else "sRGB"
++        return t
++    p = find("diff", "albedo", "basecolor", "color")
++    if p:
++        L.new(img(p, False).outputs["Color"], b.inputs["Base Color"])
++    p = find("rough")
++    if p:
++        L.new(img(p, True).outputs["Color"], b.inputs["Roughness"])
++    p = find("metal")
++    if p:
++        L.new(img(p, True).outputs["Color"], b.inputs["Metallic"])
++    p = find("nor_gl", "normal_gl", "normal", "nor")
++    if p:
++        nm = N.new("ShaderNodeNormalMap")
++        L.new(img(p, True).outputs["Color"], nm.inputs["Color"])
++        L.new(nm.outputs["Normal"], b.inputs["Normal"])
++    return m
++
++
++def assign(obj, mat, slot=None):
++    if slot is None:
++        obj.data.materials.clear()
++        obj.data.materials.append(mat)
++    else:
++        obj.data.materials[slot] = mat
++    return obj
++
++
++# ------------------------------------------------------- light & camera
++def look_at(obj, target):
++    """Rotate obj (camera/light) to point at target (object or vector)."""
++    t = target.matrix_world.translation if hasattr(target, "matrix_world") else Vector(target)
++    d = t - obj.matrix_world.translation
++    obj.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
++    return obj
++
++
++def _bounds(objs):
++    pts = [o.matrix_world @ Vector(c) for o in objs for c in o.bound_box]
++    if not pts:
++        return Vector((0, 0, 0)), 1.0
++    lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
++    hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
++    return (lo + hi) / 2, max((hi - lo).length, 0.01)
++
++
++def camera(objs=None, lens=50.0, angle=(35.0, 20.0), margin=1.25, name="ADC_Camera"):
++    """Create/reuse a camera that frames objs (default: all meshes). angle=(azimuth, elevation) degrees."""
++    objs = objs or [o for o in bpy.context.scene.objects if o.type == "MESH" and not o.hide_render]
++    center, size = _bounds(objs)
++    cam = bpy.data.objects.get(name)
++    if not cam:
++        cam = link(bpy.data.objects.new(name, bpy.data.cameras.new(name)))
++    cam.data.lens = lens
++    fov = 2 * math.atan(cam.data.sensor_width / (2 * lens))
++    dist = (size * margin / 2) / math.tan(fov / 2)
++    az, el = math.radians(angle[0]), math.radians(angle[1])
++    cam.location = center + Vector((math.sin(az) * math.cos(el), -math.cos(az) * math.cos(el), math.sin(el))) * dist
++    look_at(cam, center)
++    cam.data.clip_end = max(1000, dist * 10)
++    bpy.context.scene.camera = cam
++    return cam
++
++
++def studio(target=None, strength=1.0, style="three_point", world=0.05, hdri=None):
++    """Lighting: three_point | rim | soft. Physically scaled area lights, AgX view, optional HDRI path."""
++    objs = [target] if target else [o for o in bpy.context.scene.objects if o.type == "MESH"]
++    center, size = _bounds(objs)
++    coll = collection("ADC_Lights")
++    for o in list(coll.objects):
++        bpy.data.objects.remove(o, do_unlink=True)
++    rigs = {
++        "three_point": [("Key", (45, 35), 1000, 1.0), ("Fill", (-60, 20), 300, 2.0), ("Rim", (170, 45), 800, 0.6)],
++        "rim": [("Key", (30, 25), 600, 1.0), ("RimL", (150, 30), 1200, 0.4), ("RimR", (-150, 30), 1200, 0.4)],
++        "soft": [("Top", (0, 80), 800, 3.0), ("Front", (20, 15), 300, 3.0)],
++    }[style]
++    r = size * 2.2
++    for name, (az, el), watts, sz in rigs:
++        ld = bpy.data.lights.new("ADC_" + name, "AREA")
++        ld.energy = watts * strength * (size / 2) ** 2
++        ld.size = size * sz
++        lo = bpy.data.objects.new("ADC_" + name, ld)
++        coll.objects.link(lo)
++        a, e = math.radians(az), math.radians(el)
++        lo.location = center + Vector((math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e))) * r
++        look_at(lo, center)
++    w = bpy.context.scene.world or bpy.data.worlds.new("World")
++    bpy.context.scene.world = w
++    w.use_nodes = True
++    nt = w.node_tree
++    bg = next(n for n in nt.nodes if n.type == "BACKGROUND")
++    if hdri and os.path.exists(hdri):
++        env = nt.nodes.new("ShaderNodeTexEnvironment")
++        env.image = bpy.data.images.load(hdri, check_existing=True)
++        nt.links.new(env.outputs["Color"], bg.inputs["Color"])
++        bg.inputs["Strength"].default_value = 1.0
++    else:
++        bg.inputs["Color"].default_value = (world, world, world * 1.1, 1)
++        bg.inputs["Strength"].default_value = 1.0
++    vs = bpy.context.scene.view_settings
++    for t in ("AgX", "Filmic"):
++        try:
++            vs.view_transform = t
++            break
++        except TypeError:
++            pass
++    return [o.name for o in coll.objects]
++
++
++def floor(size=40.0, color=(0.18, 0.18, 0.18), shadow_catcher=False):
++    """Ground plane under all meshes (optionally Cycles shadow catcher)."""
++    meshes = [o for o in bpy.context.scene.objects if o.type == "MESH" and o.name != "ADC_Floor"]
++    z = min((min((o.matrix_world @ Vector(c)).z for c in o.bound_box) for o in meshes), default=0.0)
++    o = bpy.data.objects.get("ADC_Floor") or primitive("plane", "ADC_Floor", size)
++    o.location.z = z
++    assign(o, material("ADC_Floor", color, 0.0, 0.6))
++    o.is_shadow_catcher = shadow_catcher
++    return o
++
++
++# ------------------------------------------------------------ animation
++def key(obj, frame, data_path=None, interp="BEZIER", easing="AUTO", **values):
++    """Set values and keyframe them: key(o, 1, location=(0,0,0), rotation_euler=(0,0,0))."""
++    for path, val in values.items():
++        setattr(obj, path, val)
++        obj.keyframe_insert(path, frame=frame)
++    if data_path:
++        obj.keyframe_insert(data_path, frame=frame)
++    set_interp(obj, interp, easing, frames=(frame,))
++    return obj
++
++
++def _fcurves(id_data):
++    ad = getattr(id_data, "animation_data", None)
++    act = ad.action if ad else None
++    if not act:
++        return []
++    if hasattr(act, "fcurves") and len(getattr(act, "fcurves", [])):
++        return list(act.fcurves)
++    out = []  # Blender 4.4+/5.x layered actions
++    for layer in getattr(act, "layers", []):
++        for strip in layer.strips:
++            for bag in getattr(strip, "channelbags", []):
++                out.extend(bag.fcurves)
++    return out
++
++
++def set_interp(obj, interp="BEZIER", easing="AUTO", frames=None, handle="AUTO_CLAMPED"):
++    """Interpolation for keys (BEZIER/LINEAR/CONSTANT/BACK/ELASTIC/BOUNCE...), easing EASE_IN/OUT/IN_OUT."""
++    for fc in _fcurves(obj):
++        for kp in fc.keyframe_points:
++            if frames is None or int(round(kp.co.x)) in frames:
++                kp.interpolation = interp
++                kp.easing = easing
++                if interp == "BEZIER":
++                    kp.handle_left_type = kp.handle_right_type = handle
++    return obj
++
++
++def loop(obj, mode="REPEAT"):
++    """Endless loop: Cycles F-curve modifier on every channel (idle, walk cycles, rotors)."""
++    for fc in _fcurves(obj):
++        if not any(m.type == "CYCLES" for m in fc.modifiers):
++            m = fc.modifiers.new("CYCLES")
++            m.mode_before = m.mode_after = mode
++    return obj
++
++
++def shake(obj, path="location", strength=0.05, scale=12.0, axes=(0, 1, 2), seed=0):
++    """Organic noise (camera shake, hover, breathing) via Noise F-modifier; keys path first if needed."""
++    if not any(fc.data_path == path for fc in _fcurves(obj)):
++        obj.keyframe_insert(path, frame=bpy.context.scene.frame_start)
++    for fc in _fcurves(obj):
++        if fc.data_path == path and fc.array_index in axes:
++            m = fc.modifiers.new("NOISE")
++            m.strength, m.scale, m.phase = strength, scale, seed * 7.3 + fc.array_index * 13.1
++    return obj
++
++
++def orbit(target=None, frames=120, turns=1.0, elevation=20.0, lens=50.0, margin=1.4):
++    """Turntable camera: empty at target center rotates linearly; camera parented and framed."""
++    objs = [target] if target else None
++    cam = camera(objs, lens, (0, elevation), margin)
++    center, _ = _bounds(objs or [o for o in bpy.context.scene.objects if o.type == "MESH"])
++    piv = bpy.data.objects.get("ADC_Orbit") or link(bpy.data.objects.new("ADC_Orbit", None))
++    piv.location = center
++    cam.parent = piv
++    cam.matrix_parent_inverse = piv.matrix_world.inverted()
++    sc = bpy.context.scene
++    sc.frame_start, sc.frame_end = 1, frames
++    key(piv, 1, interp="LINEAR", rotation_euler=(0, 0, 0))
++    key(piv, frames + 1, interp="LINEAR", rotation_euler=(0, 0, math.tau * turns))
++    return cam
++
++
++def follow_path(obj, points, frames=(1, 120), cyclic=False, follow=True):
++    """Move obj along a smooth NURBS path through points over frames."""
++    cu = bpy.data.curves.new("ADC_Path", "CURVE")
++    cu.dimensions = "3D"
++    sp = cu.splines.new("NURBS")
++    sp.points.add(len(points) - 1)
++    for p, co in zip(sp.points, points):
++        p.co = (*co, 1)
++    sp.use_endpoint_u, sp.use_cyclic_u, sp.order_u = True, cyclic, min(4, len(points))
++    cu.path_duration = frames[1] - frames[0]
++    path = link(bpy.data.objects.new("ADC_Path", cu))
++    c = obj.constraints.new("FOLLOW_PATH")
++    c.target, c.use_curve_follow, c.forward_axis = path, follow, "FORWARD_Y"
++    c.offset_factor = 0.0
++    c.use_fixed_location = True
++    obj.keyframe_insert('constraints["%s"].offset_factor' % c.name, frame=frames[0])
++    c.offset_factor = 1.0
++    obj.keyframe_insert('constraints["%s"].offset_factor' % c.name, frame=frames[1])
++    return path
++
++
++def bounce(obj, height=2.0, start=1, period=24, count=4, squash=0.25):
++    """Classic bouncing with decay plus squash & stretch on contact (12 principles)."""
++    z0 = obj.location.z
++    f = start
++    for i in range(count):
++        h = height * (0.6 ** i)
++        key(obj, f, location=(obj.location.x, obj.location.y, z0), scale=(1 + squash, 1 + squash, 1 - squash))
++        key(obj, f + 2, scale=(1, 1, 1))
++        key(obj, f + period // 2, location=(obj.location.x, obj.location.y, z0 + h), scale=(1 - squash / 3, 1 - squash / 3, 1 + squash / 3))
++        f += period
++        period = max(8, int(period * 0.8))
++    key(obj, f, location=(obj.location.x, obj.location.y, z0), scale=(1, 1, 1))
++    return f
++
++
++def human_rig(name="ADC_Rig", location=(0, 0, 0), generate=True):
++    """Rigify human metarig (+ generated control rig with IK/FK). Fit bones to the mesh before generating."""
++    import addon_utils
++    addon_utils.enable("rigify", default_set=True)
++    before = set(bpy.data.objects)
++    op(bpy.ops.object.armature_human_metarig_add)
++    meta = next(iter(set(bpy.data.objects) - before))
++    meta.name, meta.location = name + "_meta", location
++    if not generate:
++        return meta
++    before = set(bpy.data.objects)
++    for o in bpy.context.view_layer.objects:
++        o.select_set(False)
++    meta.select_set(True)
++    bpy.context.view_layer.objects.active = meta
++    op(bpy.ops.pose.rigify_generate)
++    rig = next((o for o in set(bpy.data.objects) - before if o.type == "ARMATURE"), None)
++    if rig:
++        rig.name = name
++    meta.hide_viewport = meta.hide_render = True
++    return rig
++
++
++def skin(mesh, armature):
++    """Parent mesh to armature with automatic (heat) weights."""
++    op(bpy.ops.object.parent_set, objects=[mesh, armature], active=armature, type="ARMATURE_AUTO")
++    return mesh
++
++
++def import_motion(path, scale=1.0):
++    """Import FBX (Mixamo) / BVH (mocap, text-to-motion output) / GLB. Returns new objects."""
++    before = set(bpy.data.objects)
++    ext = os.path.splitext(path)[1].lower()
++    if ext == ".fbx":
++        op(bpy.ops.import_scene.fbx, filepath=path, global_scale=scale, automatic_bone_orientation=True)
++    elif ext == ".bvh":
++        op(bpy.ops.import_anim.bvh, filepath=path, global_scale=scale, update_scene_fps=True, update_scene_duration=True)
++    elif ext in (".glb", ".gltf"):
++        op(bpy.ops.import_scene.gltf, filepath=path)
++    elif ext == ".obj":
++        op(bpy.ops.wm.obj_import, filepath=path)
++    else:
++        raise ValueError(ext)
++    return [o.name for o in set(bpy.data.objects) - before]
++
++
++def nla_push(obj, name=None):
++    """Push the current action to an NLA strip (layer clips: walk + wave)."""
++    ad = obj.animation_data
++    if not ad or not ad.action:
++        return None
++    tr = ad.nla_tracks.new()
++    tr.name = name or ad.action.name
++    st = tr.strips.new(tr.name, int(ad.action.frame_range[0]), ad.action)
++    ad.action = None
++    return st.name
++
++
++def bake_physics():
++    """Bake all point caches (rigid body, cloth, fluid particles) for the frame range."""
++    op(bpy.ops.ptcache.bake_all, bake=True)
++    return "baked"
++
++
++# ---------------------------------------------------------------- render
++def render_settings(engine="EEVEE", samples=None, res=(1920, 1080), fps=None, motion_blur=True, denoise=True, transparent=False, quality="high"):
++    """Engine EEVEE|CYCLES|WORKBENCH with sane quality defaults (Cycles GPU + denoise)."""
++    sc = bpy.context.scene
++    r = sc.render
++    ids = {"EEVEE": ["BLENDER_EEVEE_NEXT", "BLENDER_EEVEE"], "CYCLES": ["CYCLES"], "WORKBENCH": ["BLENDER_WORKBENCH"]}[engine.upper()]
++    for i in ids:
++        try:
++            r.engine = i
++            break
++        except TypeError:
++            continue
++    r.resolution_x, r.resolution_y = res
++    r.resolution_percentage = 100
++    r.film_transparent = transparent
++    if fps:
++        r.fps = fps
++    r.use_motion_blur = motion_blur
++    if r.engine == "CYCLES":
++        gpu()
++        sc.cycles.samples = samples or {"draft": 64, "high": 256, "final": 1024}[quality]
++        sc.cycles.use_denoising = denoise
++        sc.cycles.use_adaptive_sampling = True
++    elif "EEVEE" in r.engine:
++        e = sc.eevee
++        if hasattr(e, "taa_render_samples"):
++            e.taa_render_samples = samples or {"draft": 16, "high": 64, "final": 128}[quality]
++        for attr in ("use_raytracing", "use_shadows"):
++            if hasattr(e, attr):
++                setattr(e, attr, True)
++    return {"engine": r.engine, "res": list(res), "fps": r.fps}
++
++
++def _out(name):
++    os.makedirs(OUT_DIR, exist_ok=True)
++    return name if os.path.isabs(name) else os.path.join(OUT_DIR, name)
++
++
++def render(path="still.png", frame=None, scale=100):
++    """Render the active camera to a PNG (default folder PlazCode-Shared/blender-out). Returns path."""
++    sc = bpy.context.scene
++    if frame is not None:
++        sc.frame_set(frame)
++    if not sc.camera:
++        camera()
++    old = sc.render.resolution_percentage
++    sc.render.resolution_percentage = scale
++    sc.render.image_settings.file_format = "PNG"
++    sc.render.filepath = _out(path)
++    op(bpy.ops.render.render, write_still=True)
++    sc.render.resolution_percentage = old
++    return sc.render.filepath
++
++
++def contact_sheet(name="check", frames=None, scale=35):
++    """Quick review renders at several frames (default 5 evenly spaced) to judge motion/poses."""
++    sc = bpy.context.scene
++    frames = frames or [int(sc.frame_start + (sc.frame_end - sc.frame_start) * t / 4) for t in range(5)]
++    return [render(f"{name}_{f:04d}.png", f, scale) for f in frames]
++
++
++def render_video(path="anim.mp4", start=None, end=None, scale=100):
++    """Render the animation to MP4 (H.264) via FFmpeg output. Long jobs: prefer headless blender -b."""
++    sc = bpy.context.scene
++    if start:
++        sc.frame_start = start
++    if end:
++        sc.frame_end = end
++    r = sc.render
++    r.resolution_percentage = scale
++    r.filepath = _out(path)
++    try:
++        r.image_settings.media_type = "VIDEO"  # Blender 5.x
++    except Exception:
++        pass
++    try:
++        r.image_settings.file_format = "FFMPEG"
++        r.ffmpeg.format, r.ffmpeg.codec = "MPEG4", "H264"
++        r.ffmpeg.constant_rate_factor = "HIGH"
++    except Exception as e:
++        return f"ffmpeg setup failed: {e}"
++    op(bpy.ops.render.render, animation=True)
++    return r.filepath
++
++
++def export(path, fmt=None, selected=None):
++    """Export glb/gltf/fbx/obj/usd/stl (fmt from extension). Apply transforms before export."""
++    path = _out(path)
++    fmt = (fmt or os.path.splitext(path)[1][1:]).lower()
++    kw = {}
++    if selected:
++        for o in bpy.context.scene.objects:
++            o.select_set(o in selected)
++        kw["use_selection"] = True
++    if fmt in ("glb", "gltf"):
++        op(bpy.ops.export_scene.gltf, filepath=path, export_format="GLB" if fmt == "glb" else "GLTF_SEPARATE", **kw)
++    elif fmt == "fbx":
++        op(bpy.ops.export_scene.fbx, filepath=path, apply_scale_options="FBX_SCALE_ALL", bake_anim=True, **kw)
++    elif fmt == "obj":
++        op(bpy.ops.wm.obj_export, filepath=path, export_selected_objects=bool(selected))
++    elif fmt in ("usd", "usdc", "usda"):
++        op(bpy.ops.wm.usd_export, filepath=path, selected_objects_only=bool(selected))
++    elif fmt == "stl":
++        op(bpy.ops.wm.stl_export, filepath=path, export_selected_objects=bool(selected))
++    else:
++        raise ValueError(fmt)
++    return path
++
++
++def save(path=None):
++    """Save the .blend (default PlazCode-Shared/blender-out/scene.blend)."""
++    p = path or bpy.data.filepath or _out("scene.blend")
++    op(bpy.ops.wm.save_as_mainfile, filepath=p)
++    return p
 diff --git a/agent/src/cowork_ui.js b/agent/src/cowork_ui.js
 new file mode 100644
 index 0000000..5543ac6
@@ -1151,10 +1924,18 @@ index 07dc4c0..2bbe4a9 100644
  </body>
  </html>
 diff --git a/agent/src/gui.rs b/agent/src/gui.rs
-index 04ebefa..16ffb12 100644
+index 04ebefa..61103d4 100644
 --- a/agent/src/gui.rs
 +++ b/agent/src/gui.rs
-@@ -279,12 +279,12 @@ pub fn run_gui(
+@@ -257,6 +257,7 @@ enum UiEvent {
+     Ready,
+     JsError(String),
+     OpenExternal(String),
++    Fullscreen(bool),
+ }
+ 
+ #[cfg(any(windows, target_os = "macos"))]
+@@ -279,12 +280,12 @@ pub fn run_gui(
  ) -> anyhow::Result<()> {
      let desktop_url = format!("http://{addr}/desktop-ui");
      let boot = serde_json::json!({"key":pairing_key,"apiUrl":format!("http://{addr}")});
@@ -1170,20 +1951,30 @@ index 04ebefa..16ffb12 100644
          .with_decorations(cfg!(target_os = "macos"))
          .with_visible(false)
          .with_focused(!start_background)
-@@ -312,7 +312,7 @@ pub fn run_gui(
+@@ -311,8 +312,8 @@ pub fn run_gui(
+                 "minimize" => Some(UiEvent::Minimize),
                  "maximize" => Some(UiEvent::Maximize),
                  "drag" => Some(UiEvent::Drag),
-                 "ui-ready" => Some(UiEvent::Ready),
+-                "ui-ready" => Some(UiEvent::Ready),
 -                "open:github" => Some(UiEvent::OpenExternal("https://github.com/stoveez/PlazCode".to_owned())),
++                "ui-ready" => Some(UiEvent::Ready), "fullscreen:on" => Some(UiEvent::Fullscreen(true)), "fullscreen:off" => Some(UiEvent::Fullscreen(false)),
 +                "open:github" => Some(UiEvent::OpenExternal("https://github.com/369adi/PlazCode-Notion".to_owned())),
                  "open:blender-guide" => Some(UiEvent::OpenExternal("https://github.com/ahujasid/blender-mcp#installation".to_owned())),
                  _ if body.starts_with("toolkit-store:") => toolkit_store_url(body).map(UiEvent::OpenExternal),
                  _ => supported_ai_url(body).map(|url|UiEvent::OpenExternal(url.to_owned())).or_else(|| body.strip_prefix("js-error:").map(|message| UiEvent::JsError(message.to_string()))),
+@@ -359,6 +360,7 @@ pub fn run_gui(
+                 window.set_minimized(true);
+             },
+             Event::UserEvent(UiEvent::Quit) => *control_flow = ControlFlow::Exit,
++            Event::UserEvent(UiEvent::Fullscreen(on)) => window.set_fullscreen(if on { Some(tao::window::Fullscreen::Borderless(None)) } else { None }),
+             Event::UserEvent(UiEvent::Minimize) => window.set_minimized(true),
+             Event::UserEvent(UiEvent::Maximize) => window.set_maximized(!window.is_maximized()),
+             Event::UserEvent(UiEvent::Drag) => {
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..2915824 100644
+index 77cc050..23ce366 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,17 @@ mod media;
+@@ -81,6 +81,18 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -1198,10 +1989,11 @@ index 77cc050..2915824 100644
 +mod notion_updates;
 +mod notion_chat;
 +mod notion_live;
++mod notion_blender;
  
  #[cfg(windows)]
  mod win_msg {
-@@ -188,6 +199,23 @@ impl AppState {
+@@ -188,6 +200,23 @@ impl AppState {
  }
  
  /// Persistent stdio client for Roblox Studio's built-in MCP server.
@@ -1225,7 +2017,7 @@ index 77cc050..2915824 100644
  struct McpRuntime {
      child: Option<Child>,
      stdin: Option<ChildStdin>,
-@@ -335,7 +363,23 @@ impl McpRuntime {
+@@ -335,7 +364,23 @@ impl McpRuntime {
          Ok(())
      }
  
@@ -1250,7 +2042,7 @@ index 77cc050..2915824 100644
          self.ensure().await?;
          if self.tools.is_empty() { self.list_tools().await?; }
          let targeted = studio_session::needs_id(&self.tools, name);
-@@ -726,13 +770,13 @@ fn main() {
+@@ -726,13 +771,13 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -1266,7 +2058,7 @@ index 77cc050..2915824 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +875,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +876,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -1276,7 +2068,7 @@ index 77cc050..2915824 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +925,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +926,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -1288,7 +2080,7 @@ index 77cc050..2915824 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -937,6 +986,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -937,6 +987,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
      updater::start_checker();
@@ -1296,7 +2088,7 @@ index 77cc050..2915824 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +998,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +999,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -1304,7 +2096,7 @@ index 77cc050..2915824 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +1028,16 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +1029,16 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -1321,7 +2113,7 @@ index 77cc050..2915824 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1249,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1250,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -1329,7 +2121,7 @@ index 77cc050..2915824 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1265,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1266,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -1337,7 +2129,7 @@ index 77cc050..2915824 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1523,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1524,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -1345,7 +2137,7 @@ index 77cc050..2915824 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1595,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1596,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -1353,7 +2145,7 @@ index 77cc050..2915824 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1604,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1605,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -1363,7 +2155,7 @@ index 77cc050..2915824 100644
      }
      let mut mcp = state.roblox_mcp.lock().await;
 diff --git a/agent/src/mcp_addons.rs b/agent/src/mcp_addons.rs
-index 1a68aee..c63d1e2 100644
+index 1a68aee..a332c23 100644
 --- a/agent/src/mcp_addons.rs
 +++ b/agent/src/mcp_addons.rs
 @@ -47,6 +47,34 @@ pub struct ServerSummary {
@@ -1401,7 +2193,21 @@ index 1a68aee..c63d1e2 100644
          CatalogEntry {
              id: "blender",
              name: "Blender",
-@@ -75,6 +103,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
+@@ -54,6 +82,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
+             command: "uvx",
+             args: &["blender-mcp"],
+         },
++        CatalogEntry {
++            id: "blenderwright",
++            name: "Blender (blenderwright, 191 Tools)",
++            description: "Alternative Blender-Bruecke mit 191 Tools (Modeling, Mesh-Edit, Shader-Nodes, Geometry Nodes, Rigging, Sculpting, UV, Physik, Mesh-Qualitaetsanalyse, Experten-Prompts). Addon-ZIP von github.com/HoldMyBeer-gg/blenderwright/releases in Blender installieren (Edit > Preferences > Get Extensions > Install from Disk). Nutzt ebenfalls Port 9876: vorher das Add-on 'Blender' (MCP for Blender) hier deaktivieren und dessen Blender-Addon ausschalten, oder im N-Panel einen anderen Port waehlen.",
++            command: "uvx",
++            args: &["blenderwright"],
++        },
+         CatalogEntry {
+             id: "context7",
+             name: "Context7",
+@@ -75,6 +110,13 @@ pub fn catalog() -> Vec<CatalogEntry> {
              command: "uvx",
              args: &["mcp-server-git"],
          },
@@ -1415,7 +2221,7 @@ index 1a68aee..c63d1e2 100644
          CatalogEntry {
              id: "memory",
              name: "Memory",
-@@ -104,10 +139,22 @@ pub fn config_path() -> PathBuf {
+@@ -104,10 +146,22 @@ pub fn config_path() -> PathBuf {
  
  pub fn read_config() -> McpConfig {
      let path = config_path();
@@ -1439,7 +2245,7 @@ index 1a68aee..c63d1e2 100644
      cfg.servers.entry("roblox".to_string()).or_insert_with(|| ServerSpec {
          command: "launch_studio_mcp.py".to_string(),
          args: Vec::new(),
-@@ -137,9 +184,22 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -137,9 +191,22 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
          .ok_or_else(|| anyhow::anyhow!("unknown catalog server '{id}'"))?;
      let mut cfg = read_config();
      if enabled {
@@ -1463,7 +2269,7 @@ index 1a68aee..c63d1e2 100644
              env: HashMap::new(),
          });
      } else {
-@@ -148,6 +208,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
+@@ -148,6 +215,24 @@ pub fn set_catalog_enabled(id: &str, enabled: bool) -> anyhow::Result<()> {
      write_config(&cfg)
  }
  
@@ -1488,7 +2294,7 @@ index 1a68aee..c63d1e2 100644
  pub fn add_server(id: &str, spec: ServerSpec) -> anyhow::Result<()> {
      let id = id.trim();
      anyhow::ensure!(!id.is_empty(), "server id is required");
-@@ -269,6 +347,9 @@ impl AddonRuntime {
+@@ -269,6 +354,9 @@ impl AddonRuntime {
                      }
                      cmd.env("PATH", std::env::join_paths(paths)?);
                      cmd.current_dir(&app).creation_flags(CREATE_NO_WINDOW);
@@ -1498,7 +2304,7 @@ index 1a68aee..c63d1e2 100644
                      return Ok(cmd);
                  }
                  anyhow::bail!("[{}] {} runtime unavailable; first-use setup requires internet access.", self.id, low);
-@@ -411,13 +492,23 @@ impl AddonRuntime {
+@@ -411,13 +499,23 @@ impl AddonRuntime {
      }
  }
  
@@ -1524,7 +2330,7 @@ index 1a68aee..c63d1e2 100644
      }
  
      async fn sync_config(&mut self) {
-@@ -425,36 +516,51 @@ impl AddonManager {
+@@ -425,36 +523,51 @@ impl AddonManager {
          let wanted: HashMap<String, ServerSpec> = cfg.servers.into_iter()
              .filter(|(id, _)| id != "roblox")
              .collect();
@@ -1590,7 +2396,7 @@ index 1a68aee..c63d1e2 100644
      }
  
      pub async fn list_tools(&mut self) -> (Vec<serde_json::Value>, Vec<ServerSummary>) {
-@@ -463,9 +569,21 @@ impl AddonManager {
+@@ -463,9 +576,21 @@ impl AddonManager {
          let mut summaries = Vec::new();
          let ids: Vec<String> = self.runtimes.keys().cloned().collect();
          for id in ids {
@@ -1614,7 +2420,7 @@ index 1a68aee..c63d1e2 100644
                      for mut tool in server_tools {
                          let Some(real) = tool.get("name").and_then(|v| v.as_str()).map(str::to_string) else { continue; };
                          tool["name"] = serde_json::Value::String(format!("{id}__{real}"));
-@@ -475,23 +593,10 @@ impl AddonManager {
+@@ -475,23 +600,10 @@ impl AddonManager {
                          tool["server"] = serde_json::Value::String(id.clone());
                          tools.push(tool);
                      }
@@ -1640,7 +2446,7 @@ index 1a68aee..c63d1e2 100644
                  }
              }
          }
-@@ -499,20 +604,45 @@ impl AddonManager {
+@@ -499,20 +611,45 @@ impl AddonManager {
          (tools, summaries)
      }
  
@@ -1695,6 +2501,325 @@ index 1a68aee..c63d1e2 100644
  }
  
  #[cfg(test)]
+diff --git a/agent/src/notion_blender.rs b/agent/src/notion_blender.rs
+new file mode 100644
+index 0000000..df1e5cd
+--- /dev/null
++++ b/agent/src/notion_blender.rs
+@@ -0,0 +1,313 @@
++//! AdiCode Blender Pro: expert skills, an in-Blender helper library
++//! (`adicode_blender`, installed into every Blender user modules folder),
++//! and the `blender_pro` tool (doctor / setup / helpers).
++
++use serde_json::{json, Value};
++use std::path::{Path, PathBuf};
++use std::process::Command;
++use std::time::Duration;
++
++#[cfg(windows)]
++use std::os::windows::process::CommandExt;
++
++pub(crate) const HELPERS: &str = include_str!("blender_helpers.py");
++
++pub(crate) const SKILL_CORE: &str = r#"Goal: production-quality Blender results, verified visually. Tools: blender_* (MCP for Blender: get_scene_info, execute_blender_code, look, search_assets, import_asset, generate_3d), blender_pro (doctor, setup, helpers), comfyui_* (local AI images/textures/image-to-3D on the RTX GPU), pc_PowerShell (headless renders), context7 (Blender Python API docs).
++
++0. Start
++- blender_get_addon_status. If Blender is not reachable: blender_pro action=doctor, then tell the user exactly what to click (Blender open, N panel -> MCP for Blender -> Start/Connect, port 9876).
++- First code call in every session: import adicode_blender as A, importlib; importlib.reload(A); print(A.help()). If import fails: blender_pro action=install_helpers.
++- Load the specialised skill too: blender-model (modeling/materials/assets) or blender-anim (animation/rigging/physics/camera).
++
++1. Plan before code (2-5 lines): deliverable (still, turntable, animation, game asset), style (realistic, stylised, low-poly), real-world scale in metres, shot/camera, time budget. Unclear requests: propose 2-3 concrete directions.
++- Order: blockout at true scale -> silhouette check from camera -> forms -> materials -> lighting -> detail -> render. Never jump to details on a bad blockout.
++- Naming: GEO-, MAT-, LGT-, CAM-, RIG-, CTRL- prefixes, collections per part. Keep modifiers non-destructive until the end.
++
++2. Code rules (Blender 4.2-5.x)
++- One logical step per execute_blender_code call (< ~120 lines), print a compact result, check it before the next step.
++- Prefer data API / bmesh / A.* helpers over bpy.ops; if an operator is needed use A.op(bpy.ops.x.y, objects=[...]) (context override). Never rely on the user's selection or mode; return to OBJECT mode.
++- Apply scale (A.apply_transforms) before bevel, booleans, physics, rigging and export.
++- 5.x API: EEVEE engine id 'BLENDER_EEVEE' (A.render_settings handles it), Principled sockets 'Emission Color', 'Coat Weight', 'Subsurface Weight', 'Transmission Weight'; layered actions (use A._fcurves(obj)); shade_smooth_by_angle; geometry nodes interface via ng.interface.new_socket. Unsure about an API: context7 'blender python api' or introspect (bpy.types.X.bl_rna.properties.keys()) instead of guessing.
++- Long work (renders > 30 s, bakes, simulations): save the file (A.save()), then run headless via pc_PowerShell Start-Process "blender.exe" -ArgumentList '-b','<file.blend>','-E','CYCLES','-a' with a log file; poll the log. MCP calls time out after ~55 s.
++
++3. Verification loop (mandatory, never report done without it)
++- After every major step: blender_look (viewport/camera image) and/or A.render('check.png', scale=40) and look at it; A.quality() for meshes.
++- Fix what you see: floating objects, intersections, wrong scale, flat lighting, noisy or blown-out render, uniform plastic look, stretched textures.
++- Animation: A.contact_sheet() at 5 frames, check poses, arcs, contact with the ground, no popping.
++
++4. Quality bar ('krass' instead of 'okay')
++- Bevel every hard edge (A.hard_surface), weighted normals; organic forms use subdivision (A.organic). Silhouette must read from the camera.
++- Materials always vary: roughness/colour variation (A.procedural), bump or normal map, edge wear/dirt for realism. Real textures: Poly Haven/ambientCG via blender_search_assets + A.pbr_textures(folder).
++- Lighting: A.studio('three_point'|'rim'|'soft') or an HDRI (Poly Haven) + one key light; AgX view transform; shadows grounded (A.floor, contact shadows).
++- Camera: 35-85 mm, rule of thirds, depth of field on hero shots (cam.data.dof.use_dof, focus_object), slight elevation.
++- Render: EEVEE for previews, Cycles GPU OptiX for finals (A.gpu(), A.render_settings('CYCLES', quality='high')), denoise on, motion blur for animation.
++
++5. Assets and AI (big quality boost, use them)
++- Poly Haven HDRIs/textures/models (free, CC0), Sketchfab, Poly Pizza through blender_search_assets/blender_import_asset.
++- Complex organic hero props/characters: blender_generate_3d (Hunyuan3D/Tripo/Rodin) or local ComfyUI image-to-3D, then A.cleanup, decimate/remesh, UV, scale to real size, re-light. Concept images/seamless textures: comfyui_generate_image.
++
++6. Deliver: save .blend + renders/videos to PlazCode-Shared/blender-out (A.save, A.render, A.render_video), export glb/fbx (A.export). Report file paths, what was built, render settings, and next improvement ideas."#;
++
++pub(crate) const SKILL_MODEL: &str = r#"Modeling, materials and assets for high-quality results.
++
++Workflow
++1. Reference: ask for or generate (comfyui_generate_image) a reference/concept; derive proportions in metres (door 2.0 m, table 0.75 m, human 1.75 m, car 4.5 m).
++2. Blockout from primitives (A.primitive) at true scale; check silhouette from the camera (A.camera + blender_look).
++3. Primary -> secondary -> tertiary forms. Detail density must vary (calm areas vs. detailed areas).
++4. Topology: quads on deforming/curved surfaces, ngons only on flat faces, support loops or bevels for crisp subdivided edges.
++5. UV (A.uv_unwrap) only when image textures or baking are needed; procedural materials use Object coordinates.
++6. A.quality(): non_manifold_edges 0 for booleans/3D print, scale_applied True, no loose verts, normals outward (A.cleanup).
++
++Hard surface (vehicles, weapons, props, architecture, robots)
++- Booleans (modifier, EXACT solver, cutters in a hidden collection; Bool Tool extension installed by blender_pro setup) -> Bevel (angle limit 30 deg, harden normals) -> Weighted Normal (A.hard_surface).
++- Mirror for symmetry, Array + Curve for repeated parts (chains, treads, rails), Solidify for panels, Screw for lathe parts (wheels, bottles), curves with bevel depth for cables/pipes, Skin modifier for frames.
++- Panel lines: boolean cuts with small bevels; add greebles via geometry nodes instancing (A.scatter on a selection) instead of copy-paste.
++
++Organic (characters, creatures, plants, rocks, terrain)
++- Base mesh: subdivided cubes, Skin modifier, or metaballs -> Voxel Remesh -> Subdivision (A.organic) -> displacement with noise textures for rocks/terrain.
++- Characters: prefer generate_3d (Hunyuan3D/Tripo/Rodin) or a ready asset for realism, then retopo: Quadriflow (bpy.ops.object.quadriflow_remesh via A.op) or Decimate, shrinkwrap details.
++- Vegetation and scattering: geometry nodes (A.scatter with density, random scale and rotation), several variants, never identical copies.
++
++Procedural / geometry nodes
++- Use nodes for anything repetitive (buildings, fences, crowds of rocks, cables). Keep parameters exposed so you can iterate quickly.
++
++Materials (Principled BSDF, linear values)
++- Never pure black/white albedo (0.03-0.9). Metals: metallic 1, roughness 0.15-0.45, coloured base (gold 1.0/0.71/0.29, copper 0.95/0.64/0.54, steel 0.56/0.57/0.58). Plastics 0.3-0.6 roughness, rubber 0.8-0.9, glass transmission 1 roughness 0-0.05 IOR 1.45-1.5, car paint coat weight 1, skin subsurface weight 0.1-0.25.
++- Realism comes from variation: A.procedural (noise/voronoi/wave -> colour + roughness + bump), AO/pointiness edge wear, dirt in cavities, scratches via stretched noise.
++- Image textures: A.pbr_textures(folder) sets sRGB for colour and Non-Color for data maps; real textures from Poly Haven via blender_search_assets.
++
++AI-generated meshes (generate_3d / ComfyUI Hunyuan3D, TRELLIS)
++- Import -> A.cleanup(obj) -> Decimate (ratio so tris fit the budget) or Remesh -> smart UV -> bake or re-material -> scale to real size -> origin to base -> sits on the floor.
++- Budgets: hero render 100k-1M tris fine; game asset 2k-30k tris + baked normal map; Roblox: < 10k tris per mesh, FBX export with applied scale.
++
++Presentation
++- A.floor + A.studio + A.camera(lens=50..85) + AgX; render a turntable for models (A.orbit + render_video)."#;
++
++pub(crate) const SKILL_ANIM: &str = r#"Animation, rigging, physics and camera work that looks professional.
++
++Plan
++- Shot list with durations in seconds, fps (24 film, 30 web, 60 game), frame range. Write the beats: anticipation -> action -> follow-through -> settle.
++- Block first with CONSTANT interpolation (stepped poses on key frames), review with A.contact_sheet, then switch to BEZIER (A.set_interp) and polish.
++
++12 principles applied
++- Slow in/out (BEZIER auto-clamped, easing), arcs (move along curves, A.follow_path), anticipation (counter-move 4-8 frames before), follow-through and overlap (offset child/secondary parts 2-4 frames), squash and stretch preserving volume (A.bounce), secondary action (A.shake noise for breathing/hover/idle), timing (fast = few frames, heavy = slow ease), exaggeration for stylised work.
++
++Techniques
++- Keys: A.key(obj, frame, location=..., rotation_euler=..., scale=...). Loops: A.loop (Cycles F-modifier). Organic motion: A.shake (Noise F-modifier). Layering: NLA strips (A.nla_push).
++- Drivers for mechanics (wheel rotation = distance / radius, pistons, gears), constraints: Track To/Damped Track (eyes, cameras, turrets), Child Of (pick up/hand over), Follow Path, Limit Rotation, Copy Rotation for retargeting.
++- Shape keys for faces/morphs; drivers on shape keys for blinks and expressions.
++- Mechanical/procedural motion: geometry nodes with simulation zones, or drivers using frame (#frame) expressions.
++
++Characters
++- Own rig: A.human_rig() creates a Rigify human (IK/FK, foot roll). Fit the metarig to the mesh (A.human_rig(generate=False), edit bones), then generate, then A.skin(mesh, rig) automatic weights; test extreme poses and fix weights.
++- Realistic motion fast: Mixamo (auto-rig + motion library, FBX download; use browser_* if the user is logged in, or ask the user to download), CMU/Bandai BVH mocap, video mocap (FreeMoCap, Rokoko Video, Move.ai) and text-to-motion AI (e.g. NVIDIA Kimodo, Motion Gen addon, MotionGPT/HY-Motion) that export BVH/FBX -> A.import_motion(path) -> retarget (Copy Rotation constraints or the Rokoko/Auto-Rig Pro remap addons) -> clean feet sliding -> layer hand-keyed polish on top in the NLA.
++- Walk cycle: 24-32 frames per cycle at 24 fps, contact-down-passing-up poses, hips move in a figure-8, arms opposite to legs, A.loop.
++
++Physics and FX
++- Rigid body (collapse, dominoes), cloth (flags, capes; pin group), Mantaflow fluid/smoke/fire, particles; bake before rendering (A.bake_physics) with the exact frame range; check every 10th frame.
++- Glow: emission strength 5-50 + compositor Glare (bloom); volumetric light via Principled Volume in a world/box; motion blur on.
++
++Camera
++- Motivated moves: slow push-in, orbit (A.orbit), follow with Damped Track; ease every camera key. Lens 24-35 for action, 50 for neutral, 85+ for close-ups. Subtle handheld A.shake(cam, 'rotation_euler', 0.004-0.015, 20). Depth of field with focus_object. Cuts: several cameras bound to markers.
++
++Review and render
++- A.contact_sheet() and blender_look while scrubbing frames: no intersections, feet planted, no popping, readable silhouettes.
++- Preview: EEVEE, 50% resolution, A.render_video('preview.mp4', scale=50) for short clips, otherwise headless.
++- Final: Cycles GPU (A.gpu) or EEVEE high, PNG sequence for long renders (resume-safe), headless blender -b file.blend -a via Start-Process with a log, then MP4 via ffmpeg."#;
++
++const SETUP_PY: &str = r#"import bpy, addon_utils
++for m in ("rigify", "node_wrangler", "io_scene_fbx", "io_scene_gltf2", "io_anim_bvh", "pose_library"):
++    try:
++        addon_utils.enable(m, default_set=True, persistent=True); print("ENABLED", m)
++    except Exception as e:
++        print("FAIL", m, e)
++try:
++    cp = bpy.context.preferences.addons["cycles"].preferences
++    for t in ("OPTIX", "CUDA", "HIP", "ONEAPI"):
++        try:
++            cp.compute_device_type = t; cp.refresh_devices()
++            if any(d.type == t for d in cp.devices):
++                break
++        except Exception:
++            pass
++    for d in cp.devices:
++        d.use = d.type != "CPU"
++    print("COMPUTE", cp.compute_device_type, [(d.name, d.type, d.use) for d in cp.devices])
++except Exception as e:
++    print("GPU FAIL", e)
++p = bpy.context.preferences
++p.edit.undo_steps = 64
++if hasattr(p.system, "use_online_access"):
++    p.system.use_online_access = True
++bpy.ops.wm.save_userpref(); print("PREFS SAVED")
++"#;
++
++const EXTENSIONS: &str = "looptools,bool_tool,extra_mesh_objects,copy_attributes_menu";
++
++fn appdata() -> PathBuf { std::env::var_os("APPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir) }
++fn local() -> PathBuf { std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion").join("blender") }
++fn user_versions() -> Vec<PathBuf> {
++    let base = appdata().join("Blender Foundation").join("Blender");
++    let mut v: Vec<PathBuf> = std::fs::read_dir(&base).map(|rd| rd.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect()).unwrap_or_default();
++    v.sort();
++    v
++}
++
++pub(crate) fn blender_exes() -> Vec<PathBuf> {
++    let mut out = Vec::new();
++    let mut bases = Vec::new();
++    for var in ["ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"] {
++        if let Some(p) = std::env::var_os(var) {
++            bases.push(PathBuf::from(&p).join("Blender Foundation"));
++            bases.push(PathBuf::from(&p).join("Steam").join("steamapps").join("common").join("Blender"));
++        }
++    }
++    for b in bases {
++        let direct = b.join("blender.exe");
++        if direct.is_file() && !out.contains(&direct) { out.push(direct); }
++        if let Ok(rd) = std::fs::read_dir(&b) {
++            for e in rd.flatten() {
++                let p = e.path().join("blender.exe");
++                if p.is_file() && !out.contains(&p) { out.push(p); }
++            }
++        }
++    }
++    out.sort();
++    out
++}
++
++fn hidden(cmd: &mut Command) -> &mut Command {
++    #[cfg(windows)]
++    { cmd.creation_flags(0x0800_0000); }
++    cmd
++}
++
++/// Writes adicode_blender.py into every Blender user scripts/modules folder
++/// (importable as `import adicode_blender`) plus a copy under LOCALAPPDATA.
++pub(crate) fn install_helpers() -> Vec<String> {
++    let mut done = Vec::new();
++    let mut targets: Vec<PathBuf> = user_versions().into_iter().map(|v| v.join("scripts").join("modules")).collect();
++    targets.push(local());
++    for dir in targets {
++        let file = dir.join("adicode_blender.py");
++        if std::fs::read_to_string(&file).map(|s| s == HELPERS).unwrap_or(false) { done.push(file.display().to_string()); continue; }
++        if std::fs::create_dir_all(&dir).is_ok() && std::fs::write(&file, HELPERS).is_ok() { done.push(file.display().to_string()); }
++    }
++    done
++}
++
++fn port_open(port: u16) -> bool {
++    std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127, 0, 0, 1], port)), Duration::from_millis(400)).is_ok()
++}
++
++fn list_names(dir: &Path) -> Vec<String> {
++    let mut v: Vec<String> = std::fs::read_dir(dir).map(|rd| rd.flatten().map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| !n.starts_with("__") && !n.starts_with('.')).collect()).unwrap_or_default();
++    v.sort();
++    v
++}
++
++fn doctor() -> String {
++    let mut s = String::from("Blender-Doctor (AdiCode)\n");
++    let exes = blender_exes();
++    if exes.is_empty() { s.push_str("- Blender: NICHT gefunden (blender.org/download, 5.2 LTS empfohlen)\n"); }
++    for e in &exes { s.push_str(&format!("- Blender: {}\n", e.display())); }
++    let running = hidden(Command::new("tasklist").args(["/FI", "IMAGENAME eq blender.exe", "/NH"])).output().map(|o| String::from_utf8_lossy(&o.stdout).to_ascii_lowercase().contains("blender.exe")).unwrap_or(false);
++    s.push_str(&format!("- Blender laeuft: {}\n", if running { "ja" } else { "nein" }));
++    s.push_str(&format!("- MCP-Addon-Port 9876: {}\n", if port_open(9876) { "offen (verbunden)" } else { "zu -> in Blender N-Panel 'MCP for Blender' Server starten" }));
++    for v in user_versions() {
++        let ver = v.file_name().map(|x| x.to_string_lossy().to_string()).unwrap_or_default();
++        let addons = list_names(&v.join("scripts").join("addons"));
++        let ext = list_names(&v.join("extensions").join("blender_org"));
++        let helper = v.join("scripts").join("modules").join("adicode_blender.py").is_file();
++        s.push_str(&format!("- Profil {ver}: addons={:?} extensions={:?} adicode_blender={}\n", addons, ext, if helper { "ok" } else { "fehlt" }));
++    }
++    let uvx = std::env::var_os("USERPROFILE").map(|p| PathBuf::from(p).join(".local").join("bin").join("uvx.exe")).filter(|p| p.is_file());
++    s.push_str(&format!("- uvx: {}\n", uvx.map(|p| p.display().to_string()).unwrap_or_else(|| "nicht im Standardpfad (uv installieren)".into())));
++    let gpu = hidden(Command::new("nvidia-smi").args(["--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"])).output().ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
++    s.push_str(&format!("- GPU: {}\n", gpu.unwrap_or_else(|| "keine NVIDIA-GPU erkannt".into())));
++    s.push_str(&format!("- ComfyUI (Port 8188): {}\n", if port_open(8188) { "laeuft" } else { "aus (fuer lokale Texturen/Image-to-3D comfyui_* nutzen)" }));
++    let log = local().join("setup.log");
++    if let Ok(t) = std::fs::read_to_string(&log) {
++        let tail: Vec<&str> = t.lines().filter(|l| l.contains("ENABLED") || l.contains("FAIL") || l.contains("COMPUTE") || l.contains("PREFS") || l.contains("Installed") || l.contains("STEP")).collect();
++        s.push_str(&format!("- Letztes Setup ({}):\n  {}\n", log.display(), tail.join("\n  ")));
++    }
++    s.push_str("Naechste Schritte: blender_pro action=setup (Extensions + GPU + Helfer), dann adicode_skill blender.");
++    s
++}
++
++fn setup() -> String {
++    let helpers = install_helpers();
++    let Some(exe) = blender_exes().last().cloned() else { return "Blender nicht gefunden. Erst Blender installieren.".into() };
++    let dir = local();
++    let _ = std::fs::create_dir_all(&dir);
++    let py = dir.join("setup_prefs.py");
++    let _ = std::fs::write(&py, SETUP_PY);
++    let log = dir.join("setup.log");
++    let exe2 = exe.clone();
++    std::thread::spawn(move || {
++        let mut out = String::new();
++        for name in user_versions() {
++            let e = name.join("extensions");
++            let _ = std::fs::create_dir_all(e.join("blender_org"));
++            let _ = std::fs::create_dir_all(e.join("user_default"));
++        }
++        out.push_str("STEP extensions\n");
++        if let Ok(o) = hidden(Command::new(&exe2).args(["--online-mode", "--command", "extension", "install", "-s", "-e", EXTENSIONS])).output() {
++            out.push_str(&String::from_utf8_lossy(&o.stdout)); out.push_str(&String::from_utf8_lossy(&o.stderr));
++        }
++        out.push_str("\nSTEP prefs\n");
++        if let Ok(o) = hidden(Command::new(&exe2).args(["-b", "--python"]).arg(&py)).output() {
++            out.push_str(&String::from_utf8_lossy(&o.stdout)); out.push_str(&String::from_utf8_lossy(&o.stderr));
++        }
++        out.push_str("\nSTEP done\n");
++        let _ = std::fs::write(&log, out);
++    });
++    format!("Setup laeuft im Hintergrund mit {} (Extensions {EXTENSIONS}; Rigify, Node Wrangler, FBX/glTF/BVH aktiv; Cycles-GPU OptiX/CUDA; 64 Undo-Schritte). Helfer installiert: {}. In ~1-2 min blender_pro action=doctor pruefen. Hinweis: Laeuft Blender gerade, Blender danach neu starten (sonst ueberschreibt es die Einstellungen beim Beenden).", exe.display(), helpers.join(", "))
++}
++
++fn helpers_doc() -> String {
++    let mut lines = Vec::new();
++    let mut it = HELPERS.lines().peekable();
++    while let Some(l) = it.next() {
++        if let Some(rest) = l.strip_prefix("def ") {
++            if rest.starts_with('_') { continue; }
++            let sig = rest.trim_end_matches(':');
++            let doc = it.peek().map(|d| d.trim().trim_matches('"').to_string()).filter(|d| !d.is_empty() && !d.starts_with("for ") && !d.contains('=')).unwrap_or_default();
++            lines.push(format!("- A.{sig}  {doc}"));
++        }
++    }
++    format!("In execute_blender_code zuerst:\nimport adicode_blender as A, importlib; importlib.reload(A)\n(Fehlt das Modul: blender_pro action=install_helpers. Fallback: import sys; sys.path.insert(0, r'{}'); import adicode_blender as A)\nAusgaben landen in %USERPROFILE%\\PlazCode-Shared\\blender-out.\n\nFunktionen:\n{}", local().display(), lines.join("\n"))
++}
++
++pub(crate) fn tools() -> Vec<Value> {
++    static ONCE: std::sync::Once = std::sync::Once::new();
++    ONCE.call_once(|| { std::thread::spawn(|| { let _ = install_helpers(); }); });
++    vec![json!({
++        "name": "blender_pro",
++        "description": "AdiCode Blender Pro: doctor = Blender/Addon/Port/GPU/Extensions pruefen; setup = Extensions (LoopTools, Bool Tool, Extra Objects), Rigify, Node Wrangler, Importer, Cycles-GPU einrichten (Hintergrund); install_helpers = Python-Helfer adicode_blender in Blender installieren; helpers = Funktionsliste der Helfer (A.studio, A.camera, A.hard_surface, A.procedural, A.bounce, A.human_rig, A.render_video ...). Vor Blender-Arbeit adicode_skill blender laden.",
++        "inputSchema": {"type": "object", "properties": {"action": {"type": "string", "enum": ["doctor", "setup", "install_helpers", "helpers"]}}, "required": ["action"]}
++    })]
++}
++
++pub(crate) fn call(name: &str, args: &Value) -> Option<Value> {
++    if name != "blender_pro" { return None; }
++    let text = match args["action"].as_str().unwrap_or("doctor") {
++        "setup" => setup(),
++        "install_helpers" => { let v = install_helpers(); if v.is_empty() { "Kein Blender-Profil gefunden (Blender einmal starten).".into() } else { format!("adicode_blender installiert:\n{}", v.join("\n")) } }
++        "helpers" => helpers_doc(),
++        _ => doctor(),
++    };
++    Some(json!({"content": [{"type": "text", "text": text}]}))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn blender_pro_basics() {
++        assert!(HELPERS.contains("def studio"));
++        assert!(helpers_doc().contains("A.render_video"));
++        assert_eq!(tools()[0]["name"], "blender_pro");
++        assert!(call("x", &json!({})).is_none());
++    }
++}
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
 index 0000000..216ddbe
@@ -2868,10 +3993,10 @@ index 0000000..48e289e
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..fe91878
+index 0000000..d88ddce
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,1212 @@
+@@ -0,0 +1,1236 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -3029,7 +4154,7 @@ index 0000000..fe91878
 +#page-chat .ac-gview img{max-width:100%;max-height:100%;object-fit:contain;cursor:crosshair;user-select:none}
 +#page-chat .ac-goff{display:none;position:absolute;color:#8a90a2;font-size:13px}
 +#page-chat .ac-gcell.off .ac-goff{display:block}#page-chat .ac-gcell.off img{opacity:.2}
-+#page-chat .ac-tab{cursor:pointer}#page-chat .ac-tab.off{opacity:.55}#page-chat .ac-tab.main{border-color:#22d3ee!important}
++#page-chat .ac-tab-proj{opacity:.8;font-size:11px;margin-left:2px}#page-chat .ac-bell{background:none;border:0;cursor:pointer;font-size:13px;padding:0 6px;opacity:.85}#page-chat .ac-grid.full{padding:4px 4px 34px}#page-chat .ac-grid.full .ac-wbar{opacity:.18;transition:opacity .2s}#page-chat .ac-grid.full .ac-wbar:hover,#page-chat .ac-grid.full .ac-wbar:focus-within{opacity:1}#page-chat .ac-wbar select{background:#1b2030;color:inherit;border:1px solid #333b52;border-radius:6px;padding:2px 6px}#page-chat .ac-gview img{object-fit:contain}#page-chat .ac-tab{cursor:pointer}#page-chat .ac-tab.off{opacity:.55}#page-chat .ac-tab.main{border-color:#22d3ee!important}
 +#acEnh.busy svg{animation:acSpin 1s linear infinite}
 +.ac-cwbtn:disabled, .ac-cwbtn.is-busy, #page-chat .ac-cwbtn:disabled { opacity: .45 !important; cursor: not-allowed !important; filter: grayscale(1) !important; transform: none !important; pointer-events: none; }
 +</style>
@@ -3331,7 +4456,7 @@ index 0000000..fe91878
 +  new MutationObserver(function () { if (active()) { poll(); loadHist(); setTimeout(function () { $("acInput").focus(); }, 50); } }).observe(page, { attributes: true, attributeFilter: ["class"] });
 +
 +  function apply(st) {
-+    S.running = !!st.running; var wasGen = S.gen; S.gen = !!st.generating; if (S.gen && !wasGen) S.genT = Date.now() / 1000 + ((typeof Live !== "undefined" && Live) ? Live.off : 0) - (S.seen ? 5 : 180); S.seen = true; S.rec = !!st.recording; S.url = st.url || ""; S.hidden = !!st.hidden;
++    S.running = !!st.running; var wasGen = S.gen; S.gen = !!st.generating; if (wasGen && !S.gen) bell(); if (S.gen && !wasGen) S.genT = Date.now() / 1000 + ((typeof Live !== "undefined" && Live) ? Live.off : 0) - (S.seen ? 5 : 180); S.seen = true; S.rec = !!st.recording; S.url = st.url || ""; S.hidden = !!st.hidden;
 +    if (!st.running) setPill("", "Main offline \u00b7 startet beim Senden");
 +    else if (st.login) setPill("err", "Main nicht angemeldet");
 +    else if (st.error) setPill("err", "Main nicht bereit");
@@ -3822,6 +4947,21 @@ index 0000000..fe91878
 +    box.innerHTML = h; box.classList.add("on");
 +  }
 +  var Tabs = { list: [], t: null, groups: {} };
++  var Bell = { on: localStorage.getItem("acBell") !== "0", ctx: null, last: 0, st: {} };
++  function bellCtx() { try { if (!Bell.ctx) Bell.ctx = new (window.AudioContext || window.webkitAudioContext)(); if (Bell.ctx.state === "suspended") Bell.ctx.resume(); } catch (e) {} return Bell.ctx; }
++  document.addEventListener("pointerdown", function () { bellCtx(); }, { once: true });
++  function bell() {
++    if (!Bell.on) return; var n = Date.now(); if (n - Bell.last < 2500) return; Bell.last = n;
++    var C = bellCtx(); if (!C) return;
++    try { var t0 = C.currentTime + 0.02; [[880, 0], [1318.5, 0.16]].forEach(function (p) { var o = C.createOscillator(), g = C.createGain(); o.type = "sine"; o.frequency.value = p[0]; g.gain.setValueAtTime(0.0001, t0 + p[1]); g.gain.exponentialRampToValueAtTime(0.06, t0 + p[1] + 0.025); g.gain.exponentialRampToValueAtTime(0.0001, t0 + p[1] + 1.2); o.connect(g); g.connect(C.destination); o.start(t0 + p[1]); o.stop(t0 + p[1] + 1.3); }); } catch (e) {}
++  }
++  function bellToggle() { Bell.on = !Bell.on; try { localStorage.setItem("acBell", Bell.on ? "1" : "0"); } catch (e) {} if (Bell.on) { Bell.last = 0; bell(); } toast(Bell.on ? "Fertig-Ton an." : "Fertig-Ton aus.", true, 2500); tabsRender(); var wb = document.querySelector('#acGrid [data-w="bell"]'); if (wb) wb.textContent = Bell.on ? "\uD83D\uDD14 Ton an" : "\uD83D\uDD15 Ton aus"; }
++  function wallList() {
++    var m = (typeof Wall !== "undefined" && Wall.mode) || "all", L = Tabs.list;
++    if (m.indexOf("g:") === 0) { var mid = +m.slice(2), r = L.filter(function (t) { return (+Tabs.groups[t.id] || t.id) === mid; }); if (r.length) return r; }
++    if (m.indexOf("one:") === 0) { var id = +m.slice(4), r1 = L.filter(function (t) { return t.id === id; }); if (r1.length) return r1; }
++    return L;
++  }
 +  function tabsPoll() {
 +    clearTimeout(Tabs.t);
 +    if (!active()) { Tabs.t = setTimeout(tabsPoll, 4000); return; }
@@ -3832,13 +4972,13 @@ index 0000000..fe91878
 +    var list = Tabs.list;
 +    if (!list.length) { box.classList.remove("on"); box.innerHTML = ""; return; }
 +    var hasLive = typeof Live !== "undefined" && Live, now = Date.now() / 1000 + (hasLive ? Live.off : 0);
-+    box.innerHTML = '<span class="ac-tabs-cap">Tabs</span>' + list.map(function (t) {
++    box.innerHTML = '<span class="ac-tabs-cap">Tabs</span><button class="ac-bell" data-bell="1" title="Ton, wenn ein Chat fertig ist">' + (Bell.on ? "\uD83D\uDD14" : "\uD83D\uDD15") + "</button>" + list.map(function (t) {
 +      var keys = [t.role, t.label].filter(Boolean).map(function (s) { return String(s).toLowerCase(); }), ev = null;
 +      if (hasLive) for (var i = Live.items.length - 1; i >= 0; i--) { var e = Live.items[i], tb = String(e.tab || "").toLowerCase(); if (keys.some(function (k) { return tb === k || tb.indexOf(k) >= 0; })) { ev = e; break; } }
 +      var busy = !!ev && now - ev.ts < 90, talk = !!ev && /^cowork_/.test(ev.tool || "") && now - ev.ts < 300;
-+      var st = t.paused ? "paused" : (busy ? "busy" : "idle");
++      var st = t.paused ? "paused" : (busy ? "busy" : "idle"); var pv = Bell.st[t.id]; Bell.st[t.id] = st; if (pv === "busy" && st === "idle") bell(); var gc = grpColor(+Tabs.groups[t.id] || t.id);
 +      var sub = !t.running && !t.paused ? "aus" : t.paused ? "pausiert" : (busy ? String(ev.text || acTool(ev.tool)).replace(/^(Co-Work: *)+/i, "") : (talk ? String(ev.text || acTool(ev.tool)).replace(/^(Co-Work: *)+/i, "") : "bereit"));
-+      return '<div class="ac-tab ' + st + (t.running ? "" : " off") + (+Tabs.groups[t.id] === t.id ? " main" : "") + '" data-id="' + t.id + '" title="' + esc((t.label || "") + " \u00b7 " + (t.email || "") + (ev ? " \u00b7 " + ev.tool + " \u00b7 " + liveAgo(ev.ts) : "")) + '"><span class="ac-tab-dot"></span><b>' + (+Tabs.groups[t.id] === t.id ? "\u2605 " : "") + esc(t.role || t.label) + '</b><span class="ac-tab-sub">' + esc(sub) + "</span>" + (talk ? '<span class="ac-tab-cw" title="spricht \u00fcber Co-Work">\u21c4</span>' : "") + "</div>";
++      return '<div class="ac-tab ' + st + (t.running ? "" : " off") + (+Tabs.groups[t.id] === t.id ? " main" : "") + '" style="border-color:' + gc + ';box-shadow:inset 3px 0 0 ' + gc + '" data-id="' + t.id + '" title="' + esc((t.label || "") + " \u00b7 " + (t.email || "") + (ev ? " \u00b7 " + ev.tool + " \u00b7 " + liveAgo(ev.ts) : "")) + '"><span class="ac-tab-dot"></span><b>' + (+Tabs.groups[t.id] === t.id ? "\u2605 " : "") + esc(t.role || t.label) + '</b>' + (t.project ? '<span class="ac-tab-proj" style="color:' + gc + '">' + esc(t.project) + '</span>' : "") + '<span class="ac-tab-sub">' + esc(sub) + "</span>" + (talk ? '<span class="ac-tab-cw" title="spricht \u00fcber Co-Work">\u21c4</span>' : "") + "</div>";
 +    }).join("");
 +    box.classList.add("on");
 +  }
@@ -3846,7 +4986,7 @@ index 0000000..fe91878
 +  var Grid = { on: false, cells: {} };
 +  function view(id, b) { b.id = id; return api("/api/notion/cowork-view", b); }
 +  function vq(cell, b) { cell.q = (cell.q || Promise.resolve()).then(function () { return view(cell.id, b); }).catch(function () {}); return cell.q; }
-+  function gridToggle() { Grid.on = !Grid.on; $("acGrid").classList.toggle("on", Grid.on); $("acGridBtn").textContent = Grid.on ? "Vorschau schlie\u00dfen" : "Alle Fenster"; if (Grid.on) { $("acGrid").removeAttribute("data-ids"); gridBuild(); } else { Object.keys(Grid.cells).forEach(function (k) { clearTimeout(Grid.cells[k].timer); }); Grid.cells = {}; $("acGrid").innerHTML = ""; $("acGrid").classList.remove("full", "max"); } }
++  function gridToggle() { Grid.on = !Grid.on; $("acGrid").classList.toggle("on", Grid.on); $("acGridBtn").textContent = Grid.on ? "Vorschau schlie\u00dfen" : "Alle Fenster"; if (Grid.on) { $("acGrid").removeAttribute("data-ids"); gridBuild(); } else { Object.keys(Grid.cells).forEach(function (k) { clearTimeout(Grid.cells[k].timer); clearTimeout(Grid.cells[k].ft); if (Grid.cells[k].ro) Grid.cells[k].ro.disconnect(); }); Grid.cells = {}; $("acGrid").innerHTML = ""; wallFull(false); $("acGrid").classList.remove("full", "max"); } }
 +  function setMain(id) { api("/api/notion/action", { action: "cowork_set_main", value: id }).then(function (r) { Tabs.main = id; toast((r && r.message) || "Main gewechselt.", true, 4000); tabsRender(); gridHead(); S.histDirty = true; poll(); }).catch(function (e) { toast(e.message); }); }
 +  function pos(cell, ev) { var r = cell.img.getBoundingClientRect(); return { x: (ev.clientX - r.left) * cell.w / r.width, y: (ev.clientY - r.top) * cell.h / r.height }; }
 +  function shotLoop(cell) {
@@ -3856,6 +4996,13 @@ index 0000000..fe91878
 +    cell.el.classList.remove("off"); var t0 = Date.now();
 +    view(cell.id, { op: "shot", q: 45, fast: true }).then(function (r) { if (r && r.img) { cell.img.src = "data:image/jpeg;base64," + r.img; cell.w = +r.w || 0; cell.h = +r.h || 0; } }).catch(function () {})
 +      .then(function () { var gap = document.hidden || !active() ? 1500 : Math.max(40, 200 - (Date.now() - t0)); cell.timer = setTimeout(function () { shotLoop(cell); }, gap); });
++  }
++  function fitCell(cell) {
++    if (!Grid.on || Grid.cells[cell.id] !== cell) return; var v = cell.el.querySelector(".ac-gview"); if (!v) return;
++    var r = v.getBoundingClientRect(); if (r.width < 80 || r.height < 60) return;
++    var s = Math.max(1, 1100 / r.width), w = Math.round(r.width * s), h = Math.round(r.height * s);
++    if (h < 520) { w = Math.round(w * 520 / h); h = 520; } if (w > 2600) { h = Math.round(h * 2600 / w); w = 2600; }
++    if (cell.fw && Math.abs(cell.fw - w) < 12 && Math.abs(cell.fh - h) < 12) return; cell.fw = w; cell.fh = h; vq(cell, { op: "fit", w: w, h: h });
 +  }
 +  function grpMains() { return Tabs.list.filter(function (t) { return +Tabs.groups[t.id] === t.id; }); }
 +  function grpColor(mid) { var i = grpMains().findIndex(function (m) { return m.id === mid; }); return ["#22d3ee", "#f59e0b", "#a78bfa", "#34d399", "#f472b6", "#60a5fa", "#facc15", "#fb7185"][i < 0 ? 0 : i % 8]; }
@@ -3867,7 +5014,7 @@ index 0000000..fe91878
 +      var mid = +Tabs.groups[t.id] || t.id, isM = mid === t.id, m = Tabs.list.find(function (x) { return x.id === mid; });
 +      c.el.classList.toggle("main", isM); c.el.style.borderColor = grpColor(mid);
 +      c.el.querySelector("b").textContent = isM ? "\u2605 " + (t.role || "Main") : (t.role || ("Tab " + t.id)) + " \u2192 " + (m ? m.role : "Main");
-+      c.el.querySelector(".ac-gsub").textContent = (t.email || "") + (t.running ? "" : " \u00b7 aus");
++      c.el.querySelector(".ac-gsub").textContent = (t.project ? t.project + " Chat \u00b7 " : "") + (t.email || "") + (t.running ? "" : " \u00b7 aus");
 +      var sel = c.el.querySelector(".ac-ggrp"); if (document.activeElement === sel) return;
 +      var key = ms.map(function (x) { return x.id + ":" + x.role; }).join(",") + "|" + mid;
 +      if (sel.getAttribute("data-k") === key) return; sel.setAttribute("data-k", key);
@@ -3878,7 +5025,7 @@ index 0000000..fe91878
 +  var Wall = {}; try { Wall = JSON.parse(localStorage.getItem("acWall") || "{}") || {}; } catch (e) { Wall = {}; }
 +  function wallSave() { try { localStorage.setItem("acWall", JSON.stringify(Wall)); } catch (e) {} }
 +  function wallLayout() {
-+    var g = $("acGrid"), n = Tabs.list.length; if (!g || !n) return;
++    var g = $("acGrid"), n = wallList().length; if (!g || !n) return;
 +    var cols = n <= 1 ? 1 : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols), k = cols + "x" + rows, L = Wall[k] || (Wall[k] = { c: [], r: [] });
 +    while (L.c.length < cols) L.c.push(1); while (L.r.length < rows) L.r.push(1); L.c.length = cols; L.r.length = rows;
 +    Grid.L = L; Grid.cols = cols; Grid.rows = rows;
@@ -3898,16 +5045,16 @@ index 0000000..fe91878
 +    });
 +  }
 +  function wallZoom(id) { var g = $("acGrid"), c = Grid.cells[id]; if (!c) return; var on = !c.el.classList.contains("zoom"); Object.keys(Grid.cells).forEach(function (k) { Grid.cells[k].el.classList.remove("zoom"); }); c.el.classList.toggle("zoom", on); g.classList.toggle("max", on); if (on) c.el.focus(); }
-+  function wallFull(on) { var g = $("acGrid"); if (on === undefined) on = !g.classList.contains("full"); g.classList.toggle("full", on); var b = g.querySelector('[data-w="full"]'); if (b) b.textContent = on ? "Vollbild beenden" : "Vollbild"; }
-+  document.addEventListener("keydown", function (ev) { if (ev.key !== "Escape" || !Grid.on) return; var f = document.activeElement; if (f && f.classList && f.classList.contains("ac-gcell")) return; var g = $("acGrid"), z = g.querySelector(".ac-gcell.zoom"); if (z) wallZoom(+z.getAttribute("data-id")); else if (g.classList.contains("full")) wallFull(false); });
++  function wallFull(on) { var g = $("acGrid"); if (on === undefined) on = !g.classList.contains("full"); g.classList.toggle("full", on); try { if (window.ipc && window.ipc.postMessage && Grid.fs !== on) window.ipc.postMessage(on ? "fullscreen:on" : "fullscreen:off"); } catch (e) {} Grid.fs = on; var b = g.querySelector('[data-w="full"]'); if (b) b.textContent = on ? "Vollbild beenden" : "Vollbild"; }
++  document.addEventListener("keydown", function (ev) { if (ev.key === "F11" && Grid.on) { ev.preventDefault(); wallFull(); return; } if (ev.key !== "Escape" || !Grid.on) return; var f = document.activeElement; if (f && f.classList && f.classList.contains("ac-gcell")) return; var g = $("acGrid"), z = g.querySelector(".ac-gcell.zoom"); if (z) wallZoom(+z.getAttribute("data-id")); else if (g.classList.contains("full")) wallFull(false); });
 +  function gridBuild() {
 +    var g = $("acGrid"); if (!g || !Grid.on) return;
-+    var ids = Tabs.list.map(function (t) { return t.id; }).join(",");
++    var VL = wallList(), ids = (Wall.mode || "all") + "|" + JSON.stringify(Tabs.groups) + "|" + VL.map(function (t) { return t.id + (t.running ? "r" : ""); }).join(",");
 +    if (g.getAttribute("data-ids") === ids) { gridHead(); return; }
-+    Object.keys(Grid.cells).forEach(function (k) { clearTimeout(Grid.cells[k].timer); });
++    Object.keys(Grid.cells).forEach(function (k) { clearTimeout(Grid.cells[k].timer); clearTimeout(Grid.cells[k].ft); if (Grid.cells[k].ro) Grid.cells[k].ro.disconnect(); });
 +    g.setAttribute("data-ids", ids); g.classList.remove("max"); g.innerHTML = Tabs.list.length ? "" : '<div class="ac-goff" style="display:block">Noch keine Co-Work-Tabs angelegt.</div>'; Grid.cells = {};
 +    wallLayout(); var cols = Grid.cols || 1, rows = Grid.rows || 1;
-+    Tabs.list.forEach(function (t, i) {
++    VL.forEach(function (t, i) {
 +      var c = document.createElement("div"); c.className = "ac-gcell"; c.tabIndex = 0; c.setAttribute("data-id", t.id);
 +      c.style.gridColumn = String(2 * (i % cols) + 1); c.style.gridRow = String(2 * Math.floor(i / cols) + 1);
 +      c.innerHTML = '<div class="ac-ghead" title="Doppelklick: gro\u00df / klein"><b></b><span class="ac-gsub"></span><select class="ac-ggrp" title="Projektgruppe: Main oder f\u00fcr welchen Main dieser Tab arbeitet"></select><button class="ac-gmain ac-gmax" title="Gro\u00df / klein">\u2922</button></div><div class="ac-gview"><img alt="" draggable="false"><div class="ac-goff">nicht gestartet</div></div>';
@@ -3921,20 +5068,22 @@ index 0000000..fe91878
 +      c.addEventListener("keydown", function (ev) { if (ev.target !== c) return; var sp = ["Enter", "Backspace", "Tab", "Escape", "Delete", "ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", "Home", "End"]; if (sp.indexOf(ev.key) >= 0) { ev.preventDefault(); vq(cell, { op: "key", key: ev.key }); } else if (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey && !ev.altKey) { ev.preventDefault(); vq(cell, { op: "type", text: ev.key }); } });
 +      c.addEventListener("paste", function (ev) { var s = (ev.clipboardData || window.clipboardData).getData("text"); if (s) { ev.preventDefault(); vq(cell, { op: "type", text: s }); } });
 +      shotLoop(cell);
++      if (window.ResizeObserver) { cell.ro = new ResizeObserver(function () { clearTimeout(cell.ft); cell.ft = setTimeout(function () { fitCell(cell); }, 450); }); cell.ro.observe(c.querySelector(".ac-gview")); } else setTimeout(function () { fitCell(cell); }, 600);
 +    });
 +    for (var j = 0; j < cols - 1; j++) { var gv = document.createElement("div"); gv.className = "ac-gut v"; gv.title = "Ziehen: Breite anpassen"; gv.style.gridColumn = String(2 * j + 2); gv.style.gridRow = "1 / -1"; g.appendChild(gv); wallDrag(gv, "v", j); }
 +    for (var k = 0; k < rows - 1; k++) { var gh = document.createElement("div"); gh.className = "ac-gut h"; gh.title = "Ziehen: H\u00f6he anpassen"; gh.style.gridRow = String(2 * k + 2); gh.style.gridColumn = "1 / -1"; g.appendChild(gh); wallDrag(gh, "h", k); }
 +    if (Tabs.list.length) {
 +      var bar = document.createElement("div"); bar.className = "ac-wbar";
-+      bar.innerHTML = '<button data-w="full">Vollbild</button><button data-w="reset">Gr\u00f6\u00dfen zur\u00fccksetzen</button><button data-w="close">Schlie\u00dfen</button>';
-+      g.appendChild(bar);
-+      bar.onclick = function (ev) { var w = ev.target.getAttribute && ev.target.getAttribute("data-w"); if (w === "full") wallFull(); else if (w === "reset") { Grid.L.c = Grid.L.c.map(function () { return 1; }); Grid.L.r = Grid.L.r.map(function () { return 1; }); wallLayout(); wallSave(); } else if (w === "close") { wallFull(false); gridToggle(); } };
++      var ms = grpMains(), mode = Wall.mode || "all", opts = '<option value="all">Alle Tabs (' + Tabs.list.length + ')</option>' + ms.map(function (m) { var k = Tabs.list.filter(function (t) { return (+Tabs.groups[t.id] || t.id) === m.id; }).length; return '<option value="g:' + m.id + '">Nur ' + esc(m.role || "Main") + (m.project ? " \u00b7 " + esc(m.project) : "") + " + Team (" + k + ")</option>"; }).join("") + Tabs.list.map(function (t) { return '<option value="one:' + t.id + '">Nur ' + esc(t.role || t.label) + "</option>"; }).join("");
++      bar.innerHTML = '<select data-w="mode" title="Welche Tabs sollen sichtbar sein?">' + opts + '</select><button data-w="bell">' + (Bell.on ? "\uD83D\uDD14 Ton an" : "\uD83D\uDD15 Ton aus") + '</button><button data-w="full">Vollbild</button><button data-w="reset">Gr\u00f6\u00dfen zur\u00fccksetzen</button><button data-w="close">Schlie\u00dfen</button>';
++      g.appendChild(bar); var msel = bar.querySelector("select"); msel.value = mode; if (msel.value !== mode) msel.value = "all"; msel.onchange = function () { Wall.mode = msel.value; wallSave(); g.removeAttribute("data-ids"); gridBuild(); };
++      bar.onclick = function (ev) { var w = ev.target.getAttribute && ev.target.getAttribute("data-w"); if (w === "full") wallFull(); else if (w === "bell") bellToggle(); else if (w === "reset") { Grid.L.c = Grid.L.c.map(function () { return 1; }); Grid.L.r = Grid.L.r.map(function () { return 1; }); wallLayout(); wallSave(); } else if (w === "close") { wallFull(false); gridToggle(); } };
 +      wallFull(g.classList.contains("full"));
 +    }
 +    gridHead();
 +  }
 +  $("acGridBtn").onclick = gridToggle;
-+  $("acTabs").addEventListener("click", function (ev) { var c = ev.target && ev.target.closest ? ev.target.closest("[data-id]") : null; if (!c) return; if (!Grid.on) gridToggle(); var cell = Grid.cells[+c.getAttribute("data-id")]; if (cell) cell.el.focus(); });
++  $("acTabs").addEventListener("click", function (ev) { if (ev.target && ev.target.closest && ev.target.closest("[data-bell]")) { bellToggle(); return; } var c = ev.target && ev.target.closest ? ev.target.closest("[data-id]") : null; if (!c) return; if (!Grid.on) gridToggle(); var cell = Grid.cells[+c.getAttribute("data-id")]; if (cell) cell.el.focus(); });
 +  /* Prompt-Enhancer: schreibt den Prompt per KI (Worker-Tab im Hintergrund) verstaendlicher um */
 +  $("acEnh").onclick = function (ev) {
 +    var b = this, ta = $("acInput"), t = ta.value.trim();
@@ -8400,10 +9549,10 @@ index 0000000..38dfd68
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..2b7592d
+index 0000000..27e63f8
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1356 @@
+@@ -0,0 +1,1357 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -8532,6 +9681,7 @@ index 0000000..2b7592d
 +static LAST_AGENT: Lazy<Mutex<String>> = Lazy::new(|| Mutex::new(String::new()));
 +pub(crate) fn project_count() -> usize { BOARD.lock().unwrap_or_else(|e| e.into_inner()).projects.len() }
 +pub(crate) fn latest_lead() -> String { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.lead.clone()).unwrap_or_default() }
++pub(crate) fn project_name_for(agent: &str) -> String { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner()); b.projects.values().filter(|p|p.lead==agent||p.agents.contains_key(agent)).max_by_key(|p|p.created).map(|p|{let t=p.title.trim();let t=match t.split_once(':'){Some((a,rest)) if a.trim().to_lowercase().starts_with("projekt")=>rest.trim(),_=>t};t.chars().take(40).collect::<String>()}).unwrap_or_default() }
 +pub(crate) fn joined_agents() -> Vec<String> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().flat_map(|p|p.agents.keys().cloned()).collect() }
 +pub(crate) fn latest_agent_roles() -> Vec<String> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.agents.values().map(|a|a.role.clone()).collect()).unwrap_or_default() }
 +
@@ -11692,10 +12842,10 @@ index 0000000..7c37415
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..c298249
+index 0000000..5d860e4
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1089 @@
+@@ -0,0 +1,1091 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -11907,7 +13057,8 @@ index 0000000..c298249
 +        .chain(crate::notion_roblox_plus::tools())
 +        .chain(crate::notion_web_agents::tools())
 +        .chain(crate::notion_safety::tools())
-+        .chain(crate::notion_project_memory::tools()) {
++        .chain(crate::notion_project_memory::tools())
++        .chain(crate::notion_blender::tools()) {
 +        let exposed = schema["name"].as_str().unwrap_or("").to_string();
 +        out.push(ExposedTool { exposed, internal: String::new(), schema });
 +    }
@@ -12014,6 +13165,7 @@ index 0000000..c298249
 +        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
 +    }
 +    if let Some(out) = crate::notion_project_memory::call(&name, &args) { return out; }
++    if let Some(out) = crate::notion_blender::call(&name, &args) { return out; }
 +    if let Some(out) = crate::notion_safety::call(&name, &args) {
 +        return out;
 +    }
@@ -12787,10 +13939,10 @@ index 0000000..c298249
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..2388ee0
+index 0000000..e4bfa89
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,815 @@
+@@ -0,0 +1,837 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -13562,6 +14714,15 @@ index 0000000..2388ee0
 +        }
 +        "scroll"=>{cdp_ws(&ws,vec![json!({"method":"Input.dispatchMouseEvent","params":{"type":"mouseWheel","x":num("x"),"y":num("y"),"deltaX":0,"deltaY":num("dy")}})]).await?;Ok(json!({"ok":true}))}
 +        "back"=>{cdp_ws(&ws,vec![json!({"method":"Runtime.evaluate","params":{"expression":"history.back()"}})]).await?;Ok(json!({"ok":true}))}
++        "fit"=>{
++            let w=num("w").clamp(600.0,2600.0);let h=num("h").clamp(400.0,1800.0);
++            let r=cdp_ws(&ws,vec![json!({"method":"Browser.getWindowForTarget","params":{}}),json!({"method":"Runtime.evaluate","params":{"expression":"JSON.stringify([outerWidth-innerWidth,outerHeight-innerHeight])","returnByValue":true}})]).await?;
++            let wid=r.first().and_then(|v|v.pointer("/result/windowId")).and_then(Value::as_i64).ok_or("Kein Fenster.")?;
++            let d:Vec<f64>=r.get(1).and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_str).and_then(|s|serde_json::from_str(s).ok()).unwrap_or_else(||vec![16.0,39.0]);
++            let dx=d.first().copied().unwrap_or(16.0).clamp(0.0,200.0);let dy=d.get(1).copied().unwrap_or(39.0).clamp(0.0,300.0);
++            cdp_ws(&ws,vec![json!({"method":"Browser.setWindowBounds","params":{"windowId":wid,"bounds":{"width":(w+dx).round() as i64,"height":(h+dy).round() as i64}}})]).await?;
++            Ok(json!({"ok":true,"w":w,"h":h}))
++        }
 +        _=>Err("Unbekannte Aktion.".into()),
 +    }
 +}
@@ -13572,7 +14733,7 @@ index 0000000..2388ee0
 +pub fn main_id()->u32{let v=MAIN_ID.load(Ordering::SeqCst);if v!=u32::MAX{return v;}let id=std::fs::read_to_string(main_file()).ok().and_then(|s|s.trim().parse::<u32>().ok()).unwrap_or(0);MAIN_ID.store(id,Ordering::SeqCst);id}
 +pub fn main_index()->usize{let m=main_id();if m==0{0}else{tab_index(m)}}
 +fn set_main(t:Tab)->Result<String,String>{{let tabs=load();let mut g=groups_of(&tabs);if g.get(&t.id)!=Some(&t.id){g.insert(t.id,t.id);let _=save_groups(&g);}}MAIN_ID.store(t.id,Ordering::SeqCst);let _=std::fs::write(main_file(),t.id.to_string());Ok(format!("{} ({}) ist jetzt Main f\u{fc}r den Chat.",t.label,t.role))}
-+pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();let mem=mem_all();json!({"ok":true,"groups":groups_of(&tabs).iter().map(|(k,v)|(k.to_string(),json!(v))).collect::<serde_json::Map<String,Value>>(),"main_id":tabs.get(main_index()).map(|t|t.id).unwrap_or(0),"stage":if running.is_empty(){0}else{STAGE.load(std::sync::atomic::Ordering::SeqCst)},"hidden":windows::any_hidden(),"auto_mcp":auto_mcp_on(),"token_mode":if token_high(){"high"}else{"low"},"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":({let cache=acc_cache();tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["skipped"]=json!(skipped(t.id));v["account"]={let mut base=cache.get(t.email.to_lowercase().as_str()).cloned().filter(Value::is_object).unwrap_or_else(||json!({"usage":null,"models":[]}));if let Some(live)=acc.get(&t.id).and_then(Value::as_object){for(k,x)in live{base[k.as_str()]=x.clone();}}base};v["memory"]=mem.get(t.email.to_lowercase().as_str()).cloned().unwrap_or(Value::Null);v}).collect::<Vec<_>>()})})}
++pub fn state()->Value{let tabs=load();let running=running_ids(&tabs);let acc=lock(&ACCOUNT).clone();let mem=mem_all();auto_rename(tabs.iter().enumerate().filter(|(_,t)|running.contains(&t.id)).map(|(i,t)|(i,t.id,proj_of(&tabs,t))).filter(|x|!x.2.is_empty()).map(|(i,id,p)|(i,id,format!("{p} Chat"))).collect());json!({"ok":true,"groups":groups_of(&tabs).iter().map(|(k,v)|(k.to_string(),json!(v))).collect::<serde_json::Map<String,Value>>(),"main_id":tabs.get(main_index()).map(|t|t.id).unwrap_or(0),"stage":if running.is_empty(){0}else{STAGE.load(std::sync::atomic::Ordering::SeqCst)},"hidden":windows::any_hidden(),"auto_mcp":auto_mcp_on(),"token_mode":if token_high(){"high"}else{"low"},"browser":browser_name(),"browsers":installed_browsers().iter().map(|(n,_)|*n).collect::<Vec<_>>(),"status":lock(&COWORK_STATUS).clone(),"tabs":({let cache=acc_cache();tabs.iter().map(|t|{let mut v=json!(t);v["running"]=json!(running.contains(&t.id));v["paused"]=json!(is_paused(t.id));v["skipped"]=json!(skipped(t.id));v["project"]=json!(proj_of(&tabs,t));v["account"]={let mut base=cache.get(t.email.to_lowercase().as_str()).cloned().filter(Value::is_object).unwrap_or_else(||json!({"usage":null,"models":[]}));if let Some(live)=acc.get(&t.id).and_then(Value::as_object){for(k,x)in live{base[k.as_str()]=x.clone();}}base};v["memory"]=mem.get(t.email.to_lowercase().as_str()).cloned().unwrap_or(Value::Null);v}).collect::<Vec<_>>()})})}
 +pub async fn tabs_handler()->impl IntoResponse{ensure_monitors();Json(tokio::task::spawn_blocking(state).await.unwrap_or_else(|e|json!({"ok":false,"error":e.to_string()})))}
 +pub fn action(name:&str,v:&Value)->Option<Result<String,String>>{
 +    let id=v.as_u64().or_else(||v.get("id").and_then(Value::as_u64)).and_then(|n|u32::try_from(n).ok());
@@ -13606,6 +14767,20 @@ index 0000000..2388ee0
 +        _=>return None,
 +    })
 +}
++
++// 1.0.92: Notion-Chats nach Projekt benennen
++const RENAME_JS:&str=r##"(async()=>{const N=__NAME__;const sl=ms=>new Promise(r=>setTimeout(r,ms));const cur=document.title.replace(/\s*\|\s*Notion\s*$/i,'').trim();if(cur===N)return 'same';const b=[...document.querySelectorAll('[aria-label]')].find(e=>/rename|umbenennen/i.test(e.getAttribute('aria-label')||'')&&!e.closest('[aria-label=Sidebar],nav'));if(!b)return 'nobtn';b.click();await sl(700);const it=[...document.querySelectorAll('[role=menuitem],[role=option]')].find(e=>/^(rename|umbenennen)/i.test(e.textContent.trim()));if(!it){document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',code:'Escape',keyCode:27,bubbles:true}));return 'noitem'}it.click();let a=null;for(let i=0;i<15;i++){await sl(200);a=document.activeElement;if(a&&a.tagName==='INPUT')break;a=[...document.querySelectorAll('input')].find(x=>x.value===cur&&x.offsetParent);if(a){a.focus();break}}if(!a||a.tagName!=='INPUT'){return 'noinput'}Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(a,N);a.dispatchEvent(new Event('input',{bubbles:true}));await sl(150);a.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',code:'Enter',keyCode:13,which:13,bubbles:true}));await sl(800);if(document.activeElement===a){a.blur()}await sl(400);return 'ok:'+document.title})()"##;
++fn proj_of(tabs:&[Tab],t:&Tab)->String{let p=crate::notion_cowork::project_name_for(&agent_of(t));if !p.is_empty(){return p;}let g=groups_of(tabs);let m=g.get(&t.id).copied().unwrap_or(t.id);if m==t.id{return String::new();}tabs.iter().find(|x|x.id==m).map(|x|crate::notion_cowork::project_name_for(&agent_of(x))).unwrap_or_default()}
++static RN_LAST:std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<u32,(String,u64,bool)>>>=std::sync::OnceLock::new();
++fn auto_rename(list:Vec<(usize,u32,String)>){
++    let Ok(h)=tokio::runtime::Handle::try_current() else{return};
++    let now=std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d|d.as_secs()).unwrap_or(0);
++    let m=RN_LAST.get_or_init(Default::default);let mut todo=Vec::new();
++    {let mut g=m.lock().unwrap_or_else(|e|e.into_inner());for(i,id,name)in list{let e=g.entry(id).or_insert((String::new(),0,false));if e.0==name&&(e.2||now<e.1+60){continue;}*e=(name.clone(),now,false);todo.push((i,id,name));}}
++    if todo.is_empty(){return;}
++    h.spawn(async move{for(i,id,name)in todo{let port=cdp_port(i);if user_present(port).await{continue;}let js=RENAME_JS.replace("__NAME__",&serde_json::to_string(&name).unwrap_or_default());if let Ok(v)=js_eval(port,&js).await{let s=v.as_str().unwrap_or("");if s=="same"||s.starts_with("ok"){if let Some(m)=RN_LAST.get(){if let Some(e)=m.lock().unwrap_or_else(|e|e.into_inner()).get_mut(&id){if e.0==name{e.2=true;}}}}}}});
++}
+\ No newline at end of file
 diff --git a/agent/src/notion_profiles.rs.bak_cw b/agent/src/notion_profiles.rs.bak_cw
 new file mode 100644
 index 0000000..9e49812
@@ -15135,10 +16310,10 @@ index 0000000..8b64b23
 +}
 diff --git a/agent/src/notion_project_memory.rs b/agent/src/notion_project_memory.rs
 new file mode 100644
-index 0000000..09d680f
+index 0000000..260c0c5
 --- /dev/null
 +++ b/agent/src/notion_project_memory.rs
-@@ -0,0 +1,46 @@
+@@ -0,0 +1,48 @@
 +//! Durable, project-scoped memory for long-running Notion AI chats.
 +use once_cell::sync::Lazy;
 +use serde::{Deserialize, Serialize};
@@ -15150,7 +16325,7 @@ index 0000000..09d680f
 +struct Record { name:String, summary:String, handout:String, handout_path:String, updated:i64 }
 +#[derive(Default, Serialize, Deserialize)]
 +#[serde(default)]
-+struct Store { projects:BTreeMap<String,Record> }
++struct Store { projects:BTreeMap<String,Record>, deleted:Vec<String> }
 +static STORE:Lazy<Mutex<Store>>=Lazy::new(||Mutex::new(load()));
 +fn lock()->std::sync::MutexGuard<'static,Store>{STORE.lock().unwrap_or_else(|e|e.into_inner())}
 +fn root()->PathBuf{std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion").join("project-memory")}
@@ -15164,7 +16339,7 @@ index 0000000..09d680f
 +fn discover(dir:&Path,depth:u8,out:&mut Vec<PathBuf>){if depth==0||out.len()>200{return;}let Ok(rd)=std::fs::read_dir(dir)else{return};for e in rd.flatten(){let p=e.path();if p.is_dir(){let n=e.file_name().to_string_lossy().to_ascii_lowercase();if !matches!(n.as_str(),"node_modules"|"target"|".git"|"dist"|"build"){discover(&p,depth-1,out);}}else{let n=e.file_name().to_string_lossy().to_ascii_lowercase();if matches!(n.as_str(),"handout.md"|"project_handout.md"|"project-memory.md"|"memory.md"){out.push(p);}}}}
 +fn sync(){
 +    let mut changed=false;let mut store=lock();let mut found=Vec::new();discover(&shared_work(),5,&mut found);
-+    for p in found{let Some(text)=read_handout(&p)else{continue};let name=p.parent().and_then(Path::file_name).map(|x|x.to_string_lossy().to_string()).unwrap_or_else(||"Projekt".into());let k=key(&name);let r=store.projects.entry(k).or_insert_with(||Record{name:name.clone(),..Default::default()});if r.handout!=text||r.handout_path!=p.to_string_lossy(){r.handout=text;r.handout_path=p.to_string_lossy().to_string();r.updated=now();changed=true;}}
++    for p in found{let Some(text)=read_handout(&p)else{continue};let name=p.parent().and_then(Path::file_name).map(|x|x.to_string_lossy().to_string()).unwrap_or_else(||"Projekt".into());let k=key(&name);if store.deleted.contains(&k){continue;}let r=store.projects.entry(k).or_insert_with(||Record{name:name.clone(),..Default::default()});if r.handout!=text||r.handout_path!=p.to_string_lossy(){r.handout=text;r.handout_path=p.to_string_lossy().to_string();r.updated=now();changed=true;}}
 +    let keys:Vec<String>=store.projects.keys().cloned().collect();for k in keys{let path=store.projects[&k].handout_path.clone();if path.is_empty(){continue;}if let Some(text)=read_handout(Path::new(&path)){if store.projects[&k].handout!=text{let r=store.projects.get_mut(&k).unwrap();r.handout=text;r.updated=now();changed=true;}}}
 +    if changed{save(&store);}
 +}
@@ -15176,13 +16351,15 @@ index 0000000..09d680f
 + json!({"name":"project_memory_list","description":"Listet dauerhaft gespeicherte Projekt-Kontexte. Vor einem Themenwechsel oder bei 'weiter an X' verwenden.","inputSchema":{"type":"object","properties":{}}}),
 + json!({"name":"project_memory_open","description":"Laedt den kompletten Kontext eines Projekts (Zusammenfassung + automatisch synchronisiertes HANDOUT.md). Immer vor Weiterarbeit an einem genannten Projekt aufrufen.","inputSchema":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}),
 + json!({"name":"project_memory_search","description":"Sucht projektuebergreifend in Namen, Zusammenfassungen und Handouts.","inputSchema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}),
++ json!({"name":"project_memory_delete","description":"Loescht einen Projekt-Kontext dauerhaft aus der Memory (die HANDOUT-Datei auf der Platte bleibt unangetastet und wird nicht erneut importiert). Nur auf ausdruecklichen Wunsch des Nutzers.","inputSchema":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}),
 + json!({"name":"project_memory_update","description":"Speichert den aktuellen Projektstand dauerhaft. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel aufrufen; handout_path registriert eine Datei fuer automatische Synchronisierung.","inputSchema":{"type":"object","properties":{"name":{"type":"string"},"summary":{"type":"string"},"handout":{"type":"string"},"handout_path":{"type":"string"}},"required":["name"]}})
 +]}
 +pub(crate) fn call(name:&str,args:&Value)->Option<Value>{Some(match name{
 + "project_memory_list"=>{sync();let s=lock();let mut v:Vec<_>=s.projects.values().map(|r|format!("- {} (aktualisiert {}, Handout: {})",r.name,r.updated,if r.handout_path.is_empty(){"nein"}else{"ja"})).collect();v.sort();text(if v.is_empty(){"Noch keine Projekt-Memory. Lege beim ersten Projekt ein HANDOUT.md an und rufe project_memory_update auf.".into()}else{v.join("\n")})},
 + "project_memory_open"=>{sync();let n=args["name"].as_str().unwrap_or("");let k=key(n);let s=lock();match s.projects.get(&k).or_else(||s.projects.values().find(|r|r.name.eq_ignore_ascii_case(n))){Some(r)=>text(render(r)),None=>err(format!("Projekt '{n}' nicht gefunden. project_memory_search/list verwenden oder neu anlegen."))}},
 + "project_memory_search"=>{sync();let q=args["query"].as_str().unwrap_or("").trim().to_lowercase();if q.is_empty(){return Some(err("query fehlt".into()));}let s=lock();let mut out=Vec::new();for r in s.projects.values(){let hay=format!("{}\n{}\n{}",r.name,r.summary,r.handout).to_lowercase();if hay.contains(&q){let preview: String=if !r.summary.is_empty(){r.summary.chars().take(700).collect()}else{r.handout.chars().take(700).collect()};out.push(format!("## {}\n{}",r.name,preview));}}text(if out.is_empty(){"Keine Treffer.".into()}else{out.join("\n\n")})},
-+ "project_memory_update"=>{let name=args["name"].as_str().unwrap_or("").trim();if name.is_empty(){return Some(err("name fehlt".into()));}let k=key(name);let mut s=lock();let r=s.projects.entry(k).or_insert_with(||Record{name:name.into(),..Default::default()});r.name=name.into();if let Some(v)=args["summary"].as_str(){if !v.trim().is_empty(){r.summary=v.chars().take(50000).collect();}}if let Some(v)=args["handout"].as_str(){if !v.trim().is_empty(){r.handout=v.chars().take(500000).collect();}}if let Some(v)=args["handout_path"].as_str(){if !v.trim().is_empty(){r.handout_path=v.trim().to_string();if let Some(t)=read_handout(Path::new(&r.handout_path)){r.handout=t;}}}r.updated=now();let out=format!("Projekt-Memory gespeichert: {} (Zusammenfassung {} Zeichen, Handout {} Zeichen).",r.name,r.summary.chars().count(),r.handout.chars().count());save(&s);text(out)},
++ "project_memory_delete"=>{let n=args["name"].as_str().unwrap_or("").trim().to_string();if n.is_empty(){return Some(err("name fehlt".into()));}let k=key(&n);let mut s=lock();let real=if s.projects.contains_key(&k){Some(k.clone())}else{s.projects.iter().find(|(_,r)|r.name.eq_ignore_ascii_case(&n)).map(|(k,_)|k.clone())};match real{Some(rk)=>{let r=s.projects.remove(&rk).unwrap_or_default();if !s.deleted.contains(&rk){s.deleted.push(rk);}save(&s);text(format!("Projekt-Memory geloescht: {} (Handout-Datei bleibt unangetastet).",r.name))},None=>err(format!("Projekt '{n}' nicht gefunden."))}},
++ "project_memory_update"=>{let name=args["name"].as_str().unwrap_or("").trim();if name.is_empty(){return Some(err("name fehlt".into()));}let k=key(name);let mut s=lock();s.deleted.retain(|d|*d!=k);let r=s.projects.entry(k).or_insert_with(||Record{name:name.into(),..Default::default()});r.name=name.into();if let Some(v)=args["summary"].as_str(){if !v.trim().is_empty(){r.summary=v.chars().take(50000).collect();}}if let Some(v)=args["handout"].as_str(){if !v.trim().is_empty(){r.handout=v.chars().take(500000).collect();}}if let Some(v)=args["handout_path"].as_str(){if !v.trim().is_empty(){r.handout_path=v.trim().to_string();if let Some(t)=read_handout(Path::new(&r.handout_path)){r.handout=t;}}}r.updated=now();let out=format!("Projekt-Memory gespeichert: {} (Zusammenfassung {} Zeichen, Handout {} Zeichen).",r.name,r.summary.chars().count(),r.handout.chars().count());save(&s);text(out)},
 + _=>return None,
 +})}
 diff --git a/agent/src/notion_roblox_plus.rs b/agent/src/notion_roblox_plus.rs
@@ -16463,17 +17640,17 @@ index 0000000..bd8d635
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
 new file mode 100644
-index 0000000..88c3382
+index 0000000..1b38933
 --- /dev/null
 +++ b/agent/src/notion_skills.rs
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,165 @@
 +//! AdiCode (unofficial fork): built-in coding skills and control tools
 +//! for Notion AI. Skills are short, opinionated checklists the agent loads
 +//! before it writes code (Roblox/Luau and general app development).
 +
 +use serde_json::{json, Value};
 +
-+pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork). Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
++pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim). blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
 +
 +struct Skill { id: &'static str, title: &'static str, body: &'static str }
 +
@@ -16581,6 +17758,9 @@ index 0000000..88c3382
 +3. Assess tasks: max ~10 lines from your role lens + proposed tasks. Review tasks: read, do not rewrite; status=done (short verdict) or status=changes with numbered concrete points.
 +4. No free task: cowork_wait (repeat). Problems: cowork_message to the lead or status=blocked with the reason. Do not ask the user.
 +RULES: never edit a file locked by another agent; results are required for done/changes/blocked; do not redo tasks owned by others; do not close the project. The AdiCode desktop app shows the live status (Co-Work page and Chat tab)."# },
++    Skill { id: "blender", title: "Blender Pro: workflow, quality bar, verification loop", body: crate::notion_blender::SKILL_CORE },
++    Skill { id: "blender-model", title: "Blender modeling, materials, assets, AI meshes", body: crate::notion_blender::SKILL_MODEL },
++    Skill { id: "blender-anim", title: "Blender animation, rigging, mocap, physics, camera", body: crate::notion_blender::SKILL_ANIM },
 +];
 +
 +fn list_text() -> String {

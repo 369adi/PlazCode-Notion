@@ -144,6 +144,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Keine festen Rollen mehr (Coder/Reviewer/Tester entfernt): jeder Tab hilft bei allem und schickt Ergebnisse und Kritik an seinen Main, der so lange neue Runden ausgibt, bis das Ergebnis perfekt ist.
 - Fenster-Wall: alle Tabs gleichzeitig live sehen und steuern, Groessen per Trennlinien ziehen, Doppelklick zum Vergroessern, Vollbild-Modus, Groessen werden gespeichert.
 - Neuer Chat im AdiCode-Chat startet einen eigenen Notion-AI-Chat nur fuer AdiCode - Co-Work-Chats der Tabs bleiben unberuehrt.
+## Neu in 1.0.92
+- **Blender Pro**: Drei neue Experten-Skills (adicode_skill blender, blender-model, blender-anim) mit Arbeitsablauf, Qualitaets-Massstab und Pflicht-Kontrolle per Render/Screenshot.
+- **Helfer-Bibliothek adicode_blender**: wird automatisch in Blender installiert (import adicode_blender as A). Studio-Licht, Kamera-Framing, Hard-Surface/Organic-Finish, prozedurale PBR-Materialien, Mesh-Qualitaetscheck, Scatter per Geometry Nodes, Bounce/Loop/Shake/Orbit/Follow-Path-Animation, Rigify-Rig + Auto-Weights, Mixamo/BVH-Import, GPU-Render, Video- und glb/fbx-Export.
+- **Neues Tool blender_pro**: doctor (Blender, Addon-Port, GPU, Extensions pruefen), setup (LoopTools, Bool Tool, Extra Objects, Rigify, Node Wrangler, Cycles OptiX), install_helpers, helpers.
+- **MCP-Add-on blenderwright** (191 Blender-Tools) als Alternative im Katalog.
+- **project_memory_delete**: Projekt-Kontexte lassen sich dauerhaft loeschen (werden nicht wieder importiert).
 ## Neu in 1.0.34–1.0.23
 (fixiert in 1.0.29: lokale schnelle Releases; Kompaktversion der alten Einzelnachrichten)
 
