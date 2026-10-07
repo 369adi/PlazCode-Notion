@@ -11533,10 +11533,10 @@ index 0000000..26e66a2
 +}
 diff --git a/agent/src/notion_live.rs b/agent/src/notion_live.rs
 new file mode 100644
-index 0000000..7c37415
+index 0000000..c0c8b38
 --- /dev/null
 +++ b/agent/src/notion_live.rs
-@@ -0,0 +1,563 @@
+@@ -0,0 +1,622 @@
 +//! Live-Bridge (immer an): Alle Notion-AI-Tabs sehen sich gegenseitig - auch ohne
 +//! "Co-Work starten". Jeder Tool-Aufruf landet mit deutscher Klartext-Beschreibung im Live-Feed,
 +//! den der AdiCode-Chat live anzeigt. Eine Datei ist fuer einen Chat genau so lange reserviert,
@@ -12100,12 +12100,72 @@ index 0000000..7c37415
 +        assert!(!inflight(""));
 +    }
 +}
++
++// ---- Update-Hinweis an alle verbundenen Notion-Tabs (auch ohne Co-Work) ----
++struct Notice { text: String, until: i64, seen: std::collections::BTreeSet<String> }
++static NOTICE: Lazy<Mutex<Option<Notice>>> = Lazy::new(|| Mutex::new(None));
++
++/// Setzt einen Hinweis, den jeder Tab genau einmal mit seinem naechsten Tool-Ergebnis bekommt.
++pub(crate) fn set_notice(text: &str, secs: i64) {
++    *NOTICE.lock().unwrap_or_else(|e| e.into_inner()) = Some(Notice { text: text.to_string(), until: now() + secs, seen: Default::default() });
++}
++
++/// Hinweis fuer diesen Tab (key = Session oder Agent). Leerer key = jedes Mal anhaengen.
++pub(crate) fn notice_for(key: &str) -> Option<String> {
++    let mut g = NOTICE.lock().unwrap_or_else(|e| e.into_inner());
++    let expired = matches!(&*g, Some(n) if now() > n.until);
++    if expired { *g = None; }
++    let n = g.as_mut()?;
++    if !key.is_empty() && !n.seen.insert(key.to_string()) { return None; }
++    Some(format!("[AdiCode-Hinweis] {}", n.text))
++}
++
++fn notice_marker() -> std::path::PathBuf { crate::platform::installation_root().join("logs").join("update-notice.txt") }
++
++/// Vor dem Update-Neustart: alle Tabs warnen und ihnen kurz Zeit geben, den Hinweis abzuholen.
++pub(crate) async fn announce_update(version: &str) {
++    set_notice(&format!("AdiCode wird jetzt auf Version {version} aktualisiert. Die Verbindung ist ca. 10 Sekunden weg. Bitte kurz warten und einen fehlgeschlagenen Tool-Aufruf danach einfach wiederholen."), 120);
++    let marker = notice_marker();
++    if let Some(dir) = marker.parent() { let _ = std::fs::create_dir_all(dir); }
++    let _ = std::fs::write(&marker, format!("{}\n{version}", now()));
++    let wait = if crate::updater::bridge_busy() { 20 } else { 8 };
++    tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
++}
++
++/// Nach dem Neustart: einmal pro Tab melden, dass das Update fertig ist.
++pub(crate) fn startup_notice() {
++    let marker = notice_marker();
++    let Ok(s) = std::fs::read_to_string(&marker) else { return };
++    let _ = std::fs::remove_file(&marker);
++    let mut l = s.lines();
++    let ts: i64 = l.next().and_then(|t| t.trim().parse().ok()).unwrap_or(0);
++    let v = l.next().unwrap_or("").trim().to_string();
++    if now() - ts < 900 {
++        set_notice(&format!("Update auf AdiCode {v} ist fertig, die Verbindung steht wieder. Falls ein Tool-Aufruf waehrend des Updates fehlgeschlagen ist, bitte einmal wiederholen."), 600);
++    }
++}
++
++#[cfg(test)]
++mod notice_tests {
++    use super::*;
++    #[test]
++    fn update_notice_once_per_tab() {
++        set_notice("Test-Update", 60);
++        assert!(notice_for("tab-a").unwrap().contains("Test-Update"));
++        assert!(notice_for("tab-a").is_none());
++        assert!(notice_for("tab-b").is_some());
++        assert!(notice_for("").is_some());
++        set_notice("alt", -1);
++        assert!(notice_for("tab-c").is_none());
++    }
++}
+\ No newline at end of file
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..90a4173
+index 0000000..91f5f44
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1094 @@
+@@ -0,0 +1,1095 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -12405,6 +12465,7 @@ index 0000000..90a4173
 +    let mut out = call_tool_inner(state, params).await;
 +    crate::notion_live::tool_finished(&who, &name);
 +    attach_delta(&mut out, crate::notion_live::delta_for(&who));
++    attach_delta(&mut out, crate::notion_live::notice_for(if session.is_empty() { &who } else { &session }));
 +    out
 +}
 +
@@ -17415,7 +17476,7 @@ index 3c12cf0..04e83bc 100644
          let mut state = Box::new(State { data, shared, restart: unsafe { RegisterWindowMessageW(wide("TaskbarCreated").as_ptr()) }, registered: false });
          let hooked = unsafe { SetWindowSubclass(state.data.window, procedure, SUBCLASS, (&mut *state as *mut State) as usize) != 0 };
 diff --git a/agent/src/updater.rs b/agent/src/updater.rs
-index ecb0723..577433a 100644
+index ecb0723..a5db822 100644
 --- a/agent/src/updater.rs
 +++ b/agent/src/updater.rs
 @@ -10,7 +10,7 @@ const DEFAULT_FEED: &str = "https://raw.githubusercontent.com/stoveez/PlazCode/m
@@ -17436,10 +17497,20 @@ index ecb0723..577433a 100644
  static MANUAL_WAITERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
  struct ManualWaiter;
  impl Drop for ManualWaiter { fn drop(&mut self) { MANUAL_WAITERS.fetch_sub(1,std::sync::atomic::Ordering::SeqCst); } }
-@@ -322,6 +322,15 @@ static LAUNCH_UPDATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicB
+@@ -282,6 +282,7 @@ async fn run(install: bool, background: bool) -> anyhow::Result<()> {
+         while let Some(chunk)=tokio::time::timeout(DOWNLOAD_STALL_TIMEOUT, stream.next()).await.map_err(|_| anyhow::anyhow!("The update download stalled for {} seconds. Your installation was not changed.", DOWNLOAD_STALL_TIMEOUT.as_secs()))? { let chunk=chunk?;bytes+=chunk.len() as u64;anyhow::ensure!(bytes<=64*1024*1024,"Release exceeds 64 MB.");file.write_all(&chunk).await?;
+             progress(if total>0 { ((bytes*85/total).min(85)) as u8 } else { 35 },"Downloading update…"); }
+         file.flush().await?;drop(file);progress(90,"Verifying and installing. PlazCode will close and relaunch…");
++        crate::notion_live::announce_update(&latest).await;
+         let quiet_restart = background && !crate::gui::FOREGROUND.load(std::sync::atomic::Ordering::Relaxed);
+         let restore_window = quiet_restart && crate::gui::WINDOW_OPEN.load(std::sync::atomic::Ordering::Relaxed);
+         #[cfg(windows)]
+@@ -321,7 +322,16 @@ static AUTO_INSTALL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBo
+ static LAUNCH_UPDATE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
  static CHECK_REQUEST: once_cell::sync::Lazy<tokio::sync::Notify> = once_cell::sync::Lazy::new(tokio::sync::Notify::new);
  pub fn request_launch_update() { AUTO_INSTALL.store(true, std::sync::atomic::Ordering::SeqCst);LAUNCH_UPDATE.store(true, std::sync::atomic::Ordering::SeqCst);CHECK_REQUEST.notify_one(); }
- pub fn start_checker() {
+-pub fn start_checker() {
++pub fn start_checker() { crate::notion_live::startup_notice();
 +    // PlazCode Notion (unofficial fork): the upstream auto-updater would replace
 +    // this build with the original PlazCode, so automatic checks are disabled.
 +    tokio::spawn(async {
@@ -17452,7 +17523,7 @@ index ecb0723..577433a 100644
      tokio::spawn(async {
          { let root=folder(); let _ = tokio::task::spawn_blocking(move || cleanup_update_leftovers(&std::env::temp_dir(), &root, std::time::SystemTime::now())).await; }
          let mut interval = tokio::time::interval(Duration::from_secs(30));
-@@ -348,6 +357,7 @@ pub fn start_checker() {
+@@ -348,6 +358,7 @@ pub fn start_checker() {
  }
  pub async fn get() -> Json<Status> { Json(state().clone()) }
  pub async fn post(Json(value): Json<Value>) -> axum::response::Response {
@@ -17460,7 +17531,7 @@ index ecb0723..577433a 100644
      if value["action"]=="launch" { request_launch_update();return Json(serde_json::json!({"ok":true,"queued":true})).into_response(); }
      let install=match value["action"].as_str() { Some("check")=>false,Some("install")|Some("launch")=>true,_=>return (axum::http::StatusCode::BAD_REQUEST,Json(serde_json::json!({"error":"Unknown update action."}))).into_response() };
      let silent=value["action"]=="launch" || (!install && value["background"].as_bool().unwrap_or(false));
-@@ -598,3 +608,6 @@ pub async fn post(Json(value): Json<Value>) -> axum::response::Response {
+@@ -598,3 +609,6 @@ pub async fn post(Json(value): Json<Value>) -> axum::response::Response {
          assert!(validate(&serde_json::json!({"version":"1.18.80","url":"https://example.com/a.zip","sha256":"a".repeat(64)})).is_ok());
      }
  }
