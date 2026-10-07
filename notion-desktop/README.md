@@ -9,6 +9,14 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.115
+
+- **Co-Work ohne Rollen und ohne Main:** Die festen Rollen (Main, Coder, Reviewer, Tester ...) sind komplett raus und ueberschreiben beim Start nichts mehr. Der Chat, in dem du zuerst schreibst (beliebiger Notion-Tab oder AdiCode-Chat), leitet das Co-Work; die anderen Tabs treten automatisch bei und helfen bei allem.
+- **Nie mehr ein neuer Chat:** AdiCode schreibt nur noch in einen bestehenden Chat (Willkommen bei Notion). Die automatische Nachricht "Verbinde dich mit AdiCode MCP Server" am Ende des Refresh entfaellt.
+- **Aktualisieren = sofort:** Der Knopf schliesst AdiCode direkt und installiert das Update. Chats werden dabei nicht mehr gestoppt, nach dem Neustart wird kein "weiter" mehr geschrieben.
+- **Fertig-Ton nur, wenn der Chat wirklich fertig ist:** Der Ton kommt erst, wenn der Chat einige Sekunden lang nicht mehr arbeitet (kurze Pausen zwischen Tool-Aufrufen zaehlen nicht).
+- **Kein Flackern mehr auf der Update-Seite:** Das gruene "installiert"-Badge bleibt bei jeder Pruefung ruhig; bei GitHub-Fehlern bleibt die Liste stehen.
+
 ## Neu in 1.0.114
 
 - **Mehrere Chats pro Konto im Co-Work:** Knopf **+ Chat** holt einen weiteren Chat desselben Kontos dazu (eigener Hintergrund-Tab, eigener Agent-Name wie Tab1-K2). Bis zu 8 Chats pro Konto; neue Chats hoechstens alle 20 s (Notion verwirft sonst neue Chats), RAM-Waechter (mind. 1,2 GB frei). **- Chat** nimmt den letzten Zusatz-Chat wieder raus.
