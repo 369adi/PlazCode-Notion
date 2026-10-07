@@ -271,3 +271,9 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 
 ## 1.0.101 (Main2, 07.10.2026)
 - notion_profiles.rs: AI_OFF_JS + ai_off_check() im gen_monitor (alle ~30 s pro laufendem Tab, nur lesen); bei neuem Treffer ai_off_report(): logs\ai-disabled\<Zeit>-tab<ID>.txt/.jpg (Seitentext, Konto-Status, timeline.log 400, Live-Feed, agent.log 300, launcher.log 120, mcp-auth.log 40). Eigener b64_decode (kein base64-Crate). Unveroeffentlichte setup_mcp-Aenderung eines anderen Chats in derselben Datei bewusst NICHT mit-gestaged.
+
+## 1.0.102 (Main, 07.10.2026)
+- notion_profiles.rs setup_mcp: nach dem Einrichten Klick auf Browse Connections (Tab), statt auf Manage stehen zu bleiben.
+- MCP_FINISH_JS: Tab-Regex um manage/manage connections/verwalten erweitert (AdiCode -> Notion Agent -> Run automatically).
+- Chat-Benennung: pick_chat_tab() (kleinste freie Nummer ueber alle Konten in tabs.json, Memory-Key chat_tab, Mutex gegen Parallel-Checks), name_chats() + CHAT_RENAME_JS (Rechtsklick bzw. ...-Menue -> Umbenennen) -> Tab N / Tab N Kontext 2 / Tab N Kontext 3; laeuft in check_one_inner nach ensure_chat_model, Status in chat_tab_state. FIND_WELCOME bevorzugt Tab N, CHATS_JS zaehlt Tab-Chats als Willkommen-Chats, insert_prompt akzeptiert Tab N als Krumen.
+- Enthaelt Main2s Logger aus 1.0.101.

@@ -9,6 +9,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.102
+- **MCP-Check haengt nicht mehr**: Nach dem Einrichten wechselt AdiCode selbst auf Browse Connections, kein manueller Klick mehr noetig.
+- **Run automatically zuverlaessig**: Der Tab Manage/Verwalten wird erkannt, dann AdiCode -> Notion Agent -> alle Berechtigungen auf Run automatically.
+- **Chats pro Konto benannt**: Die 3 Willkommen-Chats heissen jetzt Tab N, Tab N Kontext 2, Tab N Kontext 3. Jedes Konto bekommt eine eigene Nummer (kleinste freie), keine doppelt.
 ## Neu in 1.0.101
 - Logger fuer 'Notion AI was disabled in this workspace': steht der Hinweis in einem Konto-Tab, schreibt AdiCode einmal einen Bericht mit allem, was kurz vorher passiert ist (Zeitprotokoll, Tool-Aufrufe aller Chats, App-/Launcher-/MCP-Logs, Screenshot) nach %LOCALAPPDATA%\PlazCodeNotion\logs\ai-disabled
 
