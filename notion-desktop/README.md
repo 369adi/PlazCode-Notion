@@ -150,6 +150,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Neues Tool blender_pro**: doctor (Blender, Addon-Port, GPU, Extensions pruefen), setup (LoopTools, Bool Tool, Extra Objects, Rigify, Node Wrangler, Cycles OptiX), install_helpers, helpers.
 - **MCP-Add-on blenderwright** (191 Blender-Tools) als Alternative im Katalog.
 - **project_memory_delete**: Projekt-Kontexte lassen sich dauerhaft loeschen (werden nicht wieder importiert).
+## Neu in 1.0.93
+- Fix: Notion-Tabs (z. B. trinix1337) wurden alle paar Sekunden neu geladen. Ursache: Die neue Notion-Sidebar hat keinen Chat-Tab mehr, AdiCode hielt das fuer ein kaputtes Layout und lud endlos neu. Jetzt wird nur noch neu geladen, wenn wirklich keine Chat-Oberflaeche da ist, hoechstens 2x in 10 Minuten und nie, waehrend du im Fenster arbeitest.
+- Fix: Die Seite MCP Servers wurde jede Sekunde komplett neu gezeichnet. Jetzt aendert sie sich nur noch, wenn sich wirklich etwas geaendert hat.
+- Co-Work: Steht bei einem Tab rot Chat fehlt, fuehrt AdiCode Zum Chat jetzt selbst aus (pro Tab hoechstens alle 2 Minuten).
+- Enthaelt alles aus 1.0.92: Projekt-Chatnamen, Fertig-Ton, groessere Vorschau ohne schwarze Balken, echtes Vollbild, Ansichtsmodi, Gruppenfarben.
 ## Neu in 1.0.34–1.0.23
 (fixiert in 1.0.29: lokale schnelle Releases; Kompaktversion der alten Einzelnachrichten)
 
