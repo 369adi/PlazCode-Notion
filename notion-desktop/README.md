@@ -9,6 +9,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.101
+- Logger fuer 'Notion AI was disabled in this workspace': steht der Hinweis in einem Konto-Tab, schreibt AdiCode einmal einen Bericht mit allem, was kurz vorher passiert ist (Zeitprotokoll, Tool-Aufrufe aller Chats, App-/Launcher-/MCP-Logs, Screenshot) nach %LOCALAPPDATA%\PlazCodeNotion\logs\ai-disabled
+
 ## Neu in 1.0.100
 - **Updates nur noch per Klick**: AdiCode aktualisiert sich nicht mehr von selbst (weder beim Start noch im Hintergrund). Neue Version -> in AdiCode auf Aktualisieren klicken.
 - **Sicheres Update**: Vor dem Neustart prueft AdiCode alle Notion-Tabs. Steht noch ungesendeter Text im Chat, wird das Update abgebrochen (erst abschicken/loeschen). Laufende Antworten werden sauber gestoppt.

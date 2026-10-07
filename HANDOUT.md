@@ -268,3 +268,6 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - Launcher.cs: kein Auto-Update mehr (Start + 15-s-Schleife entfernt), nur noch Trigger-Datei update-now (Knopf Aktualisieren).
 - notion_updates.rs: update_now() async, prueft update_available, ruft notion_profiles::pause_for_update() (bricht ab, wenn in einem Tab Text im Composer steht; stoppt laufende Antworten, merkt Tabs in resume-after-update.json), danach Trigger/direct_install.
 - notion_profiles.rs: resume_after_update() nach Neustart (wartet bis Chat frei + niemand tippt, max 6 min) schreibt "weiter"; notion_chat.rs send_text() fuer den Haupt-Tab. notion_live.rs: Text "Auto-Update folgt" -> "in AdiCode auf Aktualisieren klicken".
+
+## 1.0.101 (Main2, 07.10.2026)
+- notion_profiles.rs: AI_OFF_JS + ai_off_check() im gen_monitor (alle ~30 s pro laufendem Tab, nur lesen); bei neuem Treffer ai_off_report(): logs\ai-disabled\<Zeit>-tab<ID>.txt/.jpg (Seitentext, Konto-Status, timeline.log 400, Live-Feed, agent.log 300, launcher.log 120, mcp-auth.log 40). Eigener b64_decode (kein base64-Crate). Unveroeffentlichte setup_mcp-Aenderung eines anderen Chats in derselben Datei bewusst NICHT mit-gestaged.
