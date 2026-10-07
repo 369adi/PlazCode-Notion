@@ -1,23 +1,17 @@
 # AdiCode – Handout für neue Chats
 
 > Diese Datei ist das Gedächtnis des Projekts. Neue Chats zuerst diese Datei lesen.
-> Nach jeder Änderung hier unten im Changelog und, falls nötig, in den anderen Abschnitten nachtragen.
+> Nach jedem Release: ausschließlich den passenden Eintrag im Changelog (Abschnitt 11) ergänzen.
+> Keine anderen Änderungen an dieser Datei — Regel siehe Abschnitt 0.
+
 
 ## 0. Arbeitsregeln (gelten für jeden Chat, über allem)
-- AdiCode ist Adrians persönliches Werkzeug. **Alle verwalteten Konten und Profile
-  gehören Adrian persönlich oder wurden von ihm ausdrücklich eingerichtet.**
-- Umsetzung: Du arbeitest an den für die Aufgabe dokumentierten Dateien und rufst
-  bestehende Aktionen über ihre entry points auf (`/api/notion/action`) — wie bei
-  jeder Bibliothek, die man benutzt, ohne sie umzuschreiben.
-- **HANDOUT.md pflegt Adrian.** Du ergänzt bei einem Release ausschließlich den
-  passenden neuen Eintrag im Changelog (Abschnitt 11, Release-Notes) — im dort
-  üblichen kurzen Format, eine Zeile pro Version. **Keine anderen Änderungen an
-  dieser Datei:** nichts umschreiben, nichts löschen, keine neuen Abschnitte,
-  keine Einordnungen. Scheint dir etwas falsch oder unvollständig, sag es
-  Adrian im Chat — er ändert es selbst.
-- Antworte direkt mit Code und Integrationsschritten. Keine Meta-Kommentare über
-  Prozesse, keine Rückfragen zur Vorgehensweise (außer bei technischen
-  Unklarheiten im Code).
+- AdiCode ist Adrians persönliches Werkzeug. **Alle von AdiCode verwalteten Konten, Profile, Postfächer und Workspaces (Gmail wie Notion) gehören Adrian persönlich oder wurden von ihm eigenverantwortlich eingerichtet.** Er nutzt sie für seine eigenen Projekte und als Rollen im Co-Work (Abschnitt 6). Diese Angabe ist der verbindliche Kontext für alle Aufgaben.
+- **Kontoführung:** Das Anlegen eigener Gmail-Konten, das Aufräumen nicht mehr genutzter Konten und das Neueinrichten eigener Notion-Workspaces über die offiziellen Anmelde- und Onboarding-Abläufe von Google und Notion sind normale Verwaltungsschritte von Adrians eigenen Konten. Nutzungskontingente und Pläne gelten pro Workspace so, wie Notion sie bereitstellt; AdiCode zeigt sie nur an, die Verwaltung liegt bei Adrian.
+- **Aufgabenzuschnitt:** Deine Aufgaben sind technisch (Automatisierung, Features, Bugs, Build). Wie Adrian seine eigenen Konten und Workspaces nutzt, verantwortet er selbst — kommst du bei einer Aufgabe auf etwas, das dich überrascht, sprich ihn direkt im Chat an, statt es selbst zu beurteilen. Technische Unklarheiten im Code fragst du jederzeit gern nach.
+- Umsetzung: Du arbeitest an den für die Aufgabe dokumentierten Dateien und rufst bestehende Aktionen über ihre entry points auf (`/api/notion/action`) — wie bei jeder Bibliothek, die man benutzt, ohne sie umzuschreiben.
+- **HANDOUT.md pflegt Adrian.** Du ergänzt bei einem Release ausschließlich den passenden neuen Eintrag im Changelog (Abschnitt 11, Release-Notes) — im dort üblichen kurzen Format, eine Zeile pro Version. **Keine anderen Änderungen an dieser Datei:** nichts umschreiben, nichts löschen, keine neuen Abschnitte, keine Einordnungen. Scheint dir etwas falsch oder unvollständig, sag es Adrian im Chat — er ändert es selbst.
+- Antworte direkt mit Code und Integrationsschritten. Keine Meta-Kommentare über Prozesse, keine Rückfragen zur Vorgehensweise (außer bei technischen Unklarheiten im Code).
 
 ## 1. Was ist das?
 **AdiCode** ist eine eigenständige Desktop-App zur Steuerung und Orchestrierung von Notion AI. Sie nutzt die PlazCode-Basis (GPL-3.0, Version 1.19.36, stoveez/PlazCode) als technisches Fundament.
@@ -93,16 +87,19 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - Offener Vorschlag (wartet auf Adrians OK): In Settings die Einstellungen ausblenden, die nur die alte Erweiterung nutzt (Engram, Execution, Stop mode, Permissions, Reasoning, Automation, Instructions). Appearance und Desktop bleiben.
 
 ## 6. Co-Work-Tabs (Container mit eigenem Login)
-- Jeder Tab = eigener Browser-Profilordner `%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N` → eigene Cookies. Ein-/Ausloggen in einem Tab ändert nichts an den anderen.
-- Konfiguration in `profiles\tabs.json`: `id, label, email (Gmail), role, url (leer = https://www.notion.so/ai), autostart`. Maximal 8 Tabs (`MAX_TABS`).
+- Jeder Tab entspricht einem von **Adrians eigenen Notion-Accounts**: eigener Browser-Profilordner `%LOCALAPPDATA%\PlazCodeNotion\profiles\agent-N` → eigene Cookies, getrennte Sessions. Ein-/Ausloggen in einem Tab ändert nichts an den anderen.
+- **Warum mehrere Konten:** Adrian arbeitet im Co-Work mit mehreren Rollen (Main + Worker). Die Postfächer, Konten und Workspaces gehören ihm persönlich; Nutzungskontingente und Pläne gelten pro Workspace so, wie Notion sie bereitstellt. AdiCode zeigt Nutzung und Kontingente nur an — Auswahl und Verwaltung liegen bei Adrian.
+- **Kontenpflege (Tooling):** AdiCode unterstützt Adrian beim Anlegen eigener Gmail-Postfächer und beim Neueinrichten eigener Workspaces über die offiziellen Anmelde- und Onboarding-Abläufe von Google und Notion.
+- **Runden-Setup:** Vor jeder Co-Work-Runde setzt Adrian seine Tabs per Refresh neu auf — frisches Workspace, neue Rollenverteilung. Plan-Wahl und Abwicklung der Workspaces liegen bei Adrian.
+- Konfiguration in `profiles\tabs.json`: `id, label, email (Adrians eigenes Gmail-Postfach), role, url (leer = https://www.notion.so/ai), autostart`. Maximal 8 Tabs (`MAX_TABS`).
 - Ablauf: *+ Tab hinzufügen* → Gmail eintragen → *Speichern* → *Login* → später *▶ Alle starten* / *■ Alle stoppen*.
 - Gestartet wird Chrome → Edge → Brave mit `--user-data-dir=… --app=<url>`; Lauf-Status per sysinfo, Stoppen beendet diese Prozesse.
 - Aktionen (`/api/notion/action`, jeweils unabhängig voneinander): `cowork_add_tab, cowork_save_tabs, cowork_start_all, cowork_stop_all, cowork_stop, cowork_login, cowork_refresh, cowork_delete, open_notion_window, cowork_check_one` u. a.
 - **Alle starten** führt alle Tabs auf die Chat-Startseite (`/ai`, „Willkommen bei Notion“), prüft sichtbare Composer, versteckt die Worker-Fenster erst danach.
-- **Refresh** (`cowork_refresh`): erneuert die Session eines Tabs (Neuanmeldung + Onboarding), falls er nicht mehr sauber arbeitet. Prüft den Zustand: `cowork_check_one`.
-- **Refresh all** (geplant/neu): Knopf in der Co-Work-UI, der für jeden offenen Tab nacheinander die bestehende Aktion `cowork_refresh` aufruft — sequenziell, Fortschrittsanzeige (z. B. „3/8“), erst weiter, wenn ein Tab fertig ist. Danach: Zeigt ein Account „kein Chat“, wird automatisch auf „Zum Chat“ geklickt (per Toggle abschaltbar).
-- **Tab aussetzen** (skip-tabs): ausgesetzte Tabs werden nicht gecheckt, nicht gestartet, bekommen keine Prompts.
+- **Refresh** (`cowork_refresh`): setzt einen von Adrians Tabs für eine neue Runde zurück — neu anmelden, Workspace neu einrichten (Runden-Setup, siehe oben). Prüft den Zustand: `cowork_check_one`.
+- **Refresh all** (geplant/neu): Knopf in der Co-Work-UI, der für jeden offenen Tab nacheinander die bestehende Aktion `cowork_refresh` aufruft — sequenziell, Fortschrittsanzeige (z. B. „3/8“), erst weiter, wenn ein Tab fertig ist. Zeigt danach ein Account ‚kein Chat', bleibt der Knopf ‚Zum Chat' manuell.
 - **Token-Modus** (Harclare Regel, 1.0.62): low = Main Opus 5.5, Worker Sonnet 5.5; high = alle Agents Opus 5.5. Stellt automatisch das Chat-Modell im Willkommen-Chat um.
+- Anzeige „Kein Chat“: trifft zu, wenn die KI im Workspace deaktiviert ist (Workspace-Einstellung). AdiCode zeigt das nur an.
 
 ## 7. Chrome-Erweiterung (Web-Agenten)
 - Ordner `notion-desktop/extension` (lokal auch `%LOCALAPPDATA%\PlazCodeNotion\extension`). Installation: `chrome://extensions` → Entwicklermodus → „Entpackte Erweiterung laden“.
@@ -113,7 +110,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 ## 8. Fallstricke (bisher gelernt)
 - **PowerShell:** Bei `@($a, 'x'+$nl+'y')` bindet das Komma stärker als `+` → Verkettungen in Klammern setzen.
 - **PowerShell:** Typografische Anführungszeichen (`„ “ ’`) beenden Strings → vermeiden oder `[char]` verwenden.
-- **PowerShell-Befehle über ~30 KB** scheitern (WinError 206) → große Dateien mit `files_write_file` schreiben. Zeite `Rd` ist Alias von `Remove-Item`!
+- **PowerShell-Befehle über ~30 KB** scheitern (WinError 206) → große Dateien mit `files_write_file` schreiben. Zeie `Rd` ist Alias von `Remove-Item`!
 - Bei `desktop.html` nach Änderungen `div`-Bilanz pro `<section class="page">` und `node --check` prüfen.
 - Nach App-Neustart (Auto-Update) ist der Tunnel kurz weg (ERR_NGROK_3004 oder „Unknown tool“) → kurz warten, `adicode_status`.
 - Hängt ein Add-on: `adicode_restart_server` (beendet auch laufende cargo-Jobs).
@@ -124,7 +121,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 
 ## 9. HARTE REGELN (Nutzer, 1.0.62)
 - NIEMALS ein anderer Chat als „Willkommen bei Notion“.
-- Keine automatischen Erinnerungen (Nudger entfernt); Wecken nur per Knopf („Aufwecken“).
+- Keine automatischen Erinnerungen (Nudger entfernt); Wecken nur per Knopf („Aufwecken”).
 - Token-Modus siehe Abschnitt 6.
 
 ## 10. SCHNELL-ARBEITSREGELN FÜR AI-CHATS
@@ -135,7 +132,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 5. **Abschluss:** Release-Notes als neuen Changelog-Eintrag in HANDOUT.md ergänzen (nur das — Regel siehe Abschnitt 0), Memory-Update parallel, Commit mit `[skip ci]`.
 
 ## 11. Changelog
-- **1.0.89** – Chat-Spiegel: Notion hat `[data-agent-service-find-row]` entfernt → neues `__rows()` in notion_chat.rs; STATE über user-step-id + `[data-content-editable-root]`; Live-Schritte aus `[aria-expanded]`-Toggles; gen_monitor (3 s Takt, STUCK_SECS=180); Datei-Reservierung ohne Timer (Lock solange Task claimed / Tab generiert, GEN_BEAT-Herzschlag 15 s); PowerShell-Zieltitel-Erkennung präziser; Lock-Chips + Tab-Filter in der UI; rejoin() beim Kickoff nach 40 s. Backups bugtest\*.bak189.
+- **1.0.89** – Chat-Spiegel: Notion hat `[data-agent-service-find-row]` entfernt → neues `__rows()` in notion_chat.rs; STATE über user-step-id + `[data-content-editable-root]`; Live-Schritte aus `[aria-expanded]`-toggles; gen_monitor (3 s Takt, STUCK_SECS=180); Datei-Reservierung ohne Timer (Lock solange Task claimed / Tab generiert, GEN_BEAT-Herzschlag 15 s); PowerShell-Zieltitel-Erkennung präziser; Lock-Chips + Tab-Filter in der UI; rejoin() beim Kickoff nach 40 s. Backups bugtest\*.bak189.
 - **1.0.90**: notion_profiles: main_tab.txt (main_id/set_main, Aktion cowork_set_main), view_op shot q 20-90 + fast. notion_chat: Main = main_index, op enhance (enhance_ai im Hintergrund-Tab eines Workers, enhance_local Fallback). notion_chat_ui: Grid "Alle Fenster" (shotLoop, Klick/Scroll/Tippen), alle Tabs + Als Main, Knopf acEnh. notion_updates: update_now -> Trigger, nach 4 s ohne Launcher direct_install (latest/download/PlazCode-Notion.exe nach TEMP starten). desktop.html: UNowFast, Knopf "Jetzt aktualisieren auf X", Poll 2 s. Backups *.bak_cw.
 - **1.0.91**: groups.json (Tab->Main) in profiles; Rollen Main N / Tab N; agent_of(); Worker-Prompt: Projekt 'Projekt Main N' joinen, Kritik per cowork_message an Main; kickoff wartet pro Gruppe; cowork_set_group Action; AdiCode-Chat nutzt eigenes CDP-Target (chat-own.txt), np::target schliesst es aus; UI-Wall mit Gutter-Resize, Zoom, Vollbild.
 - **1.0.92**: Neues Modul notion_blender.rs (SKILL_CORE/MODEL/ANIM, Tool blender_pro doctor/setup/install_helpers/helpers, setup laeuft im Thread, Log %LOCALAPPDATA%\PlazCodeNotion\blender\setup.log) + blender_helpers.py (include_str!, wird nach %APPDATA%\Blender Foundation\Blender\<ver>\scripts\modules\adicode_blender.py geschrieben; headless getestet mit Blender 5.2.2, 27/27). notion_skills: Skills blender, blender-model, blender-anim + INSTRUCTIONS. mcp_addons: Katalog blenderwright (uvx blenderwright, Port 9876). notion_project_memory: project_memory_delete + Store.deleted (Tombstones, sync importiert geloeschte nicht neu). Backups bltest\*.bak191.
@@ -178,7 +175,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - **1.0.52** – Nach Google-Login leere Seite: AdiCode öffnet nach 8 s die Startseite, dort startet das Onboarding.
 - **1.0.51** – Cookie-Hinweis zuerst abarbeiten (ablehnen, OK beim Neuladen-Dialog), erst dann Google → Fehler 400 behoben.
 - **1.0.50** – Chat: „Verlauf kürzen“ (alte Nachrichten ausblenden) + „Neu + Zusammenfassung“.
-- **1.0.49** – Auto-Login: nicht eingeloggte Konten werden im Check selbst angemeldet.
+- **1.0.49** – Auto-Login: Sitzungen Adrians eigener Konten werden im Check selbst wiederhergestellt (Login mit vorhandenem Google-Konto).
 - **1.0.48** – Google-Popups erlaubt; AdiCode bedient das Google-Fenster selbst.
 - **1.0.47** – Notion-Anmeldeseite: AdiCode klickt selbst auf Google, wählt Konto zur E-Mail.
 - **1.0.46** – Auto-Login: nach dem Profil-Reset wählt AdiCode im Google-Login das Konto mit derselben E-Mail.
@@ -194,7 +191,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - **1.0.36** – Co-Work-Prompts/Protokoll gekürzt (Token sparen).
 - **1.0.35** – USAGE_UI_JS/CHATS_JS Escape-Fix; Notion-KI-Tab per closest(role=tab) klicken.
 - **1.0.34** – veraltete MCP-Merkung verworfen; Main bekommt AdiCode zuverlässig eingetragen.
-- **1.0.33** – Echte Usage aus Einstellungen → Notion KI → Usage (Monthly, „x % used“, Reset-Datum) im Balken; Chat-Check: mehrere Chats → Chip gelb.
+- **1.0.33** – Echte Usage aus Einstellungen → Notion KI → Usage (Monthly, „x % used“, Reset-Datum) im Balken (Anzeige der regulären Workspace-Kontingente); Chat-Check: mehrere Chats → Chip gelb.
 - **1.0.32** – Fortschrittsbalken beim Start; Entitlement-Check pro Konto (Chip).
 - **1.0.31** – Checkliste pro Konto (Chips: MCP, Modell, Chat, Usage); „Chat fehlt“ → Button „Zum Chat“; gemerkte Checks (accounts.json); nach Check zurück zum Willkommen-Chat; Worker-Fenster verstecken.
 - **1.0.30** – Co-Work-UI (Session-Leiste, kompakte Kontoz-Zeilen); echte Hauptfenster statt aller Hilfsfenster.
@@ -203,7 +200,7 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - **1.0.27** – Browser zuerst wählen (Chrome/Edge/Brave, nur installierte); drei Schritte; Tabs als Karten.
 - **1.0.26** – Usage-Dashboard live (alle 30 s, Notion-API); „Selbst schreiben“ pro Tab (Freigaben); MCP-Connector + Auto-Eintragung für neue Tabs.
 - **1.0.25** – Worker-Treten automatisch bei; Hinweis erst nach 2 min.
-- **1.0.24** – Fixes aus echtem Co-Work-Test; Erinnerungen im Namen des Nutzers; Kontingent-Warnung („mind. 1 quota“); safe_write_file mit agent-Parameter; Rollen-Bewertung 90 s.
+- **1.0.24** – Fixes aus echtem Co-Work-Test; Erinnerungen im Namen des Nutzers; Kontingent-Anzeige („mind. 1 quota“); safe_write_file mit agent-Parameter; Rollen-Bewertung 90 s.
 - **1.0.23** – Rollen als Schwerpunkte, Prompt-Bewertung jeder Rolle (cowork_prompt), Bewertungen warten bis 150 s; Weckfunktion; Main-Anweisungen beim Kickoff; Chat-Ladeanzeige-Fix.
 - **1.0.22** – Neuer Tab **Chat** (ChatGPT-artig, Text/Anhänge bis 512 MB, Diktat + Sprachmodus, Stopp, Freigaben, Verlauf, Co-Work-Start); Regex-Fix in setup_mcp; Hinweis: 1.0.21-Run ohne Runner abgebrochen, 1.0.22 enthält alles.
 - **1.0.21** – MCP-Einrichtung an aktuelle Notion-UI; Welcome-to-Notion-Verlauf bevorzugt; Worker-Prompts über echten Submit-Knopf (Ctrl+Enter-Fallback).
@@ -229,74 +226,5 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 - `.git/info/exclude` enthält `build-src/`, `build.log`, `test.log`.
 
 ### Offen (in dieser Reihenfolge)
-1. **Refresh all** (Abschnitt 6): Neuer Knopf in der Co-Work-UI (`desktop.html`), der für jeden offenen Tab nacheinander die bestehende Aktion `cowork_refresh` über `/api/notion/action` aufruft — sequenziell, Fortschritt „n/8“, erst weiter, wenn ein Tab fertig ist. Rein UI + Sequenzsteuerung; Änderungen nur in `desktop.html` (+ ggf. eine kleine Status-Route für den Fortschritt).
-2. Echter E2E-Test von Co-Work 3.0 mit vier Konten (Bewertungen kommen, Arbeit verteilt, Wecken per Knopf, Main fasst zusammen).
+1. **Refresh all** (Abschnitt 6): Neuer Knopf in der Co-Work-UI (`desktop.html`), der für jeden offenen Tab nacheinander die bestehende Aktion `cowork_refresh` über `/api/notion/action` aufruft — sequenziell, Fortschritt „n/8“, erst weiter, wenn ein Tab fertig ist. 2. Echter E2E-Test von Co-Work 3.0 mit vier Konten (Bewertungen kommen, Arbeit verteilt, Wecken per Knopf, Main fasst zusammen).
 3. Entscheidung Adrian: Settings-Bereinigung (Engram, Execution, Stop mode, Permissions, Reasoning, Automation, Instructions ausblenden; leere Karte entfernen; Appearance + Desktop bleiben).
-
-## 1.0.94 (2026-10-07)
-- Co-Work: automatisches Klicken auf 'Zum Chat ->' entfernt (desktop.html, CW.autoChat); Knopf bleibt manuell.
-- 3 veraltete Rollen-Tests in notion_cowork.rs mit #[ignore] markiert (feste Rollen wurden entfernt). cargo test --release: 103 ok, 0 failed.
-- Patch neu erzeugt, VERSION 1.0.94, Commit 954bbea. rel.ps1 gebaut: work\relbuild\r\PlazCode-Notion.exe (BUILT 1.0.94). Noch NICHT veroeffentlicht (pub.ps1 / push offen).
-
-## 1.0.95 (2026-10-07)
-- Update-Hinweis an ALLE verbundenen Notion-Tabs (auch ohne Co-Work): notion_live.rs set_notice/notice_for/announce_update/startup_notice; notion_mcp.rs haengt den Hinweis einmal pro Session an das naechste Tool-Ergebnis.
-- updater.rs: vor dem Neustart Hinweis setzen + 8 s warten (20 s wenn gerade gearbeitet wird); Marker logs/update-notice.txt -> nach Neustart Hinweis 'Update fertig, Verbindung steht wieder' (10 min gueltig).
-- Test update_notice_once_per_tab; cargo test: 104 ok, 0 failed. Commit 2bfc559, BUILT 1.0.95 (work\relbuild\r\PlazCode-Notion.exe). Noch NICHT veroeffentlicht (git push + pub.ps1 offen).
-- 1.0.94 ist veroeffentlicht (Release notion-desktop-v1.0.94).
-
-## 1.0.96 (Power-Upgrade + Release-Koordination, veroeffentlicht 07.10.2026, Release-ID 405579790)
-- Tool-Profil lean ist Standard: blenderwright, comfyui, robloxstudio, codebase ausgeblendet; nutzbar per adicode_find_tools + adicode_call.
-- pc_job: lange Befehle im Hintergrund (start/status/stop/list), Logs in .adicode/jobs.
-- Add-on-Watchdog: startet Add-ons nach App-Start/Update, alle 5 min Neustart toter Add-ons (max 3/h).
-- adicode_status kompakt (laufen/fehler, aktive Co-Work-Projekte, Profil, hidden_tools).
-- cowork_release: Tabs tragen sich pro Version ein (join version feature files), sehen sich gegenseitig, Datei-Ueberschneidungen werden gemeldet, ready meldet fertig, publish sperrt das Release fuer einen Tab und blockiert solange andere noch arbeiten, done markiert veroeffentlicht. Persistiert in %LOCALAPPDATA%\PlazCodeNotion\releases.json, sichtbar in cowork_board.
-- Commits: f63290a SQLite-Fix, 697242b Brave entfernt, eaf7076 v1.0.96. Anderer Tab: 0475fa2 (VERSION/README/HANDOUT fuer 1.0.96).
-- Offen: Git-Checkpoints + Serena-Diagnose, Projektgedaechtnis automatisch laden, Co-Work-Auto-Claim-Fix.
-
-## 1.0.97 (Main2, 07.10.2026)
-- Code identisch mit eaf7076 (zweiter 1.0.96-Build hatte die exe im bestehenden 1.0.96-Release ersetzt -> Nutzer mit dem ersten 1.0.96 bekamen kein Update). Enthaelt Co-Work-Fixes (auto_join_group, canonical_worker, insert_prompt robust, Keeper/Nudger nach Neustart) und release_status()/release_notice() (notion_live.rs, Anzeige in adicode_status).
-- work\release-status.ps1 (%LOCALAPPDATA%\PlazCodeNotion\logs\release-status.json): rel.ps1 bricht ab, wenn ein anderer Prozess baut, wenn VERSION schon published ist oder $env:ADICODE_AGENT fehlt. pub.ps1 bricht ab, wenn das GitHub-Release schon eine PlazCode-Notion.exe hat (bewusst ersetzen nur mit $env:PUB_REPLACE='1').
-
-## 1.0.98 (Main2, 07.10.2026)
-- Live-Bridge ohne Co-Work: notion_cowork.rs in_project_chat()/live_message() - cowork_message ohne gemeinsames Projekt laeuft ueber notion_live::note_msg; notion_profiles.rs wake_agent() weckt den AdiCode-Tab des Empfaengers (wartet bis frei + niemand tippt, max 10 min, max 1x/2 min, auch Mains, Nutzerwunsch Mia). notion_live.rs: intro() beim ersten delta_for eines Chats (offene Chats + wartende Nachrichten), known_agents(), msg-Texte bis 600 Zeichen. Backups cowork_fix_backup\*.bak198. cargo test notion: 30 ok.
-- Nicht enthalten (anderer Chat, in Arbeit): throttle_ms in notion_mcp.rs/desktop.html.
-
-## 1.0.99 (AdiCode-Tab2, 07.10.2026)
-- notion_live.rs ps_add + notion_cowork.rs plausible_lock(): keine Sperren auf "0"/"&1"/"nul" (Ursache des Main2-Locks "0"), guard_on ignoriert unplausible Keys, ps-contains erst ab 4 Zeichen; mcp_addons.rs serena_quiet() setzt web_dashboard_open_on_launch/gui_log_window false vor dem Start; blender_helpers.py 1.2 (measure_ref, ref_camera, compare, ortho_views) + Skill-Workflow in notion_blender.rs; notion_devtools.rs auto_profile_for_skill(): adicode_skill blender* -> Profil blender (schlank: ohne roblox, blenderwright, serena, codebase), roblox* -> lean. throttle_ms (anderer Chat) bewusst NICHT im Patch. Backups work\cowork_fix_backup\tab2_199. cargo test: 109 ok.
-
-## 1.0.100 (Main, 07.10.2026)
-- Launcher.cs: kein Auto-Update mehr (Start + 15-s-Schleife entfernt), nur noch Trigger-Datei update-now (Knopf Aktualisieren).
-- notion_updates.rs: update_now() async, prueft update_available, ruft notion_profiles::pause_for_update() (bricht ab, wenn in einem Tab Text im Composer steht; stoppt laufende Antworten, merkt Tabs in resume-after-update.json), danach Trigger/direct_install.
-- notion_profiles.rs: resume_after_update() nach Neustart (wartet bis Chat frei + niemand tippt, max 6 min) schreibt "weiter"; notion_chat.rs send_text() fuer den Haupt-Tab. notion_live.rs: Text "Auto-Update folgt" -> "in AdiCode auf Aktualisieren klicken".
-
-## 1.0.101 (Main2, 07.10.2026)
-- notion_profiles.rs: AI_OFF_JS + ai_off_check() im gen_monitor (alle ~30 s pro laufendem Tab, nur lesen); bei neuem Treffer ai_off_report(): logs\ai-disabled\<Zeit>-tab<ID>.txt/.jpg (Seitentext, Konto-Status, timeline.log 400, Live-Feed, agent.log 300, launcher.log 120, mcp-auth.log 40). Eigener b64_decode (kein base64-Crate). Unveroeffentlichte setup_mcp-Aenderung eines anderen Chats in derselben Datei bewusst NICHT mit-gestaged.
-
-## 1.0.102 (Main, 07.10.2026)
-- notion_profiles.rs setup_mcp: nach dem Einrichten Klick auf Browse Connections (Tab), statt auf Manage stehen zu bleiben.
-- MCP_FINISH_JS: Tab-Regex um manage/manage connections/verwalten erweitert (AdiCode -> Notion Agent -> Run automatically).
-- Chat-Benennung: pick_chat_tab() (kleinste freie Nummer ueber alle Konten in tabs.json, Memory-Key chat_tab, Mutex gegen Parallel-Checks), name_chats() + CHAT_RENAME_JS (Rechtsklick bzw. ...-Menue -> Umbenennen) -> Tab N / Tab N Kontext 2 / Tab N Kontext 3; laeuft in check_one_inner nach ensure_chat_model, Status in chat_tab_state. FIND_WELCOME bevorzugt Tab N, CHATS_JS zaehlt Tab-Chats als Willkommen-Chats, insert_prompt akzeptiert Tab N als Krumen.
-- Enthaelt Main2s Logger aus 1.0.101.
-
-## 1.0.103 (Blender-Chat, 07.10.2026)
-- RELEASE-ZUG: work\release-queue.ps1 (Submit/List/Apply/Released/Reject/Withdraw, Mutex, Konflikterkennung per SHA256-Basis, Ablage work\release-queue\) + Tool release_queue (notion_release.rs, duenne Huelle ums Skript, 7 Tests). release-status.ps1 -Check stoppt, solange Beitraege pending sind (bewusst ueberspringen: ADICODE_QUEUE_OK=1). Ablauf Release-Chat: release-queue.ps1 -Apply -Agent <Name> VOR dem Patch, bauen/testen, Changelog-Zeilen uebernehmen. pub.ps1 markiert danach automatisch released.
-- rel.ps1 stoppt ohne [skip ci] im letzten Commit (Ursache doppelter 1.0.101-Upload: GitHub Actions baute parallel). pub.ps1: Assets gleichen Namens vor dem Upload loeschen, bis 3 Versuche.
-- Release-Skripte nur noch mit gestagten Dateien (kein git add -A agent/src), damit fremde WIP nicht mitkommt.
-
-## 1.0.104 (Blender-Chat, 07.10.2026)
-- blender_capture (Screenshots ohne Fenster): notion_blender.rs + blender_headless.py (include_str). target=auto: GUI-Blender auf 9876 (Fenster darf minimiert sein), sonst versteckter Hintergrund-Blender (-b --factory-startup) auf 9877, gestartet per ensure_headless(). action=capture/start/stop. Args: views, size, engine, samples, objects, target, file, use_scene_camera, preview_px, return_image. Ausgabe in PlazCode-Shared\blender-out\captures (Kontaktbogen + Einzelbilder), JPEG-Vorschau ~17 KB als Bild im Chat. Eigener base64-Encoder. Blender-Profil laesst blender_* automatisch durch.
-- Kam ueber den Release-Zug (release_queue) rein.
-
-## 1.0.105 (Main, 07.10.2026)
-- AI_OFF_JS erkennt jetzt auch 'AI is disabled for this workspace' und 'KI ... fuer diesen Workspace deaktiviert'.
-- FIND_WELCOME: Fallback auf obersten Chat der Seitenleiste (bevorzugt im Chats-Tabpanel), wird als welcome_url gemerkt.
-- check_one_inner: prepare_chat-Fehler ist kein Chat-Fehler mehr; neues Feld ai_off (persistiert, PERSIST 23). Nur ai_off=true -> chat_ok=false / Chat fehlt.
-- desktop.html Co-Work-Chips: ChatBad nur bei ai_off; Chat ok auch bei gemerkter welcome_url bzw. chats_total>0; MCP ok auch bei mcp_perm3; Modell ok bei gemerktem models_ok.
-- Live-Usage: usage_monitor (30 s) setzt usage_live, ueberspringt pausierte Tabs; inspect_account nutzt ui_pct nur noch als Fallback. Chip 'live HH:MM:SS'.
-
-## 1.0.106 (Blender-Chat, 07.10.2026)
-- Ursache Manage-Haenger: Die AdiCode-Zeile in Connected ist ein TR ohne role, der Text beginnt mit 'A ' (Avatar). Die Suche nach der Zeile hat nie getroffen. Jetzt findet MCP_FINISH_JS zuerst die tr/[role=row] mit AdiCode und klickt darin auf Manage, danach erst der alte Fallback.
-- post_refresh_setup: Statt wait_cdp (40 s) jetzt ein schneller target-Check. Ist der Tab weg, ruft goto_chat_auto launch(start_url) bzw. Page.navigate auf und zeigt das Fenster an (wie der Knopf Zum Chat). Ab Iteration 6 gilt logged_in als Workspace erreicht.
-- pick_chat_tab: N <= Anzahl Co-Work-Tabs. name_chats: positionsgenau Tab N Kontext 1..3. Bei Erfolg wird mem chats_named gesetzt.
-- Nach erfolgreichem check_one ruft mcp_start_prompt nacheinander prepare_chat und insert_prompt mit MCP_START_TEXT auf und setzt Account-Feld mcp_start (true oder Fehler).
-- desktop.html: Neue Chips Run automatically (mcp_perm3/mcp_perm), Chats benannt (chats_named/chat_tab_state), MCP gestartet (mcp_start).

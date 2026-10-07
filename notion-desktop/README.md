@@ -9,6 +9,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.109
+- **Co-Work nur noch ueber die Bridge**: Die Browser-Erweiterung ist komplett entfernt (Code, Tools, Einstellungen). Alle Tabs laufen direkt ueber AdiCode auf diesem PC.
+- **Main-Fenster-Check**: cowork_start warnt, wenn das als Main eingetragene Fenster gar nicht gestartet ist oder Fenster offline sind, und liefert einen Einfuegetext mit Projekt-ID. Der eigentliche Lead-Chat wird nicht mehr faelschlich als Worker eingetragen.
+- **Ein Konto, ein Fenster**: Dasselbe Notion-Konto kann nicht mehr in zwei Fenstern laufen - das vorhandene Fenster wird fokussiert; doppelte E-Mails werden beim Speichern gemeldet.
+- **Release-Zug**: Jeder Tab darf ohne Nutzer-OK veroeffentlichen. Andere Tabs haengen sich mit action=ready an; arbeiten noch Tabs an der Version, faehrt der Release nach hoechstens 10 min ab, Nachzuegler kommen automatisch in die naechste Version. Bereits veroeffentlichte oder gerade gebaute Versionen leiten automatisch weiter - es laeuft immer der neueste Stand.
+
 ## Neu in 1.0.108
 - **Blender**: Das doppelte Add-on blenderwright ist entfernt - AdiCode nutzt nur noch MCP for Blender (blender-mcp), keine Port-Konflikte/30-s-Timeouts mehr.
 - **Blender-Helfer 1.3**: Kamera und Lichter zielen korrekt aufs Motiv (kein graues Erst-Render mehr), Kamera rahmt auch hohe Objekte komplett, Boden/Hintergrund wird bei Framing und Lichtstaerke ignoriert (keine Ueberbelichtung), Holz-Material sieht nach Holz aus, neue Material-Presets (Messing, Gold, Kupfer, Stahl, Chrom, Glas, Kunststoff, Gummi, Keramik, Holz, Stoff, Beton ...), Grundformen mit Radius/Tiefe.
