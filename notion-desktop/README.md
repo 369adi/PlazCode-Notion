@@ -9,6 +9,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.116
+
+- **AdiCode erstellt nie einen neuen Notion-Chat:** Co-Work und jeder Chat bedienen nur bestehende Chats. **+ Chat** holt einen freien *bestehenden* Chat des Kontos dazu (zuerst Tab-n-Kontext-/Willkommen-Chats, dann zuletzt genutzte).
+- Harte Sperren im Code: Tab oeffnen und Senden nur, wenn die Seite ein bestehender Chat ist (Link mit t=). Sonst wird nichts gesendet.
+- Prompt-Enhancer ueber Notion AI entfernt (legte jedes Mal einen neuen Chat an), jetzt nur lokal. Knoepfe *Neuer Chat* / *Neu + Zusammenfassung* im AdiCode-Chat entfernt.
+
 ## Neu in 1.0.115
 
 - **Co-Work ohne Rollen und ohne Main:** Die festen Rollen (Main, Coder, Reviewer, Tester ...) sind komplett raus und ueberschreiben beim Start nichts mehr. Der Chat, in dem du zuerst schreibst (beliebiger Notion-Tab oder AdiCode-Chat), leitet das Co-Work; die anderen Tabs treten automatisch bei und helfen bei allem.

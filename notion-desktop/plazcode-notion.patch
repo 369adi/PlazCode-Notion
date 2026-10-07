@@ -1488,7 +1488,7 @@ index 0000000..ab68b62
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..e17b83f 100644
+index 07dc4c0..a3258c2 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -2291,7 +2291,7 @@ index 07dc4c0..e17b83f 100644
 +        Chip(A.ai_off === true ? "bad" : (A.chats_total > 0 ? "ok" : "wait"), A.ai_off === true ? "Kein Chat" : (A.chats_total > 0 ? (A.chats_total + " Chats") : "Chats ?"), A.ai_off === true ? "Notion KI ist f\u00fcr diesen Workspace deaktiviert" : (A.chats_state || "Noch nicht gepr\u00fcft")) +
 +        (A.chats_live_total != null ? Chip(A.chats_live_running > 0 ? "ok" : "wait", "Live: " + A.chats_live_total + " Chats \u00b7 " + (A.chats_live_running || 0) + " laufen \u00b7 " + (A.chats_live_open || 0) + " offen", (A.chats_live || []).map(function (C) { return (C.running ? "\u25b6 " : "\u2022 ") + (C.title || "Neuer Chat") + (C.open ? " [Tab offen]" : "") + (C.agent ? " (" + C.agent + ")" : ""); }).join("\n") + (A.chats_live_at ? "\nStand " + A.chats_live_at : "")) : (A.chats_live_error ? Chip("warn", "Live-Chats ?", String(A.chats_live_error)) : "")) +
 +        Chip((A.slots || 0) > 0 ? "ok" : "wait", "Co-Work-Chats " + (1 + (A.slots || 0)) + "/" + (CW.max_chats || 8), (A.slots_state || "Nur der Haupt-Chat arbeitet mit") + ((A.slot_agents || []).length ? " \u00b7 " + A.slot_agents.join(", ") : "")) +
-+        ((!ChatBad && 1 + (A.slots || 0) < (CW.max_chats || 8)) ? '<button class="cwgo" data-a="chat_add" title="Weiteren Chat dieses Kontos ins Co-Work holen (neuer Chat im Hintergrund-Tab, max. 1 neuer Chat pro 20 s)">+ Chat</button>' : '') +
++        ((!ChatBad && 1 + (A.slots || 0) < (CW.max_chats || 8)) ? '<button class="cwgo" data-a="chat_add" title="Weiteren BESTEHENDEN Chat dieses Kontos ins Co-Work holen (eigener Hintergrund-Tab). Es wird nie ein neuer Chat erstellt.">+ Chat</button>' : '') +
 +        ((A.slots || 0) > 0 ? '<button class="cwforget" data-a="chat_del" title="Letzten Zusatz-Chat aus dem Co-Work nehmen und seinen Tab schliessen">\u2212 Chat</button>' : '') +
 +        (A.rate_limit ? Chip(A.rate_pct >= 100 ? "bad" : (A.rate_pct >= 80 ? "warn" : "ok"), "6h: " + (Math.round((A.rate_used || 0) * 10) / 10) + "/" + A.rate_limit, "Notion-KI-Kredite im " + (A.rate_window || "6h") + "-Fenster (pro Konto)" + (A.rate_reset_s ? " \u00b7 Reset in " + Math.round(A.rate_reset_s / 60) + " min" : "")) : "") +
 +        Chip(NameSt, TabN ? ("Chats als Tab " + TabN + " benannt") : "Chats benannt", A.chat_tab_state || "Noch nicht benannt") +
@@ -7605,10 +7605,10 @@ index 0000000..70276ae
 +}
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
-index 0000000..f116c23
+index 0000000..e1cc644
 --- /dev/null
 +++ b/agent/src/notion_chat.rs
-@@ -0,0 +1,599 @@
+@@ -0,0 +1,567 @@
 +//! AdiCode Chat: ChatGPT-aehnliche Chatbox direkt in AdiCode.
 +//! Sie steuert den Co-Work-Main-Tab (Notion AI, CDP-Port 9301): Text, Fotos, Videos und
 +//! Dateien, Notion-Diktat (Sprechbox), Stopp, neuer Chat, Verlauf und Freigabe-Knoepfe.
@@ -7776,6 +7776,7 @@ index 0000000..f116c23
 +}
 +/// Neuer Notion-AI-Chat NUR fuer AdiCode: eigener Tab im Main-Browser; Co-Work-Chats bleiben unberuehrt.
 +async fn new_own_chat(url: &str) -> Result<String, String> {
++    if tid_of(url).is_empty() { return Err("Nur bestehende Chats (Link mit t=) - AdiCode erstellt nie einen neuen Notion-Chat.".into()); }
 +    let old = np::chat_own();
 +    let mut b = Session::browser().await?;
 +    let r = b.call("Target.createTarget", json!({"url": url}), 15).await?;
@@ -7994,6 +7995,9 @@ index 0000000..f116c23
 +        // Nur wenn Notion eine Datei ablehnt: kurzer Pfad-Hinweis, damit die KI sie per AdiCode lesen kann.
 +        if warning.is_some() { text = format!("{}\n\n[Dateien: {}]", text, files.join(", ")).trim().to_string(); }
 +    }
++    // NIE einen neuen Notion-Chat erzeugen: nur in einen bestehenden Chat (URL mit t=<id>) senden.
++    let here = s.eval("return location.href;").await?.as_str().unwrap_or("").to_string();
++    if tid_of(&here).is_empty() { return Err("Kein bestehender Chat offen - nichts gesendet (AdiCode erstellt nie einen neuen Notion-Chat).".into()); }
 +    if !text.is_empty() {
 +        let paste = format!("const c=__composer();if(!c)return false;c.focus();const dt=new DataTransfer();dt.setData('text/plain',{});c.dispatchEvent(new ClipboardEvent('paste',{{clipboardData:dt,bubbles:true,cancelable:true}}));await __sleep(250);return (c.innerText||'').trim().length>0;", js_str(&text));
 +        if s.eval(&paste).await?.as_bool() != Some(true) {
@@ -8078,53 +8082,22 @@ index 0000000..f116c23
 +    Ok(())
 +}
 +
++#[allow(dead_code)]
 +const ENH_RULES: &str = "Du bist ein Prompt-Enhancer. Schreibe den Prompt unten so um, dass eine KI ihn optimal versteht und das beste Ergebnis liefert: klares Ziel, wichtiger Kontext, konkrete Anforderungen und Schritte, gewuenschtes Ausgabeformat, Randbedingungen und Qualitaetskriterien. Behalte Sprache und Absicht des Nutzers bei, erfinde keine Fakten, beantworte den Prompt NICHT selbst und nutze KEINE Tools. Antworte ausschliesslich so: erste Zeile PROMPTSTART, dann nur der verbesserte Prompt, letzte Zeile PROMPTENDE.";
 +fn enhance_local(t: &str) -> String {
 +    format!("Ziel:\n{}\n\nAnforderungen:\n- Kläre zuerst kurz, falls etwas Wichtiges unklar ist, sonst triff sinnvolle Annahmen und nenne sie.\n- Gehe Schritt für Schritt vor und liefere ein vollständiges, direkt nutzbares Ergebnis.\n- Achte auf Qualität: prüfe dein Ergebnis selbst auf Fehler.\n\nAusgabe:\n- Klar gegliedert, auf Deutsch.\n- Zum Schluss eine kurze Zusammenfassung, was gemacht wurde und was ich prüfen soll.", t.trim())
 +}
++#[allow(dead_code)]
 +async fn port_up(p: u16) -> bool { reqwest::Client::new().get(format!("http://127.0.0.1:{}/json/version", p)).timeout(Duration::from_millis(1200)).send().await.map(|r| r.status().is_success()).unwrap_or(false) }
-+/// Prompt-Enhancer: oeffnet im Hintergrund einen neuen Notion-AI-Tab in einem Worker-Browser (nie im Main-Chat), laesst den Prompt umschreiben und schliesst den Tab wieder.
-+async fn enhance_ai(text: &str) -> Result<String, String> {
-+    let n = np::load().len(); let mi = np::main_index();
-+    let mut port = None;
-+    for i in (0..n).rev().filter(|i| *i != mi) { let p = np::cdp_port(i); if port_up(p).await { port = Some(p); break; } }
-+    let p = match port { Some(p) => p, None => { let p = np::cdp_port(mi); if port_up(p).await { p } else { return Err("Kein Notion-Fenster offen \u{2013} lokale Verbesserung genutzt.".into()); } } };
-+    let v: Value = reqwest::Client::new().get(format!("http://127.0.0.1:{}/json/version", p)).timeout(Duration::from_secs(3)).send().await.map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
-+    let bws = v["webSocketDebuggerUrl"].as_str().ok_or("Browser-CDP fehlt")?.to_string();
-+    let mut b = Session::connect(&bws).await?;
-+    let r = b.call("Target.createTarget", json!({"url": "https://www.notion.so/ai", "background": true}), 10).await?;
-+    let tid = r["targetId"].as_str().ok_or("Kein Tab fuer den Enhancer")?.to_string();
-+    let res = enhance_in(p, &tid, text).await;
-+    let _ = b.call("Target.closeTarget", json!({"targetId": tid}), 5).await;
-+    res
-+}
-+async fn enhance_in(p: u16, tid: &str, text: &str) -> Result<String, String> {
-+    let mut s = Session::connect(&format!("ws://127.0.0.1:{}/devtools/page/{}", p, tid)).await?;
-+    let mut ready = false;
-+    for _ in 0..50 { sleep(500).await; if s.eval("return !!__composer();").await.ok().and_then(|v| v.as_bool()) == Some(true) { ready = true; break; } }
-+    if !ready { return Err("Notion-AI-Eingabe f\u{fc}r den Enhancer nicht gefunden \u{2013} lokale Verbesserung genutzt.".into()); }
-+    let msg = format!("{}\n\nPrompt:\n{}", ENH_RULES, text);
-+    let paste = format!("const c=__composer();if(!c)return false;c.focus();const dt=new DataTransfer();dt.setData('text/plain',{});c.dispatchEvent(new ClipboardEvent('paste',{{clipboardData:dt,bubbles:true,cancelable:true}}));await __sleep(250);return (c.innerText||'').trim().length>0;", js_str(&msg));
-+    if s.eval(&paste).await?.as_bool() != Some(true) { let _ = s.eval("const c=__composer();if(c)c.focus();return !!c;").await; s.call("Input.insertText", json!({"text": msg}), 10).await?; }
-+    sleep(300).await;
-+    submit(&mut s).await?;
-+    for _ in 0..170 {
-+        sleep(700).await;
-+        let v = s.eval("return {t:__rows().map(r=>r.innerText||'').join('\\n'),gen:!!__q('agent-chat-stop-button')};").await.unwrap_or(Value::Null);
-+        let all = v["t"].as_str().unwrap_or("");
-+        if all.matches("PROMPTSTART").count() >= 2 && v["gen"].as_bool() != Some(true) {
-+            if let Some(k) = all.rfind("PROMPTSTART") { let tail = &all[k + 11..]; if let Some(e) = tail.find("PROMPTENDE") { let out = tail[..e].trim().to_string(); if !out.is_empty() { return Ok(out); } } }
-+        }
-+    }
-+    Err("Enhancer hat zu lange gebraucht \u{2013} lokale Verbesserung genutzt.".into())
-+}
++// Prompt-Enhancer ueber Notion AI entfernt: er haette fuer jeden Aufruf einen NEUEN Notion-Chat angelegt. AdiCode erstellt nie neue Chats.
 +
 +async fn control(b: Value) -> Result<Value, String> {
 +    let op = b["op"].as_str().unwrap_or("");
 +    if op == "enhance" {
 +        let t = b["text"].as_str().unwrap_or("").trim().to_string();
 +        if t.is_empty() { return Err("Schreib zuerst einen Prompt, den ich verbessern soll.".into()); }
-+        return Ok(match enhance_ai(&t).await { Ok(x) => json!({"ok": true, "text": x, "ai": true}), Err(e) => json!({"ok": true, "text": enhance_local(&t), "ai": false, "warning": e}) });
++        // Kein Notion-AI-Enhancer mehr: der haette jedes Mal einen neuen Notion-Chat angelegt.
++        return Ok(json!({"ok": true, "text": enhance_local(&t), "ai": false}));
 +    }
 +    match op {
 +        "stop" => {
@@ -8132,13 +8105,7 @@ index 0000000..f116c23
 +            let done = click_testid(&mut s, "agent-chat-stop-button").await?;
 +            Ok(json!({"ok": true, "stopped": done}))
 +        }
-+        "new" => {
-+            ensure_main().await?;
-+            new_own_chat("https://www.notion.so/chat").await?;
-+            let mut s = Session::page().await?;
-+            wait_own(&mut s).await?;
-+            Ok(json!({"ok": true, "base": "", "own": true}))
-+        }
++        "new" => Err("AdiCode erstellt nie einen neuen Notion-Chat - es werden nur bestehende Chats genutzt.".into()),
 +        "trim" => {
 +            let keep = b["keep"].as_u64().unwrap_or(12);
 +            let mut s = Session::page().await?;
@@ -8149,6 +8116,7 @@ index 0000000..f116c23
 +        "open" => {
 +            let url = b["url"].as_str().unwrap_or("");
 +            if !(url.starts_with("https://app.notion.com/") || url.starts_with("https://www.notion.so/")) { return Err("Nur Notion-Chats koennen geoeffnet werden.".into()); }
++            if tid_of(url).is_empty() { return Err("Nur bestehende Chats (Link mit t=) - AdiCode erstellt nie einen neuen Notion-Chat.".into()); }
 +            ensure_main().await?;
 +            if np::chat_own().is_empty() { new_own_chat(url).await?; let mut s = Session::page().await?; wait_own(&mut s).await?; }
 +            else { let mut s = Session::page().await?; let _ = s.navigate(url).await; sleep(800).await; wait_own(&mut s).await?; }
@@ -8210,10 +8178,10 @@ index 0000000..f116c23
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..c19042c
+index 0000000..a793772
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,1245 @@
+@@ -0,0 +1,1248 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -9095,17 +9063,20 @@ index 0000000..c19042c
 +  document.addEventListener("keydown", function (e) {
 +    if (!active()) return;
 +    if (e.key === "Escape" && Voice.on) { Voice.close(); }
-+    if (e.key.toLowerCase() === "o" && e.ctrlKey && e.shiftKey) { e.preventDefault(); newChat(); }
++    if (e.key.toLowerCase() === "o" && e.ctrlKey && e.shiftKey) { e.preventDefault(); }
 +  });
 +
 +  /* ---------- Header, history, Co-Work ---------- */
 +  function newChat() {
++    /* Regel: AdiCode erstellt NIE einen neuen Notion-Chat - es werden nur bestehende Chats genutzt. */
++    toast("AdiCode erstellt keine neuen Notion-Chats - nutze einen bestehenden Chat aus dem Verlauf.", true); return;
 +    if (S.gen) { toast("Bitte erst warten oder stoppen.", true); return; }
 +    S.pending = null; S.msgs = []; S.sigs = []; $("acMsgs").innerHTML = ""; render([]); $("acTitle").textContent = "Neuer Chat";
 +    setPill("busy", "Neuer Chat \u2026");
 +    ctl("new").then(function (r) { setBase((r && r.base) || ""); S.histDirty = true; }).then(poll).catch(function (e) { toast(e.message); poll(); }); ta.focus();
 +  }
 +  $("acNew").onclick = newChat;
++  $("acNew").style.setProperty("display", "none", "important"); $("acCarry").style.setProperty("display", "none", "important");
 +  $("acTrim").onclick = function () { ctl("trim", { keep: 12 }).then(function (r) { toast("Ältere Nachrichten ausgeblendet: " + (r.hidden || 0), true); }).catch(function (e) { toast(e.message); }); };
 +  $("acCarry").onclick = function () {
 +    if (S.gen) { toast("Bitte erst warten oder stoppen.", true); return; }
@@ -20102,10 +20073,10 @@ index 0000000..b3975d3
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..a650db2
+index 0000000..e015446
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1227 @@
+@@ -0,0 +1,1246 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -20798,6 +20769,8 @@ index 0000000..a650db2
 +const SELECT_BOX_JS:&str=r#"(()=>{const b=[...document.querySelectorAll('[role=textbox][contenteditable=true]')].find(e=>(e.innerText||'').trim().length>0);if(!b)return false;b.focus();const r=document.createRange();r.selectNodeContents(b);const s=getSelection();s.removeAllRanges();s.addRange(r);return true})()"#;
 +/// Text ins Notion-AI-Eingabefeld schreiben und abschicken (replace: vorhandenen Text im Feld ersetzen).
 +async fn type_and_send(port:u16,prompt:String,replace:bool)->Result<(),String>{
++    // Harte Sperre: nur in einen bestehenden Chat (URL mit t=<id>) schreiben - AdiCode erstellt nie einen neuen Notion-Chat.
++    let here=js_eval(port,"location.href").await?;if url_tid(here.as_str().unwrap_or("")).is_empty(){return Err("Kein bestehender Chat offen - nichts gesendet (AdiCode erstellt nie einen neuen Notion-Chat).".into());}
 +    let focus=r#"(()=>{const q=[...document.querySelectorAll('textarea,[contenteditable=\"true\"]')].filter(e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>180&&r.height>20&&r.left>70&&s.visibility!=='hidden'&&s.display!=='none'}).sort((a,b)=>{const score=e=>{const hint=((e.getAttribute('placeholder')||'')+' '+(e.getAttribute('aria-label')||'')).toLowerCase();return (/ask notion ai|notion ai fragen|frag notion ai|describe your own/.test(hint)?100000:0)+e.getBoundingClientRect().bottom};return score(b)-score(a)});if(!q[0])return false;q[0].focus();return true})()"#;
 +    let sel=replace&&js_eval(port,SELECT_BOX_JS).await.ok().and_then(|v|v.as_bool())==Some(true);
 +    let mut ready=sel;for _ in 0..(if sel{0}else{20}){ready=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":focus,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).and_then(Value::as_bool).unwrap_or(false);if ready{break;}tokio::time::sleep(Duration::from_millis(500)).await;}
@@ -21148,14 +21121,13 @@ index 0000000..a650db2
 +// und Co-Work-Chat-Slots: ein Konto setzt mehrere Chats (je ein eigener Browser-Tab im selben Profil) im Co-Work ein.
 +// Messung 07.10.2026 (Konto adiabi26444, Sonnet/Opus): 10 bestehende Chats liefen gleichzeitig fehlerfrei (alle fertig
 +// in 12-18 s). NEUE Chats verwirft Notion still (Thread ohne Antwort, "Agent thread not found"), sobald mehr als ~5 kurz
-+// hintereinander gestartet werden -> neue Chats nur einzeln mit Pause und Start-Pruefung. Pro Chat-Tab braucht der
++// hintereinander gestartet werden. REGEL (Nutzer): AdiCode erstellt NIE einen neuen Chat - Co-Work-Chats sind immer
++// bestehende Chats des Kontos (open_target/ws_send_prompt lehnen alles ohne t=<id> ab). Pro Chat-Tab braucht der
 +// Browser ca. 350-400 MB RAM (15 Tabs: freier RAM 5,1 -> 0,5 GB) -> RAM-Waechter.
 +pub(crate) const MAX_CHATS_PER_ACCOUNT:usize=8;
-+const NEW_CHAT_GAP_SECS:u64=20;
 +const MIN_FREE_RAM_MB:u64=1200;
 +static LIVE_STARTED:AtomicBool=AtomicBool::new(false);
 +static SLOTS_STARTED:AtomicBool=AtomicBool::new(false);
-+static NEW_CHAT_AT:Lazy<Mutex<BTreeMap<u32,std::time::Instant>>>=Lazy::new(||Mutex::new(BTreeMap::new()));
 +static SLOT_BUSY:Lazy<Mutex<HashSet<u32>>>=Lazy::new(||Mutex::new(HashSet::new()));
 +/// Chat-Liste (getInferenceTranscriptsForUser inkl. Laufzustand displayRuntimeStatus) + 6h-Kreditfenster (getCreditRateLimitStatus).
 +const LIVE_JS:&str=r#"(async()=>{const post=(p,b)=>fetch('/api/v3/'+p,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.ok?r.json():null).catch(()=>null);const sp=await post('getSpaces',{});let spaceId=null;if(sp){for(const u of Object.values(sp)){const ids=Object.keys((u&&u.space)||{});if(ids.length){spaceId=ids[0];break;}}}if(!spaceId)return {ok:false,error:'Nicht eingeloggt oder kein Workspace'};const chats=[];let cursor=undefined;for(let pg=0;pg<3;pg++){const l=await post('getInferenceTranscriptsForUser',{threadParentPointer:{table:'space',id:spaceId,spaceId},limit:100,cursor});if(!l)break;const th=(l.recordMap&&l.recordMap.thread)||{};for(const x of (l.transcripts||[])){const r=th[x.id];const v=(r&&((r.value&&r.value.value)||r.value))||{};const d=v.data||{};const ap=d.agent_provider||{};const st=(ap.displayRuntimeStatus&&ap.displayRuntimeStatus.state)||null;chats.push({id:String(x.id).replace(/-/g,''),title:String(x.title||d.title||'').slice(0,80),updated:x.updated_at||v.updated_time||0,running:st==='running',state:st,model:ap.model||null})}if(!l.hasMore||!l.nextCursor)break;cursor=l.nextCursor;}const rl=await post('getCreditRateLimitStatus',{spaceId});const w=(rl&&rl.window)||{};return {ok:true,chats,rate:{status:rl?rl.status||null:null,used:typeof w.used==='number'?w.used:null,limit:typeof w.limit==='number'?w.limit:null,window:w.window||null,reset_s:rl&&typeof rl.resetsInSeconds==='number'?rl.resetsInSeconds:null,type:w.creditType||null}}})()"#;
@@ -21183,14 +21155,16 @@ index 0000000..a650db2
 +async fn page_targets(port:u16)->Vec<Value>{match reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await{Ok(r)=>r.json::<Vec<Value>>().await.unwrap_or_default().into_iter().filter(|v|v["type"]=="page"&&v["url"].as_str().unwrap_or("").contains("notion.")).collect(),Err(_)=>Vec::new()}}
 +fn origin_of(targets:&[Value])->String{targets.iter().filter_map(|v|v["url"].as_str()).find_map(|u|{let p=u.find("://")?;let rest=&u[p+3..];let e=rest.find('/').unwrap_or(rest.len());Some(format!("{}{}",&u[..p+3],&rest[..e]))}).unwrap_or_else(||"https://www.notion.so".into())}
 +async fn browser_ws(port:u16)->Result<String,String>{let v:Value=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json/version")).timeout(Duration::from_secs(3)).send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?;v["webSocketDebuggerUrl"].as_str().map(String::from).ok_or("Browser-CDP fehlt".into())}
-+async fn open_target(port:u16,url:&str)->Result<String,String>{let b=browser_ws(port).await?;cdp_ws(&b,vec![json!({"method":"Target.createTarget","params":{"url":url,"background":true}})]).await?.last().and_then(|v|v.pointer("/result/targetId")).and_then(Value::as_str).map(String::from).ok_or("Browser-Tab nicht erstellt".into())}
++async fn open_target(port:u16,url:&str)->Result<String,String>{if url_tid(url).is_empty(){return Err("Nur bestehende Chats (Link mit t=) - AdiCode erstellt nie einen neuen Notion-Chat.".into());}let b=browser_ws(port).await?;cdp_ws(&b,vec![json!({"method":"Target.createTarget","params":{"url":url,"background":true}})]).await?.last().and_then(|v|v.pointer("/result/targetId")).and_then(Value::as_str).map(String::from).ok_or("Browser-Tab nicht erstellt".into())}
 +async fn close_target(port:u16,id:&str){if let Ok(b)=browser_ws(port).await{let _=cdp_ws(&b,vec![json!({"method":"Target.closeTarget","params":{"targetId":id}})]).await;}}
 +async fn target_ws_by_id(port:u16,id:&str,secs:u64)->Result<String,String>{for _ in 0..secs*2{let list:Vec<Value>=match reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await{Ok(r)=>r.json().await.unwrap_or_default(),Err(_)=>Vec::new()};if let Some(ws)=list.iter().find(|v|v["id"].as_str()==Some(id)).and_then(|v|v["webSocketDebuggerUrl"].as_str()){return Ok(ws.to_string());}tokio::time::sleep(Duration::from_millis(500)).await;}Err("Neuer Chat-Tab nicht erreichbar".into())}
 +async fn ws_eval(ws:&str,expr:&str)->Result<Value,String>{Ok(cdp_ws(ws,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null))}
 +async fn slot_ws(port:u16,tid:&str)->Option<String>{page_targets(port).await.into_iter().find(|v|url_tid(v["url"].as_str().unwrap_or(""))==tid).and_then(|v|v["webSocketDebuggerUrl"].as_str().map(String::from))}
 +/// Prompt in den Chat-Tab `ws` schreiben und abschicken. expect_tid: Sicherheitsregel - nur in den eigenen Zusatz-Chat schreiben.
 +async fn ws_send_prompt(ws:&str,expect_tid:Option<&str>,prompt:&str)->Result<(),String>{
-+    if let Some(tid)=expect_tid{let u=ws_eval(ws,"location.href").await?;if url_tid(u.as_str().unwrap_or(""))!=tid{return Err("Falscher Chat im Slot-Tab - nichts gesendet.".into());}}
++    let cur={let u=ws_eval(ws,"location.href").await?;url_tid(u.as_str().unwrap_or(""))};
++    if cur.is_empty(){return Err("Kein bestehender Chat im Tab - nichts gesendet; AdiCode erstellt nie einen neuen Notion-Chat.".into());}
++    if let Some(tid)=expect_tid{if cur!=tid{return Err("Falscher Chat im Slot-Tab - nichts gesendet.".into());}}
 +    let mut ready=false;for _ in 0..40{if ws_eval(ws,SLOT_FOCUS_JS).await?.as_bool()==Some(true){ready=true;break;}tokio::time::sleep(Duration::from_millis(500)).await;}
 +    if !ready{if ws_eval(ws,QUOTA_JS).await.ok().and_then(|v|v.as_bool())==Some(true){return Err("KI-Kontingent dieses Notion-Kontos ist aufgebraucht".into());}return Err("Notion-AI-Eingabefeld im Chat-Tab nicht gefunden".into());}
 +    cdp_ws(ws,vec![json!({"method":"Input.insertText","params":{"text":prompt}})]).await?;tokio::time::sleep(Duration::from_millis(400)).await;
@@ -21209,28 +21183,43 @@ index 0000000..a650db2
 +    let ma=agent_of(&main);let proj=format!("Projekt {}",main.role);let a=slot_agent(t,k);let mr=main.role.clone();
 +    format!("Hallo! AdiCode Co-Work: Du bist Chat {k} von {r} (Konto {em}) und hilfst als zusaetzlicher Chat {mr} (Agent \"{ma}\"). {CONN} Mehrere Chats desselben Kontos arbeiten parallel - es gibt keine festen Rollen, du hilfst bei allem. {mr} ist dein einziger Ansprechpartner, nicht der Nutzer.\n1. cowork_board aufrufen und das Projekt waehlen, dessen Titel mit \"{proj}\" beginnt (Lead {ma}); dann cowork_join mit project <diese id>, agent \"{a}\". Gibt es noch keins: kurz warten und erneut pruefen.\n2. Loop: cowork_claim, erledigen, cowork_update mit 1-Satz-Ergebnis, wieder cowork_claim. Bei JEDEM schreibenden Tool (safe_write_file, files_*, pc_PowerShell, git_*) agent \"{a}\" mitgeben - die Bridge sperrt damit Dateien, damit sich die Chats nicht gegenseitig ueberschreiben.\n3. Nach jeder Aufgabe kritisch pruefen und Kritik + Verbesserungsvorschlaege per cowork_message mit to \"{ma}\" schicken.\n4. Nichts frei: cowork_wait.\nTempo: unabhaengige Tool-Calls parallel in EINER Antwort, keine Zwischenberichte. Antworte jetzt nur: Bereit.",r=t.role,em=t.email)
 +}
-+/// Neuen Zusatz-Chat (thread=None) oder einen bestehenden Chat des Kontos (thread=Some) als Co-Work-Chat einsetzen.
++/// Freien BESTEHENDEN Chat des Kontos waehlen (zuerst "Tab n Kontext ...", dann Willkommen-Chats, dann zuletzt genutzte).
++/// Niemals einen neuen Chat anlegen: gibt es keinen freien bestehenden Chat, kommt ein Fehler.
++async fn pick_existing_chat(t:&Tab,port:u16,sl:&[String],open:&HashSet<String>)->Result<String,String>{
++    let main=welcome_url(t).map(|u|url_tid(&u)).unwrap_or_default();
++    let mut chats=lock(&ACCOUNT).get(&t.id).and_then(|a|a["chats_live"].as_array().cloned()).unwrap_or_default();
++    if chats.is_empty(){if let Ok(v)=js_eval(port,LIVE_JS).await{chats=v["chats"].as_array().cloned().unwrap_or_default();}}
++    let n=mem_get(&t.email,"chat_tab").as_u64();
++    let mut cand:Vec<(u8,usize,String)>=chats.iter().enumerate().filter_map(|(k,c)|{
++        let id=norm_tid(c["id"].as_str().unwrap_or(""));
++        if id.len()!=32||id==main||sl.contains(&id)||open.contains(&id)||c["running"].as_bool()==Some(true){return None;}
++        let ti=c["title"].as_str().unwrap_or("").to_lowercase();
++        let s=if n.map_or(false,|n|ti.starts_with(&format!("tab {n} kontext"))){0}else if ti.contains("willkommen bei notion")||ti.contains("welcome to notion"){1}else{2};
++        Some((s,k,id))}).collect();
++    cand.sort();
++    cand.into_iter().next().map(|x|x.2).ok_or_else(||"Kein freier bestehender Chat in diesem Konto - AdiCode erstellt bewusst nie einen neuen Notion-Chat.".to_string())
++}
++/// Einen BESTEHENDEN Chat des Kontos (thread=Some oder automatisch gewaehlt) als Co-Work-Chat einsetzen. Es wird NIE ein neuer Chat erstellt.
 +async fn add_chat(t:Tab,i:usize,thread:Option<String>)->Result<String,String>{
 +    let port=cdp_port(i);let sl=slots_of(t.id);
-+    if 1+sl.len()>=MAX_CHATS_PER_ACCOUNT{return Err(format!("Maximal {MAX_CHATS_PER_ACCOUNT} Co-Work-Chats pro Konto (getestet: 10 parallel stabil; Reserve fuer RAM und neue Chats)."));}
++    if 1+sl.len()>=MAX_CHATS_PER_ACCOUNT{return Err(format!("Maximal {MAX_CHATS_PER_ACCOUNT} Co-Work-Chats pro Konto (getestet: 10 parallel stabil; Reserve fuer RAM)."));}
 +    if let Some(fr)=free_ram_mb(){if fr<MIN_FREE_RAM_MB{return Err(format!("Zu wenig freier Arbeitsspeicher ({fr} MB frei, je Chat-Tab ca. 400 MB) - erst andere Tabs schliessen."));}}
 +    let targets=page_targets(port).await;if targets.is_empty(){return Err("Tab laeuft nicht - erst oeffnen.".into());}
-+    let thread=thread.map(|x|norm_tid(&x)).filter(|x|!x.is_empty());
-+    if let Some(th)=&thread{if th.len()!=32{return Err("Ungueltige Chat-ID.".into());}if sl.contains(th){return Err("Dieser Chat arbeitet schon im Co-Work.".into());}if targets.iter().any(|v|url_tid(v["url"].as_str().unwrap_or(""))==*th&&!sl.contains(th)){return Err("Das ist der Haupt-Chat dieses Kontos.".into());}}
-+    if thread.is_none(){let wait={let g=lock(&NEW_CHAT_AT);g.get(&t.id).map(|at|NEW_CHAT_GAP_SECS.saturating_sub(at.elapsed().as_secs())).unwrap_or(0)};if wait>0{mark_account(t.id,"slots_state",json!(format!("Warte {wait} s (Notion verwirft zu viele neue Chats kurz hintereinander) \u{2026}")));tokio::time::sleep(Duration::from_secs(wait)).await;}lock(&NEW_CHAT_AT).insert(t.id,std::time::Instant::now());}
++    let open:HashSet<String>=targets.iter().map(|v|url_tid(v["url"].as_str().unwrap_or(""))).filter(|s|!s.is_empty()).collect();
++    let th=match thread.map(|x|norm_tid(&x)).filter(|x|!x.is_empty()){Some(x)=>x,None=>pick_existing_chat(&t,port,&sl,&open).await?};
++    if th.len()!=32{return Err("Ungueltige Chat-ID.".into());}
++    if sl.contains(&th){return Err("Dieser Chat arbeitet schon im Co-Work.".into());}
++    if open.contains(&th){return Err("Dieser Chat ist schon offen (Haupt-Chat dieses Kontos).".into());}
 +    let k=sl.len()+2;let agent=slot_agent(&t,k);let origin=origin_of(&targets);
-+    mark_account(t.id,"slots_state",json!(format!("Chat {k} startet \u{2026}")));
-+    let url=match &thread{Some(th)=>format!("{origin}/chat?t={th}"),None=>format!("{origin}/chat")};
-+    let tgt=open_target(port,&url).await?;
++    mark_account(t.id,"slots_state",json!(format!("Bestehender Chat {k} wird geoeffnet \u{2026}")));
++    let tgt=open_target(port,&format!("{origin}/chat?t={th}")).await?;
 +    let ws=match target_ws_by_id(port,&tgt,20).await{Ok(w)=>w,Err(e)=>{close_target(port,&tgt).await;return Err(e);}};
-+    if let Some(th)=&thread{for _ in 0..20{if url_tid(ws_eval(&ws,"location.href").await.ok().and_then(|v|v.as_str().map(String::from)).unwrap_or_default().as_str())==*th{break;}tokio::time::sleep(Duration::from_millis(500)).await;}}
-+    if let Err(e)=ws_send_prompt(&ws,thread.as_deref(),&prompt_for_slot(&t,k)).await{close_target(port,&tgt).await;return Err(e);}
-+    let mut tid=thread.clone().unwrap_or_default();
-+    for _ in 0..40{if !tid.is_empty(){break;}tid=url_tid(ws_eval(&ws,"location.href").await.ok().and_then(|v|v.as_str().map(String::from)).unwrap_or_default().as_str());if tid.is_empty(){tokio::time::sleep(Duration::from_millis(500)).await;}}
-+    if tid.is_empty(){close_target(port,&tgt).await;return Err("Notion hat dem neuen Chat keine ID gegeben.".into());}
-+    let js=THREAD_OK_JS.replace("__TID__",&tid);let mut started=false;
-+    for _ in 0..12{if ws_eval(&ws,SLOT_GEN_JS).await.ok().map(|v|!v.is_null()).unwrap_or(false)||ws_eval(&ws,&js).await.ok().and_then(|v|v.as_bool())==Some(true){started=true;break;}tokio::time::sleep(Duration::from_millis(2500)).await;}
-+    if !started{close_target(port,&tgt).await;let m="Notion hat den Start verworfen (zu viele neue Chats kurz hintereinander) - in 1 Minute erneut versuchen.";mark_account(t.id,"slots_state",json!(m));return Err(m.into());}
++    let mut here=false;for _ in 0..20{if url_tid(ws_eval(&ws,"location.href").await.ok().and_then(|v|v.as_str().map(String::from)).unwrap_or_default().as_str())==th{here=true;break;}tokio::time::sleep(Duration::from_millis(500)).await;}
++    if !here{close_target(port,&tgt).await;return Err("Bestehender Chat liess sich nicht oeffnen - nichts gesendet.".into());}
++    let js=THREAD_OK_JS.replace("__TID__",&th);
++    if ws_eval(&ws,&js).await.ok().and_then(|v|v.as_bool())!=Some(true){close_target(port,&tgt).await;return Err("Dieser Chat ist leer oder von Notion verworfen - nicht genutzt.".into());}
++    if let Err(e)=ws_send_prompt(&ws,Some(&th),&prompt_for_slot(&t,k)).await{close_target(port,&tgt).await;return Err(e);}
++    let tid=th;
 +    {let mut all=slots_all();let v=all.entry(t.id).or_default();if !v.contains(&tid){v.push(tid.clone());}slots_save(&all);}
 +    let n=1+slots_of(t.id).len();mark_account(t.id,"slots_state",json!(format!("{n} Co-Work-Chats: {agent} ist bereit")));tl(&format!("tab{} SLOT+ {agent} t={tid}",t.id));
 +    Ok(format!("Chat {k} fuer {} laeuft: Agent {agent} ({n} Co-Work-Chats in diesem Konto).",t.role))
@@ -21329,6 +21318,7 @@ index 0000000..a650db2
 +mod multichat_tests{
 +    use super::*;
 +    #[test] fn notion_multichat_tid(){assert_eq!(url_tid("https://app.notion.com/chat?t=3f215fab178980a38b3800a96682c233&wfv=chat"),"3f215fab178980a38b3800a96682c233");assert_eq!(url_tid("https://app.notion.com/p/X-1?t=AB-cd"),"abcd");assert_eq!(url_tid("https://app.notion.com/chat"),"");assert_eq!(norm_tid("3f215fab-1789-80a3-8b38-00a96682c233"),"3f215fab178980a38b3800a96682c233");}
++    #[test] fn notion_multichat_never_new_chat(){for u in ["https://www.notion.so/chat","https://www.notion.so/ai","https://app.notion.com/chat?wfv=chat","https://www.notion.so/"]{assert!(url_tid(u).is_empty(),"{u}");}let rt=tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();assert!(rt.block_on(open_target(1,"https://www.notion.so/chat")).unwrap_err().contains("nie einen neuen"));}
 +    #[test] fn notion_multichat_origin(){assert_eq!(origin_of(&[json!({"url":"https://app.notion.com/chat?t=1"})]),"https://app.notion.com");assert_eq!(origin_of(&[]),"https://www.notion.so");}
 +    #[test] fn notion_multichat_rate(){let mut e=json!({"usage":0,"rate_used":42.4,"rate_limit":100.0,"rate_status":"within_limit"});apply_rate(&mut e);assert_eq!(e["usage"],json!(42));assert_eq!(e["rate_pct"],json!(42));assert!(e.get("exhausted").is_none()||e["exhausted"]!=json!(true));let mut f=json!({"usage":10,"rate_used":100.0,"rate_limit":100.0,"rate_status":"over_limit"});apply_rate(&mut f);assert_eq!(f["exhausted"],json!(true));assert_eq!(f["usage"],json!(100));let mut g=json!({"usage":70,"rate_used":5.0,"rate_limit":100.0});apply_rate(&mut g);assert_eq!(g["usage"],json!(70));}
 +    #[test] fn notion_multichat_slot_agent(){let t=Tab{id:2,label:"Tab 2".into(),email:"a@b.c".into(),role:"Tab 1".into(),url:String::new(),autostart:true};assert_eq!(slot_agent(&t,2),"AdiCode-Tab1-K2");let m=Tab{role:"Main 1".into(),..t.clone()};assert_eq!(slot_agent(&m,3),"AdiCode-Main1-K3");}
