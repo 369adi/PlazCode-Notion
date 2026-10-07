@@ -9,6 +9,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.111
+- **Codebase immer sichtbar**: Die codebase-Tools (schnelle Code-Suche und -Lesen) sind jetzt in jedem Tool-Profil direkt verfuegbar statt versteckt.
+- **Auto-Index**: project_memory_open und project_memory_update indexieren das Projekt-Repo (repo_path) automatisch inkrementell in codebase neu - der Index ist immer aktuell.
+- **Codebase zuerst**: Die Anleitung fuer Notion AI sagt jetzt klar: Code immer zuerst ueber codebase_* lesen und suchen, pc/files nur zum Schreiben.
+- **ADR statt Pflicht-HANDOUT**: project_memory_open haengt die Projekt-ADR aus codebase an; Entscheidungen werden per codebase_manage_adr gespeichert. HANDOUT.md ist nur noch optional.
+
 ## Neu in 1.0.110
 - **Co-Work-Dashboard**: Status- und Usage-Abfragen laufen mit zufaelligem Abstand (+-20 %), werden bei Fehlern schrittweise langsamer (bis 60 s) und pausieren, solange das AdiCode-Fenster minimiert oder verdeckt ist.
 ## Neu in 1.0.109

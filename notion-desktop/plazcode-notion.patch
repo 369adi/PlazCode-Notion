@@ -7214,10 +7214,10 @@ index 0000000..2fa12b1
 +}
 diff --git a/agent/src/notion_devtools.rs b/agent/src/notion_devtools.rs
 new file mode 100644
-index 0000000..5e2fa42
+index 0000000..fcde6e0
 --- /dev/null
 +++ b/agent/src/notion_devtools.rs
-@@ -0,0 +1,489 @@
+@@ -0,0 +1,493 @@
 +//! AdiCode: app_verify (build/typecheck/lint/tests im Hintergrund) und
 +//! adicode_profile (Tool-Profile gegen Kontext-Bloat: all, app, roblox, blender).
 +
@@ -7230,7 +7230,7 @@ index 0000000..5e2fa42
 +static PROFILE: Mutex<Option<String>> = Mutex::new(None);
 +const PROFILES: &[&str] = &["lean", "all", "app", "roblox", "blender"];
 +/// Profil lean: selten genutzte, sehr grosse Add-ons aus tools/list nehmen (bleiben per adicode_call nutzbar).
-+const LEAN_HIDDEN: &[&str] = &["blenderwright_", "comfyui_", "robloxstudio_", "codebase_"];
++const LEAN_HIDDEN: &[&str] = &["blenderwright_", "comfyui_", "robloxstudio_"];
 +const CHECKS: &[&str] = &["install", "typecheck", "lint", "test", "build"];
 +
 +fn state_dir() -> PathBuf { crate::mcp_addons::shared_dir().join(".adicode") }
@@ -7258,7 +7258,7 @@ index 0000000..5e2fa42
 +        "lean" => !LEAN_HIDDEN.iter().any(|p| tool.starts_with(p)),
 +        "app" => !is_roblox && !is_blender,
 +        "roblox" => !is_blender,
-+        "blender" => !is_roblox && !LEAN_HIDDEN.iter().any(|p| *p != "comfyui_" && tool.starts_with(p)) && !tool.starts_with("serena_") && !tool.starts_with("codebase_"),
++        "blender" => !is_roblox && !LEAN_HIDDEN.iter().any(|p| *p != "comfyui_" && tool.starts_with(p)) && !tool.starts_with("serena_"),
 +        _ => true,
 +    }
 +}
@@ -7626,7 +7626,7 @@ index 0000000..5e2fa42
 +        }),
 +        json!({
 +            "name": "adicode_profile",
-+            "description": "AdiCode: Tool-Profil gegen Kontext-Bloat. lean (Standard) = alles ausser den selten genutzten Add-ons comfyui, robloxstudio, codebase (per adicode_find_tools + adicode_call trotzdem nutzbar), all = alles, app = ohne Roblox/Blender, roblox = ohne Blender, blender = schlank fuer Blender (blender_*, comfyui, pc/files; ohne Roblox, serena, codebase - wird beim Laden des blender-Skills automatisch gesetzt). Ohne Argument: aktuelles Profil. Notion uebernimmt die neue Tool-Liste beim naechsten Neuladen/Verbinden.",
++            "description": "AdiCode: Tool-Profil gegen Kontext-Bloat. lean (Standard) = alles ausser den selten genutzten Add-ons comfyui, robloxstudio (per adicode_find_tools + adicode_call trotzdem nutzbar), all = alles, app = ohne Roblox/Blender, roblox = ohne Blender, blender = schlank fuer Blender (blender_*, comfyui, pc/files; ohne Roblox, serena; codebase bleibt in jedem Profil sichtbar - wird beim Laden des blender-Skills automatisch gesetzt). Ohne Argument: aktuelles Profil. Notion uebernimmt die neue Tool-Liste beim naechsten Neuladen/Verbinden.",
 +            "inputSchema": {"type": "object", "properties": {
 +                "profile": {"type": "string", "enum": PROFILES}
 +            }}
@@ -7672,6 +7672,7 @@ index 0000000..5e2fa42
 +        assert!(allows("lean", "roblox_studio"));
 +        assert!(allows("lean", "blender_get_scene_info"));
 +        assert!(allows("lean", "pc_job"));
++        assert!(allows("lean", "codebase_search_code"));
 +        assert!(allows("all", "comfyui_queue_prompt"));
 +    }
 +
@@ -7690,6 +7691,9 @@ index 0000000..5e2fa42
 +        assert!(allows("blender", "comfyui_queue_prompt"));
 +        assert!(!allows("blender", "blenderwright_render"));
 +        assert!(!allows("blender", "serena_find_symbol"));
++        assert!(allows("blender", "codebase_get_code_snippet"));
++        assert!(allows("app", "codebase_search_code"));
++        assert!(allows("roblox", "codebase_manage_adr"));
 +    }
 +
 +    #[test]
@@ -8398,10 +8402,10 @@ index 0000000..307aeb4
 \ No newline at end of file
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..ed1c26e
+index 0000000..0c4136e
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1423 @@
+@@ -0,0 +1,1433 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -8534,7 +8538,6 @@ index 0000000..ed1c26e
 +}
 +
 +fn settings() -> NotionSettings { lock(&SHARED.settings).clone() }
-+pub(crate) fn web_token() -> String { lock(&SHARED.settings).web_token.clone() }
 +/// URL fuer die automatische Einrichtung: der Token steckt im Pfad (/k/<token>/mcp). So klappt die
 +/// Verbindung auch, wenn Notion kein Bearer-Feld anzeigt oder das Feld anders heisst (andere PCs/Konten).
 +pub(crate) fn cowork_connection() -> (String, String) { let s = settings(); (if s.domain.is_empty() || s.token.is_empty() { String::new() } else { format!("https://{}/k/{}/mcp", s.domain, s.token) }, s.token) }
@@ -8623,7 +8626,6 @@ index 0000000..ed1c26e
 +    ];
 +    for schema in crate::notion_cowork::tools().into_iter()
 +        .chain(crate::notion_roblox_plus::tools())
-+        .chain(crate::notion_web_agents::tools())
 +        .chain(crate::notion_safety::tools())
 +        .chain(crate::notion_project_memory::tools())
 +        .chain(crate::notion_blender::tools())
@@ -8687,9 +8689,7 @@ index 0000000..ed1c26e
 +        "cowork_projects": compact_cowork(crate::notion_cowork::status()),
 +        "tool_profile": crate::notion_devtools::current_profile(),
 +        "hidden_tools": HIDDEN.lock().map(|v| v.len()).unwrap_or(0),
-+        "web_extension_connected": crate::notion_web_agents::extension_connected(),
 +        "release": crate::notion_live::release_status(),
-+        "direct_agent": crate::notion_web_agents::direct_session_info(),
 +        "safe_shell": safe_shell_enabled(),
 +    })).unwrap_or_default()
 +}
@@ -8725,6 +8725,30 @@ index 0000000..ed1c26e
 +    out
 +}
 +
++/// Projekt-Memory mit codebase verbinden: Repo inkrementell neu indexieren und beim Oeffnen die Projekt-ADR anhaengen.
++async fn codebase_enrich(state: &crate::AppState, name: &str, args: &Value, out: &mut Value) {
++    if out.get("isError").and_then(Value::as_bool).unwrap_or(false) { return; }
++    let Some((project, repo)) = crate::notion_project_memory::code_target(args["name"].as_str().unwrap_or("")) else { return; };
++    let mut notes = Vec::new();
++    if std::path::Path::new(&repo).is_dir() {
++        let idx = json!({"repo_path": repo, "name": project, "mode": "moderate", "persistence": true});
++        match crate::roblox_tool(state, "codebase__index_repository", idx).await {
++            Ok(_) => notes.push(format!("[codebase] Index '{project}' ist aktuell.")),
++            Err(e) => notes.push(format!("[codebase] Index '{project}' fehlgeschlagen: {e:#} (Add-on codebase aktiv? adicode_status)")),
++        }
++    } else {
++        notes.push(format!("[codebase] Repo-Pfad nicht gefunden: {repo}"));
++    }
++    if name == "project_memory_open" {
++        if let Ok(adr) = crate::roblox_tool(state, "codebase__manage_adr", json!({"project": project, "mode": "get"})).await {
++            let t = adr.text.trim();
++            if !t.is_empty() { notes.push(format!("Projekt-ADR (codebase):\n{t}")); }
++        }
++    }
++    notes.push(format!("Code lesen/suchen: codebase_search_code, codebase_get_code_snippet, codebase_get_file_outline mit project='{project}'. Entscheidungen festhalten: codebase_manage_adr project='{project}' mode=set_sections."));
++    if let Some(arr) = out["content"].as_array_mut() { arr.push(json!({"type": "text", "text": notes.join("\n\n")})); }
++}
++
 +async fn call_tool_inner(state: &crate::AppState, params: &Value) -> Value {
 +    let name = params["name"].as_str().unwrap_or("").to_string();
 +    let args = params.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
@@ -8743,14 +8767,14 @@ index 0000000..ed1c26e
 +    if let Some(msg) = crate::notion_safety::guard_tool(&name, &args) {
 +        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
 +    }
-+    if let Some(out) = crate::notion_project_memory::call(&name, &args) { return out; }
++    if let Some(mut out) = crate::notion_project_memory::call(&name, &args) {
++        if matches!(name.as_str(), "project_memory_open" | "project_memory_update") { codebase_enrich(state, &name, &args, &mut out).await; }
++        return out;
++    }
 +    if let Some(out) = crate::notion_blender::call(&name, &args) { return out; }
 +    if let Some(out) = crate::notion_devtools::call(&name, &args) { return out; }
 +    if let Some(out) = crate::notion_release::call(&name, &args) { return out; }
 +    if let Some(out) = crate::notion_safety::call(&name, &args) {
-+        return out;
-+    }
-+    if let Some(out) = crate::notion_web_agents::call(&name, &args).await {
 +        return out;
 +    }
 +    if let Some(out) = crate::notion_roblox_plus::call(state, &name, &args).await {
@@ -8802,9 +8826,6 @@ index 0000000..ed1c26e
 +    let is_studio = name.starts_with("roblox_") && !route.internal.contains("__");
 +    let mut snapshot = None;
 +    if is_studio && crate::notion_roblox_plus::is_guarded(&route.internal) {
-+        if let Err(e) = crate::notion_web_agents::notion_write_allowed() {
-+            return json!({"isError": true, "content": [{"type": "text", "text": e}]});
-+        }
 +        snapshot = crate::notion_roblox_plus::before_native_write(state, &route.internal, &args).await;
 +    }
 +    let mut args = args;
@@ -9270,8 +9291,6 @@ index 0000000..ed1c26e
 +    set_listener("online", "");
 +    tracing::info!("[notion] MCP-Endpunkt bereit: http://{addr}/mcp");
 +    let app = Router::new()
-+        .route("/extension/ws", axum::routing::get(crate::notion_web_agents::ws_handler))
-+        .route("/direct-agent/:op", axum::routing::post(crate::notion_web_agents::direct_handler))
 +        .fallback(mcp_endpoint)
 +        .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024))
 +        .with_state(state);
@@ -9586,10 +9605,6 @@ index 0000000..ed1c26e
 +        "port": s.port,
 +        "ngrok_enabled": s.ngrok_enabled,
 +        "ngrok_path": s.ngrok_path,
-+        "web_token": s.web_token,
-+        "web_ws_url": format!("ws://127.0.0.1:{}/extension/ws", s.port),
-+        "web_connected": crate::notion_web_agents::extension_connected(),
-+        "direct_agent": crate::notion_web_agents::direct_session_info(),
 +        "safe_shell": s.safe_shell,
 +        "throttle_ms": s.throttle_ms,
 +        "soft_timeout_s": s.soft_timeout_s,
@@ -9643,7 +9658,6 @@ index 0000000..ed1c26e
 +            "set_ngrok_path" => { s.ngrok_path = req.value.as_str().unwrap_or("").trim().trim_matches('"').to_string(); save_settings(&s)?; SHARED.restart.notify_one(); Ok("ngrok-Pfad gespeichert.") }
 +            "toggle_ngrok" => { s.ngrok_enabled = req.value.as_bool().unwrap_or(!s.ngrok_enabled); save_settings(&s)?; SHARED.restart.notify_one(); Ok("Tunnel-Einstellung gespeichert.") }
 +            "restart_ngrok" => { SHARED.restart.notify_one(); Ok("Tunnel wird neu gestartet.") }
-+            "regenerate_web_token" => { s.web_token = random_token(); save_settings(&s)?; Ok("Neuer Erweiterungs-Token erstellt. Trage ihn in den Optionen der Browser-Erweiterung ein.") }
 +            "set_throttle" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(30_000); s.throttle_ms = v; save_settings(&s)?; Ok(if v == 0 { "Anfrage-Drossel aus." } else { "Anfrage-Drossel gespeichert." }) }
 +            "set_soft_timeout" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(50); s.soft_timeout_s = v; save_settings(&s)?; Ok(if v == 0 { "Hintergrund-Jobs aus (Antwort erst nach max. 55 s)." } else { "Hintergrund-Jobs gespeichert." }) }            "toggle_safe_shell" => { s.safe_shell = req.value.as_bool().unwrap_or(!s.safe_shell); save_settings(&s)?; Ok(if s.safe_shell { "Sicherheitsmodus an: Shell nur mit erlaubten Einzelbefehlen." } else { "Sicherheitsmodus aus." }) }
 +            "refresh_tools" => Ok("Tools werden aktualisiert."),
@@ -10876,10 +10890,10 @@ index 0000000..60aa359
 \ No newline at end of file
 diff --git a/agent/src/notion_project_memory.rs b/agent/src/notion_project_memory.rs
 new file mode 100644
-index 0000000..260c0c5
+index 0000000..b8a14cc
 --- /dev/null
 +++ b/agent/src/notion_project_memory.rs
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,51 @@
 +//! Durable, project-scoped memory for long-running Notion AI chats.
 +use once_cell::sync::Lazy;
 +use serde::{Deserialize, Serialize};
@@ -10888,7 +10902,7 @@ index 0000000..260c0c5
 +
 +#[derive(Clone, Default, Serialize, Deserialize)]
 +#[serde(default)]
-+struct Record { name:String, summary:String, handout:String, handout_path:String, updated:i64 }
++struct Record { name:String, summary:String, handout:String, handout_path:String, updated:i64, code_project:String, repo_path:String }
 +#[derive(Default, Serialize, Deserialize)]
 +#[serde(default)]
 +struct Store { projects:BTreeMap<String,Record>, deleted:Vec<String> }
@@ -10912,20 +10926,23 @@ index 0000000..260c0c5
 +pub(crate) fn start(){tokio::spawn(async{loop{let _=tokio::task::spawn_blocking(sync).await;tokio::time::sleep(Duration::from_secs(20)).await;}});}
 +fn text(s:String)->Value{json!({"content":[{"type":"text","text":s}]})}
 +fn err(s:String)->Value{json!({"isError":true,"content":[{"type":"text","text":s}]})}
-+fn render(r:&Record)->String{format!("Projekt: {}\nAktualisiert: {}\nHandout: {}\n\nZusammenfassung:\n{}\n\nProjekt-Handout:\n{}",r.name,r.updated,if r.handout_path.is_empty(){"-"}else{&r.handout_path},r.summary,r.handout)}
++fn render(r:&Record)->String{let mut s=format!("Projekt: {}\nAktualisiert: {}\nCode-Index: {}\n\nZusammenfassung:\n{}",r.name,r.updated,if r.repo_path.is_empty(){"-".to_string()}else{format!("project={} repo={}",code_name(r),r.repo_path)},r.summary);if !r.handout.trim().is_empty(){s.push_str(&format!("\n\nProjekt-Handout ({}):\n{}",if r.handout_path.is_empty(){"-"}else{&r.handout_path},r.handout));}s}
++fn code_name(r:&Record)->String{if r.code_project.trim().is_empty(){format!("{}-src",r.name.trim())}else{r.code_project.trim().to_string()}}
++/// (codebase-Projektname, Repo-Pfad) fuer Auto-Index und ADR; None ohne registriertes Repo.
++pub(crate) fn code_target(name:&str)->Option<(String,String)>{let k=key(name);let s=lock();let r=s.projects.get(&k).or_else(||s.projects.values().find(|r|r.name.eq_ignore_ascii_case(name)))?;if r.repo_path.trim().is_empty(){return None;}Some((code_name(r),r.repo_path.trim().to_string()))}
 +pub(crate) fn tools()->Vec<Value>{vec![
 + json!({"name":"project_memory_list","description":"Listet dauerhaft gespeicherte Projekt-Kontexte. Vor einem Themenwechsel oder bei 'weiter an X' verwenden.","inputSchema":{"type":"object","properties":{}}}),
-+ json!({"name":"project_memory_open","description":"Laedt den kompletten Kontext eines Projekts (Zusammenfassung + automatisch synchronisiertes HANDOUT.md). Immer vor Weiterarbeit an einem genannten Projekt aufrufen.","inputSchema":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}),
++ json!({"name":"project_memory_open","description":"Laedt den kompletten Kontext eines Projekts: Zusammenfassung, Projekt-ADR aus codebase und (optional) HANDOUT.md. Aktualisiert dabei automatisch den codebase-Index des Projekt-Repos. Immer vor Weiterarbeit an einem genannten Projekt aufrufen; danach Code per codebase_* lesen.","inputSchema":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}),
 + json!({"name":"project_memory_search","description":"Sucht projektuebergreifend in Namen, Zusammenfassungen und Handouts.","inputSchema":{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}}),
 + json!({"name":"project_memory_delete","description":"Loescht einen Projekt-Kontext dauerhaft aus der Memory (die HANDOUT-Datei auf der Platte bleibt unangetastet und wird nicht erneut importiert). Nur auf ausdruecklichen Wunsch des Nutzers.","inputSchema":{"type":"object","properties":{"name":{"type":"string"}},"required":["name"]}}),
-+ json!({"name":"project_memory_update","description":"Speichert den aktuellen Projektstand dauerhaft. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel aufrufen; handout_path registriert eine Datei fuer automatische Synchronisierung.","inputSchema":{"type":"object","properties":{"name":{"type":"string"},"summary":{"type":"string"},"handout":{"type":"string"},"handout_path":{"type":"string"}},"required":["name"]}})
++ json!({"name":"project_memory_update","description":"Speichert den aktuellen Projektstand dauerhaft und indexiert das Projekt-Repo in codebase neu. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel aufrufen. repo_path = Quellcode-Ordner (wird automatisch in codebase indexiert), code_project = codebase-Projektname (Standard <name>-src), handout_path = optionale Datei fuer Synchronisierung (Altlast; Entscheidungen lieber per codebase_manage_adr).","inputSchema":{"type":"object","properties":{"name":{"type":"string"},"summary":{"type":"string"},"handout":{"type":"string"},"handout_path":{"type":"string"},"repo_path":{"type":"string"},"code_project":{"type":"string"}},"required":["name"]}})
 +]}
 +pub(crate) fn call(name:&str,args:&Value)->Option<Value>{Some(match name{
-+ "project_memory_list"=>{sync();let s=lock();let mut v:Vec<_>=s.projects.values().map(|r|format!("- {} (aktualisiert {}, Handout: {})",r.name,r.updated,if r.handout_path.is_empty(){"nein"}else{"ja"})).collect();v.sort();text(if v.is_empty(){"Noch keine Projekt-Memory. Lege beim ersten Projekt ein HANDOUT.md an und rufe project_memory_update auf.".into()}else{v.join("\n")})},
++ "project_memory_list"=>{sync();let s=lock();let mut v:Vec<_>=s.projects.values().map(|r|format!("- {} (aktualisiert {}, Handout: {})",r.name,r.updated,if r.handout_path.is_empty(){"nein"}else{"ja"})).collect();v.sort();text(if v.is_empty(){"Noch keine Projekt-Memory. Rufe beim ersten Projekt project_memory_update mit name, summary und repo_path (Quellcode-Ordner) auf.".into()}else{v.join("\n")})},
 + "project_memory_open"=>{sync();let n=args["name"].as_str().unwrap_or("");let k=key(n);let s=lock();match s.projects.get(&k).or_else(||s.projects.values().find(|r|r.name.eq_ignore_ascii_case(n))){Some(r)=>text(render(r)),None=>err(format!("Projekt '{n}' nicht gefunden. project_memory_search/list verwenden oder neu anlegen."))}},
 + "project_memory_search"=>{sync();let q=args["query"].as_str().unwrap_or("").trim().to_lowercase();if q.is_empty(){return Some(err("query fehlt".into()));}let s=lock();let mut out=Vec::new();for r in s.projects.values(){let hay=format!("{}\n{}\n{}",r.name,r.summary,r.handout).to_lowercase();if hay.contains(&q){let preview: String=if !r.summary.is_empty(){r.summary.chars().take(700).collect()}else{r.handout.chars().take(700).collect()};out.push(format!("## {}\n{}",r.name,preview));}}text(if out.is_empty(){"Keine Treffer.".into()}else{out.join("\n\n")})},
 + "project_memory_delete"=>{let n=args["name"].as_str().unwrap_or("").trim().to_string();if n.is_empty(){return Some(err("name fehlt".into()));}let k=key(&n);let mut s=lock();let real=if s.projects.contains_key(&k){Some(k.clone())}else{s.projects.iter().find(|(_,r)|r.name.eq_ignore_ascii_case(&n)).map(|(k,_)|k.clone())};match real{Some(rk)=>{let r=s.projects.remove(&rk).unwrap_or_default();if !s.deleted.contains(&rk){s.deleted.push(rk);}save(&s);text(format!("Projekt-Memory geloescht: {} (Handout-Datei bleibt unangetastet).",r.name))},None=>err(format!("Projekt '{n}' nicht gefunden."))}},
-+ "project_memory_update"=>{let name=args["name"].as_str().unwrap_or("").trim();if name.is_empty(){return Some(err("name fehlt".into()));}let k=key(name);let mut s=lock();s.deleted.retain(|d|*d!=k);let r=s.projects.entry(k).or_insert_with(||Record{name:name.into(),..Default::default()});r.name=name.into();if let Some(v)=args["summary"].as_str(){if !v.trim().is_empty(){r.summary=v.chars().take(50000).collect();}}if let Some(v)=args["handout"].as_str(){if !v.trim().is_empty(){r.handout=v.chars().take(500000).collect();}}if let Some(v)=args["handout_path"].as_str(){if !v.trim().is_empty(){r.handout_path=v.trim().to_string();if let Some(t)=read_handout(Path::new(&r.handout_path)){r.handout=t;}}}r.updated=now();let out=format!("Projekt-Memory gespeichert: {} (Zusammenfassung {} Zeichen, Handout {} Zeichen).",r.name,r.summary.chars().count(),r.handout.chars().count());save(&s);text(out)},
++ "project_memory_update"=>{let name=args["name"].as_str().unwrap_or("").trim();if name.is_empty(){return Some(err("name fehlt".into()));}let k=key(name);let mut s=lock();s.deleted.retain(|d|*d!=k);let r=s.projects.entry(k).or_insert_with(||Record{name:name.into(),..Default::default()});r.name=name.into();if let Some(v)=args["summary"].as_str(){if !v.trim().is_empty(){r.summary=v.chars().take(50000).collect();}}if let Some(v)=args["handout"].as_str(){if !v.trim().is_empty(){r.handout=v.chars().take(500000).collect();}}if let Some(v)=args["handout_path"].as_str(){if !v.trim().is_empty(){r.handout_path=v.trim().to_string();if let Some(t)=read_handout(Path::new(&r.handout_path)){r.handout=t;}}}if let Some(v)=args["repo_path"].as_str(){if !v.trim().is_empty(){r.repo_path=v.trim().to_string();}}if let Some(v)=args["code_project"].as_str(){if !v.trim().is_empty(){r.code_project=v.trim().to_string();}}r.updated=now();let out=format!("Projekt-Memory gespeichert: {} (Zusammenfassung {} Zeichen, Handout {} Zeichen).",r.name,r.summary.chars().count(),r.handout.chars().count());save(&s);text(out)},
 + _=>return None,
 +})}
 diff --git a/agent/src/notion_release.rs b/agent/src/notion_release.rs
@@ -12323,7 +12340,7 @@ index 0000000..bd8d635
 +}
 diff --git a/agent/src/notion_skills.rs b/agent/src/notion_skills.rs
 new file mode 100644
-index 0000000..badd791
+index 0000000..aa7a431
 --- /dev/null
 +++ b/agent/src/notion_skills.rs
 @@ -0,0 +1,175 @@
@@ -12333,7 +12350,7 @@ index 0000000..badd791
 +
 +use serde_json::{json, Value};
 +
-+pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. Tempo: unabhaengige Tool-Aufrufe immer parallel im selben Schritt starten. Braucht ein Tool laenger als ~20 s, antwortet AdiCode sofort mit Hintergrund-Job N - dann NICHT warten oder neu starten, sondern direkt weiterarbeiten; das Ergebnis haengt sich automatisch an eine der naechsten Tool-Antworten (gezielt: adicode_job). Lange Befehle (Builds, Tests, Installationen, Releases, alles ueber ~50 s) mit pc_job starten und per action=status abfragen statt pc_PowerShell. Selten genutzte Add-ons (comfyui, robloxstudio, codebase) sind ausgeblendet: mit adicode_find_tools suchen und mit adicode_call aufrufen. Mehrere Tabs an einer neuen Version: vor Code-Aenderungen cowork_release action=join (version, feature, files), fertig mit action=ready, veroeffentlichen nur nach cowork_release action=publish, danach action=done. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel HANDOUT.md aktualisieren und project_memory_update aufrufen. Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
++pub(crate) const INSTRUCTIONS: &str = "AdiCode verbindet Notion AI mit diesem PC. Tempo: unabhaengige Tool-Aufrufe immer parallel im selben Schritt starten. Braucht ein Tool laenger als ~20 s, antwortet AdiCode sofort mit Hintergrund-Job N - dann NICHT warten oder neu starten, sondern direkt weiterarbeiten; das Ergebnis haengt sich automatisch an eine der naechsten Tool-Antworten (gezielt: adicode_job). Lange Befehle (Builds, Tests, Installationen, Releases, alles ueber ~50 s) mit pc_job starten und per action=status abfragen statt pc_PowerShell. Selten genutzte Add-ons (comfyui, robloxstudio) sind ausgeblendet: mit adicode_find_tools suchen und mit adicode_call aufrufen. Code lesen und suchen IMMER zuerst mit codebase_* (codebase_search_code, codebase_get_code_snippet, codebase_get_file_outline; Projektname aus project_memory_open oder codebase_list_projects) - viel schneller und kontextsparender als ganze Dateien lesen; pc_*/files_* nur zum Schreiben oder fuer Nicht-Code-Dateien. Mehrere Tabs an einer neuen Version: vor Code-Aenderungen cowork_release action=join (version, feature, files), fertig mit action=ready, veroeffentlichen nur nach cowork_release action=publish, danach action=done. roblox_* = Roblox Studio (Skripte lesen/bearbeiten, Luau ausfuehren, Spielbaum), pc_* = Windows-Steuerung (PowerShell, Dateien, Apps), browser_* = Browser, files_* = Local files (Pfade relativ zum Shared-Ordner), git_* = Git, context7_* = aktuelle Library-Doku, memory_* = Projektgedaechtnis, thinking_* = schrittweises Planen, github_* = GitHub. Vor dem Programmieren passenden Skill mit adicode_skill laden (roblox, roblox-studio, app, debug, git, cowork, blender, blender-model, blender-anim, brainstorm, plan, tdd, review, verify, finish, webapp-test, research, mcp-builder, toolbox). App-Entwicklung: brainstorm -> plan -> tdd -> review -> verify -> finish; nie fertig melden ohne verify. serena_* = semantische Code-Navigation/Refactoring, sqlite_* = lokale DB, time_* = Zeit, app_verify = Build/Lint/Tests im Hintergrund, adicode_profile = Tool-Profil (app/roblox/blender/all); Uebersicht im Skill toolbox. blender_* = Blender (MCP for Blender), blender_pro = Blender-Doctor/Setup/Python-Helfer adicode_blender; vor jeder Blender-Arbeit Skill blender laden. Co-Work: mehrere Notion-AI-Tabs arbeiten gleichzeitig an einem Projekt ueber cowork_* (start, join, claim, update, wait) - vorher Skill cowork laden. Vor dem Schreiben von Dateien erst lesen. Haengt ein Add-on: adicode_restart_server. adicode_status zeigt, was aktiv ist. Langzeit-Memory: Sobald der Nutzer ein Projekt nennt oder sagt, dass an Projekt X weitergearbeitet wird, VOR jeder Arbeit project_memory_open/search aufrufen. Nach jeder wesentlichen Aenderung und vor einem Themenwechsel project_memory_update aufrufen (summary = aktueller Stand; Architektur-Entscheidungen dauerhaft per codebase_manage_adr mode=set_sections; HANDOUT.md ist nur noch optional). Projekte strikt getrennt halten; nie auf den Chatverlauf als einziges Gedaechtnis vertrauen.";
 +
 +struct Skill { id: &'static str, title: &'static str, body: &'static str }
 +
