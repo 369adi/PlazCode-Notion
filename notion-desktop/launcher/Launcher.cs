@@ -72,7 +72,7 @@ static class Launcher
         Version current = Normalize(Assembly.GetExecutingAssembly().GetName().Version);
         Log("launcher " + current + (updated ? " (after update)" : "") + " from " + self);
 
-        if (!updated && TryUpdate(self, current)) return 0;
+        // Kein Auto-Update mehr: installiert wird nur noch, wenn man in AdiCode auf "Aktualisieren" klickt (Datei update-now).
 
         EnsureExtracted(current.ToString());
         if (FindApp() == null) StartApp();
@@ -93,7 +93,6 @@ static class Launcher
                     Log("no newer release than " + current);
                 }
             }
-            if (TryUpdate(self, current)) return 0;
         }
     }
 

@@ -9,6 +9,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.100
+- **Updates nur noch per Klick**: AdiCode aktualisiert sich nicht mehr von selbst (weder beim Start noch im Hintergrund). Neue Version -> in AdiCode auf Aktualisieren klicken.
+- **Sicheres Update**: Vor dem Neustart prueft AdiCode alle Notion-Tabs. Steht noch ungesendeter Text im Chat, wird das Update abgebrochen (erst abschicken/loeschen). Laufende Antworten werden sauber gestoppt.
+- **Automatisch weiter**: Nach dem Neustart schreibt AdiCode in genau die gestoppten Chats "weiter", sobald die Verbindung wieder steht und der Chat frei ist.
 ## Neu in 1.0.99
 - **Co-Work-Sperren repariert**: Es werden nur noch echte Dateipfade gesperrt. Pseudo-Ziele wie "0", "&1" oder "nul" (aus Umleitungen wie 2>&1) blockieren nicht mehr jeden PowerShell-Befehl anderer Chats.
 - **Serena versteckt**: Serena laeuft weiter im Hintergrund (sonst fehlen die serena_*-Tools), oeffnet aber kein Browser-Dashboard und kein Log-Fenster mehr.

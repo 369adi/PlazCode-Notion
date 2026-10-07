@@ -263,3 +263,8 @@ Home · **Chat** · **Notion AI** · **Co-Work** · Tools · MCP Servers · Term
 
 ## 1.0.99 (AdiCode-Tab2, 07.10.2026)
 - notion_live.rs ps_add + notion_cowork.rs plausible_lock(): keine Sperren auf "0"/"&1"/"nul" (Ursache des Main2-Locks "0"), guard_on ignoriert unplausible Keys, ps-contains erst ab 4 Zeichen; mcp_addons.rs serena_quiet() setzt web_dashboard_open_on_launch/gui_log_window false vor dem Start; blender_helpers.py 1.2 (measure_ref, ref_camera, compare, ortho_views) + Skill-Workflow in notion_blender.rs; notion_devtools.rs auto_profile_for_skill(): adicode_skill blender* -> Profil blender (schlank: ohne roblox, blenderwright, serena, codebase), roblox* -> lean. throttle_ms (anderer Chat) bewusst NICHT im Patch. Backups work\cowork_fix_backup\tab2_199. cargo test: 109 ok.
+
+## 1.0.100 (Main, 07.10.2026)
+- Launcher.cs: kein Auto-Update mehr (Start + 15-s-Schleife entfernt), nur noch Trigger-Datei update-now (Knopf Aktualisieren).
+- notion_updates.rs: update_now() async, prueft update_available, ruft notion_profiles::pause_for_update() (bricht ab, wenn in einem Tab Text im Composer steht; stoppt laufende Antworten, merkt Tabs in resume-after-update.json), danach Trigger/direct_install.
+- notion_profiles.rs: resume_after_update() nach Neustart (wartet bis Chat frei + niemand tippt, max 6 min) schreibt "weiter"; notion_chat.rs send_text() fuer den Haupt-Tab. notion_live.rs: Text "Auto-Update folgt" -> "in AdiCode auf Aktualisieren klicken".
