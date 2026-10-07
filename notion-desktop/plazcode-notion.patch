@@ -8402,10 +8402,10 @@ index 0000000..307aeb4
 \ No newline at end of file
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..0c4136e
+index 0000000..bc5af64
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1433 @@
+@@ -0,0 +1,1450 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -8538,6 +8538,7 @@ index 0000000..0c4136e
 +}
 +
 +fn settings() -> NotionSettings { lock(&SHARED.settings).clone() }
++pub(crate) fn web_token() -> String { lock(&SHARED.settings).web_token.clone() }
 +/// URL fuer die automatische Einrichtung: der Token steckt im Pfad (/k/<token>/mcp). So klappt die
 +/// Verbindung auch, wenn Notion kein Bearer-Feld anzeigt oder das Feld anders heisst (andere PCs/Konten).
 +pub(crate) fn cowork_connection() -> (String, String) { let s = settings(); (if s.domain.is_empty() || s.token.is_empty() { String::new() } else { format!("https://{}/k/{}/mcp", s.domain, s.token) }, s.token) }
@@ -8626,6 +8627,7 @@ index 0000000..0c4136e
 +    ];
 +    for schema in crate::notion_cowork::tools().into_iter()
 +        .chain(crate::notion_roblox_plus::tools())
++        .chain(crate::notion_web_agents::tools())
 +        .chain(crate::notion_safety::tools())
 +        .chain(crate::notion_project_memory::tools())
 +        .chain(crate::notion_blender::tools())
@@ -8689,7 +8691,9 @@ index 0000000..0c4136e
 +        "cowork_projects": compact_cowork(crate::notion_cowork::status()),
 +        "tool_profile": crate::notion_devtools::current_profile(),
 +        "hidden_tools": HIDDEN.lock().map(|v| v.len()).unwrap_or(0),
++        "web_extension_connected": crate::notion_web_agents::extension_connected(),
 +        "release": crate::notion_live::release_status(),
++        "direct_agent": crate::notion_web_agents::direct_session_info(),
 +        "safe_shell": safe_shell_enabled(),
 +    })).unwrap_or_default()
 +}
@@ -8777,6 +8781,9 @@ index 0000000..0c4136e
 +    if let Some(out) = crate::notion_safety::call(&name, &args) {
 +        return out;
 +    }
++    if let Some(out) = crate::notion_web_agents::call(&name, &args).await {
++        return out;
++    }
 +    if let Some(out) = crate::notion_roblox_plus::call(state, &name, &args).await {
 +        return out;
 +    }
@@ -8826,6 +8833,9 @@ index 0000000..0c4136e
 +    let is_studio = name.starts_with("roblox_") && !route.internal.contains("__");
 +    let mut snapshot = None;
 +    if is_studio && crate::notion_roblox_plus::is_guarded(&route.internal) {
++        if let Err(e) = crate::notion_web_agents::notion_write_allowed() {
++            return json!({"isError": true, "content": [{"type": "text", "text": e}]});
++        }
 +        snapshot = crate::notion_roblox_plus::before_native_write(state, &route.internal, &args).await;
 +    }
 +    let mut args = args;
@@ -9291,6 +9301,8 @@ index 0000000..0c4136e
 +    set_listener("online", "");
 +    tracing::info!("[notion] MCP-Endpunkt bereit: http://{addr}/mcp");
 +    let app = Router::new()
++        .route("/extension/ws", axum::routing::get(crate::notion_web_agents::ws_handler))
++        .route("/direct-agent/:op", axum::routing::post(crate::notion_web_agents::direct_handler))
 +        .fallback(mcp_endpoint)
 +        .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024))
 +        .with_state(state);
@@ -9605,6 +9617,10 @@ index 0000000..0c4136e
 +        "port": s.port,
 +        "ngrok_enabled": s.ngrok_enabled,
 +        "ngrok_path": s.ngrok_path,
++        "web_token": s.web_token,
++        "web_ws_url": format!("ws://127.0.0.1:{}/extension/ws", s.port),
++        "web_connected": crate::notion_web_agents::extension_connected(),
++        "direct_agent": crate::notion_web_agents::direct_session_info(),
 +        "safe_shell": s.safe_shell,
 +        "throttle_ms": s.throttle_ms,
 +        "soft_timeout_s": s.soft_timeout_s,
@@ -9658,6 +9674,7 @@ index 0000000..0c4136e
 +            "set_ngrok_path" => { s.ngrok_path = req.value.as_str().unwrap_or("").trim().trim_matches('"').to_string(); save_settings(&s)?; SHARED.restart.notify_one(); Ok("ngrok-Pfad gespeichert.") }
 +            "toggle_ngrok" => { s.ngrok_enabled = req.value.as_bool().unwrap_or(!s.ngrok_enabled); save_settings(&s)?; SHARED.restart.notify_one(); Ok("Tunnel-Einstellung gespeichert.") }
 +            "restart_ngrok" => { SHARED.restart.notify_one(); Ok("Tunnel wird neu gestartet.") }
++            "regenerate_web_token" => { s.web_token = random_token(); save_settings(&s)?; Ok("Neuer Erweiterungs-Token erstellt. Trage ihn in den Optionen der Browser-Erweiterung ein.") }
 +            "set_throttle" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(30_000); s.throttle_ms = v; save_settings(&s)?; Ok(if v == 0 { "Anfrage-Drossel aus." } else { "Anfrage-Drossel gespeichert." }) }
 +            "set_soft_timeout" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(50); s.soft_timeout_s = v; save_settings(&s)?; Ok(if v == 0 { "Hintergrund-Jobs aus (Antwort erst nach max. 55 s)." } else { "Hintergrund-Jobs gespeichert." }) }            "toggle_safe_shell" => { s.safe_shell = req.value.as_bool().unwrap_or(!s.safe_shell); save_settings(&s)?; Ok(if s.safe_shell { "Sicherheitsmodus an: Shell nur mit erlaubten Einzelbefehlen." } else { "Sicherheitsmodus aus." }) }
 +            "refresh_tools" => Ok("Tools werden aktualisiert."),
