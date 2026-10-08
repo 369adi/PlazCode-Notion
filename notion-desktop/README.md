@@ -278,6 +278,9 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Fix: Die Seite MCP Servers wurde jede Sekunde komplett neu gezeichnet. Jetzt aendert sie sich nur noch, wenn sich wirklich etwas geaendert hat.
 - Co-Work: Steht bei einem Tab rot Chat fehlt, fuehrt AdiCode Zum Chat jetzt selbst aus (pro Tab hoechstens alle 2 Minuten).
 - Enthaelt alles aus 1.0.92: Projekt-Chatnamen, Fertig-Ton, groessere Vorschau ohne schwarze Balken, echtes Vollbild, Ansichtsmodi, Gruppenfarben.
+## Neu in 1.0.123
+- **Co-Work erkennt Chats, die nicht schreiben koennen**: Tabs und Zusatz-Chats mit dem Hinweis *KI ist fuer diesen Workspace deaktiviert*, geschlossene Fenster und geschlossene Zusatz-Chats werden nicht mehr eingetragen oder geweckt. Ihre Aufgaben werden fuer andere Chats wieder frei. Ist der Hinweis weg, machen sie automatisch wieder mit.
+- **Jeder offene Chat hilft bei jedem Co-Work**: Egal, was vorher im Chat stand - jeder freie Chat (ausser er arbeitet gerade) tritt neuen Co-Work-Projekten bei und holt sich Aufgaben. Solange Aufgaben offen sind, holt jedes Konto alle 15 s einen weiteren freien Chat dazu.
 ## Neu in 1.0.34–1.0.23
 (fixiert in 1.0.29: lokale schnelle Releases; Kompaktversion der alten Einzelnachrichten)
 
