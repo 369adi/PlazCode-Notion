@@ -9,6 +9,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.138
+
+- Refresh nutzt die im Konto eingetragene Login-Methode (z. B. Google) und vergisst sie beim Loeschen nicht mehr.
+- Google-Login wird auf der Notion-Login-Seite zuverlaessig geklickt (auch ohne E-Mail-Feld).
+- Refresh schneller: nach dem Loeschen 6 s statt 45 s Wartezeit, doppelte Tabs werden vor dem Login geschlossen.
+- Brave stellt beim Start keine alten Tabs mehr wieder her.
+
 ## Neu in 1.0.137
 
 - Co-Work: nur noch ein Notion-Tab pro Konto. Chats werden in diesem Tab umgeschaltet statt neue Tabs/Fenster zu oeffnen.
