@@ -9,6 +9,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.135
+
+- Stabile Notion-Verbindung: Hintergrund-Streams werden nicht mehr endlos offen gehalten (max. 6, je 4 min). Vorher sammelten sich mit Co-Work bis zu 89 offene Verbindungen, bis der Tunnel Anfragen verlor.
+- Tailscale-Funnel wird bei kurzen Stoerungen nicht mehr abgeschaltet, nur neu sichergestellt.
+- Nach Neustart kein 'Unbekanntes Tool' mehr: Add-ons werden automatisch gestartet und der Aufruf wiederholt.
+- Co-Work: Login macht dasselbe wie Refresh, loescht aber das Konto nicht.
+
 ## Neu in 1.0.134
 
 - Brave startet schlanker: weitere Hintergrunddienste aus, Disk-Cache auf 64 MB begrenzt, ein Prozess pro Website.

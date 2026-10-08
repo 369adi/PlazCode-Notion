@@ -2609,7 +2609,7 @@ index 07dc4c0..1706729 100644
  </body>
  </html>
 diff --git a/agent/src/gui.rs b/agent/src/gui.rs
-index 04ebefa..61103d4 100644
+index 04ebefa..3ebe82f 100644
 --- a/agent/src/gui.rs
 +++ b/agent/src/gui.rs
 @@ -257,6 +257,7 @@ enum UiEvent {
@@ -2636,7 +2636,12 @@ index 04ebefa..61103d4 100644
          .with_decorations(cfg!(target_os = "macos"))
          .with_visible(false)
          .with_focused(!start_background)
-@@ -311,8 +312,8 @@ pub fn run_gui(
+@@ -307,12 +308,12 @@ pub fn run_gui(
+             let body = request.body().as_str();
+             let event = match body {
+                 "hide" => Some(UiEvent::Hide),
+-                "quit" => Some(UiEvent::Quit),
++                "quit" => { tracing::warn!("PlazCode quit via desktop UI"); Some(UiEvent::Quit) },
                  "minimize" => Some(UiEvent::Minimize),
                  "maximize" => Some(UiEvent::Maximize),
                  "drag" => Some(UiEvent::Drag),
@@ -2656,10 +2661,10 @@ index 04ebefa..61103d4 100644
              Event::UserEvent(UiEvent::Maximize) => window.set_maximized(!window.is_maximized()),
              Event::UserEvent(UiEvent::Drag) => {
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..4e60a50 100644
+index 77cc050..857f993 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,24 @@ mod media;
+@@ -81,6 +81,25 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -2673,6 +2678,7 @@ index 77cc050..4e60a50 100644
 +mod notion_project_memory;
 +mod notion_updates;
 +mod notion_stage;
++mod notion_brave_prefs;
 +mod notion_chat;
 +mod notion_live;
 +mod notion_blender;
@@ -2684,7 +2690,7 @@ index 77cc050..4e60a50 100644
  
  #[cfg(windows)]
  mod win_msg {
-@@ -188,6 +206,23 @@ impl AppState {
+@@ -188,6 +207,23 @@ impl AppState {
  }
  
  /// Persistent stdio client for Roblox Studio's built-in MCP server.
@@ -2708,7 +2714,7 @@ index 77cc050..4e60a50 100644
  struct McpRuntime {
      child: Option<Child>,
      stdin: Option<ChildStdin>,
-@@ -335,7 +370,23 @@ impl McpRuntime {
+@@ -335,7 +371,23 @@ impl McpRuntime {
          Ok(())
      }
  
@@ -2733,7 +2739,7 @@ index 77cc050..4e60a50 100644
          self.ensure().await?;
          if self.tools.is_empty() { self.list_tools().await?; }
          let targeted = studio_session::needs_id(&self.tools, name);
-@@ -726,13 +777,20 @@ fn main() {
+@@ -726,13 +778,20 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -2756,7 +2762,7 @@ index 77cc050..4e60a50 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +889,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +890,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -2766,7 +2772,7 @@ index 77cc050..4e60a50 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +939,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +940,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -2778,7 +2784,7 @@ index 77cc050..4e60a50 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -936,7 +999,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -936,7 +1000,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          headers.insert("origin", origin.clone());
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
@@ -2794,7 +2800,7 @@ index 77cc050..4e60a50 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +1018,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +1019,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -2802,7 +2808,7 @@ index 77cc050..4e60a50 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +1048,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +1049,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -2823,7 +2829,7 @@ index 77cc050..4e60a50 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1273,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1274,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -2831,7 +2837,7 @@ index 77cc050..4e60a50 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1289,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1290,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -2839,7 +2845,7 @@ index 77cc050..4e60a50 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1547,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1548,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -2847,7 +2853,7 @@ index 77cc050..4e60a50 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1619,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1620,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -2855,7 +2861,7 @@ index 77cc050..4e60a50 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1628,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1629,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -3930,6 +3936,83 @@ index 0000000..70276ae
 +        assert_eq!(b64(b"Man"), "TWFu"); assert_eq!(b64(b"Ma"), "TWE="); assert_eq!(b64(b"M"), "TQ==");
 +        let p = capture_params(&json!({"views": "front, top", "size": 10}));
 +        assert_eq!(p["views"], json!(["front", "top"])); assert_eq!(p["size"], 64);
++    }
++}
+diff --git a/agent/src/notion_brave_prefs.rs b/agent/src/notion_brave_prefs.rs
+new file mode 100644
+index 0000000..e67ed6c
+--- /dev/null
++++ b/agent/src/notion_brave_prefs.rs
+@@ -0,0 +1,71 @@
++//! p15#26: Brave Memory-Saver per Profil-Prefs fuer jedes Coworker-Profil (user-data-dir).
++//! Nur Prefs-Datei, keine Start-Flags (die macht #14). Idempotent: unveraenderte Datei wird nicht neu geschrieben.
++use serde_json::{json, Value};
++use std::path::{Path, PathBuf};
++
++/// Pfad zu Default\Preferences im Profil.
++pub(crate) fn prefs_path(user_data_dir: &Path) -> PathBuf { user_data_dir.join("Default").join("Preferences") }
++
++fn set_path(v: &mut Value, path: &[&str], val: Value) -> bool {
++    let mut cur = v;
++    for (i, key) in path.iter().enumerate() {
++        if !cur.is_object() { *cur = json!({}); }
++        let obj = cur.as_object_mut().unwrap();
++        if i + 1 == path.len() {
++            if obj.get(*key) == Some(&val) { return false; }
++            obj.insert((*key).to_string(), val);
++            return true;
++        }
++        cur = obj.entry((*key).to_string()).or_insert_with(|| json!({}));
++    }
++    false
++}
++
++/// Setzt Memory-Saver an (state=1). true = etwas geaendert.
++pub(crate) fn patch_prefs(v: &mut Value) -> bool {
++    if !v.is_object() { *v = json!({}); }
++    set_path(v, &["performance_tuning", "high_efficiency_mode", "state"], json!(1))
++}
++
++/// Vor dem Brave-Start aufrufen. Ok(true) = Datei geaendert, Ok(false) = war schon richtig.
++/// Kaputtes JSON wird NICHT ueberschrieben (Brave repariert es selbst), dann Err.
++pub(crate) fn apply(user_data_dir: &Path) -> Result<bool, String> {
++    let path = prefs_path(user_data_dir);
++    let mut v: Value = match std::fs::read_to_string(&path) {
++        Ok(raw) => serde_json::from_str(raw.trim_start_matches('\u{feff}')).map_err(|e| format!("Preferences unlesbar: {e}"))?,
++        Err(_) => json!({}),
++    };
++    if !patch_prefs(&mut v) { return Ok(false); }
++    if let Some(dir) = path.parent() { std::fs::create_dir_all(dir).map_err(|e| e.to_string())?; }
++    let tmp = path.with_extension("adicode-tmp");
++    std::fs::write(&tmp, serde_json::to_vec(&v).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
++    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
++    Ok(true)
++}
++
++#[cfg(test)]
++mod brave_prefs_tests {
++    use super::*;
++    #[test]
++    fn brave_prefs_patch_is_idempotent_and_keeps_keys() {
++        let mut v = json!({"profile": {"name": "agent-1"}, "performance_tuning": {"other": 5}});
++        assert!(patch_prefs(&mut v));
++        assert!(!patch_prefs(&mut v));
++        assert_eq!(v["performance_tuning"]["high_efficiency_mode"]["state"], json!(1));
++        assert_eq!(v["performance_tuning"]["other"], json!(5));
++        assert_eq!(v["profile"]["name"], json!("agent-1"));
++        let mut bad = json!("x");
++        assert!(patch_prefs(&mut bad));
++    }
++    #[test]
++    fn brave_prefs_apply_writes_once() {
++        let dir = std::env::temp_dir().join(format!("adicode-brave-prefs-{}", std::process::id()));
++        let _ = std::fs::remove_dir_all(&dir);
++        assert_eq!(apply(&dir), Ok(true));
++        assert_eq!(apply(&dir), Ok(false));
++        std::fs::write(prefs_path(&dir), "{kaputt").unwrap();
++        assert!(apply(&dir).is_err());
++        assert_eq!(std::fs::read_to_string(prefs_path(&dir)).unwrap(), "{kaputt");
++        let _ = std::fs::remove_dir_all(&dir);
 +    }
 +}
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
@@ -11428,10 +11511,10 @@ index 0000000..58b6c9b
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..68ed6d2
+index 0000000..a15b89f
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1655 @@
+@@ -0,0 +1,1675 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -11841,6 +11924,15 @@ index 0000000..68ed6d2
 +    if route.is_none() {
 +        rebuild(state);
 +        route = lock(&SHARED.tools).0.iter().find(|t| t.exposed == name).cloned();
++    }
++    if route.is_none() {
++        // 1.0.135: nach Neustart/Idle-Stopp Add-ons starten statt sofort "Unbekanntes Tool".
++        for _ in 0..3 {
++            refresh_tools(state, true).await;
++            route = lock(&SHARED.tools).0.iter().find(|t| t.exposed == name).cloned();
++            if route.is_some() { break; }
++            tokio::time::sleep(Duration::from_secs(2)).await;
++        }
 +    }
 +    if route.is_none() {
 +        route = HIDDEN.lock().unwrap_or_else(|e| e.into_inner()).iter().find(|t| t.exposed == name).cloned();
@@ -12255,6 +12347,12 @@ index 0000000..68ed6d2
 +    })
 +}
 +
++// 1.0.135: SSE-Streams waren endlos (stream::pending) -> jede Notion-Session/jeder Co-Work-Chat liess eine
++// Verbindung offen (85 gleichzeitig gemessen), bis der Funnel neue Anfragen verlor. Jetzt: max. 6 Streams, je max. 4 min.
++static SSE_ACTIVE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
++struct SseGuard;
++impl Drop for SseGuard { fn drop(&mut self) { SSE_ACTIVE.fetch_sub(1, Ordering::Relaxed); } }
++
 +async fn mcp_endpoint(State(state): State<crate::AppState>, method: axum::http::Method, uri: Uri, headers: HeaderMap, body: Bytes) -> axum::response::Response {
 +    with_cors(mcp_inner(state, method, uri, headers, body).await)
 +}
@@ -12280,7 +12378,12 @@ index 0000000..68ed6d2
 +    if method == axum::http::Method::GET {
 +        // Ohne SSE-Stream fragt Notion alle paar Sekunden erneut per GET (405) -> ca. halbe Tunnel-Last
 +        // und Verbindungsabbrueche bei vielen Chats. Ein ruhiger SSE-Stream mit Keep-Alive haelt EINE Verbindung.
-+        let stream = futures::stream::pending::<Result<axum::response::sse::Event, std::convert::Infallible>>();
++        if SSE_ACTIVE.load(Ordering::Relaxed) >= 6 {
++            return (StatusCode::METHOD_NOT_ALLOWED, [("allow", "POST, DELETE")], "sse limit").into_response();
++        }
++        SSE_ACTIVE.fetch_add(1, Ordering::Relaxed);
++        let guard = SseGuard;
++        let stream = futures::StreamExt::filter_map(futures::stream::once(async move { let _g = guard; tokio::time::sleep(Duration::from_secs(240)).await; }), |_| async { None::<Result<axum::response::sse::Event, std::convert::Infallible>> });
 +        return axum::response::sse::Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15))).into_response();
 +    }
 +    if method != axum::http::Method::POST {
@@ -12621,7 +12724,7 @@ index 0000000..68ed6d2
 +        } else {
 +            fails += 1;
 +            if !seen_ok { set_ngrok("verbindet", "Funnel ist an - die oeffentliche Adresse wird freigeschaltet (beim ersten Mal bis zu 10 Min)."); }
-+            if seen_ok && fails >= 4 { return format!("Die oeffentliche URL {domain} antwortet nicht mehr. Funnel wird neu gestartet."); }
++            if seen_ok && fails >= 8 { return format!("Die oeffentliche URL {domain} antwortet nicht mehr. Funnel wird neu gestartet."); }
 +            if !seen_ok && started.elapsed() > Duration::from_secs(900) { return format!("{domain} ist nach 15 Min noch nicht erreichbar. Funnel wird neu gestartet."); }
 +        }
 +        tokio::time::sleep(Duration::from_secs(if ok { 15 } else { 8 })).await;
@@ -12666,7 +12769,7 @@ index 0000000..68ed6d2
 +            problem = ts_monitor(domain.clone()) => {
 +                tracing::warn!("[notion] Tailscale: {problem}");
 +                set_ngrok("Fehler", &problem);
-+                let _ = ts_run(&exe, &["funnel", "--https=443", "off"], 10).await;
++                // 1.0.135: Funnel nicht abschalten (trennte alle Notion-Verbindungen); ts_funnel stellt ihn idempotent sicher.
 +                wait_restart(Duration::from_secs(3)).await;
 +            }
 +            _ = SHARED.restart.notified() => { set_ngrok("startet neu", ""); }
@@ -13205,12 +13308,213 @@ index 0000000..96af036
 +        assert_eq!(compact("pc_job", o.clone()), o);
 +    }
 +}
+diff --git a/agent/src/notion_plugin_update.rs b/agent/src/notion_plugin_update.rs
+new file mode 100644
+index 0000000..f58c732
+--- /dev/null
++++ b/agent/src/notion_plugin_update.rs
+@@ -0,0 +1,195 @@
++//! p15 #25b: Schnell-Update-Kanal fuer Plugins (ADR work/upd134/hybrid_adr.md, "Update-Kanal").
++//! Alle 10 min: plugins.json vom neuesten GitHub-Release laden, mit den installierten
++//! %LOCALAPPDATA%/PlazCodeNotion/plugins/<name>/plugin.json vergleichen und nur neuere Plugins
++//! aus plugins.zip uebernehmen: zip-SHA256 pruefen -> nach plugins.new entpacken -> index.js-SHA256
++//! pro Plugin pruefen -> pro Plugin atomar tauschen. Hot-Reload des Plugin-Hosts greift danach.
++//! KEIN exe-Neustart. Fehler werden nur geloggt.
++use serde_json::Value;
++use sha2::{Digest, Sha256};
++use std::path::{Path, PathBuf};
++use std::time::Duration;
++
++const REPO: &str = "369adi/PlazCode-Notion";
++const POLL_SECS: u64 = 600;
++
++pub fn plugins_dir() -> PathBuf { crate::notion_updates::base_dir().join("plugins") }
++
++fn sha_hex(b: &[u8]) -> String { format!("{:x}", Sha256::digest(b)) }
++
++fn valid_name(n: &str) -> bool {
++    !n.is_empty() && n.len() <= 64 && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
++}
++
++fn read_json(p: &Path) -> Option<Value> { serde_json::from_slice(&std::fs::read(p).ok()?).ok() }
++
++pub fn installed_version(dir: &Path, name: &str) -> Option<String> {
++    read_json(&dir.join(name).join("plugin.json"))?["version"].as_str().map(String::from)
++}
++
++/// Plugins aus dem Index, die fehlen oder eine neuere Version haben (lokal neuere bleiben unberuehrt).
++pub fn outdated(index: &Value, dir: &Path) -> Vec<String> {
++    let Some(list) = index["plugins"].as_array() else { return vec![] };
++    list.iter().filter_map(|p| {
++        let name = p["name"].as_str()?;
++        let want = p["version"].as_str()?;
++        if !valid_name(name) || p["sha256"].as_str().is_none() { return None; }
++        match installed_version(dir, name) {
++            Some(have) if !crate::notion_stage::is_newer(want, &have) => None,
++            _ => Some(name.to_string()),
++        }
++    }).collect()
++}
++
++fn main_file(plugin_dir: &Path) -> PathBuf {
++    let m = read_json(&plugin_dir.join("plugin.json")).unwrap_or(Value::Null);
++    let main = m["main"].as_str().filter(|s| !s.contains("..")).unwrap_or("index.js");
++    plugin_dir.join(main)
++}
++
++/// Prueft entpackte Plugins gegen den Index (Name, Version, SHA-256 der main-Datei).
++pub fn verify_extracted(index: &Value, new_dir: &Path, names: &[String]) -> Result<(), String> {
++    for n in names {
++        let p = index["plugins"].as_array().and_then(|a| a.iter().find(|p| p["name"].as_str() == Some(n.as_str())))
++            .ok_or(format!("{n} fehlt im Index"))?;
++        let d = new_dir.join(n);
++        let m = read_json(&d.join("plugin.json")).ok_or(format!("{n}: plugin.json fehlt im Paket"))?;
++        if m["version"] != p["version"] { return Err(format!("{n}: Version im Paket passt nicht zum Index")); }
++        let b = std::fs::read(main_file(&d)).map_err(|e| format!("{n}: {e}"))?;
++        let want = p["sha256"].as_str().unwrap_or("");
++        if !want.eq_ignore_ascii_case(&sha_hex(&b)) { return Err(format!("{n}: SHA-256 stimmt nicht")); }
++    }
++    Ok(())
++}
++
++/// Tauscht pro Plugin: alt -> plugins.old/<name>, neu -> plugins/<name>; bei Fehler zurueck.
++pub fn swap(dir: &Path, new_dir: &Path, old_root: &Path, names: &[String]) -> Result<(), String> {
++    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
++    std::fs::create_dir_all(old_root).map_err(|e| e.to_string())?;
++    for n in names {
++        let cur = dir.join(n);
++        let old = old_root.join(n);
++        let _ = std::fs::remove_dir_all(&old);
++        if cur.exists() { std::fs::rename(&cur, &old).map_err(|e| format!("{n}: {e}"))?; }
++        if let Err(e) = std::fs::rename(new_dir.join(n), &cur) {
++            if old.exists() { let _ = std::fs::rename(&old, &cur); }
++            return Err(format!("{n}: {e}"));
++        }
++    }
++    let _ = std::fs::remove_dir_all(old_root);
++    Ok(())
++}
++
++fn expand(zip: &Path, to: &Path) -> Result<(), String> {
++    let _ = std::fs::remove_dir_all(to);
++    std::fs::create_dir_all(to).map_err(|e| e.to_string())?;
++    let q = |p: &Path| p.display().to_string().replace('\'', "''");
++    let mut c = std::process::Command::new("powershell");
++    c.args(["-NoProfile", "-NonInteractive", "-Command",
++        &format!("Expand-Archive -LiteralPath '{}' -DestinationPath '{}' -Force", q(zip), q(to))]);
++    #[cfg(windows)]
++    { use std::os::windows::process::CommandExt; c.creation_flags(0x0800_0000); }
++    let o = c.output().map_err(|e| e.to_string())?;
++    if !o.status.success() { return Err(format!("Entpacken fehlgeschlagen: {}", String::from_utf8_lossy(&o.stderr).trim())); }
++    Ok(())
++}
++
++fn asset_url(rel: &Value, name: &str) -> Option<String> {
++    rel["assets"].as_array()?.iter().find(|x| x["name"] == name)?["browser_download_url"].as_str().map(String::from)
++}
++
++/// Ein Durchlauf. Liefert die Namen der aktualisierten Plugins.
++pub async fn tick() -> Result<Vec<String>, String> {
++    let c = reqwest::Client::builder().user_agent("PlazCode-Notion").connect_timeout(Duration::from_secs(15))
++        .timeout(Duration::from_secs(120)).build().map_err(|e| e.to_string())?;
++    let rel: Value = c.get(format!("https://api.github.com/repos/{REPO}/releases/latest"))
++        .header("Accept", "application/vnd.github+json").send().await.map_err(|e| e.to_string())?
++        .error_for_status().map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
++    let (Some(ju), Some(zu)) = (asset_url(&rel, "plugins.json"), asset_url(&rel, "plugins.zip")) else { return Ok(vec![]) };
++    let index: Value = c.get(ju).send().await.map_err(|e| e.to_string())?
++        .error_for_status().map_err(|e| e.to_string())?.json().await.map_err(|e| e.to_string())?;
++    let dir = plugins_dir();
++    let names = outdated(&index, &dir);
++    if names.is_empty() { return Ok(names); }
++    let zip = c.get(zu).send().await.map_err(|e| e.to_string())?
++        .error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
++    if !index["zip_sha256"].as_str().is_some_and(|w| w.eq_ignore_ascii_case(&sha_hex(&zip))) {
++        return Err("plugins.zip: SHA-256 stimmt nicht mit plugins.json".into());
++    }
++    let base = crate::notion_updates::base_dir();
++    tokio::task::spawn_blocking(move || {
++        let zp = base.join("plugins.zip.part");
++        let nd = base.join("plugins.new");
++        std::fs::write(&zp, &zip).map_err(|e| e.to_string())?;
++        let r = expand(&zp, &nd)
++            .and_then(|_| verify_extracted(&index, &nd, &names))
++            .and_then(|_| swap(&dir, &nd, &base.join("plugins.old"), &names));
++        let _ = std::fs::remove_file(&zp);
++        let _ = std::fs::remove_dir_all(&nd);
++        r.map(|_| names)
++    }).await.map_err(|e| e.to_string())?
++}
++
++pub fn start_plugin_updater() {
++    tokio::spawn(async {
++        tokio::time::sleep(Duration::from_secs(45)).await;
++        loop {
++            match tick().await {
++                Ok(n) if !n.is_empty() => eprintln!("plugin_update: aktualisiert {n:?}"),
++                Err(e) => eprintln!("plugin_update: {e}"),
++                _ => {}
++            }
++            tokio::time::sleep(Duration::from_secs(POLL_SECS)).await;
++        }
++    });
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use serde_json::json;
++
++    fn tmp(tag: &str) -> PathBuf {
++        let p = std::env::temp_dir().join(format!("pcplg-{tag}-{}", std::process::id()));
++        let _ = std::fs::remove_dir_all(&p);
++        std::fs::create_dir_all(&p).unwrap();
++        p
++    }
++    fn mk(dir: &Path, name: &str, ver: &str, js: &str) {
++        let d = dir.join(name);
++        std::fs::create_dir_all(&d).unwrap();
++        std::fs::write(d.join("plugin.json"), json!({"name":name,"version":ver,"main":"index.js"}).to_string()).unwrap();
++        std::fs::write(d.join("index.js"), js).unwrap();
++    }
++
++    #[test]
++    fn plugin_update_outdated_compares_versions() {
++        let dir = tmp("out");
++        mk(&dir, "a", "1.0.0", "x");
++        mk(&dir, "b", "2.0.0", "x");
++        let idx = json!({"plugins":[
++            {"name":"a","version":"1.0.1","sha256":"00"},
++            {"name":"b","version":"1.9.0","sha256":"00"},
++            {"name":"c","version":"1.0.0","sha256":"00"},
++            {"name":"../evil","version":"9.0.0","sha256":"00"}]});
++        assert_eq!(outdated(&idx, &dir), vec!["a".to_string(), "c".to_string()]);
++        let _ = std::fs::remove_dir_all(&dir);
++    }
++
++    #[test]
++    fn plugin_update_verify_and_swap() {
++        let root = tmp("swap");
++        let (dir, nd, old) = (root.join("plugins"), root.join("plugins.new"), root.join("plugins.old"));
++        mk(&dir, "a", "1.0.0", "alt");
++        mk(&nd, "a", "1.0.1", "neu");
++        let good = json!({"plugins":[{"name":"a","version":"1.0.1","sha256":sha_hex(b"neu")}]});
++        let bad = json!({"plugins":[{"name":"a","version":"1.0.1","sha256":sha_hex(b"anders")}]});
++        let names = vec!["a".to_string()];
++        assert!(verify_extracted(&bad, &nd, &names).is_err());
++        verify_extracted(&good, &nd, &names).unwrap();
++        swap(&dir, &nd, &old, &names).unwrap();
++        assert_eq!(std::fs::read_to_string(dir.join("a").join("index.js")).unwrap(), "neu");
++        assert_eq!(installed_version(&dir, "a").as_deref(), Some("1.0.1"));
++        assert!(!old.exists());
++        let _ = std::fs::remove_dir_all(&root);
++    }
++}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..57ce785
+index 0000000..f184d77
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1389 @@
+@@ -0,0 +1,1394 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -13288,6 +13592,8 @@ index 0000000..57ce785
 +}
 +const REFRESH_JS:&str=r#"(async()=>{const GO=__GO__;const sleep=ms=>new Promise(r=>setTimeout(r,ms*(0.5+Math.random()*0.3)));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const byText=(re,sel)=>[...document.querySelectorAll(sel||'div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>re.test((e.innerText||'').trim().split('\n')[0]));const dlgOpen=()=>document.querySelector('input[aria-label^=Search],input[aria-label^=Einstellungen]');try{if(!dlgOpen()){let st=byText(/^(settings|einstellungen)$/i);if(!st){const sw=document.querySelector('.notion-sidebar-switcher,[class*=switcher]')||byText(/space$/i);if(sw){sw.click();await sleep(900)}st=byText(/^(settings|einstellungen)$/i)}if(!st)return {ok:false,msg:'Einstellungen nicht gefunden'};st.click();await sleep(1500)}const d=dlgOpen().closest('[role=dialog]');const acc=[...d.querySelectorAll('[role=tab]')].filter(vis)[0];if(!acc)return {ok:false,msg:'Konto-Tab nicht gefunden'};acc.click();await sleep(1500);const btn=[...d.querySelectorAll('[role=button],button')].filter(vis).find(e=>/^(delete my account|mein konto l.schen|konto l.schen)/i.test((e.innerText||'').trim()));if(!btn)return {ok:false,msg:'Konto-loeschen-Button nicht gefunden'};btn.click();await sleep(1500);const dl=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();const txt=dl?dl.innerText:'';const inp=dl&&dl.querySelector('input,textarea');if(!inp)return {ok:false,msg:'Kein Eingabefeld im Loeschdialog: '+txt.slice(0,300)};let name=inp.placeholder||'';if(!name){const m=txt.match(/[\u0022\u201c\u201e']([^\u0022\u201d\u201c'\n]{2,60})[\u0022\u201d']/);name=m?m[1]:''}if(!name)return {ok:false,msg:'Workspace-Name nicht erkannt: '+txt.slice(0,300)};if(!GO)return {ok:true,msg:'Dry-run: '+name};const setv=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;setv.call(inp,name);inp.dispatchEvent(new Event('input',{bubbles:true}));await sleep(700);const ok=[...dl.querySelectorAll('[role=button],button')].filter(vis).find(e=>/delete|l.schen/i.test((e.innerText||'').trim())&&!/cancel|abbrechen/i.test(e.innerText||'')&&e.getAttribute('aria-disabled')!=='true');if(!ok)return {ok:false,msg:'Bestaetigen-Button nicht aktiv'};ok.click();await sleep(2500);return {ok:true,msg:'Konto geloescht: '+name}}catch(e){return {ok:false,msg:String(e&&e.message||e)}}})()"#;
 +async fn refresh_account(t:Tab,i:usize){let port=cdp_port(i);if !wait_cdp(port).await{mark_account(t.id,"refresh_state",json!("Tab nicht erreichbar"));return;}let js=REFRESH_JS.replace("__GO__","true");match js_eval(port,&js).await{Ok(r)=>{let ok=r["ok"].as_bool().unwrap_or(false);let msg=r["msg"].as_str().unwrap_or("").to_string();mark_account(t.id,"refresh_state",json!(msg.clone()));mark_account(t.id,"check",json!(msg));if ok{mem_forget(&t.email);mark_account(t.id,"chat_ok",json!(false));mark_account(t.id,"refresh_state",json!("Konto gel\u{f6}scht - Gmail-Login mit derselben E-Mail wird ge\u{f6}ffnet ..."));tokio::time::sleep(human_sleep(Duration::from_secs(45),60)).await;let _=login_view(t.clone());post_refresh_setup(t.clone(),i).await;}}Err(e)=>{mark_account(t.id,"refresh_state",json!(e.to_string()));}}}
++// Login = gleicher Ablauf wie Refresh (Login-Ansicht im Coworker-Brave + post_refresh_setup), aber OHNE Konto-Loeschen und ohne Account-Memory zu vergessen.
++async fn login_account(t:Tab,i:usize){mark_account(t.id,"chat_ok",json!(false));mark_account(t.id,"refresh_state",json!("Login wird ge\u{f6}ffnet ..."));match login_view(t.clone()){Ok(_)=>{post_refresh_setup(t,i).await;}Err(e)=>{mark_account(t.id,"refresh_state",json!(e));}}}
 +const SETUP_JS:&str=r#"(async()=>{const PH='__PH__';const sleep=ms=>new Promise(r=>setTimeout(r,ms*(0.5+Math.random()*0.3)));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const norm=x=>(x.innerText||'').trim().replace(/\s+/g,' ');const clickT=(re,root,sel)=>{const e=[...(root||document).querySelectorAll(sel||'div[role=button],button,a,[role=tab],[role=menuitem],[role=radio],label')].filter(vis).find(x=>re.test(norm(x))&&!/^(skip to content|zum inhalt springen)$/i.test(norm(x)));if(e){if(PH==='onboard'){const ck=re.source+'|'+body.slice(0,300);window.__clk=window.__clk||{};if(Date.now()-(window.__clk[ck]||0)<20000)return true;window.__clk[ck]=Date.now()}e.click();return true}return false};const body=document.body.innerText||'';const dlgs=[...document.querySelectorAll('[role=dialog]')].filter(vis);const dlg=dlgs.length?dlgs[dlgs.length-1]:null;const dlgOpen=()=>document.querySelector('input[aria-label^=Search],input[aria-label^=Einstellungen]');const openSettings=async()=>{if(dlgOpen())return true;let st=[...document.querySelectorAll('div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>/^(settings|einstellungen)$/i.test(norm(e)));if(!st){const sw=document.querySelector('.notion-sidebar-switcher,[class*=switcher]');if(sw){sw.click();await sleep(900)}st=[...document.querySelectorAll('div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>/^(settings|einstellungen)$/i.test(norm(e)))}if(!st)return false;st.click();await sleep(1500);return !!dlgOpen()};const tab=async(re)=>{const d=dlgOpen().closest('[role=dialog]');const t=[...d.querySelectorAll('[role=tab]')].filter(vis).find(e=>re.test(norm(e)));if(!t)return false;t.click();await sleep(1500);return true};try{if(PH==='onboard'){if(document.readyState==='complete'&&(document.body.innerText||'').trim().length<40&&!document.querySelector('#sidebar-tab-chats')){const k=+sessionStorage.getItem('__blank')||0;if(!k){sessionStorage.setItem('__blank',String(Date.now()))}else if(Date.now()-k>8000){sessionStorage.setItem('__blank','0');if(location.pathname==='/'||location.pathname===''){location.reload()}else{location.href=location.origin+'/'}return {state:'reload'}}return {state:'blank'}}sessionStorage.setItem('__blank','0');if(/cookie preferences|cookie-einstellungen/i.test(body)&&clickT(/^(okay|ok)$/i)){return {state:'cookie-ok'}}if(/cookie notice|cookie-hinweis/i.test(body)&&clickT(/^(reject all|alle ablehnen)$/i)){return {state:'cookie'}}if(/cookie preferences|cookie-einstellungen/i.test(body)){return {state:'cookie-wait'}}if(/notion\.(so|com)$/.test(location.host)&&document.querySelector('input[type=email]')&&!document.querySelector('#sidebar-tab-chats')){if(!window.__gclick||Date.now()-window.__gclick>8000){if(clickT(/^(continue with google|weiter mit google|mit google fortfahren|google)$/i)){window.__gclick=Date.now();return {state:'notion-google'}}}return {state:'login'}}if(/accounts\.google\.com/.test(location.host)){const em='__EM__';if(/That.s an error|Das ist ein Fehler|(^|[^0-9])400([^0-9]|$)/i.test(body)&&!document.querySelector('[data-identifier],[data-email]')&&body.length<600){return {state:'google-error'}}const acs=[...document.querySelectorAll('[data-identifier],[data-email]')].filter(e=>(e.getAttribute('data-identifier')||e.getAttribute('data-email'))===em);const acv=acs.filter(vis);const ac=acv[acv.length-1]||acs[acs.length-1];if(ac){ac.click();return {state:'google-konto'}}if(clickT(/^(weiter|continue|fortfahren|zulassen|allow)$/i))return {state:'google-weiter'};return {state:'google'}}if(/What kind of work do you do|Welche Art von Arbeit/i.test(body)){clickT(/^(marketing)$/i);await sleep(500);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-work'}}if(/What do you want to get done|Was m.chtest du erledigen/i.test(body)){clickT(/^(track projects and tasks|projekte und aufgaben)/i);await sleep(500);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-goals'}}if(/Start with your real work|Starte mit deiner echten Arbeit/i.test(body)){clickT(/^(skip for now|vorerst .berspringen|.berspringen|sp.ter)/i);return {state:'step-connect'}}if(/Who else is on your team|Wer ist (sonst )?noch in deinem Team/i.test(body)){if(!clickT(/^(skip|skip for now|.berspringen)/i))clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-team'}}if(/Choose your plan|W.hle dein(en)? (Plan|Abo)/i.test(body)&&!/Try free for 30 days.*Skip/i.test(body)){clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-plan'}}if(/Notion is 50% faster|Desktop.?App/i.test(body)&&/Skip for now|.berspringen/i.test(body)){clickT(/^(skip for now|vorerst .berspringen|.berspringen|sp.ter)/i);return {state:'step-desktop'}}if(/How do you want to use Notion|Wie m.chtest du Notion/i.test(body)){clickT(/for work|f.r die arbeit|beruflich|arbeit/i);await sleep(600);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step1'}}if(/Start with your team|Notion works best|Mit deinem Team/i.test(body)){if(!clickT(/^(skip|skip for now|.berspringen|sp.ter)/i))clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step2'}}if(/Choose your plan|W.hle dein(en)? (Plan|Abo)|Plan w.hlen/i.test(body)){clickT(/continue with free|mit .*kostenlos|kostenlos fortfahren/i);return {state:'step3'}}if(document.querySelector('.notion-sidebar,.notion-sidebar-container')&&!/Choose your plan|How do you want to use/i.test(body))return {state:'workspace'};return {state:'wait'}}if(PH==='trial'){if(!(await openSettings()))return {state:'noset'};if(!(await tab(/^(notion ai|notion-ki)/i)))return {state:'noai'};await tab(/^(ai connectors|ki-connectors|connectors)/i);if(!clickT(/^(try for free|kostenlos testen|gratis testen)/i,dlgOpen().closest('[role=dialog]')))return {state:'notry'};await sleep(2000);const d2=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();if(d2&&clickT(/^(try for free|kostenlos testen|gratis testen|start free trial)/i,d2)){await sleep(3500);return {state:'trialstarted'}}return {state:'nodlg'}}if(PH==='cancel'){if(!(await openSettings()))return {state:'noset'};let ok=await tab(/^(billing|abrechnung|plans|tarife|upgrade plan)/i);if(!ok)return {state:'nobilling'};await sleep(1200);const rootD=dlgOpen().closest('[role=dialog]');if(!clickT(/cancel (free )?trial|trial (beenden|k.ndigen)|testversion (beenden|k.ndigen)|cancel plan/i,rootD))return {state:'nocancel'};await sleep(1800);const d3=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();if(d3){clickT(/^(cancel (free )?trial|confirm|cancel plan|yes|best.tigen|beenden|k.ndigen)/i,d3);await sleep(2500)}return {state:'cancelled'}}return {state:'unknown'}}catch(e){return {state:'err',msg:String(e&&e.message||e)}}})()"#;
 +fn is_g(v:&Value)->bool{v["url"].as_str().unwrap_or("").contains("accounts.google.com")}
 +async fn google_close(port:u16){let list:Vec<Value>=match reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await{Ok(r)=>r.json().await.unwrap_or_default(),Err(_)=>return};let pages:Vec<Value>=list.into_iter().filter(|v|v["type"]=="page").collect();let others=pages.iter().filter(|v|!is_g(v)).count();for v in pages.iter().filter(|v|is_g(v)){if others>0{if let Some(id)=v["id"].as_str(){let _=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json/close/{id}")).timeout(Duration::from_secs(3)).send().await;}}else if let Some(ws)=v["webSocketDebuggerUrl"].as_str(){let _=cdp_ws(ws,vec![json!({"method":"Page.navigate","params":{"url":"https://www.notion.so/login"}})]).await;}}}
@@ -13547,7 +13853,9 @@ index 0000000..57ce785
 +    // 1.0.128: Profil laeuft schon (ohne offenen CDP-Port) -> kein zweiter Brave-Start, sonst oeffnet Brave ein fremdes Fenster ausserhalb der Coworker.
 +    if !spawn_needed(running_ids(std::slice::from_ref(t)).contains(&t.id)){windows::set_hidden(std::slice::from_ref(t),false);ensure_monitors();return Ok(name);}
 +    mark_clean_exit(&d);
-+    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--hide-crash-restore-bubble","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion,SpareRendererForSitePerProcess,BraveRewards,BraveNews,BraveVPN,BraveWallet,AIChat,Speedreader","--disable-breakpad","--disable-extensions","--disable-component-extensions-with-background-pages","--disable-background-networking","--disable-sync","--renderer-process-limit=2","--disable-popup-blocking"]).arg("--host-resolver-rules=MAP api.segment.io 127.0.0.2, MAP api.amplitude.com 127.0.0.2, MAP api2.amplitude.com 127.0.0.2, MAP statsig.an.net 127.0.0.2, MAP featuregates.org 127.0.0.2, MAP events.statsigapi.net 127.0.0.2, MAP google-analytics.com 127.0.0.2, MAP cdn.pendo.io 127.0.0.2, MAP *.intercom.io 127.0.0.2, MAP *.intercomcdn.com 127.0.0.2, MAP www.googletagmanager.com 127.0.0.2, MAP *.google-analytics.com 127.0.0.2, MAP *.doubleclick.net 127.0.0.2, MAP connect.facebook.net 127.0.0.2, MAP *.sentry.io 127.0.0.2, MAP *.datadoghq.com 127.0.0.2, MAP *.splunkcloud.com 127.0.0.2, MAP *.fpjs.io 127.0.0.2, MAP *.fpnpmcdn.net 127.0.0.2, MAP *.fingerprint.com 127.0.0.2, MAP *.hotjar.com 127.0.0.2, MAP *.fullstory.com 127.0.0.2, MAP *.clarity.ms 127.0.0.2, MAP *.hs-scripts.com 127.0.0.2, MAP *.hs-analytics.net 127.0.0.2, MAP static.ads-twitter.com 127.0.0.2, MAP *.pendo.io 127.0.0.2, MAP *.statsig.com 127.0.0.2, MAP *.statsigapi.net 127.0.0.2").arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;
++    // 1.0.134 (#28): Brave Memory-Saver + kleiner Cache in den Profil-Prefs; Fehler nur loggen, Start nie blockieren.
++    if let Err(e)=crate::notion_brave_prefs::apply(&d){eprintln!("brave_prefs {name}: {e}");}
++    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--hide-crash-restore-bubble","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion,SpareRendererForSitePerProcess,BraveRewards,BraveNews,BraveVPN,BraveWallet,AIChat,Speedreader,MediaRouter,OptimizationHints,OptimizationGuideModelDownloading,Translate,AutofillServerCommunication,InterestFeedContentSuggestions","--disk-cache-size=67108864","--no-pings","--disable-domain-reliability","--disable-client-side-phishing-detection","--disable-default-apps","--metrics-recording-only","--process-per-site","--disable-breakpad","--disable-extensions","--disable-component-extensions-with-background-pages","--disable-background-networking","--disable-sync","--renderer-process-limit=2","--disable-popup-blocking"]).arg("--host-resolver-rules=MAP api.segment.io 127.0.0.2, MAP api.amplitude.com 127.0.0.2, MAP api2.amplitude.com 127.0.0.2, MAP statsig.an.net 127.0.0.2, MAP featuregates.org 127.0.0.2, MAP events.statsigapi.net 127.0.0.2, MAP google-analytics.com 127.0.0.2, MAP cdn.pendo.io 127.0.0.2, MAP *.intercom.io 127.0.0.2, MAP *.intercomcdn.com 127.0.0.2, MAP www.googletagmanager.com 127.0.0.2, MAP *.google-analytics.com 127.0.0.2, MAP *.doubleclick.net 127.0.0.2, MAP connect.facebook.net 127.0.0.2, MAP *.sentry.io 127.0.0.2, MAP *.datadoghq.com 127.0.0.2, MAP *.splunkcloud.com 127.0.0.2, MAP *.fpjs.io 127.0.0.2, MAP *.fpnpmcdn.net 127.0.0.2, MAP *.fingerprint.com 127.0.0.2, MAP *.hotjar.com 127.0.0.2, MAP *.fullstory.com 127.0.0.2, MAP *.clarity.ms 127.0.0.2, MAP *.hs-scripts.com 127.0.0.2, MAP *.hs-analytics.net 127.0.0.2, MAP static.ads-twitter.com 127.0.0.2, MAP *.pendo.io 127.0.0.2, MAP *.statsig.com 127.0.0.2, MAP *.statsigapi.net 127.0.0.2").arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;
 +    // Privacy: Telemetrie-Blocker injizieren, sobald CDP da ist (Hintergrund, stoert niemanden).
 +    let p=port;tokio::spawn(async move{privacy_start(p).await;});
 +    // 1.0.128 (#5): jedes gestartete/eingeloggte Konto wird automatisch erkannt: Live-Chatliste + Team-Schleife (Chats als Coworker ins aktive Co-Work einladen).
@@ -14404,7 +14712,8 @@ index 0000000..57ce785
 +        "cowork_stop"=>find(id).map(|t|format!("Tab {} gestoppt ({} Prozesse).",t.id,stop_ids(&[t.id]))),
 +        "open_notion_window"=>match id{Some(_)=>find(id).and_then(|t|open_tab(&t)),None=>add_tab().and_then(|_|load().last().cloned().ok_or("Tab fehlt.".into())).and_then(|t|open_tab(&t))},
 +        // 1.0.128: Login immer im Coworker-Brave (gleiches Profil/Fenster): laeuft der Tab, per CDP navigieren statt neues Fenster zu starten.
-+        "cowork_login"=>find(id).and_then(login_view),
++        // Login = wie Refresh (Login + Einrichtung/Chat-Pruefung), nur ohne Konto zu loeschen.
++        "cowork_login"=>find(id).map(|t|{let i=tab_index(t.id);windows::set_hidden(std::slice::from_ref(&t),false);mark_account(t.id,"refresh_state",json!("Login wird ge\u{f6}ffnet ..."));tokio::spawn(login_account(t.clone(),i));format!("Login f\u{fc}r Tab {} gestartet (wie Refresh, ohne Konto zu l\u{f6}schen).",t.id)}),
 +        "delete_notion_profile"|"cowork_delete"=>delete(id),
 +        "rename_notion_profile"=>find(id).and_then(|t|{let mut tabs=load();if let Some(x)=tabs.iter_mut().find(|x|x.id==t.id){x.label=clean(v.get("label").and_then(Value::as_str).unwrap_or(""),40);}save(&tabs).map(|_|"Name gespeichert.".into())}),
 +        _=>return None,
@@ -19242,10 +19551,10 @@ index 0000000..a9fbbb6
 +	return result
 +end
 diff --git a/agent/src/tray.rs b/agent/src/tray.rs
-index 3c12cf0..04e83bc 100644
+index 3c12cf0..0a37d7d 100644
 --- a/agent/src/tray.rs
 +++ b/agent/src/tray.rs
-@@ -53,9 +53,9 @@ fn show_menu(window: Handle, shared: Arc<UiShared>) {
+@@ -53,15 +53,15 @@ fn show_menu(window: Handle, shared: Arc<UiShared>) {
          unsafe {
              let menu = CreatePopupMenu();
              if menu.is_null() { return; }
@@ -19257,6 +19566,13 @@ index 3c12cf0..04e83bc 100644
              let mut point = Point { x: 0, y: 0 };
              if GetCursorPos(&mut point) != 0 {
                  SetForegroundWindow(window);
+                 let action = TrackPopupMenu(menu, 0x182, point.x, point.y, 0, window, std::ptr::null());
+                 if action == 1 { shared.request_show(); }
+-                if action == 2 { shared.request_quit(); }
++                if action == 2 { tracing::warn!("PlazCode quit via tray menu"); shared.request_quit(); }
+                 PostMessageW(window, 0, 0, 0);
+             }
+             DestroyMenu(menu);
 @@ -96,7 +96,7 @@ impl Tray {
          if data.icon.is_null() { data.icon = unsafe { LoadIconW(window.hinstance() as Handle, 1usize as *const u16) }; }
          if data.icon.is_null() { shared.log("Embedded PlazCode application icon could not be loaded."); }
