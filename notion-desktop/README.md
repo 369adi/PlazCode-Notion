@@ -9,6 +9,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.121
+- **Co-Work nutzt alle freien Chats**: Jedes laufende Konto setzt automatisch alle bestehenden, freien Notion-Chats als Co-Work-Chats ein (nacheinander, mit RAM-Check). Chats, die gerade arbeiten, werden uebersprungen; es wird nie ein neuer Chat erstellt.
+- **Fester CDP-Port pro Tab**: Port haengt an der Tab-ID statt an der Reihenfolge - Erinnerungen und Weckrufe landen nicht mehr im falschen Konto.
+
 ## Neu in 1.0.120
 - **Lokales Modell im Chat**: Im Chat-Kopf waehlst du jetzt *Notion AI* oder ein lokales Ollama-Modell (z. B. Qwen 3.5). Ollama wird bei Bedarf automatisch im Hintergrund gestartet.
 - Das lokale Modell bekommt automatisch die AdiCode-Tools (PowerShell, Dateien, Programme, Screenshot, Hintergrund-Jobs, Tool-Suche fuer alle weiteren Add-ons) plus Websuche und Webseiten-Abruf - schlanke Auswahl, spart RAM.
