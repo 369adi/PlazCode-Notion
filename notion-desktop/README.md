@@ -9,6 +9,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.127
+- **Chats holen sich immer Hilfe**: Jede Aufgabe mit mehreren unabhaengigen Teilen wird sofort per Co-Work auf mehrere Chats verteilt; grosse Teilaufgaben werden automatisch weiter zerlegt.
+- **Stabil mit vielen Chats gleichzeitig**: Add-on-Pool (pc, codebase, files, git ... bis zu 3 parallele Instanzen), Builds laufen mit niedriger Prioritaet und halben Kernen, ngrok-Tunnel mit hoher Prioritaet.
+- **Weniger Tokens**: Co-Work-Schemas 58 % kleiner, kompakte Ausgaben fuer codebase/files/git.
+- **Helfer-Chats**: warten bis zu 40 s auf Bereitschaft statt abzubrechen.
 ## Neu in 1.0.122
 - **Notion-Tabs immer auf Chat**: AdiCode stellt die Seitenleiste oben links in jedem Notion-Tab automatisch auf *Chat* zurueck.
 - **MCP-Hinweis fuer neue Konten**: Hat ein Konto AdiCode noch nie benutzt, beginnt sein Co-Work-Prompt mit "Verbinde dich mit dem AdiCode MCP". Ab dem ersten AdiCode-Aufruf faellt der Hinweis weg.
