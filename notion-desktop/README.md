@@ -9,6 +9,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.139
+
+- Refresh-Sperre: geloescht wird nur, wenn im Tab wirklich das Konto des Tabs eingeloggt ist. Sonst Notion-Abmeldung und Login mit der richtigen E-Mail.
+- Einstellungen werden zuverlaessig geoeffnet (wartet bis zu 6 s auf das Workspace-Menue).
+- Die Bitte, AdiCode-MCP zu verbinden, wird pro Konto nur einmal geschickt (neuer Tab oder nach Refresh).
+
 ## Neu in 1.0.138
 
 - Refresh nutzt die im Konto eingetragene Login-Methode (z. B. Google) und vergisst sie beim Loeschen nicht mehr.
