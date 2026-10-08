@@ -9,6 +9,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.118
+- **Live-Vorschauen optional**: Tab-Previews sind standardmaessig aus und lassen sich in den Einstellungen einschalten (weniger Last).
+- **Tabs verstecken entfernt**: Notion-Fenster verschwinden nicht mehr von selbst.
+- **MCP-Rechte schlanker**: Nur Tab `Notion Agent` -> Write auf `Run automatically`.
+- **Einzelschritte**: Jedes Check-Haekchen ist klickbar und fuehrt nur diesen Schritt aus; Checks lassen sich stoppen.
+- **Schnellerer, klarer Check**: Kuerzere Wartezeiten, Anzeige `Schritt X/7 ... laeuft seit N s`, gemerkte Schritte werden uebersprungen.
+- **Login-Fenster** ist wieder sichtbar und bedienbar.
 ## Neu in 1.0.117
 - **Co-Work Auto-Join**: Neue Tabs, die noch keinem Projekt beigetreten sind, werden automatisch eingeladen, dem neuesten Projekt mit offenen Tasks beizutreten, und uebernehmen danach Tasks (max. 3 Erinnerungen, mind. 90 s Abstand, Main-Chat nie).
 - **Weniger Update-Hinweise**: Der Hinweis auf neue Versionen erscheint nur noch selten.
