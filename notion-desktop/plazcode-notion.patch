@@ -10547,10 +10547,10 @@ index 0000000..fc2ff59
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..8acdb96
+index 0000000..cd64139
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1400 @@
+@@ -0,0 +1,1404 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -10769,7 +10769,9 @@ index 0000000..8acdb96
 +    let mut sys = System::new(); sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
 +    sys.processes().iter().filter_map(|(pid,p)| { let cmd=p.cmd().iter().map(|a|a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" "); cmd.contains("--user-data-dir=").then_some((*pid,cmd)) }).collect()
 +}
-+fn running_ids(tabs: &[Tab]) -> Vec<u32> { let cmds=browser_cmds(); tabs.iter().filter(|t| {let d=dir(t.id).display().to_string();cmds.iter().any(|(_,c)|cmd_uses(c,&d))}).map(|t|t.id).collect() }
++fn running_ids(tabs: &[Tab]) -> Vec<u32> { let cmds=browser_cmds(); tabs.iter().filter(|t| {port_open(port_for_id(t.id))||{let d=dir(t.id).display().to_string();cmds.iter().any(|(_,c)|cmd_uses(c,&d))}}).map(|t|t.id).collect() }
++/// 1.0.124: Tab gilt auch als laufend, wenn sein CDP-Port antwortet (die WebView2-Kommandozeile enthaelt den Profilordner nicht immer -> Co-Work holte nie Zusatz-Chats).
++fn port_open(port:u16)->bool{ if cfg!(test){return false;} std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],port)),Duration::from_millis(150)).is_ok() }
 +fn stop_ids(ids: &[u32]) -> usize {
 +    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 +    let mut sys=System::new();sys.refresh_processes_specifics(ProcessesToUpdate::All,true,ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
@@ -10988,6 +10990,8 @@ index 0000000..8acdb96
 +fn tab_offline(i:usize)->bool{std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],cdp_port(i))),Duration::from_millis(200)).is_err()}
 +/// Konto-Tab zeigt "Notion KI ist fuer diesen Workspace deaktiviert".
 +pub(crate) fn tab_ai_off(id:u32)->bool{lock(&AI_OFF).get(&id).copied().unwrap_or(false)}
++/// 1.0.124: Konto-Tab ohne AdiCode-MCP (Einrichtung fehlgeschlagen) kann keine Co-Work-Tools aufrufen -> nicht eintragen, keine Zusatz-Chats.
++pub(crate) fn tab_no_mcp(id:u32)->bool{ if cfg!(test){return false;} let a=lock(&ACCOUNT); let Some(v)=a.get(&id) else {return false}; if v["mcp_saved"].as_bool()==Some(true){return false;} v["mcp"].as_str().map(|s|s.starts_with("Fehlt")||s.starts_with("Auto-Einrichtung fehlgeschlagen")).unwrap_or(false) }
 +/// Co-Work: Agent kann gerade nicht schreiben (Fenster zu, uebersprungen, KI im Tab oder im Zusatz-Chat deaktiviert)
 +/// -> wird nicht eingetragen, nicht geweckt, seine Tasks werden wieder frei. Agents ohne AdiCode-Tab (freie Namen) gelten als verfuegbar.
 +pub(crate) fn agent_unavailable(agent:&str)->bool{
@@ -10995,7 +10999,7 @@ index 0000000..8acdb96
 +    if lock(&SLOT_OFF).contains(agent){return true;}
 +    if let Some((at,v))=lock(&UNAVAIL).get(agent).copied(){if at.elapsed()<Duration::from_secs(5){return v;}}
 +    let tabs=load();let base=agent.split("-K").next().unwrap_or(agent);
-+    let v=match tabs.iter().enumerate().find(|(_,t)|agent_of(t)==base){Some((i,t))=>skipped(t.id)||tab_ai_off(t.id)||tab_offline(i),None=>false};
++    let v=match tabs.iter().enumerate().find(|(_,t)|agent_of(t)==base){Some((i,t))=>skipped(t.id)||tab_ai_off(t.id)||tab_no_mcp(t.id)||tab_offline(i),None=>false};
 +    lock(&UNAVAIL).insert(agent.to_string(),(std::time::Instant::now(),v));v
 +}
 +/// Nur lesen: steht im Tab "Notion AI ... disabled", wird EINMAL pro Auftreten ein Bericht mit allem,
@@ -11916,7 +11920,7 @@ index 0000000..8acdb96
 +    let running=tokio::task::spawn_blocking({let t=tabs.to_vec();move||running_ids(&t)}).await.unwrap_or_default();
 +    for(i,t)in tabs.iter().enumerate(){
 +        if !running.contains(&t.id)||is_paused(t.id){continue;}
-+        if tab_ai_off(t.id){continue;}
++        if tab_ai_off(t.id)||tab_no_mcp(t.id){continue;}
 +        let sl=slots_of(t.id);if 1+sl.len()>=MAX_CHATS_PER_ACCOUNT{continue;}
 +        let main=welcome_url(t).map(|u|url_tid(&u)).unwrap_or_default();
 +        let chats=lock(&ACCOUNT).get(&t.id).and_then(|a|a["chats_live"].as_array().cloned()).unwrap_or_default();
