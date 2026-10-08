@@ -9,6 +9,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.136
+
+- Co-Work: ein Brave-Fenster pro Konto. Zusatz-Chats oeffnen als Tabs im selben Fenster statt in einem zweiten Brave-Fenster (kein --app-Fenster mehr).
+- Refresh startet den Tab selbst, wenn er nicht laeuft, holt den Haupt-Tab nach vorn und wartet, bis Notion geladen ist (vorher: Einstellungen nicht gefunden).
+
 ## Neu in 1.0.135
 
 - Stabile Notion-Verbindung: Hintergrund-Streams werden nicht mehr endlos offen gehalten (max. 6, je 4 min). Vorher sammelten sich mit Co-Work bis zu 89 offene Verbindungen, bis der Tunnel Anfragen verlor.
