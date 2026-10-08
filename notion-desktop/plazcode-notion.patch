@@ -23762,10 +23762,10 @@ index 0000000..b3975d3
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..d34872b
+index 0000000..55e30f3
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1335 @@
+@@ -0,0 +1,1340 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -24019,6 +24019,11 @@ index 0000000..d34872b
 +    fn pids_of(t:&Tab, cmds:&[(sysinfo::Pid, String)])->HashSet<u32>{ let d=dir(t.id).display().to_string(); cmds.iter().filter(|(_,c)|cmd_uses(c,&d)).map(|(p,_)|p.as_u32()).collect() }
 +    fn apply(p:HashSet<u32>, show:bool){ if p.is_empty(){return;} *lock(&PIDS)=(p,show); unsafe{EnumWindows(visit,0);} }
 +    pub fn any_hidden()->bool{!lock(&HIDDEN).is_empty()}
++    // Edge-Hilfsfenster (Chrome_WidgetWin_0 ohne Titel) werden manchmal sichtbar und erscheinen als schwarze Fenster -> regelmaessig ausblenden.
++    static HPIDS:Lazy<std::sync::Mutex<HashSet<u32>>>=Lazy::new(||std::sync::Mutex::new(HashSet::new()));
++    static HELPERS:std::sync::Once=std::sync::Once::new();
++    unsafe extern "system" fn visit_helper(hwnd:isize,_:isize)->i32 { let mut pid=0; GetWindowThreadProcessId(hwnd,&mut pid); if lock(&HPIDS).contains(&pid) && IsWindowVisible(hwnd)!=0 && class(hwnd)=="Chrome_WidgetWin_0" && GetWindowTextLengthW(hwnd)==0 { ShowWindowAsync(hwnd,0); } 1 }
++    pub fn hide_helpers(){ HELPERS.call_once(|| { std::thread::spawn(|| loop { let cmds=browser_cmds(); let p:HashSet<u32>=load().iter().flat_map(|t|pids_of(t,&cmds)).collect(); if !p.is_empty(){ *lock(&HPIDS)=p; unsafe{EnumWindows(visit_helper,0);} } std::thread::sleep(Duration::from_secs(5)); }); }); }
 +    pub fn set_hidden(tabs:&[Tab], hidden:bool){
 +        // Verstecken der Notion-Tabs ist entfernt: Fenster bleiben immer sichtbar, nur Anzeigen ist noch moeglich.
 +        if hidden { return; }
@@ -24047,7 +24052,7 @@ index 0000000..d34872b
 +        }
 +    }
 +}
-+#[cfg(not(windows))] pub(crate) mod windows { use super::*; pub fn set_hidden(_: &[Tab],_:bool){} pub fn any_hidden()->bool{false} }
++#[cfg(not(windows))] pub(crate) mod windows { use super::*; pub fn set_hidden(_: &[Tab],_:bool){} pub fn any_hidden()->bool{false} pub fn hide_helpers(){} }
 +
 +/// Privacy-Injection: bringt den Telemetrie-Blocker in jeden frisch geladenen Notion-Tab
 +/// (CDP Page.addScriptToEvaluateOnNewDocument, einmal pro Port, laeuft im Hintergrund mit).
@@ -24062,7 +24067,7 @@ index 0000000..d34872b
 +}
 +fn start_url(t:&Tab)->String{if t.url.is_empty(){NOTION_URL.to_string()}else{t.url.clone()}}
 +fn tab_index(id:u32)->usize{load().iter().position(|t|t.id==id).unwrap_or(0)}
-+pub(crate) fn launch(t:&Tab,url:&str)->Result<&'static str,String>{start_load_watchdog();
++pub(crate) fn launch(t:&Tab,url:&str)->Result<&'static str,String>{start_load_watchdog();windows::hide_helpers();
 +    mark_account(t.id,"usage_error",Value::Null);mark_account(t.id,"check",json!("Tab startet \u{2026}"));
 +    let(name,exe)=browser().ok_or("Erst unter Co-Work einen Browser ausw\u{e4}hlen.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;
 +    let port=cdp_port(tab_index(t.id));

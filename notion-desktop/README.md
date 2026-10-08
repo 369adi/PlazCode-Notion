@@ -9,6 +9,10 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.119
+
+- Schwarze leere Fenster der Notion-Tabs (Edge-Hilfsfenster) werden automatisch ausgeblendet.
+
 ## Neu in 1.0.118
 - **Live-Vorschauen optional**: Tab-Previews sind standardmaessig aus und lassen sich in den Einstellungen einschalten (weniger Last).
 - **Tabs verstecken entfernt**: Notion-Fenster verschwinden nicht mehr von selbst.
