@@ -2656,7 +2656,7 @@ index 04ebefa..61103d4 100644
              Event::UserEvent(UiEvent::Maximize) => window.set_maximized(!window.is_maximized()),
              Event::UserEvent(UiEvent::Drag) => {
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..4110fe5 100644
+index 77cc050..4e60a50 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
 @@ -81,6 +81,24 @@ mod media;
@@ -2733,7 +2733,7 @@ index 77cc050..4110fe5 100644
          self.ensure().await?;
          if self.tools.is_empty() { self.list_tools().await?; }
          let targeted = studio_session::needs_id(&self.tools, name);
-@@ -726,13 +777,13 @@ fn main() {
+@@ -726,13 +777,20 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -2741,6 +2741,13 @@ index 77cc050..4110fe5 100644
 +        win_alert("AdiCode crashed", &msg);
          eprintln!("PlazCode Agent panic: {msg}");
      }));
++    // MCP-Server bleibt auch bei Volllast (cargo-Builds, viele Chats) ansprechbar: AdiCode selbst ueber
++    // normaler Prioritaet, pc_job-Kinder laufen schon mit BELOW_NORMAL.
++    #[cfg(windows)]
++    unsafe {
++        extern "system" { fn GetCurrentProcess() -> *mut std::ffi::c_void; fn SetPriorityClass(h: *mut std::ffi::c_void, class: u32) -> i32; }
++        let _ = SetPriorityClass(GetCurrentProcess(), 0x0000_8000);
++    }
      if let Err(e) = start() {
          let msg = format!("{e:#}");
          #[cfg(windows)]
@@ -2749,7 +2756,7 @@ index 77cc050..4110fe5 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +882,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +889,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -2759,7 +2766,7 @@ index 77cc050..4110fe5 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +932,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +939,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -2771,7 +2778,7 @@ index 77cc050..4110fe5 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -936,7 +992,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -936,7 +999,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          headers.insert("origin", origin.clone());
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
@@ -2787,7 +2794,7 @@ index 77cc050..4110fe5 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +1011,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +1018,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -2795,7 +2802,7 @@ index 77cc050..4110fe5 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +1041,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +1048,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -2816,7 +2823,7 @@ index 77cc050..4110fe5 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1266,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1273,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -2824,7 +2831,7 @@ index 77cc050..4110fe5 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1282,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1289,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -2832,7 +2839,7 @@ index 77cc050..4110fe5 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1540,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1547,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -2840,7 +2847,7 @@ index 77cc050..4110fe5 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1612,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1619,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -2848,7 +2855,7 @@ index 77cc050..4110fe5 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1621,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1628,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -13200,10 +13207,10 @@ index 0000000..96af036
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..8472d48
+index 0000000..57ce785
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1384 @@
+@@ -0,0 +1,1389 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -13517,12 +13524,15 @@ index 0000000..8472d48
 +
 +/// Privacy-Injection: bringt den Telemetrie-Blocker in jeden frisch geladenen Notion-Tab
 +/// (CDP Page.addScriptToEvaluateOnNewDocument, einmal pro Port, laeuft im Hintergrund mit).
++/// 1.0.133 Chat-Turbo: lange Chats laggen nicht mehr. Alte Nachrichten ausserhalb des Sichtbereichs
++/// werden per content-visibility:auto nicht mehr gerendert/gelayoutet (die letzten 6 bleiben immer live).
++const CHAT_TURBO_JS:&str=r#"(()=>{if(window.__adiTurbo)return;window.__adiTurbo=1;const st=document.createElement('style');st.textContent='.adi-cv{content-visibility:auto;contain-intrinsic-size:auto 600px}';let list=null;const big=e=>{let b=null,h=0;for(const c of e.children){const x=c.offsetHeight;if(x>h){h=x;b=c}}return b};const find=()=>{let best=null,h=0;for(const s of document.querySelectorAll('.notion-scroller')){if(s.scrollHeight>h){h=s.scrollHeight;best=s}}if(!best||h<5000)return null;let n=best;for(let i=0;i<16&&n;i++){if(n.children.length>=10)return n;n=big(n)}return null};const tick=()=>{try{if(!st.isConnected)(document.head||document.documentElement).appendChild(st);if(!list||!list.isConnected||list.children.length<10)list=find();if(list){const k=list.children,n=k.length-6;for(let i=0;i<n;i++)k[i].classList.add('adi-cv')}}catch(e){}};const loop=()=>{tick();setTimeout(()=>{if(window.requestIdleCallback)requestIdleCallback(loop,{timeout:3000});else loop()},5000)};setTimeout(loop,3000)})();"#;
 +static PRIVACY_PORTS:Lazy<std::sync::Mutex<HashSet<u16>>>=Lazy::new(||std::sync::Mutex::new(HashSet::new()));
 +pub(crate) async fn privacy_start(port:u16){
 +    {let mut g=PRIVACY_PORTS.lock().unwrap_or_else(|e|e.into_inner());if g.contains(&port){return;}g.insert(port);}
 +    if !wait_cdp(port).await{{let mut g=PRIVACY_PORTS.lock().unwrap_or_else(|e|e.into_inner());g.remove(&port);return;}}
 +    if let Ok(ws)=target(port).await{
-+        let _=cdp_ws(&ws,vec![json!({"method":"Page.addScriptToEvaluateOnNewDocument","params":{"source":BLOCK_TELEMETRY_JS}})]).await;
++        let _=cdp_ws(&ws,vec![json!({"method":"Page.addScriptToEvaluateOnNewDocument","params":{"source":BLOCK_TELEMETRY_JS}}),json!({"method":"Page.addScriptToEvaluateOnNewDocument","params":{"source":CHAT_TURBO_JS}}),json!({"method":"Runtime.evaluate","params":{"expression":CHAT_TURBO_JS}})]).await;
 +        tl(&format!("PRIVACY port{port} aktiv"));
 +    }
 +}
@@ -13537,7 +13547,7 @@ index 0000000..8472d48
 +    // 1.0.128: Profil laeuft schon (ohne offenen CDP-Port) -> kein zweiter Brave-Start, sonst oeffnet Brave ein fremdes Fenster ausserhalb der Coworker.
 +    if !spawn_needed(running_ids(std::slice::from_ref(t)).contains(&t.id)){windows::set_hidden(std::slice::from_ref(t),false);ensure_monitors();return Ok(name);}
 +    mark_clean_exit(&d);
-+    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--hide-crash-restore-bubble","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion","--disable-popup-blocking"]).arg("--host-resolver-rules=MAP api.segment.io 127.0.0.2, MAP api.amplitude.com 127.0.0.2, MAP api2.amplitude.com 127.0.0.2, MAP statsig.an.net 127.0.0.2, MAP featuregates.org 127.0.0.2, MAP events.statsigapi.net 127.0.0.2, MAP google-analytics.com 127.0.0.2, MAP cdn.pendo.io 127.0.0.2, MAP *.intercom.io 127.0.0.2, MAP *.intercomcdn.com 127.0.0.2, MAP www.googletagmanager.com 127.0.0.2, MAP *.google-analytics.com 127.0.0.2, MAP *.doubleclick.net 127.0.0.2, MAP connect.facebook.net 127.0.0.2, MAP *.sentry.io 127.0.0.2, MAP *.datadoghq.com 127.0.0.2, MAP *.splunkcloud.com 127.0.0.2, MAP *.fpjs.io 127.0.0.2, MAP *.fpnpmcdn.net 127.0.0.2, MAP *.fingerprint.com 127.0.0.2, MAP *.hotjar.com 127.0.0.2, MAP *.fullstory.com 127.0.0.2, MAP *.clarity.ms 127.0.0.2, MAP *.hs-scripts.com 127.0.0.2, MAP *.hs-analytics.net 127.0.0.2, MAP static.ads-twitter.com 127.0.0.2, MAP *.pendo.io 127.0.0.2, MAP *.statsig.com 127.0.0.2, MAP *.statsigapi.net 127.0.0.2").arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;
++    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--hide-crash-restore-bubble","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion,SpareRendererForSitePerProcess,BraveRewards,BraveNews,BraveVPN,BraveWallet,AIChat,Speedreader","--disable-breakpad","--disable-extensions","--disable-component-extensions-with-background-pages","--disable-background-networking","--disable-sync","--renderer-process-limit=2","--disable-popup-blocking"]).arg("--host-resolver-rules=MAP api.segment.io 127.0.0.2, MAP api.amplitude.com 127.0.0.2, MAP api2.amplitude.com 127.0.0.2, MAP statsig.an.net 127.0.0.2, MAP featuregates.org 127.0.0.2, MAP events.statsigapi.net 127.0.0.2, MAP google-analytics.com 127.0.0.2, MAP cdn.pendo.io 127.0.0.2, MAP *.intercom.io 127.0.0.2, MAP *.intercomcdn.com 127.0.0.2, MAP www.googletagmanager.com 127.0.0.2, MAP *.google-analytics.com 127.0.0.2, MAP *.doubleclick.net 127.0.0.2, MAP connect.facebook.net 127.0.0.2, MAP *.sentry.io 127.0.0.2, MAP *.datadoghq.com 127.0.0.2, MAP *.splunkcloud.com 127.0.0.2, MAP *.fpjs.io 127.0.0.2, MAP *.fpnpmcdn.net 127.0.0.2, MAP *.fingerprint.com 127.0.0.2, MAP *.hotjar.com 127.0.0.2, MAP *.fullstory.com 127.0.0.2, MAP *.clarity.ms 127.0.0.2, MAP *.hs-scripts.com 127.0.0.2, MAP *.hs-analytics.net 127.0.0.2, MAP static.ads-twitter.com 127.0.0.2, MAP *.pendo.io 127.0.0.2, MAP *.statsig.com 127.0.0.2, MAP *.statsigapi.net 127.0.0.2").arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;
 +    // Privacy: Telemetrie-Blocker injizieren, sobald CDP da ist (Hintergrund, stoert niemanden).
 +    let p=port;tokio::spawn(async move{privacy_start(p).await;});
 +    // 1.0.128 (#5): jedes gestartete/eingeloggte Konto wird automatisch erkannt: Live-Chatliste + Team-Schleife (Chats als Coworker ins aktive Co-Work einladen).
@@ -13766,6 +13776,8 @@ index 0000000..8472d48
 +            let agent=agent_of(t);
 +            if is_main(t){continue;} /* Mains werden nie automatisch beschrieben */
 +            let Some((sig,text))=crate::notion_cowork::nudge_for(&agent) else {continue};
++            // 1.0.133: Konten ohne AdiCode-MCP bekommen keine Co-Work-Auftraege (sonst Prompt-Injection-Verdacht), nur die Bitte zu verbinden.
++            let (sig,text)=if mcp_ok(t.id){(sig,text)}else{(format!("nomcp:{}",t.id),"Bitte verbinde dich mit dem AdiCode MCP (Notion: Einstellungen -> Verbindungen -> AdiCode). Danach kann dieser Chat beim Co-Work mitarbeiten.".to_string())};
 +            if let Some((s,at,n))=last.get(&t.id){if *s==sig&&(sig.starts_with("done:")||*n>=3||at.elapsed()<Duration::from_secs(90)){continue;}}
 +            if user_present(cdp_port(i)).await{continue;}
 +            if !chat_idle(cdp_port(i)).await{continue;}
