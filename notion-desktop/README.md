@@ -9,6 +9,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.120
+- **Lokales Modell im Chat**: Im Chat-Kopf waehlst du jetzt *Notion AI* oder ein lokales Ollama-Modell (z. B. Qwen 3.5). Ollama wird bei Bedarf automatisch im Hintergrund gestartet.
+- Das lokale Modell bekommt automatisch die AdiCode-Tools (PowerShell, Dateien, Programme, Screenshot, Hintergrund-Jobs, Tool-Suche fuer alle weiteren Add-ons) plus Websuche und Webseiten-Abruf - schlanke Auswahl, spart RAM.
+- **Rueckfrage nur bei Unsicherheit**: Das Modell arbeitet selbststaendig und fragt nur dann mit *Erlauben / Ablehnen*, wenn es selbst unsicher ist, ob eine Aktion riskant ist. Stopp und Neuer Chat jederzeit moeglich.
+
 ## Neu in 1.0.119
 
 - Schwarze leere Fenster der Notion-Tabs (Edge-Hilfsfenster) werden automatisch ausgeblendet.

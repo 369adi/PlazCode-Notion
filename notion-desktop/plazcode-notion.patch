@@ -6512,10 +6512,10 @@ index 04ebefa..61103d4 100644
              Event::UserEvent(UiEvent::Maximize) => window.set_maximized(!window.is_maximized()),
              Event::UserEvent(UiEvent::Drag) => {
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..3db47e5 100644
+index 77cc050..4414b31 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,20 @@ mod media;
+@@ -81,6 +81,21 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -6533,10 +6533,11 @@ index 77cc050..3db47e5 100644
 +mod notion_skills_dev;
 +mod notion_devtools;
 +mod notion_release;
++mod notion_local_llm;
  
  #[cfg(windows)]
  mod win_msg {
-@@ -188,6 +202,23 @@ impl AppState {
+@@ -188,6 +203,23 @@ impl AppState {
  }
  
  /// Persistent stdio client for Roblox Studio's built-in MCP server.
@@ -6560,7 +6561,7 @@ index 77cc050..3db47e5 100644
  struct McpRuntime {
      child: Option<Child>,
      stdin: Option<ChildStdin>,
-@@ -335,7 +366,23 @@ impl McpRuntime {
+@@ -335,7 +367,23 @@ impl McpRuntime {
          Ok(())
      }
  
@@ -6585,7 +6586,7 @@ index 77cc050..3db47e5 100644
          self.ensure().await?;
          if self.tools.is_empty() { self.list_tools().await?; }
          let targeted = studio_session::needs_id(&self.tools, name);
-@@ -726,13 +773,13 @@ fn main() {
+@@ -726,13 +774,13 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -6601,7 +6602,7 @@ index 77cc050..3db47e5 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +878,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +879,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -6611,7 +6612,7 @@ index 77cc050..3db47e5 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +928,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +929,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -6623,7 +6624,7 @@ index 77cc050..3db47e5 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -937,6 +989,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -937,6 +990,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
      updater::start_checker();
@@ -6631,7 +6632,7 @@ index 77cc050..3db47e5 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +1001,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +1002,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -6639,7 +6640,7 @@ index 77cc050..3db47e5 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +1031,16 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +1032,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -6653,10 +6654,14 @@ index 77cc050..3db47e5 100644
 +        .route("/api/notion/chat/send", post(notion_chat::send_handler))
 +        .route("/api/notion/chat/control", post(notion_chat::control_handler))
 +        .route("/api/notion/chat/upload", post(notion_chat::upload_handler).layer(axum::extract::DefaultBodyLimit::max(notion_chat::MAX_UPLOAD)))
++        .route("/api/notion/local/state", get(notion_local_llm::state_handler))
++        .route("/api/notion/local/models", get(notion_local_llm::models_handler))
++        .route("/api/notion/local/send", post(notion_local_llm::send_handler))
++        .route("/api/notion/local/control", post(notion_local_llm::control_handler))
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1252,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1257,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -6664,7 +6669,7 @@ index 77cc050..3db47e5 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1268,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1273,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -6672,7 +6677,7 @@ index 77cc050..3db47e5 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1526,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1531,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -6680,7 +6685,7 @@ index 77cc050..3db47e5 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1598,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1603,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -6688,7 +6693,7 @@ index 77cc050..3db47e5 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1607,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1612,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -8185,10 +8190,10 @@ index 0000000..e1cc644
 +}
 diff --git a/agent/src/notion_chat_ui.html b/agent/src/notion_chat_ui.html
 new file mode 100644
-index 0000000..973ae29
+index 0000000..36e15d1
 --- /dev/null
 +++ b/agent/src/notion_chat_ui.html
-@@ -0,0 +1,1252 @@
+@@ -0,0 +1,1339 @@
 +<style id="adicode-chat-style">
 +.content:has(#page-chat.active){padding:0!important;overflow:hidden!important}
 +#page-chat.active{display:flex!important;height:100%;max-width:none!important;margin:0!important;animation:none!important}
@@ -8559,13 +8564,15 @@ index 0000000..973ae29
 +      <div class="ac-head">
 +        <div class="ac-title" id="acTitle">Neuer Chat</div>
 +        <span class="ac-pill" id="acPill"><i></i><span>Verbinde …</span></span>
-+        <button class="ac-hbtn" id="acWin" title="Das echte Notion-Fenster (Main) zeigen oder verstecken">Main-Fenster zeigen</button>
++        <select class="ac-hbtn" id="acMode" title="Wer antwortet: Notion AI oder ein lokales Modell (Ollama)"><option value="notion">Notion AI</option></select>
++<button class="ac-hbtn" id="acWin" title="Das echte Notion-Fenster (Main) zeigen oder verstecken">Main-Fenster zeigen</button>
 +        <button class="ac-hbtn" id="acGridBtn" title="Alle Co-Work-Fenster live sehen und steuern">Alle Fenster</button>
 +      </div>
 +      <div class="ac-cw" id="acCw"></div>
 +      <div class="ac-tabs" id="acTabs"></div>
 +      <div class="ac-grid" id="acGrid"></div>
 +      <div class="ac-scroll" id="acScroll"><div class="ac-msgs" id="acMsgs"></div></div>
++<div class="ac-scroll" id="acLocalScroll" style="display:none"><div class="ac-msgs" id="acLocalMsgs"></div></div>
 +      <div class="ac-foot">
 +        <div class="ac-live" id="acLive" title="Klicken: Verlauf auf-/zuklappen"></div><div class="ac-toast" id="acToast"></div>
 +        <div class="ac-box" id="acBox">
@@ -8879,10 +8886,95 @@ index 0000000..973ae29
 +    var files = e.clipboardData && e.clipboardData.files;
 +    if (files && files.length) { e.preventDefault(); addFiles(files); }
 +  });
++  /* ---------- Lokales Modell (Qwen & Co. via Ollama, 1.0.120) ---------- */
++  var AcLocal = (function () {
++    var L = { mode: "notion", busy: false, t: null, sig: "", started: false };
++    try { L.mode = localStorage.getItem("acMode") || "notion"; } catch (e) {}
++    var sel = $("acMode"), box = $("acLocalMsgs"), sc = $("acLocalScroll");
++    var st = document.createElement("style");
++    st.textContent = ".acl-m{margin:10px 0;padding:10px 14px;border-radius:12px;line-height:1.5;white-space:pre-wrap;word-break:break-word;max-width:92%}.acl-user{background:rgba(99,102,241,.18);margin-left:auto}.acl-assistant{background:rgba(255,255,255,.05)}.acl-tool{font-size:12px;opacity:.8;background:rgba(255,255,255,.03);border-left:3px solid #22d3ee;padding:6px 10px;white-space:normal}.acl-m pre{white-space:pre-wrap;background:rgba(0,0,0,.35);padding:8px;border-radius:8px;margin:6px 0;font-size:12px;max-height:260px;overflow:auto}.acl-bar{display:flex;gap:8px;align-items:center;font-size:12px;opacity:.85;margin:8px 0}.acl-ask{border:1px solid #f59e0b;background:rgba(245,158,11,.12);padding:12px;border-radius:12px;margin:10px 0}.acl-ask button,.acl-bar button{margin-right:8px;padding:5px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:inherit;cursor:pointer}#acMode{max-width:220px}";
++    document.head.appendChild(st);
++    function on() { return L.mode !== "notion"; }
++    function fmt(t) { return String(t || "").split("```").map(function (p, i) { return i % 2 ? "<pre>" + esc(p.replace(/^[a-zA-Z0-9_+-]*\n/, "")) + "</pre>" : esc(p); }).join(""); }
++    function fill(models) {
++      var h = '<option value="notion">Notion AI</option>';
++      models.forEach(function (m) { h += '<option value="' + esc(m) + '">Lokal: ' + esc(m) + "</option>"; });
++      if (on() && models.indexOf(L.mode) < 0) h += '<option value="' + esc(L.mode) + '">Lokal: ' + esc(L.mode) + "</option>";
++      sel.innerHTML = h; sel.value = L.mode;
++    }
++    function loadModels(start) {
++      return api("/api/notion/local/models" + (start ? "?start=1" : "")).then(function (r) {
++        if (start) L.started = true;
++        fill(r.models || []);
++        if (start && r.error) toast(r.error, true);
++      }).catch(function () { fill([]); });
++    }
++    function show() {
++      var o = on();
++      sc.style.display = o ? "" : "none";
++      $("acScroll").style.display = o ? "none" : "";
++      ta.placeholder = o ? "Frag " + L.mode + " (lokal, mit PC-, Datei- und Internet-Zugriff) \u2026" : "Frag Notion AI oder starte ein Co-Work-Projekt \u2026";
++      if (o) { L.sig = ""; poll1(); }
++    }
++    sel.onfocus = sel.onmousedown = function () { if (!L.started) loadModels(true); };
++    sel.onchange = function () {
++      L.mode = sel.value;
++      try { localStorage.setItem("acMode", L.mode); } catch (e) {}
++      if (on()) api("/api/notion/local/control", { op: "model", value: L.mode }).catch(function (e) { toast(e.message); });
++      show();
++    };
++    function ctl(body) { return api("/api/notion/local/control", body).then(function () { L.sig = ""; poll1(); }).catch(function (e) { toast(e.message); }); }
++    function render(r) {
++      var sig = JSON.stringify([r.ui, r.pending, r.status, r.busy]);
++      if (sig === L.sig) return;
++      L.sig = sig;
++      var stick = sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 40;
++      var h = "";
++      if (!(r.ui || []).length) h += '<div class="acl-m acl-assistant">Lokaler Chat mit <b>' + esc(L.mode) + "</b>. Das Modell l\u00e4uft auf deinem PC (Ollama) und hat Zugriff auf PC, Dateien, Internet und alle AdiCode-Tools. Ist es unsicher, ob etwas riskant ist, fragt es dich vorher.</div>";
++      (r.ui || []).forEach(function (m) {
++        if (m.role === "tool") h += '<div class="acl-m acl-tool">\uD83D\uDD27 <b>' + esc(m.name) + "</b> " + esc(m.args || "") + (m.result ? "<pre>" + esc(m.result) + "</pre>" : " \u2026") + "</div>";
++        else h += '<div class="acl-m acl-' + (m.role === "user" ? "user" : "assistant") + '">' + fmt(m.text) + "</div>";
++      });
++      if (r.pending) h += '<div class="acl-ask"><b>Das Modell fragt nach:</b><br>' + esc(r.pending) + '<div style="margin-top:8px"><button data-a="1">Erlauben</button><button data-a="0">Ablehnen</button></div></div>';
++      h += '<div class="acl-bar">' + (r.busy ? "\u23F3 " + esc(r.status || "arbeitet \u2026") + ' <button data-op="stop">Stopp</button>' : "") + '<button data-op="new">Neuer Chat</button></div>';
++      box.innerHTML = h;
++      box.querySelectorAll("button[data-a]").forEach(function (b) { b.onclick = function () { ctl({ op: "answer", value: b.getAttribute("data-a") === "1" }); }; });
++      box.querySelectorAll("button[data-op]").forEach(function (b) { b.onclick = function () { ctl({ op: b.getAttribute("data-op") }); }; });
++      if (stick) sc.scrollTop = sc.scrollHeight;
++    }
++    function poll1() {
++      clearTimeout(L.t);
++      if (!on()) return;
++      api("/api/notion/local/state").then(function (r) { L.busy = !!r.busy; render(r); })
++        .catch(function () {})
++        .then(function () { L.t = setTimeout(poll1, L.busy ? 900 : 3000); });
++    }
++    function send(text, files) {
++      if (L.busy) { toast("Das lokale Modell arbeitet noch \u2026", true); return Promise.resolve(false); }
++      L.busy = true;
++      return api("/api/notion/local/send", { text: text, files: files || [], model: L.mode })
++        .then(function () { L.sig = ""; poll1(); return true; })
++        .catch(function (e) { L.busy = false; toast(e.message); return false; });
++    }
++    fill([]);
++    loadModels(false).then(show);
++    return { on: on, send: send };
++  })();
++
 +  $("acSend").onclick = function () { if (S.gen) stopGen(); else send(); };
 +  function stopGen() { ctl("stop").then(poll).catch(function (e) { toast(e.message); }); }
 +
 +  function send(textOverride) {
++    if (AcLocal.on()) {
++      var lt = (textOverride != null ? textOverride : ta.value).trim();
++      if (uploading()) { toast("Dateien werden noch hochgeladen \u2026", true); return Promise.resolve(false); }
++      var lr = S.att.filter(function (a) { return a.status === "ok"; });
++      if (!lt && !lr.length) return Promise.resolve(false);
++      if (textOverride == null) { ta.value = ""; autosize(); }
++      S.att = S.att.filter(function (a) { return a.status !== "ok"; });
++      renderAtt(); updateSend();
++      return AcLocal.send(lt, lr.map(function (a) { return a.path; }).filter(Boolean));
++    }
 +    var text = (textOverride != null ? textOverride : ta.value).trim();
 +    if (uploading()) { toast("Dateien werden noch hochgeladen \u2026", true); return Promise.resolve(false); }
 +    var ready = S.att.filter(function (a) { return a.status === "ok"; });
@@ -20946,12 +21038,424 @@ index 0000000..e5f77b8
 +    }
 +}
 \ No newline at end of file
+diff --git a/agent/src/notion_local_llm.rs b/agent/src/notion_local_llm.rs
+new file mode 100644
+index 0000000..58b6c9b
+--- /dev/null
++++ b/agent/src/notion_local_llm.rs
+@@ -0,0 +1,406 @@
++//! AdiCode Lokal: Chat mit einem lokalen Modell (z. B. Qwen 3.5 ueber Ollama).
++//! Das Modell bekommt eine schlanke Auswahl der AdiCode-Tools (PC, Dateien, Internet,
++//! Tool-Suche fuer alle weiteren Tools) direkt aus dem eingebauten MCP-Router -
++//! ohne Tunnel und ohne Notion. Riskante Aktionen: das Modell fragt nur nach
++//! (frage_nutzer), wenn es selbst unsicher ist.
++use axum::{extract::{Query, State}, http::StatusCode, response::{IntoResponse, Response}, Json};
++use once_cell::sync::Lazy;
++use serde_json::{json, Value};
++use std::{collections::HashMap, path::PathBuf, process::Stdio, sync::Mutex, time::Duration};
++
++const OLLAMA: &str = "http://127.0.0.1:11434";
++const MAX_RESULT: usize = 6000;
++const MAX_STEPS: usize = 30;
++const NUM_CTX: u64 = 16384;
++/// RAM-sparende Grundauswahl. Alles andere erreicht das Modell ueber adicode_find_tools + adicode_call.
++const CORE_TOOLS: &[&str] = &[
++    "fetch_fetch", "pc_PowerShell", "pc_FileSystem", "pc_Process", "pc_App", "pc_Screenshot", "pc_job",
++    "adicode_find_tools", "adicode_call",
++];
++
++#[derive(Default)]
++struct Chat { msgs: Vec<Value>, ui: Vec<Value>, busy: bool, pending: Option<String>, status: String, model: String, gen: u64 }
++
++static CHAT: Lazy<Mutex<Chat>> = Lazy::new(|| Mutex::new(Chat { model: load_model(), ..Default::default() }));
++static ANSWER: Lazy<Mutex<Option<tokio::sync::oneshot::Sender<bool>>>> = Lazy::new(|| Mutex::new(None));
++static TASK: Lazy<Mutex<Option<tokio::task::JoinHandle<()>>>> = Lazy::new(|| Mutex::new(None));
++static HTTP: Lazy<reqwest::Client> = Lazy::new(|| {
++    reqwest::Client::builder().user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AdiCode").build().unwrap_or_default()
++});
++static THINK: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"(?s)<think>.*?</think>").unwrap());
++static TAGS: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r"<[^>]+>").unwrap());
++static LINK: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r#"(?s)class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>"#).unwrap());
++static SNIP: Lazy<regex::Regex> = Lazy::new(|| regex::Regex::new(r#"(?s)class="result__snippet"[^>]*>(.*?)</a>"#).unwrap());
++
++fn chat() -> std::sync::MutexGuard<'static, Chat> { CHAT.lock().unwrap_or_else(|e| e.into_inner()) }
++fn ok(v: Value) -> Response { Json(v).into_response() }
++fn fail(msg: impl Into<String>) -> Response { (StatusCode::BAD_REQUEST, Json(json!({"ok": false, "error": msg.into()}))).into_response() }
++fn data_dir() -> PathBuf { std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion") }
++fn cfg_file() -> PathBuf { data_dir().join("local-llm.json") }
++fn load_model() -> String {
++    std::fs::read_to_string(cfg_file()).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok())
++        .and_then(|v| v["model"].as_str().map(String::from)).unwrap_or_default()
++}
++fn save_model(m: &str) { let _ = std::fs::create_dir_all(data_dir()); let _ = std::fs::write(cfg_file(), json!({"model": m}).to_string()); }
++
++fn cut(s: &str, max: usize) -> String {
++    if s.len() <= max { return s.to_string(); }
++    let mut e = max;
++    while !s.is_char_boundary(e) { e -= 1; }
++    format!("{} ... [gekuerzt, {} Zeichen gesamt]", &s[..e], s.len())
++}
++
++// ---------------------------------------------------------------- Ollama
++
++async fn models() -> Result<Vec<String>, String> {
++    let r = HTTP.get(format!("{OLLAMA}/api/tags")).timeout(Duration::from_millis(1500)).send().await.map_err(|e| e.to_string())?;
++    let v: Value = r.json().await.map_err(|e| e.to_string())?;
++    Ok(v["models"].as_array().map(|a| a.iter().filter_map(|m| m["name"].as_str().map(String::from)).collect()).unwrap_or_default())
++}
++
++fn ollama_exe() -> Option<PathBuf> {
++    let p = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).map(|d| d.join("Programs").join("Ollama").join("ollama.exe"));
++    if let Some(p) = p.filter(|p| p.is_file()) { return Some(p); }
++    std::env::var_os("PATH").and_then(|path| std::env::split_paths(&path).map(|d| d.join("ollama.exe")).find(|p| p.is_file()))
++}
++
++/// Laeuft Ollama nicht, startet AdiCode es unsichtbar im Hintergrund.
++async fn ensure_ollama() -> Result<Vec<String>, String> {
++    if let Ok(m) = models().await { return Ok(m); }
++    let exe = ollama_exe().ok_or("Ollama ist nicht installiert (https://ollama.com).")?;
++    let mut cmd = std::process::Command::new(exe);
++    cmd.arg("serve").stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
++    #[cfg(windows)]
++    {
++        use std::os::windows::process::CommandExt;
++        cmd.creation_flags(0x0800_0000);
++    }
++    cmd.spawn().map_err(|e| format!("Ollama-Start fehlgeschlagen: {e}"))?;
++    for _ in 0..40 {
++        tokio::time::sleep(Duration::from_millis(500)).await;
++        if let Ok(m) = models().await { return Ok(m); }
++    }
++    Err("Ollama antwortet nicht (Port 11434).".into())
++}
++
++fn pick(models: &[String], want: &str) -> Option<String> {
++    if !want.is_empty() && models.iter().any(|m| m == want) { return Some(want.to_string()); }
++    models.iter().find(|m| m.to_lowercase().contains("qwen")).or(models.first()).cloned()
++}
++
++async fn ollama_chat(model: &str, msgs: &[Value], tools: &[Value]) -> Result<Value, String> {
++    let body = json!({"model": model, "messages": msgs, "tools": tools, "stream": false, "keep_alive": "15m",
++        "options": {"num_ctx": NUM_CTX, "temperature": 0.4}});
++    let r = HTTP.post(format!("{OLLAMA}/api/chat")).json(&body).timeout(Duration::from_secs(900)).send().await
++        .map_err(|e| format!("Ollama nicht erreichbar: {e}"))?;
++    let st = r.status();
++    let v: Value = r.json().await.map_err(|e| e.to_string())?;
++    if !st.is_success() { return Err(format!("Ollama {st}: {}", v["error"].as_str().unwrap_or(""))); }
++    Ok(v["message"].clone())
++}
++
++// ---------------------------------------------------------------- Tools
++
++fn local_schemas() -> Vec<Value> {
++    vec![
++        json!({"type": "function", "function": {"name": "web_search",
++            "description": "Sucht im Internet (DuckDuckGo) und liefert Titel, Link und Kurztext der Treffer. Seiten danach mit fetch_fetch lesen.",
++            "parameters": {"type": "object", "properties": {
++                "query": {"type": "string", "description": "Suchbegriffe"},
++                "max": {"type": "integer", "description": "Anzahl Treffer 1-10 (Standard 6)"}}, "required": ["query"]}}}),
++        json!({"type": "function", "function": {"name": "frage_nutzer",
++            "description": "Fragt den Nutzer um Erlaubnis. NUR benutzen, wenn du selbst unsicher bist, ob eine Aktion riskant oder nicht rueckgaengig zu machen ist. Antwort: ERLAUBT oder ABGELEHNT.",
++            "parameters": {"type": "object", "properties": {
++                "frage": {"type": "string", "description": "Kurz: was du tun willst und warum es riskant sein koennte."}}, "required": ["frage"]}}}),
++    ]
++}
++
++async fn tool_list(state: &crate::AppState) -> Vec<Value> {
++    let mut out = local_schemas();
++    for t in crate::notion_mcp::local_tool_schemas(state).await {
++        let name = t["name"].as_str().unwrap_or("").to_string();
++        if !CORE_TOOLS.contains(&name.as_str()) { continue; }
++        let params = t.get("inputSchema").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({"type": "object", "properties": {}}));
++        let desc = cut(t["description"].as_str().unwrap_or(""), 600);
++        out.push(json!({"type": "function", "function": {"name": name, "description": desc, "parameters": params}}));
++    }
++    out
++}
++
++fn html_unescape(s: &str) -> String {
++    s.replace("&quot;", "\"").replace("&#x27;", "'").replace("&#39;", "'").replace("&lt;", "<").replace("&gt;", ">").replace("&nbsp;", " ").replace("&amp;", "&")
++}
++fn strip_tags(s: &str) -> String { html_unescape(&TAGS.replace_all(s, "")).split_whitespace().collect::<Vec<_>>().join(" ") }
++fn pct_decode(s: &str) -> String {
++    let b = s.as_bytes();
++    let mut out = Vec::with_capacity(b.len());
++    let mut i = 0;
++    while i < b.len() {
++        if b[i] == b'%' && i + 2 < b.len() {
++            if let Some(v) = std::str::from_utf8(&b[i + 1..i + 3]).ok().and_then(|h| u8::from_str_radix(h, 16).ok()) {
++                out.push(v);
++                i += 3;
++                continue;
++            }
++        }
++        out.push(if b[i] == b'+' { b' ' } else { b[i] });
++        i += 1;
++    }
++    String::from_utf8_lossy(&out).into_owned()
++}
++fn ddg_url(raw: &str) -> String {
++    let url = html_unescape(raw);
++    let url = match url.find("uddg=") {
++        Some(p) => { let rest = &url[p + 5..]; let end = rest.find('&').unwrap_or(rest.len()); pct_decode(&rest[..end]) }
++        None => url.clone(),
++    };
++    if url.starts_with("//") { format!("https:{url}") } else { url }
++}
++fn parse_ddg(html: &str, max: usize) -> Vec<String> {
++    let snips: Vec<String> = SNIP.captures_iter(html).map(|c| strip_tags(&c[1])).collect();
++    LINK.captures_iter(html).take(max).enumerate()
++        .map(|(i, c)| format!("{}. {}\n   {}\n   {}", i + 1, strip_tags(&c[2]), ddg_url(&c[1]), snips.get(i).cloned().unwrap_or_default()))
++        .collect()
++}
++
++async fn web_search(args: &Value) -> String {
++    let q = args["query"].as_str().unwrap_or("").trim().to_string();
++    if q.is_empty() { return "Fehler: query fehlt.".into(); }
++    let max = args["max"].as_u64().unwrap_or(6).clamp(1, 10) as usize;
++    let r = HTTP.get("https://html.duckduckgo.com/html/").query(&[("q", q.as_str())]).timeout(Duration::from_secs(20)).send().await;
++    let html = match r { Ok(r) => r.text().await.unwrap_or_default(), Err(e) => return format!("Websuche fehlgeschlagen: {e}") };
++    let out = parse_ddg(&html, max);
++    if out.is_empty() { format!("Keine Treffer fuer '{q}'. Andere Suchwoerter probieren oder fetch_fetch direkt nutzen.") } else { out.join("\n") }
++}
++
++fn result_text(v: &Value) -> String {
++    let mut parts = Vec::new();
++    if let Some(arr) = v["content"].as_array() {
++        for c in arr {
++            match c["type"].as_str() {
++                Some("text") => parts.push(c["text"].as_str().unwrap_or("").to_string()),
++                Some("image") => parts.push("[Bild erzeugt]".to_string()),
++                _ => {}
++            }
++        }
++    }
++    if parts.is_empty() { parts.push(v.to_string()); }
++    let t = parts.join("\n");
++    if v["isError"].as_bool().unwrap_or(false) { format!("FEHLER: {t}") } else { t }
++}
++
++async fn ask(q: &str) -> String {
++    let (tx, rx) = tokio::sync::oneshot::channel();
++    *ANSWER.lock().unwrap_or_else(|e| e.into_inner()) = Some(tx);
++    {
++        let mut c = chat();
++        c.pending = Some(q.to_string());
++        c.status = "wartet auf deine Antwort".into();
++    }
++    let r = rx.await.unwrap_or(false);
++    chat().pending = None;
++    if r { "ERLAUBT: Der Nutzer hat zugestimmt. Fuehre die Aktion jetzt aus.".into() }
++    else { "ABGELEHNT: Der Nutzer will das nicht. Fuehre die Aktion NICHT aus und schlage eine Alternative vor.".into() }
++}
++
++async fn exec(state: &crate::AppState, name: &str, args: Value) -> String {
++    match name {
++        "web_search" => web_search(&args).await,
++        "frage_nutzer" => ask(args["frage"].as_str().unwrap_or("Darf ich fortfahren?")).await,
++        _ => match tokio::time::timeout(Duration::from_secs(900), crate::notion_mcp::local_call(state, name, args)).await {
++            Ok(v) => result_text(&v),
++            Err(_) => "Tool-Timeout nach 15 min. Lange Befehle mit pc_job starten.".into(),
++        },
++    }
++}
++
++// ---------------------------------------------------------------- Agent-Schleife
++
++fn system_prompt() -> String {
++    "Du bist ein lokales KI-Modell in der AdiCode-App auf dem Windows-PC des Nutzers. Antworte auf Deutsch, kurz und klar.\n\
++Du hast vollen Zugriff: alle Laufwerke und Dateien (pc_FileSystem), PowerShell (pc_PowerShell), Programme und Prozesse (pc_App, pc_Process), \
++Bildschirm (pc_Screenshot), Internet (web_search zum Suchen, fetch_fetch zum Lesen von Webseiten) und ALLE weiteren AdiCode-Tools: \
++adicode_find_tools sucht Tools (z. B. Blender, Git, GitHub, Roblox, Browser, Projekt-Memory), adicode_call ruft sie auf.\n\
++Arbeitsweise: Nutze Tools statt zu raten und erledige Aufgaben vollstaendig. Lies Dateien vor dem Ueberschreiben. \
++Befehle, die laenger als ~50 s dauern, mit pc_job starten und den Status abfragen.\n\
++Sicherheit: Normale Aktionen (lesen, suchen, Dateien anlegen oder bearbeiten, Programme starten, Befehle ausfuehren) machst du OHNE Nachfrage. \
++Rufe frage_nutzer NUR auf, wenn du selbst unsicher bist, ob eine Aktion riskant oder nicht rueckgaengig zu machen ist \
++(z. B. viele oder wichtige Dateien loeschen, Systemeinstellungen oder Registry aendern, Software deinstallieren, etwas veroeffentlichen oder pushen, \
++Konten oder Geld betreffend). Bei ABGELEHNT fuehrst du die Aktion nicht aus.".to_string()
++}
++
++/// Haelt den Verlauf klein (RAM/Kontext): aelteste Runden ab der naechsten Nutzer-Nachricht entfernen.
++fn trim(msgs: &mut Vec<Value>) {
++    while msgs.len() > 48 {
++        match msgs.iter().skip(1).position(|m| m["role"] == "user").map(|p| p + 1) {
++            Some(p) => { msgs.drain(..p); }
++            None => break,
++        }
++    }
++}
++
++fn ui_push(gen: u64, v: Value) -> Option<usize> {
++    let mut c = chat();
++    if c.gen != gen { return None; }
++    c.ui.push(v);
++    Some(c.ui.len() - 1)
++}
++
++async fn run(state: crate::AppState, gen: u64, model: String) {
++    let tools = tool_list(&state).await;
++    for step in 0..MAX_STEPS {
++        let msgs = {
++            let mut c = chat();
++            if c.gen != gen { return; }
++            c.status = if step == 0 { format!("{model} denkt ...") } else { format!("{model} denkt weiter (Schritt {}) ...", step + 1) };
++            trim(&mut c.msgs);
++            let mut m = vec![json!({"role": "system", "content": system_prompt()})];
++            m.extend(c.msgs.iter().cloned());
++            m
++        };
++        let msg = match ollama_chat(&model, &msgs, &tools).await {
++            Ok(m) => m,
++            Err(e) => { ui_push(gen, json!({"role": "assistant", "text": format!("Fehler: {e}")})); break; }
++        };
++        let text = THINK.replace_all(msg["content"].as_str().unwrap_or(""), "").trim().to_string();
++        let calls: Vec<Value> = msg["tool_calls"].as_array().cloned().unwrap_or_default();
++        {
++            let mut c = chat();
++            if c.gen != gen { return; }
++            let mut am = json!({"role": "assistant", "content": text});
++            if !calls.is_empty() { am["tool_calls"] = json!(calls); }
++            c.msgs.push(am);
++            if !text.is_empty() { c.ui.push(json!({"role": "assistant", "text": text})); }
++        }
++        if calls.is_empty() { break; }
++        for tc in calls {
++            let name = tc["function"]["name"].as_str().unwrap_or("").to_string();
++            let raw = tc["function"]["arguments"].clone();
++            let mut args = match raw.as_str() { Some(s) => serde_json::from_str(s).unwrap_or_else(|_| json!({})), None => raw };
++            if !args.is_object() { args = json!({}); }
++            let Some(idx) = ui_push(gen, json!({"role": "tool", "name": name, "args": cut(&args.to_string(), 300)})) else { return; };
++            chat().status = format!("Tool {name} laeuft ...");
++            let res = cut(&exec(&state, &name, args).await, MAX_RESULT);
++            let mut c = chat();
++            if c.gen != gen { return; }
++            if let Some(u) = c.ui.get_mut(idx) { u["result"] = json!(cut(&res, 1200)); }
++            c.msgs.push(json!({"role": "tool", "tool_name": name, "content": res}));
++        }
++        if step + 1 == MAX_STEPS {
++            ui_push(gen, json!({"role": "assistant", "text": "(Schrittlimit erreicht - schreib 'weiter', dann mache ich weiter.)"}));
++        }
++    }
++    let mut c = chat();
++    if c.gen == gen { c.busy = false; c.status.clear(); }
++}
++
++fn stop(note: &str) {
++    if let Some(h) = TASK.lock().unwrap_or_else(|e| e.into_inner()).take() { h.abort(); }
++    ANSWER.lock().unwrap_or_else(|e| e.into_inner()).take();
++    let mut c = chat();
++    let was = c.busy;
++    c.gen += 1;
++    c.busy = false;
++    c.pending = None;
++    c.status.clear();
++    if was && !note.is_empty() { c.ui.push(json!({"role": "assistant", "text": note})); }
++}
++
++// ---------------------------------------------------------------- HTTP
++
++pub async fn state_handler() -> Response {
++    let c = chat();
++    ok(json!({"ok": true, "busy": c.busy, "pending": c.pending, "status": c.status, "model": c.model, "ui": c.ui}))
++}
++
++/// ?start=1 startet Ollama bei Bedarf; sonst nur abfragen.
++pub async fn models_handler(Query(q): Query<HashMap<String, String>>) -> Response {
++    let cur = chat().model.clone();
++    let r = if q.get("start").map(|s| s == "1").unwrap_or(false) { ensure_ollama().await } else { models().await.map_err(|_| "Ollama laeuft nicht (startet beim ersten Senden automatisch).".to_string()) };
++    match r {
++        Ok(l) => { let m = pick(&l, &cur).unwrap_or_default(); ok(json!({"ok": true, "models": l, "model": m})) }
++        Err(e) => ok(json!({"ok": true, "models": [], "model": cur, "error": e})),
++    }
++}
++
++pub async fn send_handler(State(state): State<crate::AppState>, Json(b): Json<Value>) -> Response {
++    let mut text = b["text"].as_str().unwrap_or("").trim().to_string();
++    let files: Vec<String> = b["files"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
++    if !files.is_empty() { text.push_str(&format!("\n\n[Angehaengte Dateien auf dem PC]\n{}", files.join("\n"))); }
++    if text.trim().is_empty() { return fail("Nachricht ist leer."); }
++    if chat().busy { return fail("Das lokale Modell arbeitet noch. Erst Stopp druecken."); }
++    let list = match ensure_ollama().await { Ok(l) => l, Err(e) => return fail(e) };
++    let want = b["model"].as_str().unwrap_or("").to_string();
++    let want = if want.is_empty() || want == "notion" { chat().model.clone() } else { want };
++    let Some(model) = pick(&list, &want) else { return fail("Kein Ollama-Modell gefunden. Installiere eins, z. B.: ollama pull qwen3.5"); };
++    let gen = {
++        let mut c = chat();
++        if c.busy { return fail("Das lokale Modell arbeitet noch."); }
++        c.busy = true;
++        c.model = model.clone();
++        c.status = format!("{model} wird geladen ...");
++        c.ui.push(json!({"role": "user", "text": text}));
++        c.msgs.push(json!({"role": "user", "content": text}));
++        c.gen
++    };
++    save_model(&model);
++    let h = tokio::spawn(run(state, gen, model.clone()));
++    *TASK.lock().unwrap_or_else(|e| e.into_inner()) = Some(h);
++    ok(json!({"ok": true, "model": model}))
++}
++
++pub async fn control_handler(Json(b): Json<Value>) -> Response {
++    match b["op"].as_str().unwrap_or("") {
++        "stop" => { stop("Gestoppt."); ok(json!({"ok": true})) }
++        "new" => {
++            stop("");
++            let mut c = chat();
++            c.msgs.clear();
++            c.ui.clear();
++            ok(json!({"ok": true}))
++        }
++        "answer" => {
++            let v = b["value"].as_bool().unwrap_or(false);
++            let tx = ANSWER.lock().unwrap_or_else(|e| e.into_inner()).take();
++            match tx { Some(tx) => { let _ = tx.send(v); ok(json!({"ok": true})) } None => fail("Keine offene Frage.") }
++        }
++        "model" => {
++            let m = b["value"].as_str().unwrap_or("").trim().to_string();
++            if m.is_empty() || m == "notion" { return ok(json!({"ok": true})); }
++            chat().model = m.clone();
++            save_model(&m);
++            ok(json!({"ok": true, "model": m}))
++        }
++        op => fail(format!("Unbekannte Aktion: {op}")),
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn notion_local_ddg_parse() {
++        let html = r#"<a rel="nofollow" class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Follama.com%2Fsearch&amp;rut=x">Ollama <b>Search</b></a> <a class="result__snippet" href="x">Run <b>Qwen</b> locally</a>"#;
++        let r = parse_ddg(html, 5);
++        assert_eq!(r.len(), 1);
++        assert!(r[0].contains("https://ollama.com/search"), "{}", r[0]);
++        assert!(r[0].contains("Ollama Search") && r[0].contains("Run Qwen locally"));
++    }
++    #[test]
++    fn notion_local_pick_and_trim() {
++        let m = vec!["gemma".to_string(), "nandhank/qwen3.5-abliterated-truthful:9b".to_string()];
++        assert_eq!(pick(&m, "").unwrap(), m[1]);
++        assert_eq!(pick(&m, "gemma").unwrap(), "gemma");
++        assert!(pick(&[], "x").is_none());
++        let mut v: Vec<Value> = (0..60).map(|i| json!({"role": if i % 3 == 0 { "user" } else { "tool" }})).collect();
++        trim(&mut v);
++        assert!(v.len() <= 48 && v[0]["role"] == "user");
++        assert_eq!(cut("aeoeue", 3).starts_with("aeo"), true);
++    }
++    #[test]
++    fn notion_local_core_tools() {
++        let names: Vec<String> = local_schemas().iter().map(|t| t["function"]["name"].as_str().unwrap().to_string()).collect();
++        assert!(names.contains(&"web_search".to_string()) && names.contains(&"frage_nutzer".to_string()));
++        assert!(CORE_TOOLS.contains(&"adicode_call") && CORE_TOOLS.contains(&"pc_PowerShell"));
++    }
++}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..0c4136e
+index 0000000..743a57e
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1433 @@
+@@ -0,0 +1,1443 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -22246,6 +22750,16 @@ index 0000000..0c4136e
 +        assert!(is_mcp_path("") && is_mcp_path("/mcp") && is_mcp_path("/k/x") && is_mcp_path("/k/x/mcp") && !is_mcp_path("/k/x/y") && !is_mcp_path("/.well-known/oauth-protected-resource"));
 +        assert_eq!(redact_path(&format!("/k/{tok}/mcp").parse().unwrap()), "/k/***/mcp");
 +    }
++}
++
++// ---------------------------------------------------------------- Lokales Modell (1.0.120)
++
++/// Tool-Schemas fuer das lokale Modell (gleiche Liste wie fuer Notion, profilabhaengig).
++pub(crate) async fn local_tool_schemas(state: &crate::AppState) -> Vec<Value> { list_tools(state).await }
++
++/// Direkter Tool-Aufruf fuer das lokale Modell: gleicher Router wie /mcp, ohne Tunnel und Soft-Timeout.
++pub(crate) async fn local_call(state: &crate::AppState, name: &str, args: Value) -> Value {
++    call_tool(state, &json!({"name": name, "arguments": args, "_session": "local-llm"})).await
 +}
 +
 +// ---------------------------------------------------------------- AdiCode Power-Upgrade (1.0.96)
