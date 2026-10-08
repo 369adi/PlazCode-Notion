@@ -9,6 +9,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.122
+- **Notion-Tabs immer auf Chat**: AdiCode stellt die Seitenleiste oben links in jedem Notion-Tab automatisch auf *Chat* zurueck.
+- **MCP-Hinweis fuer neue Konten**: Hat ein Konto AdiCode noch nie benutzt, beginnt sein Co-Work-Prompt mit "Verbinde dich mit dem AdiCode MCP". Ab dem ersten AdiCode-Aufruf faellt der Hinweis weg.
+- **Login mit jeder E-Mail**: Neben Gmail gehen jetzt auch andere Adressen (z. B. Proton oder Firmen-Konten). AdiCode traegt die E-Mail im Notion-Login ein und klickt *Weiter*; du gibst nur noch den Code aus deinem Postfach ein. Login-Art und Sitzung bleiben im Konto gespeichert.
+- **Co-Work-Login-Port-Fix**: Fester Port pro Tab, damit die Login-Vorschau kein fremdes Konto zeigt.
+- **Updates**: Vor einem Update werden alle aktiven Notion-Tabs benachrichtigt, danach wird aktualisiert und neu gestartet.
+
 ## Neu in 1.0.121
 - **Co-Work nutzt alle freien Chats**: Jedes laufende Konto setzt automatisch alle bestehenden, freien Notion-Chats als Co-Work-Chats ein (nacheinander, mit RAM-Check). Chats, die gerade arbeiten, werden uebersprungen; es wird nie ein neuer Chat erstellt.
 - **Fester CDP-Port pro Tab**: Port haengt an der Tab-ID statt an der Reihenfolge - Erinnerungen und Weckrufe landen nicht mehr im falschen Konto.
