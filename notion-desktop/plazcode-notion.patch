@@ -1488,7 +1488,7 @@ index 0000000..ab68b62
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..8115e35 100644
+index 07dc4c0..1706729 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -1775,21 +1775,21 @@ index 07dc4c0..8115e35 100644
        </section>
 +      <section class="page" id="page-notion">
 +        <div class="page-head"><div><div class="page-title">Notion AI</div><div class="page-sub">Verbinde Notion AI direkt mit diesem PC – ganz ohne Browser-Erweiterung.</div></div></div>
-+        <div class="notion-callout"><span class="ico">💡</span><div><b>So funktioniert’s:</b> AdiCode stellt einen MCP-Server bereit, den Notion AI über einen ngrok-Tunnel erreicht. Darüber nutzt Notion die Roblox-Studio-Tools und alle aktivierten MCP-Server (PC, Browser, Git …).</div></div>
++        <div class="notion-callout"><span class="ico">💡</span><div><b>So funktioniert’s:</b> AdiCode stellt einen MCP-Server bereit, den Notion AI über einen <b>Tailscale-Funnel</b> erreicht (kostenlos, feste Adresse, wird automatisch eingerichtet). Darüber nutzt Notion die Roblox-Studio-Tools und alle aktivierten MCP-Server (PC, Browser, Git …).</div></div>
 +        <div class="settingcard notion-card">
 +          <h3>Verbindung</h3>
 +          <div class="nrow"><span class="nlabel">Lokaler Server</span><span id="nListener" class="nbadge">…</span></div>
 +          <div class="nrow"><span class="nlabel">Tunnel</span><span id="nTunnel" class="nbadge">…</span><span id="nRequests" class="nhint"></span></div>
 +<div class="nrow" id="nAuthRow" style="display:none"><span class="nlabel">Abgelehnt</span><span id="nAuthFails" class="nhint" style="color:#f0a35e;white-space:normal"></span></div>
 +          <div id="nError" class="nerr" hidden></div>
-+          <div class="nrow"><span class="nlabel">Server-URL</span><input id="nUrlEdit" class="nurledit" style="flex:1;min-width:220px;padding:7px 10px" placeholder="ngrok-Domain oder URL eintragen, z. B. https://name.ngrok-free.app"><button class="softbtn" id="nSaveUrl">Speichern</button><button class="softbtn" data-ncopy="url">Kopieren</button></div>
-+          <div class="nrow"><span class="nlabel">ngrok-Authtoken</span><input id="nAuthtoken" type="password" autocomplete="off" style="flex:1;min-width:220px;padding:7px 10px" placeholder="von dashboard.ngrok.com &rarr; Your Authtoken"><button class="softbtn" id="nSaveAuth">Speichern</button><span id="nAuthState" class="nbadge">&hellip;</span></div>
++          <div class="nrow"><span class="nlabel">Server-URL</span><input id="nUrlEdit" class="nurledit" style="flex:1;min-width:220px;padding:7px 10px" placeholder="kommt automatisch von Tailscale: https://pc.tailXXXX.ts.net"><button class="softbtn" id="nSaveUrl">Speichern</button><button class="softbtn" data-ncopy="url">Kopieren</button></div>
++          <div class="nrow" style="display:none"><span class="nlabel">ngrok-Authtoken</span><input id="nAuthtoken" type="password" autocomplete="off" style="flex:1;min-width:220px;padding:7px 10px" placeholder="von dashboard.ngrok.com &rarr; Your Authtoken"><button class="softbtn" id="nSaveAuth">Speichern</button><span id="nAuthState" class="nbadge">&hellip;</span></div>
 +          <div class="nrow"><span class="nlabel">Anfrage-Drossel</span><input id="nThrottle" type="number" min="0" max="30000" step="100" style="width:110px;padding:7px 10px" placeholder="0"><span class="nhint">ms Mindestabstand zwischen Tool-Aufrufen von Notion (0 = aus, z. B. 1500)</span><button class="softbtn" id="nSaveThrottle">Speichern</button><span id="nThrottleState" class="nbadge">aus</span></div>
 +<div class="nrow"><span class="nlabel">Hintergrund-Jobs</span><input id="nSoft" type="number" min="0" max="50" step="1" style="width:110px;padding:7px 10px" placeholder="20"><span class="nhint">s – braucht ein Tool länger, antwortet AdiCode sofort und Notion arbeitet parallel weiter; das Ergebnis kommt automatisch nach (0 = aus, empfohlen 15–20)</span><button class="softbtn" id="nSaveSoft">Speichern</button><span id="nSoftState" class="nbadge">aus</span></div>
 +          <div class="nrow"><span class="nlabel">Bearer-Token</span><span id="nToken" class="nvalue">–</span><button class="softbtn" id="nShowToken">Anzeigen</button><button class="softbtn" data-ncopy="token">Kopieren</button></div>
 +          <div class="nrow"><span class="nlabel">URL mit Schlüssel</span><span id="nKeyUrl" class="nvalue">–</span><button class="softbtn" data-ncopy="key_url">Kopieren</button></div>
 +          <p class="nhint"><b>Empfohlen:</b> In Notion die „URL mit Schlüssel“ eintragen – sie enthält den Token, ein Bearer-Feld ist dann nicht nötig (klappt auf jedem PC/Konto). Behandle sie wie ein Passwort.</p>
-+          <div class="nrow" style="margin-top:12px"><button class="softbtn" id="nRestart">Tunnel neu starten</button><button class="softbtn" id="nRefreshTools">Tools aktualisieren</button><button class="dangerbtn" id="nNewToken" style="padding:6px 12px">Token erneuern</button><span id="nMsg" class="nhint"></span></div>
++          <div class="nrow" style="margin-top:12px"><button class="softbtn" id="nRestart">Tailscale neu verbinden</button><button class="softbtn" id="nRefreshTools">Tools aktualisieren</button><button class="dangerbtn" id="nNewToken" style="padding:6px 12px">Token erneuern</button><span id="nMsg" class="nhint"></span></div>
 +        </div>
 +        <div class="settingcard notion-card"><h3>Mehrere Notion-Tabs (getrennte Logins)</h3><p>Mehrere Notion-AI-Tabs mit je eigenem Gmail-Konto richtest du auf der Seite <a href="#" data-page="cowork">Co-Work</a> ein – jeder Tab läuft in einem eigenen Container mit eigenen Cookies.</p></div>
 +        <div class="settingcard notion-card">
@@ -1817,8 +1817,8 @@ index 07dc4c0..8115e35 100644
        <section class="page" id="page-mcp">
          <div class="page-head"><div><div class="page-title">MCP Servers</div><div class="page-sub">Optional integrations plus the protected Roblox Studio primary server.</div></div></div>
 -        <div id="mcpGrid" class="cardgrid"></div>
-+        <div class="settingcard notion-card" style="margin-bottom:16px"><h3>Notion-Verbindung (ngrok)</h3><p class="nhint">Trage hier deine feste ngrok-Domain ein – die ganze URL geht auch. Diese Server-URL kommt dann in Notion unter Einstellungen → Verbindungen → benutzerdefinierter MCP-Server. Authtoken und ngrok-Installation findest du auf der Seite Notion AI.</p>
-+<div class="nrow"><span class="nlabel">Server-URL</span><input id="mUrlEdit" class="nurledit" style="flex:1;min-width:220px;padding:7px 10px" placeholder="z. B. https://name.ngrok-free.app"><button class="softbtn" id="mSaveUrl">Speichern</button><span id="mTunnel" class="nbadge">…</span><span id="mUrlMsg" class="nhint"></span></div></div>
++        <div class="settingcard notion-card" style="margin-bottom:16px"><h3>Notion-Verbindung (Tailscale)</h3><p class="nhint">Die Adresse kommt automatisch von Tailscale Funnel (kostenlos, ohne Limit). Diese Server-URL kommt dann in Notion unter Einstellungen → Verbindungen → benutzerdefinierter MCP-Server. Einrichtung per Klick auf der Seite Notion AI.</p>
++<div class="nrow"><span class="nlabel">Server-URL</span><input id="mUrlEdit" class="nurledit" style="flex:1;min-width:220px;padding:7px 10px" placeholder="automatisch: https://pc.tailXXXX.ts.net"><button class="softbtn" id="mSaveUrl">Speichern</button><span id="mTunnel" class="nbadge">…</span><span id="mUrlMsg" class="nhint"></span></div></div>
 +<div id="mcpGrid" class="cardgrid"></div>
        </section>
        <section class="page" id="page-terminal">
@@ -2282,7 +2282,7 @@ index 07dc4c0..8115e35 100644
 +      El.addEventListener("input", function () { El.dataset.dirty = "1"; });
 +      El.addEventListener("keydown", function (Ev) { if (Ev.key === "Enter") { Ev.preventDefault(); Btn.click(); } });
 +      Btn.onclick = function () {
-+        var V = El.value.trim(); if (!V) { Msg("Bitte zuerst die ngrok-Domain oder URL eintragen."); return; }
++        var V = El.value.trim(); if (!V) { Msg("Bitte zuerst die Tailscale-Adresse eintragen."); return; }
 +        delete El.dataset.dirty;
 +        Call("/api/notion/action", { action: "set_domain", value: V }).then(function (R) { var M = $("mUrlMsg"); if (M) M.textContent = R.message || "Gespeichert."; Msg(R.message || "Gespeichert."); Poll(); }).catch(function (E) { var M = $("mUrlMsg"); if (M) M.textContent = E.message || String(E); Msg(E.message || String(E)); });
 +      };
@@ -2551,7 +2551,7 @@ index 07dc4c0..8115e35 100644
 +    On("nMcpSetup", function () { var Sel = $("nMcpTab"); if (!Sel || !Sel.value) { UMsg("Erst unter Co-Work einen Tab anlegen."); return; } UMsg("..."); Call("/api/notion/action", { action: "cowork_setup_mcp", value: Number(Sel.value) }).then(function (R) { UMsg((R.message || "Gestartet.") + " Der Tab muss laufen und eingeloggt sein."); setTimeout(ULoad, 6000); setTimeout(ULoad, 15000); }).catch(function (E) { UMsg(E.message || String(E)); }); });
 +    On("nMcpOpen", function () { var Sel = $("nMcpTab"); if (!Sel || !Sel.value) { UMsg("Erst unter Co-Work einen Tab anlegen."); return; } Call("/api/notion/action", { action: "open_notion_window", value: Number(Sel.value) }).then(function (R) { UMsg(R.message || "Ge\u00f6ffnet."); ULoad(); }).catch(function (E) { UMsg(E.message || String(E)); }); });
 +    (function () { var El = $("nMcpAuto"); if (El) El.addEventListener("change", function () { Call("/api/notion/action", { action: "cowork_auto_mcp", value: El.checked }).then(function (R) { UMsg(R.message || ""); ULoad(); }).catch(function (E) { UMsg(E.message || String(E)); El.checked = !El.checked; }); }); })();    On("nInstallNgrok", function () { var B = $("nInstallNgrok"); B.disabled = true; B.textContent = "Wird installiert …"; Msg("ngrok wird heruntergeladen und installiert …"); Call("/api/notion/action", { action: "install_ngrok", value: null }).then(function (R) { Msg(R.message || "ngrok installiert."); }).catch(function (E) { Msg("Installation fehlgeschlagen: " + (E.message || String(E))); }).then(function () { B.disabled = false; Poll(); }); });
-+    On("nQuickStart", function () { var A = $("nAuthtoken"), D = $("nDomain"), B = $("nQuickStart"), H = $("nQuickHint"); B.disabled = true; H.textContent = "Läuft … ngrok, Token, Domain, Tunnel, Test (bis 1 Min)"; Msg("Schnellstart läuft …"); Call("/api/notion/action", { action: "ngrok_quick_start", value: { authtoken: A.value || "", domain: D.dataset.dirty ? D.value : "" } }).then(function (R) { H.textContent = R.message || "Fertig"; Msg(R.message || "Fertig"); A.value = ""; delete A.dataset.dirty; delete D.dataset.dirty; Poll(); }).catch(function (E) { H.textContent = "Fehler: " + (E.message || String(E)); Msg(E.message || String(E)); Poll(); }).then(function () { B.disabled = false; }); });
++    On("nQuickStart", function () { var A = $("nAuthtoken"), D = $("nDomain"), B = $("nQuickStart"), H = $("nQuickHint"); B.disabled = true; H.textContent = "Läuft … Tailscale, Anmeldung, Funnel, Test (bis 1 Min)"; Msg("Schnellstart läuft …"); Call("/api/notion/action", { action: "ngrok_quick_start", value: { authtoken: A.value || "", domain: D.dataset.dirty ? D.value : "" } }).then(function (R) { H.textContent = R.message || "Fertig"; Msg(R.message || "Fertig"); A.value = ""; delete A.dataset.dirty; delete D.dataset.dirty; Poll(); }).catch(function (E) { H.textContent = "Fehler: " + (E.message || String(E)); Msg(E.message || String(E)); Poll(); }).then(function () { B.disabled = false; }); });
 +  On("nSaveAuth", function () { var A = $("nAuthtoken"); if (!A.value.trim()) { Msg("Bitte zuerst den Authtoken einfügen."); return; } Act("set_ngrok_authtoken", A.value).then(function () { A.value = ""; delete A.dataset.dirty; }); });
 +    var UEsc = function (X) { return String(X).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[c]; }); };
 +    var UMd = function (Txt) { var Out = [], InList = false; String(Txt || "").split(/\r?\n/).forEach(function (Line) { var H = UEsc(Line).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, "<code>$1</code>"); if (/^\s*-\s+/.test(Line)) { if (!InList) { Out.push("<ul>"); InList = true; } Out.push("<li>" + H.replace(/^\s*-\s+/, "") + "</li>"); } else { if (InList) { Out.push("</ul>"); InList = false; } if (Line.trim()) Out.push("<p style=\"margin:2px 0\">" + H + "</p>"); } }); if (InList) Out.push("</ul>"); return Out.join(""); };
@@ -2656,10 +2656,10 @@ index 04ebefa..61103d4 100644
              Event::UserEvent(UiEvent::Maximize) => window.set_maximized(!window.is_maximized()),
              Event::UserEvent(UiEvent::Drag) => {
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..11ff259 100644
+index 77cc050..4110fe5 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,23 @@ mod media;
+@@ -81,6 +81,24 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -2672,6 +2672,7 @@ index 77cc050..11ff259 100644
 +mod notion_tabs_stop;
 +mod notion_project_memory;
 +mod notion_updates;
++mod notion_stage;
 +mod notion_chat;
 +mod notion_live;
 +mod notion_blender;
@@ -2683,7 +2684,7 @@ index 77cc050..11ff259 100644
  
  #[cfg(windows)]
  mod win_msg {
-@@ -188,6 +205,23 @@ impl AppState {
+@@ -188,6 +206,23 @@ impl AppState {
  }
  
  /// Persistent stdio client for Roblox Studio's built-in MCP server.
@@ -2707,7 +2708,7 @@ index 77cc050..11ff259 100644
  struct McpRuntime {
      child: Option<Child>,
      stdin: Option<ChildStdin>,
-@@ -335,7 +369,23 @@ impl McpRuntime {
+@@ -335,7 +370,23 @@ impl McpRuntime {
          Ok(())
      }
  
@@ -2732,7 +2733,7 @@ index 77cc050..11ff259 100644
          self.ensure().await?;
          if self.tools.is_empty() { self.list_tools().await?; }
          let targeted = studio_session::needs_id(&self.tools, name);
-@@ -726,13 +776,13 @@ fn main() {
+@@ -726,13 +777,13 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -2748,7 +2749,7 @@ index 77cc050..11ff259 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +881,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +882,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -2758,7 +2759,7 @@ index 77cc050..11ff259 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +931,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +932,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -2770,10 +2771,12 @@ index 77cc050..11ff259 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -937,6 +992,13 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -936,7 +992,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+         headers.insert("origin", origin.clone());
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
-     updater::start_checker();
+-    updater::start_checker();
++    updater::start_checker(); notion_stage::start_preloader();
 +    if notion_updates::take_show_marker() {
 +        let show_ui = state.ui.clone();
 +        tokio::spawn(async move {
@@ -2784,7 +2787,7 @@ index 77cc050..11ff259 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +1010,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +1011,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -2792,7 +2795,7 @@ index 77cc050..11ff259 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +1040,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +1041,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -2813,7 +2816,7 @@ index 77cc050..11ff259 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1265,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1266,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -2821,7 +2824,7 @@ index 77cc050..11ff259 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1281,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1282,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -2829,7 +2832,7 @@ index 77cc050..11ff259 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1539,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1540,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -2837,7 +2840,7 @@ index 77cc050..11ff259 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1611,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1612,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -2845,7 +2848,7 @@ index 77cc050..11ff259 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1620,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1621,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -11413,15 +11416,15 @@ index 0000000..58b6c9b
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..f8e36ad
+index 0000000..bec780c
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1456 @@
+@@ -0,0 +1,1654 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
 +//! git, ...) on a separate loopback listener (default 127.0.0.1:8787) that is
-+//! published through an ngrok tunnel with a fixed domain. Notion connects to
++//! published through a Tailscale Funnel (pc.tailXXXX.ts.net, frueher ngrok). Notion connects to
 +//! `https://<domain>/mcp` with the bearer token (or `https://<domain>/k/<token>/mcp`).
 +//! No browser extension is involved.
 +
@@ -11561,7 +11564,7 @@ index 0000000..f8e36ad
 +    Lazy::force(&SHARED);
 +    let s1 = state.clone();
 +    tokio::spawn(async move { run_listener(s1).await });
-+    tokio::spawn(async move { run_ngrok().await });
++    tokio::spawn(async move { run_tailscale().await });
 +    let s2 = state.clone();
 +    tokio::spawn(async move { addon_watchdog(s2).await });
 +    crate::notion_project_memory::start();
@@ -12417,6 +12420,7 @@ index 0000000..f8e36ad
 +    }
 +}
 +
++#[allow(dead_code)]
 +async fn run_ngrok() {
 +    let mut use_domain_flag = false;
 +    loop {
@@ -12504,6 +12508,200 @@ index 0000000..f8e36ad
 +
 +// ---------------------------------------------------------------- ngrok-Schnellstart
 +
++// ---------------------------------------------------------------- Tailscale Funnel (ersetzt ngrok)
++
++static TS_AUTO_INSTALL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
++
++/// tailscale.exe suchen (Standard-Installation, dann PATH).
++pub(crate) fn tailscale_exe() -> Option<PathBuf> {
++    let exe = if cfg!(windows) { "tailscale.exe" } else { "tailscale" };
++    let mut c: Vec<PathBuf> = Vec::new();
++    if let Some(pf) = std::env::var_os("ProgramFiles") { c.push(PathBuf::from(pf).join("Tailscale").join(exe)); }
++    c.push(PathBuf::from(r"C:\Program Files\Tailscale").join(exe));
++    if let Some(p) = std::env::var_os("PATH") { c.extend(std::env::split_paths(&p).map(|d| d.join(exe))); }
++    c.into_iter().find(|p| p.is_file())
++}
++
++/// tailscale-Befehl ausfuehren; liefert (Erfolg, stdout+stderr). Bei Timeout wird der Prozess beendet,
++/// die bis dahin gelesene Ausgabe (z. B. der Funnel-Freischalt-Link) bleibt erhalten.
++async fn ts_run(exe: &PathBuf, args: &[&str], secs: u64) -> (bool, String) {
++    let mut cmd = tokio::process::Command::new(exe);
++    cmd.args(args).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).kill_on_drop(true);
++    #[cfg(windows)]
++    cmd.creation_flags(CREATE_NO_WINDOW);
++    let mut child = match cmd.spawn() { Ok(c) => c, Err(e) => return (false, format!("tailscale startet nicht: {e}")) };
++    let buf = std::sync::Arc::new(Mutex::new(String::new()));
++    let mut tasks = Vec::new();
++    if let Some(o) = child.stdout.take() {
++        let b = buf.clone();
++        tasks.push(tokio::spawn(async move {
++            let mut l = tokio::io::BufReader::new(o).lines();
++            while let Ok(Some(x)) = l.next_line().await { let mut g = lock(&b); g.push_str(&x); g.push('\n'); }
++        }));
++    }
++    if let Some(o) = child.stderr.take() {
++        let b = buf.clone();
++        tasks.push(tokio::spawn(async move {
++            let mut l = tokio::io::BufReader::new(o).lines();
++            while let Ok(Some(x)) = l.next_line().await { let mut g = lock(&b); g.push_str(&x); g.push('\n'); }
++        }));
++    }
++    let ok = match tokio::time::timeout(Duration::from_secs(secs), child.wait()).await {
++        Ok(Ok(st)) => st.success(),
++        _ => { let _ = child.kill().await; false }
++    };
++    for t in tasks { let _ = tokio::time::timeout(Duration::from_millis(800), t).await; }
++    let out = lock(&buf).clone();
++    (ok, out)
++}
++
++/// Oeffentlicher Tailscale-Name dieses PCs (z. B. pc.tailXXXX.ts.net).
++async fn ts_dns(exe: &PathBuf) -> Result<String, String> {
++    let (_, out) = ts_run(exe, &["status", "--json"], 15).await;
++    let start = out.find('{').ok_or_else(|| format!("Tailscale antwortet nicht: {}", out.trim().chars().take(200).collect::<String>()))?;
++    let v: Value = serde_json::Deserializer::from_str(&out[start..]).into_iter::<Value>().next()
++        .and_then(|r| r.ok()).ok_or_else(|| "Tailscale-Status nicht lesbar.".to_string())?;
++    match v["BackendState"].as_str().unwrap_or("") {
++        "Running" => {}
++        "NeedsLogin" | "NoState" => return Err("Tailscale ist nicht angemeldet: Tailscale-App oeffnen und kostenlos anmelden (z. B. mit Google).".into()),
++        "Stopped" => return Err("Tailscale ist ausgeschaltet: in der Tailscale-App auf Connect klicken.".into()),
++        other => return Err(format!("Tailscale startet noch ({other}).")),
++    }
++    let d = v["Self"]["DNSName"].as_str().unwrap_or("").trim_end_matches('.').to_ascii_lowercase();
++    if !d.contains('.') { return Err("Tailscale hat noch keinen Namen fuer diesen PC (MagicDNS im Tailscale-Konto aktivieren).".into()); }
++    Ok(d)
++}
++
++fn ts_link(out: &str) -> Option<String> {
++    let i = out.find("https://login.tailscale.com")?;
++    out[i..].split_whitespace().next().map(|s| s.to_string())
++}
++
++/// Funnel auf den MCP-Port sicherstellen.
++async fn ts_funnel(exe: &PathBuf, port: u16) -> Result<(), String> {
++    let (_, st) = ts_run(exe, &["funnel", "status"], 10).await;
++    if st.contains("Funnel on") && st.contains(&format!("127.0.0.1:{port}")) { return Ok(()); }
++    let p = port.to_string();
++    let (ok, out) = ts_run(exe, &["funnel", "--bg", "--yes", &p], 25).await;
++    let low = out.to_ascii_lowercase();
++    if ok && !low.contains("not enabled") { return Ok(()); }
++    if let Some(link) = ts_link(&out) {
++        return Err(format!("Funnel ist in deinem Tailscale-Konto noch aus. Einmal freischalten: {link} (im Browser mit demselben Tailscale-Konto angemeldet sein). Danach verbindet AdiCode automatisch."));
++    }
++    if low.contains("access denied") || low.contains("permission") {
++        return Err("Tailscale verweigert den Funnel (Rechte). Einmal als Administrator ausfuehren: tailscale set --operator=%USERNAME%".into());
++    }
++    Err(format!("tailscale funnel: {}", out.trim().chars().take(300).collect::<String>()))
++}
++
++/// Oeffentliche URL ueberwachen. Beim ersten Mal braucht Tailscale bis zu ~10 Min fuer DNS/Zertifikat.
++async fn ts_monitor(domain: String) -> String {
++    let client = reqwest::Client::builder().timeout(Duration::from_secs(10)).build().unwrap_or_default();
++    let url = format!("https://{domain}/health");
++    let started = Instant::now();
++    let (mut fails, mut seen_ok) = (0u32, false);
++    loop {
++        let ok = client.get(&url).send().await.map(|r| r.status().is_success()).unwrap_or(false);
++        if ok {
++            if !seen_ok { tracing::info!("[notion] Tailscale Funnel online: https://{domain}/mcp"); }
++            fails = 0; seen_ok = true; set_ngrok("online", "");
++        } else {
++            fails += 1;
++            if !seen_ok { set_ngrok("verbindet", "Funnel ist an - die oeffentliche Adresse wird freigeschaltet (beim ersten Mal bis zu 10 Min)."); }
++            if seen_ok && fails >= 4 { return format!("Die oeffentliche URL {domain} antwortet nicht mehr. Funnel wird neu gestartet."); }
++            if !seen_ok && started.elapsed() > Duration::from_secs(900) { return format!("{domain} ist nach 15 Min noch nicht erreichbar. Funnel wird neu gestartet."); }
++        }
++        tokio::time::sleep(Duration::from_secs(if ok { 15 } else { 8 })).await;
++    }
++}
++
++/// Tunnel-Supervisor: Tailscale Funnel statt ngrok. Neue Nutzer: Tailscale wird bei Bedarf einmal
++/// automatisch installiert, die Adresse (pc.tailXXXX.ts.net) automatisch eingetragen.
++async fn run_tailscale() {
++    let _ = tokio::task::spawn_blocking(kill_all_ngrok).await;
++    loop {
++        let s = settings();
++        if !s.ngrok_enabled { set_ngrok("aus", ""); wait_restart(Duration::from_secs(3600)).await; continue; }
++        let Some(exe) = tailscale_exe() else {
++            if !TS_AUTO_INSTALL.swap(true, Ordering::Relaxed) {
++                set_ngrok("einrichten", "Tailscale wird automatisch installiert (kostenlos) ...");
++                match crate::notion_updates::install_tailscale().await {
++                    Ok(m) => { set_ngrok("einrichten", &m); continue; }
++                    Err(e) => tracing::warn!("[notion] Tailscale-Installation: {e}"),
++                }
++            }
++            set_ngrok("Fehler", "Tailscale fehlt: auf Notion AI > Tailscale einrichten klicken (kostenlos) und in der Tailscale-App anmelden.");
++            wait_restart(Duration::from_secs(20)).await;
++            continue;
++        };
++        let domain = match ts_dns(&exe).await {
++            Ok(d) => d,
++            Err(e) => { set_ngrok("Fehler", &e); wait_restart(Duration::from_secs(10)).await; continue; }
++        };
++        if s.domain != domain {
++            { let mut g = lock(&SHARED.settings); g.domain = domain.clone(); let _ = save_settings(&g); }
++            tracing::info!("[notion] Tunnel-Adresse jetzt https://{domain}/mcp (Tailscale)");
++        }
++        set_ngrok("verbindet", "Tailscale Funnel wird gestartet ...");
++        if let Err(e) = ts_funnel(&exe, s.port).await {
++            tracing::warn!("[notion] Tailscale: {e}");
++            set_ngrok("Fehler", &e);
++            wait_restart(Duration::from_secs(15)).await;
++            continue;
++        }
++        tokio::select! {
++            problem = ts_monitor(domain.clone()) => {
++                tracing::warn!("[notion] Tailscale: {problem}");
++                set_ngrok("Fehler", &problem);
++                let _ = ts_run(&exe, &["funnel", "--https=443", "off"], 10).await;
++                wait_restart(Duration::from_secs(3)).await;
++            }
++            _ = SHARED.restart.notified() => { set_ngrok("startet neu", ""); }
++        }
++    }
++}
++
++/// Ein Klick fuer neue Nutzer: Tailscale installieren/anmelden -> Funnel -> oeffentlicher Test.
++pub(crate) async fn quick_start(_v: &Value) -> Result<String, String> {
++    let _g = QUICK.try_lock().map_err(|_| "Einrichtung laeuft schon - kurz warten.".to_string())?;
++    if tailscale_exe().is_none() {
++        set_ngrok("einrichten", "Tailscale wird installiert ...");
++        crate::notion_updates::install_tailscale().await?;
++    }
++    let exe = tailscale_exe().ok_or("Tailscale fehlt auch nach der Installation.")?;
++    if let Err(e) = ts_dns(&exe).await {
++        if e.contains("nicht angemeldet") || e.contains("ausgeschaltet") {
++            let (_, out) = ts_run(&exe, &["login", "--timeout=8s"], 12).await;
++            if let Some(link) = ts_link(&out) { open_url(&link); }
++            else if let Some(gui) = exe.parent().map(|d| d.join("tailscale-ipn.exe")) { if gui.is_file() { let _ = std::process::Command::new(gui).spawn(); } }
++            return Err("Bitte in Tailscale anmelden (Fenster/Browser hat sich geoeffnet), dann nochmal klicken.".into());
++        }
++        return Err(e);
++    }
++    { let mut s = lock(&SHARED.settings); s.ngrok_enabled = true; let _ = save_settings(&s); }
++    SHARED.restart.notify_one();
++    for i in 0..60 {
++        tokio::time::sleep(Duration::from_secs(1)).await;
++        let st = lock(&SHARED.ngrok).clone();
++        if st.0 == "online" { break; }
++        if st.0 == "Fehler" && i > 4 {
++            if let Some(link) = ts_link(&st.1) { open_url(&link); }
++            return Err(st.1);
++        }
++    }
++    let domain = settings().domain;
++    let st = lock(&SHARED.ngrok).clone();
++    if st.0 != "online" { return Ok(format!("Funnel laeuft fuer https://{domain}/mcp - beim ersten Mal dauert die Freischaltung bis zu 10 Min. Status oben beobachten.")); }
++    Ok(format!("Fertig! Tailscale online: https://{domain}/mcp. In Notion: Einstellungen > Verbindungen > Individueller MCP-Server > die 'URL mit Schluessel' eintragen."))
++}
++
++fn open_url(url: &str) {
++    #[cfg(windows)]
++    { let _ = std::process::Command::new("cmd").args(["/c", "start", "", url]).creation_flags(CREATE_NO_WINDOW).spawn(); }
++    #[cfg(not(windows))]
++    { let _ = std::process::Command::new("xdg-open").arg(url).spawn(); }
++}
++
 +static QUICK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 +
 +fn kill_all_ngrok() {
@@ -12557,7 +12755,8 @@ index 0000000..f8e36ad
 +}
 +
 +/// Ein Klick: ngrok installieren (falls noetig) -> Authtoken -> Domain (eingegeben oder automatisch) -> Tunnel -> oeffentlicher Test.
-+pub(crate) async fn quick_start(v: &Value) -> Result<String, String> {
++#[allow(dead_code)]
++pub(crate) async fn quick_start_ngrok(v: &Value) -> Result<String, String> {
 +    let _g = QUICK.try_lock().map_err(|_| "Schnellstart laeuft schon - kurz warten.".to_string())?;
 +    let auth = v["authtoken"].as_str().unwrap_or("").trim().to_string();
 +    if auth.is_empty() && !crate::notion_updates::has_authtoken() && ngrok_exe().is_none() { return Err("Bitte zuerst den ngrok-Authtoken einfuegen (dashboard.ngrok.com -> Your Authtoken).".into()); }
@@ -12634,6 +12833,8 @@ index 0000000..f8e36ad
 +        "soft_timeout_s": s.soft_timeout_s,
 +        "notion_profiles": crate::notion_profiles::list(),
 +        "browser": crate::notion_profiles::browser_name(),
++        "tunnel_kind": "tailscale",
++        "tailscale_found": tailscale_exe().is_some(),
 +        "ngrok_found": find_ngrok(&s).is_some(),
 +        "ngrok_authtoken": crate::notion_updates::has_authtoken(),
 +        "ngrok_authtoken_mask": crate::notion_updates::authtoken_mask(),
@@ -17481,6 +17682,233 @@ index 0000000..30c6120
 +- Planning: thinking_sequentialthinking for hard problems; skills brainstorm -> plan -> tdd -> review -> verify -> finish.
 +- Memory: project_memory_* + HANDOUT.md (durable), memory_* (graph notes).
 +If an add-on is missing: tell the user to enable it in the AdiCode app (Add-ons) and which key it needs."#;
+diff --git a/agent/src/notion_stage.rs b/agent/src/notion_stage.rs
+new file mode 100644
+index 0000000..9d6af6b
+--- /dev/null
++++ b/agent/src/notion_stage.rs
+@@ -0,0 +1,221 @@
++//! p15 #1: Update im Hintergrund vorladen.
++//! Sobald auf GitHub eine neuere Version liegt, wird PlazCode-Notion.exe still nach
++//! %LOCALAPPDATA%/PlazCodeNotion/staged/<version>/ geladen, Groesse + SHA-256 geprueft
++//! (gegen die GitHub-Asset-Daten) und als 'bereit' gemeldet. Der Klick auf
++//! "Update" muss dann nichts mehr herunterladen (siehe staged_exe).
++use serde_json::{json, Value};
++use sha2::{Digest, Sha256};
++use std::path::{Path, PathBuf};
++use std::time::Duration;
++
++const REPO: &str = "369adi/PlazCode-Notion";
++const EXE: &str = "PlazCode-Notion.exe";
++const POLL_SECS: u64 = 600;
++
++#[derive(Clone, Default, serde::Serialize)]
++pub struct Stage {
++    pub version: Option<String>,
++    pub staging: bool,
++    pub staged: bool,
++    /// 0..1
++    pub progress: f32,
++    pub bytes: u64,
++    pub total: u64,
++    pub sha256: Option<String>,
++    pub path: Option<String>,
++    pub error: Option<String>,
++}
++
++static STATE: once_cell::sync::Lazy<std::sync::Mutex<Stage>> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(Stage::default()));
++fn st() -> std::sync::MutexGuard<'static, Stage> { STATE.lock().unwrap_or_else(|e| e.into_inner()) }
++pub fn status() -> Stage { st().clone() }
++#[allow(dead_code)]
++pub fn status_json() -> Value { serde_json::to_value(status()).unwrap_or(json!({})) }
++
++pub fn staged_root(base: &Path) -> PathBuf { base.join("staged") }
++pub fn staged_dir(base: &Path, ver: &str) -> PathBuf { staged_root(base).join(ver) }
++
++fn parse(v: &str) -> Option<Vec<u32>> {
++    let v = v.trim().trim_start_matches('v');
++    if v.is_empty() { return None; }
++    v.split('.').map(|x| x.parse().ok()).collect()
++}
++/// true, wenn `latest` eine echte, neuere Versionsnummer als `current` ist.
++pub fn is_newer(latest: &str, current: &str) -> bool {
++    match (parse(latest), parse(current)) { (Some(l), Some(c)) => l > c, _ => false }
++}
++
++fn sha_hex(b: &[u8]) -> String { format!("{:x}", Sha256::digest(b)) }
++
++/// Prueft eine heruntergeladene exe gegen erwartete Groesse/SHA.
++pub fn check_payload(n: u64, head: &[u8], sha: &str, want_size: Option<u64>, want_sha: Option<&str>) -> Result<(), String> {
++    if n < 1_000_000 || !head.starts_with(b"MZ") { return Err("Download ist keine gueltige exe".into()); }
++    if let Some(w) = want_size { if w != n { return Err(format!("Groesse falsch ({n} statt {w} Bytes)")); } }
++    if let Some(w) = want_sha { if !w.eq_ignore_ascii_case(sha) { return Err("SHA-256 stimmt nicht mit GitHub ueberein".into()); } }
++    Ok(())
++}
++
++/// Liest Groesse und sha256-Digest des exe-Assets aus einer GitHub-Release-Antwort.
++pub fn asset_expect(release: &Value) -> (Option<u64>, Option<String>) {
++    release["assets"].as_array()
++        .and_then(|a| a.iter().find(|x| x["name"] == EXE))
++        .map(|x| (x["size"].as_u64(), x["digest"].as_str().and_then(|d| d.strip_prefix("sha256:")).map(|d| d.to_lowercase())))
++        .unwrap_or((None, None))
++}
++
++/// Bereits vollstaendig geladene und unveraenderte exe in `dir`?
++pub fn verify_dir(dir: &Path) -> Option<PathBuf> {
++    let meta: Value = serde_json::from_slice(&std::fs::read(dir.join("meta.json")).ok()?).ok()?;
++    let exe = dir.join(EXE);
++    let bytes = std::fs::read(&exe).ok()?;
++    check_payload(bytes.len() as u64, &bytes, &sha_hex(&bytes), meta["size"].as_u64(), meta["sha256"].as_str()).ok()?;
++    if meta["size"].as_u64().is_none() || meta["sha256"].as_str().is_none() { return None; }
++    Some(exe)
++}
++
++/// Fuer den Update-Klick: Pfad zur vorgeladenen, gepruefte exe dieser Version (sonst None = normal laden).
++#[allow(dead_code)]
++pub fn staged_exe(ver: &str) -> Option<PathBuf> {
++    parse(ver)?;
++    verify_dir(&staged_dir(&crate::notion_updates::base_dir(), ver))
++}
++
++/// Entfernt alte Staging-Ordner ausser `keep`.
++pub fn cleanup(base: &Path, keep: &str) {
++    if let Ok(rd) = std::fs::read_dir(staged_root(base)) {
++        for e in rd.flatten() { if e.file_name().to_string_lossy() != keep { let _ = std::fs::remove_dir_all(e.path()); } }
++    }
++}
++
++async fn expected(client: &reqwest::Client, ver: &str) -> (Option<u64>, Option<String>) {
++    let url = format!("https://api.github.com/repos/{REPO}/releases/tags/notion-desktop-v{ver}");
++    let Ok(r) = client.get(url).header("Accept", "application/vnd.github+json").send().await else { return (None, None) };
++    if !r.status().is_success() { return (None, None); }
++    let Ok(v) = r.json::<Value>().await else { return (None, None) };
++    asset_expect(&v)
++}
++
++async fn download(base: &Path, ver: &str) -> Result<PathBuf, String> {
++    let dir = staged_dir(base, ver);
++    if let Some(p) = verify_dir(&dir) { return Ok(p); }
++    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
++    let client = reqwest::Client::builder().user_agent("PlazCode-Notion").connect_timeout(Duration::from_secs(15)).timeout(Duration::from_secs(1800)).build().map_err(|e| e.to_string())?;
++    let (want_size, want_sha) = expected(&client, ver).await;
++    let url = format!("https://github.com/{REPO}/releases/download/notion-desktop-v{ver}/{EXE}");
++    let mut resp = client.get(url).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
++    let total = resp.content_length().or(want_size).unwrap_or(0);
++    { let mut s = st(); s.total = total; s.bytes = 0; s.progress = 0.0; }
++    let part = dir.join(format!("{EXE}.part"));
++    use tokio::io::AsyncWriteExt;
++    let mut f = tokio::fs::File::create(&part).await.map_err(|e| e.to_string())?;
++    let mut h = Sha256::new();
++    let mut n: u64 = 0;
++    let mut head: Vec<u8> = Vec::new();
++    let res: Result<(), String> = async {
++        while let Some(c) = resp.chunk().await.map_err(|e| e.to_string())? {
++            if head.len() < 2 { head.extend_from_slice(&c[..c.len().min(2)]); }
++            h.update(&c);
++            f.write_all(&c).await.map_err(|e| e.to_string())?;
++            n += c.len() as u64;
++            let mut s = st(); s.bytes = n; if total > 0 { s.progress = (n as f32 / total as f32).min(1.0); }
++        }
++        f.flush().await.map_err(|e| e.to_string())
++    }.await;
++    drop(f);
++    let sha = format!("{:x}", h.finalize());
++    if let Err(e) = res.and_then(|_| check_payload(n, &head, &sha, want_size, want_sha.as_deref())) {
++        let _ = std::fs::remove_file(&part);
++        return Err(e);
++    }
++    let exe = dir.join(EXE);
++    let _ = std::fs::remove_file(&exe);
++    std::fs::rename(&part, &exe).map_err(|e| e.to_string())?;
++    let meta = json!({"version": ver, "size": n, "sha256": sha, "github_digest": want_sha.is_some(), "staged_at": chrono::Local::now().to_rfc3339()});
++    std::fs::write(dir.join("meta.json"), serde_json::to_vec_pretty(&meta).unwrap_or_default()).map_err(|e| e.to_string())?;
++    st().sha256 = Some(sha);
++    Ok(exe)
++}
++
++/// Ein Durchlauf: neuere Version? -> im Hintergrund vorladen.
++pub async fn tick() {
++    let v = crate::notion_updates::info(false).await;
++    let latest = v["latest"].as_str().unwrap_or("").to_string();
++    let current = crate::notion_updates::current_version();
++    let base = crate::notion_updates::base_dir();
++    if !is_newer(&latest, &current) {
++        let mut s = st();
++        if !s.staging { *s = Stage::default(); drop(s); if parse(&current).is_some() { cleanup(&base, ""); } }
++        return;
++    }
++    {
++        let mut s = st();
++        if s.staging || (s.staged && s.version.as_deref() == Some(latest.as_str())) { return; }
++        *s = Stage { version: Some(latest.clone()), staging: true, ..Default::default() };
++    }
++    cleanup(&base, &latest);
++    let r = download(&base, &latest).await;
++    let mut s = st();
++    s.staging = false;
++    match r {
++        Ok(p) => { s.staged = true; s.progress = 1.0; s.path = Some(p.display().to_string()); s.error = None; }
++        Err(e) => { s.staged = false; s.error = Some(e.clone()); eprintln!("[stage] Vorladen von {latest} fehlgeschlagen: {e}"); }
++    }
++}
++
++pub fn start_preloader() {
++    tokio::spawn(async {
++        tokio::time::sleep(Duration::from_secs(20)).await;
++        loop {
++            tick().await;
++            tokio::time::sleep(Duration::from_secs(POLL_SECS)).await;
++        }
++    });
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn stage_versions_and_paths() {
++        assert!(is_newer("1.0.131", "1.0.130"));
++        assert!(is_newer("1.0.10", "1.0.9"));
++        assert!(!is_newer("1.0.130", "1.0.130"));
++        assert!(!is_newer("1.0.129", "1.0.130"));
++        assert!(!is_newer("", "1.0.1"));
++        assert!(!is_newer("1.0.2", "dev"));
++        assert!(!is_newer("../x", "1.0.1"));
++        let base = Path::new("C:/L/PlazCodeNotion");
++        assert_eq!(staged_dir(base, "1.0.131"), base.join("staged").join("1.0.131"));
++    }
++    #[test]
++    fn stage_payload_checks() {
++        let mut big = vec![0u8; 1_000_001]; big[0] = b'M'; big[1] = b'Z';
++        let sha = sha_hex(&big);
++        assert!(check_payload(big.len() as u64, &big, &sha, Some(1_000_001), Some(&sha.to_uppercase())).is_ok());
++        assert!(check_payload(big.len() as u64, &big, &sha, Some(5), None).is_err());
++        assert!(check_payload(big.len() as u64, &big, &sha, None, Some("00")).is_err());
++        assert!(check_payload(10, b"MZ", &sha, None, None).is_err());
++        let rel = json!({"assets":[{"name":"x.zip","size":1},{"name":EXE,"size":42,"digest":"sha256:ABCD"}]});
++        assert_eq!(asset_expect(&rel), (Some(42), Some("abcd".into())));
++        assert_eq!(asset_expect(&json!({})), (None, None));
++    }
++    #[test]
++    fn stage_verify_and_cleanup() {
++        let root = std::env::temp_dir().join(format!("pcstage-{}", std::process::id()));
++        let _ = std::fs::remove_dir_all(&root);
++        let dir = staged_dir(&root, "1.0.131");
++        std::fs::create_dir_all(&dir).unwrap();
++        let mut big = vec![1u8; 1_200_000]; big[0] = b'M'; big[1] = b'Z';
++        std::fs::write(dir.join(EXE), &big).unwrap();
++        assert!(verify_dir(&dir).is_none(), "ohne meta.json nicht bereit");
++        std::fs::write(dir.join("meta.json"), json!({"size": big.len(), "sha256": sha_hex(&big)}).to_string()).unwrap();
++        assert_eq!(verify_dir(&dir), Some(dir.join(EXE)));
++        big[5] = 9; std::fs::write(dir.join(EXE), &big).unwrap();
++        assert!(verify_dir(&dir).is_none(), "veraenderte exe nicht bereit");
++        std::fs::create_dir_all(staged_dir(&root, "1.0.120")).unwrap();
++        cleanup(&root, "1.0.131");
++        assert!(dir.is_dir());
++        assert!(!staged_dir(&root, "1.0.120").exists());
++        let _ = std::fs::remove_dir_all(&root);
++    }
++}
 diff --git a/agent/src/notion_tabs_stop.rs b/agent/src/notion_tabs_stop.rs
 new file mode 100644
 index 0000000..bba4580
@@ -17854,9 +18282,303 @@ index 0000000..db78264
 +}
 diff --git a/agent/src/notion_updates.rs b/agent/src/notion_updates.rs
 new file mode 100644
-index 0000000..0b6eea2
+index 0000000..8324f92
 --- /dev/null
 +++ b/agent/src/notion_updates.rs
+@@ -0,0 +1,288 @@
++//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
++//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
++//! und kann per Datei `update-now` eine sofortige Pruefung anstossen.
++use axum::{extract::Query, response::IntoResponse, Json};
++use serde::Deserialize;
++use serde_json::{json, Value};
++use std::path::PathBuf;
++use std::sync::Mutex;
++use std::time::{Duration, Instant};
++
++const REPO: &str = "369adi/PlazCode-Notion";
++const TAG_PREFIX: &str = "notion-desktop-v";
++const NGROK_ZIP: &str = "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip";
++const CACHE_SECS: u64 = 600;
++
++static CACHE: Mutex<Option<(Instant, Value)>> = Mutex::new(None);
++
++fn cache() -> std::sync::MutexGuard<'static, Option<(Instant, Value)>> { CACHE.lock().unwrap_or_else(|e| e.into_inner()) }
++
++pub fn base_dir() -> PathBuf {
++    std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion")
++}
++
++pub fn current_version() -> String {
++    std::env::current_exe().ok()
++        .and_then(|e| e.parent().map(|d| d.join(".version")))
++        .and_then(|p| std::fs::read_to_string(p).ok())
++        .map(|s| s.trim().to_string())
++        .filter(|s| !s.is_empty())
++        .unwrap_or_else(|| "dev".into())
++}
++
++fn parse_ver(s: &str) -> Option<(u32, u32, u32)> {
++    let p = s.trim().split('.').map(|x| x.parse::<u32>().ok()).collect::<Option<Vec<u32>>>()?;
++    if p.is_empty() || p.len() > 4 { return None; }
++    Some((p[0], *p.get(1).unwrap_or(&0), *p.get(2).unwrap_or(&0)))
++}
++
++/// Abschnitt "## Neu in <version>" aus den Release-Notes (README) herausschneiden.
++fn notes_for(body: &str, version: &str) -> String {
++    let body = body.replace("\r\n", "\n");
++    let head = format!("## Neu in {version}");
++    let Some(rest) = body.match_indices(&head).map(|(i, _)| &body[i + head.len()..]).find(|r| !r.starts_with(|c: char| c.is_ascii_digit() || c == '.')) else { return String::new() };
++    let end = rest.find("\n## ").unwrap_or(rest.len());
++    rest[..end].trim().trim_start_matches(':').trim().to_string()
++}
++
++fn log_tail() -> String {
++    let raw = std::fs::read_to_string(base_dir().join("logs").join("launcher.log")).unwrap_or_default();
++    let lines: Vec<&str> = raw.lines().collect();
++    lines[lines.len().saturating_sub(8)..].join("\n")
++}
++
++fn client(secs: u64) -> Result<reqwest::Client, String> {
++    reqwest::Client::builder().timeout(Duration::from_secs(secs)).user_agent("PlazCode-Notion").build().map_err(|e| e.to_string())
++}
++
++async fn fetch_releases() -> Result<Vec<Value>, String> {
++    let r = client(15)?
++        .get(format!("https://api.github.com/repos/{REPO}/releases?per_page=15"))
++        .header("Accept", "application/vnd.github+json")
++        .send().await.map_err(|e| format!("GitHub nicht erreichbar: {e}"))?;
++    if !r.status().is_success() { return Err(format!("GitHub antwortet mit HTTP {}", r.status())); }
++    let list: Vec<Value> = r.json().await.map_err(|e| e.to_string())?;
++    let mut out: Vec<((u32, u32, u32), Value)> = list.into_iter().filter_map(|rel| {
++        if rel.get("draft").and_then(Value::as_bool).unwrap_or(false) { return None; }
++        let ver = rel.get("tag_name")?.as_str()?.strip_prefix(TAG_PREFIX)?.to_string();
++        let key = parse_ver(&ver)?;
++        let body = rel.get("body").and_then(Value::as_str).unwrap_or("");
++        let date = rel.get("published_at").and_then(Value::as_str).and_then(|d| d.get(..10)).unwrap_or("").to_string();
++        Some((key, json!({"version": ver, "date": date, "url": rel.get("html_url").cloned().unwrap_or(Value::Null), "notes": notes_for(body, &ver)})))
++    }).collect();
++    out.sort_by(|a, b| b.0.cmp(&a.0));
++    Ok(out.into_iter().map(|(_, v)| v).collect())
++}
++
++pub async fn info(force: bool) -> Value {
++    let current = current_version();
++    let cached = cache().as_ref().filter(|(t, _)| !force && t.elapsed().as_secs() < CACHE_SECS).map(|(_, v)| v.clone());
++    let mut v = match cached {
++        Some(v) => v,
++        None => match fetch_releases().await {
++            Ok(releases) => {
++                let latest = releases.first().and_then(|r| r["version"].as_str()).unwrap_or("").to_string();
++                let v = json!({"releases": releases, "latest": latest, "checked": chrono::Local::now().format("%H:%M:%S").to_string()});
++                *cache() = Some((Instant::now(), v.clone()));
++                v
++            }
++            Err(e) => { let mut old = cache().as_ref().map(|(_, v)| v.clone()).unwrap_or_else(|| json!({"releases": [], "latest": ""})); old["error"] = json!(e); old }
++        },
++    };
++    let available = match (parse_ver(v["latest"].as_str().unwrap_or("")), parse_ver(&current)) { (Some(l), Some(c)) => l > c, _ => false };
++    v["ok"] = json!(true);
++    v["current"] = json!(current);
++    v["update_available"] = json!(available);
++    v["log"] = json!(log_tail());
++    v
++}
++
++#[derive(Deserialize)]
++pub struct UpdatesQuery { #[serde(default)] force: Option<u8> }
++
++pub async fn updates_handler(Query(q): Query<UpdatesQuery>) -> impl IntoResponse {
++    Json(info(q.force.unwrap_or(0) == 1).await)
++}
++
++// ---------- ngrok-Ersteinrichtung ----------
++
++/// Liegt die ngrok.yml nur virtualisiert beim Store-ngrok, in %LOCALAPPDATA%\ngrok kopieren (sonst fehlt dem eigenen ngrok der Token).
++pub fn ensure_real_ngrok_config() {
++    let Some(la) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) else { return };
++    let real = la.join("ngrok").join("ngrok.yml");
++    if real.is_file() { return; }
++    if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
++        for e in rd.flatten() {
++            if !e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { continue; }
++            let f = e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml");
++            if f.is_file() { let _ = std::fs::create_dir_all(la.join("ngrok")); let _ = std::fs::copy(&f, &real); return; }
++        }
++    }
++}
++
++pub fn has_authtoken() -> bool { !authtoken_mask().is_empty() }
++
++/// Gespeicherter Authtoken maskiert (z. B. "2abc...wxyz"), leer = keiner.
++pub fn authtoken_mask() -> String {
++    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
++    let mut files = Vec::new();
++    if let Some(la) = env("LOCALAPPDATA") {
++        files.push(la.join("ngrok").join("ngrok.yml"));
++        if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
++            for e in rd.flatten() { if e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { files.push(e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml")); } }
++        }
++    }
++    if let Some(up) = env("USERPROFILE") {
++        files.push(up.join(".config").join("ngrok").join("ngrok.yml"));
++        files.push(up.join(".ngrok2").join("ngrok.yml"));
++    }
++    if let Some(ad) = env("APPDATA") { files.push(ad.join("ngrok").join("ngrok.yml")); }
++    for f in &files {
++        if let Ok(t) = std::fs::read_to_string(f) {
++            for l in t.lines() {
++                if let Some(v) = l.trim_start().strip_prefix("authtoken:") {
++                    let v = v.trim().trim_matches(|c| c == '"' || c == '\'');
++                    if v.len() > 15 && v.is_ascii() { return format!("{}…{}", &v[..4], &v[v.len() - 4..]); }
++                }
++            }
++        }
++    }
++    String::new()
++}
++
++fn hidden(cmd: &mut tokio::process::Command) -> &mut tokio::process::Command {
++    #[cfg(windows)]
++    { cmd.creation_flags(0x0800_0000); }
++    cmd
++}
++
++pub(crate) async fn install_ngrok() -> Result<String, String> {
++    let dir = base_dir();
++    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
++    let zip = dir.join("ngrok-download.zip");
++    let bytes = client(240)?.get(NGROK_ZIP).send().await.map_err(|e| format!("Download fehlgeschlagen: {e}"))?
++        .error_for_status().map_err(|e| format!("Download fehlgeschlagen: {e}"))?
++        .bytes().await.map_err(|e| format!("Download fehlgeschlagen: {e}"))?;
++    if bytes.len() < 1_000_000 { return Err("Download unvollständig. Bitte nochmal versuchen.".into()); }
++    tokio::fs::write(&zip, &bytes).await.map_err(|e| e.to_string())?;
++    let tar = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join("System32").join("tar.exe")).filter(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("tar"));
++    let _ = tokio::task::spawn_blocking(crate::notion_mcp::stop_all_ngrok).await;
++    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
++    let _ = std::fs::remove_file(dir.join("ngrok.exe"));
++    let mut cmd = tokio::process::Command::new(tar);
++    let st = hidden(cmd.arg("-xf").arg(&zip).arg("-C").arg(&dir)).status().await.map_err(|e| format!("Entpacken fehlgeschlagen: {e}"))?;
++    let _ = tokio::fs::remove_file(&zip).await;
++    let exe = dir.join("ngrok.exe");
++    if !st.success() || !exe.is_file() { return Err("ngrok konnte nicht entpackt werden.".into()); }
++    ensure_real_ngrok_config();
++    crate::notion_mcp::use_ngrok_exe(&exe);
++    crate::notion_mcp::restart_tunnel();
++    Ok(format!("ngrok installiert ({}). Jetzt den Authtoken eintragen.", exe.display()))
++}
++
++pub(crate) async fn set_authtoken(raw: &str) -> Result<String, String> {
++    let tok: String = raw.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
++    if tok.len() < 20 { return Err("Das sieht nicht nach einem ngrok-Authtoken aus (dashboard.ngrok.com → Your Authtoken).".into()); }
++    let exe = crate::notion_mcp::ngrok_exe().ok_or("ngrok.exe fehlt – klicke zuerst auf „ngrok installieren“.")?;
++    let mut cmd = tokio::process::Command::new(exe);
++    let out = hidden(cmd.args(["config", "add-authtoken", tok.as_str()])).output().await.map_err(|e| e.to_string())?;
++    if !out.status.success() {
++        let err = String::from_utf8_lossy(&out.stderr).trim().chars().take(300).collect::<String>();
++        return Err(format!("ngrok meldet: {err}"));
++    }
++    crate::notion_mcp::restart_tunnel();
++    Ok("Authtoken gespeichert. Der Tunnel startet neu.".into())
++}
++
++/// 1.0.130: true, wenn diese Instanz durch "Jetzt updaten" gestartet wurde (Marker wird verbraucht).
++pub fn take_show_marker() -> bool {
++    let p = base_dir().join("show-after-update");
++    let hit = p.is_file();
++    if hit { let _ = std::fs::remove_file(&p); }
++    hit
++}
++
++/// Nur manuell (Knopf in AdiCode): erst alle aktiven Notion-Tabs benachrichtigen, dann installieren und neu starten.
++async fn update_now() -> Result<String, String> {
++    let mut v = info(false).await;
++    if !v["update_available"].as_bool().unwrap_or(false) { v = info(true).await; }
++    if !v["update_available"].as_bool().unwrap_or(false) { return Ok(format!("Kein neues Update ({} ist aktuell).", current_version())); }
++    std::fs::create_dir_all(base_dir()).map_err(|e| e.to_string())?;
++    let latest = v["latest"].as_str().unwrap_or("?").to_string();
++    *cache() = None;
++    // 1.0.130: nach dem Neustart oeffnet sich das Fenster der neuen Version automatisch (statt versteckt im Tray).
++    let _ = std::fs::write(base_dir().join("show-after-update"), &latest);
++    // Erst alle gerade arbeitenden Notion-Tabs warnen (Verbindung ist kurz weg), danach installieren und neu starten.
++    tokio::spawn(async move {
++        // Task #2: der Hinweis an die Tabs darf das Update nicht aufhalten (vorher bis ~30 s) - max 3 s, dann sofort installieren.
++        let _ = tokio::time::timeout(Duration::from_secs(3), crate::notion_live::announce_update(&latest)).await;
++        let trig = base_dir().join("update-now");
++        if let Err(e) = std::fs::write(&trig, "1") { eprintln!("[updates] Trigger: {e}"); }
++        // Der Launcher holt den Trigger binnen 1 s ab. Liegt er nach 4 s noch da (Launcher laeuft nicht), installiert die App selbst.
++        tokio::time::sleep(Duration::from_secs(4)).await;
++        if !trig.is_file() { return; }
++        let _ = std::fs::remove_file(&trig);
++        if let Err(e) = direct_install().await { eprintln!("[updates] Direkt-Update: {e}"); }
++    });
++    Ok(format!("Update auf {} wird vorbereitet: alle aktiven Notion-Tabs bekommen zuerst den Hinweis, dass die Verbindung kurz weg ist. Danach aktualisiert AdiCode und startet neu.", v["latest"].as_str().unwrap_or("?")))
++}
++
++async fn direct_install() -> Result<(), String> {
++    let v = info(true).await;
++    if !v["update_available"].as_bool().unwrap_or(false) { return Err("kein neueres Release".into()); }
++    let url = format!("https://github.com/{}/releases/latest/download/PlazCode-Notion.exe", REPO);
++    let bytes = client(180)?.get(url).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
++    if bytes.len() < 1_000_000 || &bytes[..2] != b"MZ" { return Err("Download ist keine gueltige exe".into()); }
++    let p = std::env::temp_dir().join("AdiCode-update.exe");
++    std::fs::write(&p, &bytes).map_err(|e| e.to_string())?;
++    std::process::Command::new(&p).spawn().map_err(|e| e.to_string())?;
++    // 1.0.130: alte Instanz beendet sich, damit keine versteckte Version im Tray zurueckbleibt.
++    tokio::time::sleep(Duration::from_millis(800)).await;
++    std::process::exit(0)
++}
++
++/// Tailscale (kostenloser Tunnel mit fester Adresse, ersetzt ngrok) per winget installieren.
++pub(crate) async fn install_tailscale() -> Result<String, String> {
++    if crate::notion_mcp::tailscale_exe().is_some() { return Ok("Tailscale ist schon installiert.".into()); }
++    let mut cmd = tokio::process::Command::new("winget");
++    cmd.args(["install", "--id", "Tailscale.Tailscale", "-e", "--silent", "--accept-package-agreements", "--accept-source-agreements"])
++        .stdin(std::process::Stdio::null()).kill_on_drop(true);
++    #[cfg(windows)]
++    cmd.creation_flags(0x0800_0000);
++    let out = tokio::time::timeout(Duration::from_secs(600), cmd.output()).await
++        .map_err(|_| "Tailscale-Installation dauert zu lange (10 Min).".to_string())?
++        .map_err(|e| format!("winget nicht verfuegbar ({e}). Tailscale bitte von tailscale.com/download installieren."))?;
++    for _ in 0..20 { if crate::notion_mcp::tailscale_exe().is_some() { break; } tokio::time::sleep(Duration::from_secs(1)).await; }
++    if crate::notion_mcp::tailscale_exe().is_some() {
++        crate::notion_mcp::restart_tunnel();
++        return Ok("Tailscale installiert. Jetzt in der Tailscale-App kostenlos anmelden - danach verbindet AdiCode automatisch.".into());
++    }
++    let txt = String::from_utf8_lossy(&out.stdout).to_string();
++    let tail: String = txt.trim().chars().rev().take(250).collect::<Vec<_>>().into_iter().rev().collect();
++    Err(format!("Tailscale-Installation fehlgeschlagen: {tail}"))
++}
++
++/// Aktionen der Notion-AI-/Updates-Seite. `None` = nicht zustaendig.
++pub async fn action(name: &str, v: &Value) -> Option<Result<String, String>> {
++    Some(match name {
++        "update_now" => update_now().await,
++        "install_ngrok" => install_ngrok().await,
++        "install_tailscale" => install_tailscale().await,
++        "set_ngrok_authtoken" => set_authtoken(v.as_str().unwrap_or("")).await,
++        _ => return None,
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn versions_and_notes() {
++        assert!(parse_ver("1.0.10") > parse_ver("1.0.9"));
++        assert_eq!(parse_ver("x"), None);
++        let body = "# T\r\n## Neu in 1.0.10: Updates\r\n- a\r\n## Neu in 1.0.1\r\n- b\r\n## Start\r\n";
++        assert_eq!(notes_for(body, "1.0.10"), "Updates\n- a");
++        assert_eq!(notes_for(body, "1.0.1"), "- b");
++        assert_eq!(notes_for(body, "1.0.2"), "");
++    }
++}
+diff --git a/agent/src/notion_updates.rs.k2bak b/agent/src/notion_updates.rs.k2bak
+new file mode 100644
+index 0000000..0b6eea2
+--- /dev/null
++++ b/agent/src/notion_updates.rs.k2bak
 @@ -0,0 +1,265 @@
 +//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
 +//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
@@ -18468,7 +19190,7 @@ index 3c12cf0..04e83bc 100644
          let mut state = Box::new(State { data, shared, restart: unsafe { RegisterWindowMessageW(wide("TaskbarCreated").as_ptr()) }, registered: false });
          let hooked = unsafe { SetWindowSubclass(state.data.window, procedure, SUBCLASS, (&mut *state as *mut State) as usize) != 0 };
 diff --git a/agent/src/updater.rs b/agent/src/updater.rs
-index ecb0723..8653d46 100644
+index ecb0723..66eda6e 100644
 --- a/agent/src/updater.rs
 +++ b/agent/src/updater.rs
 @@ -10,7 +10,7 @@ const DEFAULT_FEED: &str = "https://raw.githubusercontent.com/stoveez/PlazCode/m
@@ -18533,9 +19255,12 @@ index ecb0723..8653d46 100644
              let mut s=state();
              if let Err(error)=result { s.check_error=Some(error.to_string());if automatic {if s.background { LAUNCH_UPDATE.store(true,std::sync::atomic::Ordering::SeqCst); }else{
                  // Keep automatic updates enabled for an unattended desktop. The
-@@ -348,6 +358,7 @@ pub fn start_checker() {
+@@ -346,8 +356,9 @@ pub fn start_checker() {
+         }
+     });
  }
- pub async fn get() -> Json<Status> { Json(state().clone()) }
+-pub async fn get() -> Json<Status> { Json(state().clone()) }
++pub async fn get() -> Json<Value> { let mut v=serde_json::to_value(state().clone()).unwrap_or_default(); let st=crate::notion_stage::status(); if st.staging || st.staged { v["progress"]=serde_json::json!((st.progress*100.0).round() as u8); } v["staged"]=serde_json::json!(st.staged); v["staging"]=serde_json::json!(st.staging); v["stage"]=serde_json::to_value(&st).unwrap_or_default(); Json(v) }
  pub async fn post(Json(value): Json<Value>) -> axum::response::Response {
 +    if !value.is_null() { return (axum::http::StatusCode::CONFLICT,Json(serde_json::json!({"error":"Updates sind in PlazCode Notion (inoffizieller Fork) deaktiviert. Neue Versionen gibt es unter https://github.com/369adi/PlazCode-Notion/releases"}))).into_response(); }
      if value["action"]=="launch" { request_launch_update();return Json(serde_json::json!({"ok":true,"queued":true})).into_response(); }
