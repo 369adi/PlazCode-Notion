@@ -9,16 +9,19 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.134
+
+- Brave startet schlanker: weitere Hintergrunddienste aus, Disk-Cache auf 64 MB begrenzt, ein Prozess pro Website.
+- Brave-Speichersparmodus wird vor jedem Fensterstart automatisch in jedem Co-Work-Profil aktiviert.
+- Neue Plugins: Chat-Turbo (lange Chats fluessig, neuere Nachrichten werden wieder richtig angezeigt) und Release-Notes.
+
 ## Neu in 1.0.133
 
 - Chat-Turbo: lange Chats laggen nicht mehr, alte Nachrichten ausserhalb des Sichtbereichs werden nicht mehr gerendert.
 - Weniger Brave-Prozesse und RAM pro Co-Work-Fenster (keine Erweiterungen, kein Sync, kein Crash-Reporter, max. 2 Renderer).
 - AdiCode laeuft mit hoeherer Prioritaet: der MCP bricht bei Builds und vielen Chats nicht mehr ab.
 - Co-Work-Erinnerungen nur an Konten mit AdiCode-MCP; neue Konten bekommen nur die Bitte, sich zu verbinden.
-- Chat-Turbo: lange Chats laggen nicht mehr, alte Nachrichten ausserhalb des Sichtbereichs werden nicht mehr gerendert.
-- Weniger Brave-Prozesse und RAM pro Co-Work-Fenster (keine Erweiterungen, kein Sync, kein Crash-Reporter, max. 2 Renderer).
-- AdiCode laeuft mit hoeherer Prioritaet: der MCP bricht bei Builds und vielen Chats nicht mehr ab.
-- Co-Work-Erinnerungen nur an Konten mit AdiCode-MCP; neue Konten bekommen nur die Bitte, sich zu verbinden.
+
 ## Neu in 1.0.132
 
 - Lange Chats laggen viel weniger: Tool-Antworten werden ab 6.000 Zeichen gekuerzt (Rest liegt als Datei bereit), das Co-Work-Board ist kompakt.
