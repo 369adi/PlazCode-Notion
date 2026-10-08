@@ -9,6 +9,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.137
+
+- Co-Work: nur noch ein Notion-Tab pro Konto. Chats werden in diesem Tab umgeschaltet statt neue Tabs/Fenster zu oeffnen.
+- Geschlossene Fenster kommen nicht mehr von selbst wieder.
+- Waehrend Einrichtung/Check wird der Tab nicht von Co-Work umgeschaltet.
+- Refresh/MCP-Einrichtung raeumt doppelte Tabs auf und holt den Tab nach vorn (vorher: Workspace-Menue nicht gefunden).
+
 ## Neu in 1.0.136
 
 - Co-Work: ein Brave-Fenster pro Konto. Zusatz-Chats oeffnen als Tabs im selben Fenster statt in einem zweiten Brave-Fenster (kein --app-Fenster mehr).
