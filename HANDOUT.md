@@ -1,2 +1,3 @@
 
 - **1.0.124**: Co-Work: running_ids erkennt Tabs zusaetzlich per CDP-Port (9300+id); tab_no_mcp (mcp=Fehlt..., ohne mcp_saved) -> agent_unavailable + auto_fill ueberspringen.
+- **1.0.125**: 1.0.125: notion_team.rs (team_loop ersetzt slot_monitor+auto_fill; tab_offline per CDP-Port; Einladung via team_invite ohne THREAD_OK_JS; Zustellung team_deliver max 3x je Signatur); notion_cowork::active_project; AI_OFF_JS nur sichtbarer kurzer Hinweis; tab_no_mcp=false.

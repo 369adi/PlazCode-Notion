@@ -284,6 +284,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 ## Neu in 1.0.124
 - **Co-Work verteilt Aufgaben endlich auf mehrere Chats**: Laufende Konto-Tabs wurden teils als *Tab laeuft nicht* erkannt, deshalb wurden nie Zusatz-Chats geholt. Ein Tab gilt jetzt auch als laufend, wenn sein Fenster antwortet - freie Chats bekommen sofort Aufgaben.
 - **Tabs ohne AdiCode-Verbindung werden ausgelassen**: Ist in einem Konto die AdiCode-MCP-Einrichtung fehlgeschlagen, wird es nicht mehr eingetragen oder geweckt, statt Aufgaben zu blockieren.
+## Neu in 1.0.125
+- **Co-Work-Team neu geschrieben**: Eine einzige Schleife pro Konto ersetzt die alten, sich ueberschneidenden Mechanismen. Freie Chats (auch ganz neue ohne AdiCode-Verlauf) werden automatisch zum offenen Co-Work eingeladen und verbinden sich selbst mit AdiCode.
+- **Sichtbarer Status pro Konto**: Im Konto steht jetzt, wie viele Chats im Team sind und warum ein Chat nicht mitmacht (z. B. gerade offen im Fenster oder KI deaktiviert).
+- **Kein falscher Alarm mehr bei KI deaktiviert**: Erkannt wird nur noch der echte Notion-Hinweis, nicht mehr eigener Chat-Text.
+- **Co-Work hilft weiter**: Agents ohne freien Task bieten Hilfe an; Co-Work-Nachrichten laufen direkt ueber die Live-Bridge.
 ## Neu in 1.0.34–1.0.23
 (fixiert in 1.0.29: lokale schnelle Releases; Kompaktversion der alten Einzelnachrichten)
 

@@ -5615,10 +5615,10 @@ index 0000000..36e15d1
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..9be8fbe
+index 0000000..38ef680
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1838 @@
+@@ -0,0 +1,1886 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -5741,6 +5741,8 @@ index 0000000..9be8fbe
 +pub(crate) fn latest_lead() -> String { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.lead.clone()).unwrap_or_default() }
 +pub(crate) fn project_name_for(agent: &str) -> String { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner()); b.projects.values().filter(|p|p.lead==agent||p.agents.contains_key(agent)).max_by_key(|p|p.created).map(|p|{let t=p.title.trim();let t=match t.split_once(':'){Some((a,rest)) if a.trim().to_lowercase().starts_with("projekt")=>rest.trim(),_=>t};t.chars().take(40).collect::<String>()}).unwrap_or_default() }
 +pub(crate) fn joined_agents() -> Vec<String> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().flat_map(|p|p.agents.keys().cloned()).collect() }
++/// Co-Work-Team: neuestes Projekt mit offenen Tasks (id, Titel) - dorthin werden freie Chats eingeladen.
++pub(crate) fn active_project() -> Option<(String, String)> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner()); b.projects.values().filter(|p|p.tasks.iter().any(|t|t.status!="done")).max_by_key(|p|p.created).map(|p|(p.id.clone(),p.title.clone())) }
 +/// Offene (nicht erledigte) Tasks ueber alle Projekte - solange > 0, nutzt jedes Konto alle freien Chats.
 +pub(crate) fn open_task_count() -> usize { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().map(|p|p.tasks.iter().filter(|t|t.status!="done").count()).sum() }
 +pub(crate) fn latest_agent_roles() -> Vec<String> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.created).map(|p|p.agents.values().map(|a|a.role.clone()).collect()).unwrap_or_default() }
@@ -6105,9 +6107,38 @@ index 0000000..9be8fbe
 +}
 +
 +fn post(p: &mut Project, from: &str, to: &str, text: String) {
++    // Direkt ueber die Live-Bridge zustellen: haengt beim naechsten Tool-Aufruf des Empfaengers an (jedes Tool, nicht nur cowork_*), ohne Text in seinen Chat zu tippen.
++    crate::notion_live::note_msg(from, to, &text);
 +    p.next_msg += 1;
 +    p.messages.push(Msg { id: p.next_msg, from: from.to_string(), to: to.to_string(), text, ts: now() });
 +    if p.messages.len() > 300 { let cut = p.messages.len() - 300; p.messages.drain(..cut); }
++}
++
++/// Hoechstens ein Hilfe-Angebot pro Helfer und Empfaenger in diesem Zeitraum.
++const HELP_SECS: i64 = 180;
++
++/// Kein freier Task: aktive Agents mit laufenden Tasks anstupsen und fragen, ob man ihnen etwas abnehmen kann.
++fn offer_help(p: &mut Project, agent: &str) -> String {
++    let t = now();
++    let mut busy: Vec<(String, u64, String)> = p.tasks.iter()
++        .filter(|x| x.status == "claimed" && !x.owner.is_empty() && x.owner != agent && alive(p, &x.owner))
++        .map(|x| (x.owner.clone(), x.id, x.title.clone()))
++        .collect();
++    if busy.is_empty() { return String::new(); }
++    busy.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
++    busy.dedup_by(|a, b| a.0 == b.0);
++    let mut asked = Vec::new();
++    let mut pending = Vec::new();
++    for (owner, id, title) in busy {
++        let recent = p.messages.iter().any(|m| m.from == agent && m.to == owner && m.text.starts_with("HILFE-ANGEBOT") && t - m.ts < HELP_SECS);
++        if recent { pending.push(format!("{owner} (#{id})")); continue; }
++        post(p, agent, &owner, format!("HILFE-ANGEBOT von {agent}: Ich habe gerade keinen freien Task. Kann ich dir bei #{id} ({title}) etwas abnehmen? Wenn ja: Teilaufgaben anlegen mit cowork_update task_id={id} status=claimed tasks=[{{title, detail, files, assignee: \"{agent}\"}}] - oder per cowork_message (to: {agent}) sagen, was ich uebernehmen soll. Wenn nicht: kurz absagen."));
++        asked.push(format!("{owner} (#{id} {title})"));
++    }
++    let mut out = String::new();
++    if !asked.is_empty() { out.push_str(&format!(" Hilfe angeboten an: {}. Antwort kommt per cowork_wait; neue Teilaufgaben fuer dich holst du mit cowork_claim.", asked.join(", "))); }
++    if !pending.is_empty() { out.push_str(&format!(" Schon gefragt, Antwort ausstehend: {}.", pending.join(", "))); }
++    out
 +}
 +
 +/// All reviews/fixes of a work task are finished.
@@ -6355,7 +6386,8 @@ index 0000000..9be8fbe
 +                            let news = take_unread(p, &agent);
 +                            let gated = p.tasks.iter().filter(|t| t.kind.is_empty() && t.status == "open" && !gate_open(p, t.wave)).count();
 +                            let why = if gated > 0 { format!(" {gated} Task(s) warten noch auf die Bewertungen.") } else { String::new() };
-+                            return Ok((format!("Gerade kein freier Task fuer dich.{why} Mit cowork_wait warten.{news}"), true));
++                            let help = offer_help(p, &agent);
++                            return Ok((format!("Gerade kein freier Task fuer dich.{why}{help} Mit cowork_wait warten.{news}"), true));
 +                        }
 +                    }
 +                }
@@ -6593,13 +6625,11 @@ index 0000000..9be8fbe
 +    let (from, to, msg) = (s(args, "agent"), s(args, "to"), s(args, "text"));
 +    if from.is_empty() { return err("agent fehlt (dein Agent-Name)".to_string()); }
 +    if msg.is_empty() { return err("text fehlt".to_string()); }
++    // Keine Prompt-Injektion mehr (kein Wecken per Chat-Eingabe): die Bridge haengt die Nachricht direkt an den naechsten Tool-Aufruf des Empfaengers.
 +    crate::notion_live::note_msg(&from, &to, &msg);
-+    let woke = !to.is_empty() && crate::notion_profiles::wake_agent(&to, format!(
-+        "[AdiCode Live-Bridge] Nachricht von {from}: {msg}\n\nBitte lesen und bei Bedarf antworten mit cowork_message (agent: {to}, to: {from}, text: ...) - geht auch ohne Co-Work-Projekt."));
-+    let known = to.is_empty() || woke || crate::notion_live::known_agents().contains(&to);
++    let known = to.is_empty() || crate::notion_live::known_agents().contains(&to);
 +    let target = if to.is_empty() { "an alle offenen Chats".to_string() } else { format!("an {to}") };
-+    let how = if woke { "; sein Tab ist frei und wird geweckt" }
-+        else if known { "; kommt bei seinem naechsten Tool-Aufruf an" }
++    let how = if known { "; die Bridge stellt sie direkt bei seinem naechsten Tool-Aufruf zu" }
 +        else { " - Achtung: ein Chat mit diesem Namen war noch nicht aktiv, die Nachricht wartet, bis er AdiCode benutzt" };
 +    text(format!("Nachricht ueber die Live-Bridge {target} gesendet{how}."))
 +}
@@ -6907,6 +6937,24 @@ index 0000000..9be8fbe
 +        let mut schema = json!({"name": "files_write_file", "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}}});
 +        extend_write_schema("files_write_file", &mut schema);
 +        assert!(schema["inputSchema"]["properties"]["agent"].is_object());
++    }
++
++    #[test]
++    fn idle_agent_offers_help_to_busy_agent() {
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "T", "goal": "G", "agent": "lead", "assess": false, "tasks": [{"title": "grosser task"}]})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "a"})));
++        ok(dispatch(&mut b, "cowork_join", &json!({"agent": "b"})));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "a"}))).contains("#1"));
++        let c = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "b"})));
++        assert!(c.contains("Hilfe angeboten an: a (#1"), "{c}");
++        let again = ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "b"})));
++        assert!(again.contains("Antwort ausstehend: a (#1)") && !again.contains("Hilfe angeboten"), "{again}");
++        let w = ok(dispatch(&mut b, "cowork_board", &json!({"agent": "a"})));
++        assert!(w.contains("HILFE-ANGEBOT von b"), "{w}");
++        // a legt eine Teilaufgabe fuer b an -> b bekommt sie per claim
++        ok(dispatch(&mut b, "cowork_update", &json!({"agent": "a", "task_id": 1, "status": "claimed", "tasks": [{"title": "teil fuer b", "assignee": "b"}]})));
++        assert!(ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "b"}))).contains("teil fuer b"));
 +    }
 +
 +    #[test]
@@ -10547,10 +10595,10 @@ index 0000000..fc2ff59
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..cd64139
+index 0000000..798adca
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1404 @@
+@@ -0,0 +1,1344 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -10981,7 +11029,7 @@ index 0000000..cd64139
 +/// Tab-Monitor (immer an, auch ohne "Co-Work starten"): meldet der Live-Bridge, welcher Tab gerade generiert,
 +/// und stoppt haengende Chats nach STUCK_SECS ohne Fortschritt (nicht bei "Selbst schreiben").
 +/// Erkennt "Notion AI was disabled in this workspace" (und deutsche Varianten) im Tab.
-+const AI_OFF_JS:&str=r#"(()=>{const t=(document.body&&document.body.innerText)||'';const m=t.match(/(Notion AI (was|has been|is|got) (disabled|turned off|deactivated)[^\n]{0,60}|AI (was|has been|is) disabled (in|for) this workspace|Notion[ -]?KI (wurde|ist) [^\n]{0,40}deaktiviert[^\n]{0,40}|KI (wurde|ist) (in|f.r) diese[nm] (Workspace|Arbeitsbereich) deaktiviert)/i);if(!m)return null;const i=t.indexOf(m[0]);return {hit:m[0],ctx:t.slice(Math.max(0,i-800),i+800),url:location.href,title:document.title}})()"#;
++const AI_OFF_JS:&str=r#"(()=>{const re=/(Notion AI (was|has been|is|got) (disabled|turned off|deactivated)|AI (was|has been|is) disabled (in|for) this workspace|Notion[ -]?KI (wurde|ist) [^\n]{0,40}deaktiviert|KI (wurde|ist) (in|f.r) diese[nm] (Workspace|Arbeitsbereich) deaktiviert)/i;const p=(document.body&&document.body.innerText)||'';if(!re.test(p))return null;const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};for(const e of document.querySelectorAll('div,span,p')){if(e.closest('[contenteditable="true"]'))continue;const t=(e.innerText||'').trim();if(!t||t.length>140)continue;const m=t.match(re);if(!m||t.length>m[0].length+40||/[\u201e\u201c\u201d"']/.test(t)||!vis(e))continue;const i=p.indexOf(m[0]);return {hit:m[0],ctx:p.slice(Math.max(0,i-800),i+800),url:location.href,title:document.title}}return null})()"#;
 +static AI_OFF: Lazy<Mutex<BTreeMap<u32,bool>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
 +/// Co-Work (1.0.123): Zusatz-Chats, die gerade nicht schreiben koennen (Tab zu oder "KI fuer diesen Workspace deaktiviert").
 +static SLOT_OFF: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
@@ -10991,7 +11039,7 @@ index 0000000..cd64139
 +/// Konto-Tab zeigt "Notion KI ist fuer diesen Workspace deaktiviert".
 +pub(crate) fn tab_ai_off(id:u32)->bool{lock(&AI_OFF).get(&id).copied().unwrap_or(false)}
 +/// 1.0.124: Konto-Tab ohne AdiCode-MCP (Einrichtung fehlgeschlagen) kann keine Co-Work-Tools aufrufen -> nicht eintragen, keine Zusatz-Chats.
-+pub(crate) fn tab_no_mcp(id:u32)->bool{ if cfg!(test){return false;} let a=lock(&ACCOUNT); let Some(v)=a.get(&id) else {return false}; if v["mcp_saved"].as_bool()==Some(true){return false;} v["mcp"].as_str().map(|s|s.starts_with("Fehlt")||s.starts_with("Auto-Einrichtung fehlgeschlagen")).unwrap_or(false) }
++pub(crate) fn tab_no_mcp(_id:u32)->bool{ false } #[allow(dead_code)] fn tab_no_mcp_old(id:u32)->bool{ if cfg!(test){return false;} let a=lock(&ACCOUNT); let Some(v)=a.get(&id) else {return false}; if v["mcp_saved"].as_bool()==Some(true){return false;} v["mcp"].as_str().map(|s|s.starts_with("Fehlt")||s.starts_with("Auto-Einrichtung fehlgeschlagen")).unwrap_or(false) }
 +/// Co-Work: Agent kann gerade nicht schreiben (Fenster zu, uebersprungen, KI im Tab oder im Zusatz-Chat deaktiviert)
 +/// -> wird nicht eingetragen, nicht geweckt, seine Tasks werden wieder frei. Agents ohne AdiCode-Tab (freie Namen) gelten als verfuegbar.
 +pub(crate) fn agent_unavailable(agent:&str)->bool{
@@ -11870,68 +11918,7 @@ index 0000000..cd64139
 +}
 +/// Live-Monitor: Chat-Liste, laufende Chats und 6h-Kreditfenster jedes laufenden Kontos direkt von Notion (mit menschlicher Streuung).
 +async fn live_monitor(){loop{let tabs=load();let running=tokio::task::spawn_blocking({let t=tabs.clone();move||running_ids(&t)}).await.unwrap_or_default();for(i,t)in tabs.iter().enumerate(){if running.contains(&t.id){let _=tokio::time::timeout(Duration::from_secs(20),live_one(t,i)).await;}else{let mut a=lock(&ACCOUNT);if let Some(e)=a.get_mut(&t.id){e["chats_live_running"]=json!(0);e["chats_live_open"]=json!(0);}}}tokio::time::sleep(human_sleep(Duration::from_secs(9),60)).await;}}
-+/// Zusatz-Chats: Generier-Status an die Live-Bridge, haengende Laeufe stoppen, Co-Work-Erinnerungen schicken und
-+/// Geschlossene Slot-Tabs werden NIE automatisch wieder geoeffnet.
-+async fn slot_monitor(){
-+    let mut stuck:BTreeMap<String,(String,std::time::Instant)>=BTreeMap::new();
-+    let mut last:BTreeMap<String,(String,std::time::Instant,u32)>=BTreeMap::new();
-+    let mut last_fill=std::time::Instant::now().checked_sub(Duration::from_secs(120)).unwrap_or_else(std::time::Instant::now);
-+    loop{
-+        tokio::time::sleep(human_sleep(Duration::from_secs(4),50)).await;
-+        let tabs=load();
-+        if last_fill.elapsed()>Duration::from_secs(15){last_fill=std::time::Instant::now();auto_fill(&tabs).await;}
-+        let all=slots_all();if all.values().all(|v|v.is_empty()){continue;}
-+        for(i,t)in tabs.iter().enumerate(){
-+            let sl=all.get(&t.id).cloned().unwrap_or_default();if sl.is_empty(){continue;}
-+            let port=cdp_port(i);let targets=page_targets(port).await;
-+            if targets.is_empty(){for j in 0..sl.len(){crate::notion_live::set_generating(&slot_agent(t,j+2),false);lock(&SLOT_OFF).insert(slot_agent(t,j+2));}continue;}
-+            for(j,tid)in sl.iter().enumerate(){
-+                let agent=slot_agent(t,j+2);
-+                let Some(ws)=targets.iter().find(|x|url_tid(x["url"].as_str().unwrap_or(""))==*tid).and_then(|x|x["webSocketDebuggerUrl"].as_str().map(String::from)) else {
-+                    crate::notion_live::set_generating(&agent,false);
-+                    lock(&SLOT_OFF).insert(agent.clone());
-+                    // Co-Work oeffnet NIE selbst Browser-Tabs: geschlossene Zusatz-Chat-Tabs werden nicht wieder geoeffnet (nur die im Co-Work gestarteten Tabs zaehlen).
-+                    continue;
-+                };
-+                // Chat offen, aber "KI fuer diesen Workspace deaktiviert": er kann nicht schreiben -> aus Co-Work nehmen, bis der Hinweis weg ist.
-+                let off=ws_eval(&ws,AI_OFF_JS).await.ok().map(|v|v.is_object()).unwrap_or(false);
-+                {let mut so=lock(&SLOT_OFF);let was=so.contains(&agent);if off&&!was{tl(&format!("{agent}: KI fuer diesen Workspace deaktiviert - aus Co-Work genommen"));}if off{so.insert(agent.clone());}else{so.remove(&agent);}}
-+                if off{crate::notion_live::set_generating(&agent,false);continue;}
-+                match ws_eval(&ws,SLOT_GEN_JS).await.ok().and_then(|v|v.as_str().map(String::from)){
-+                    Some(s)=>{crate::notion_live::set_generating(&agent,true);let e=stuck.entry(agent.clone()).or_insert((s.clone(),std::time::Instant::now()));if e.0!=s{*e=(s,std::time::Instant::now());}else if e.1.elapsed()>Duration::from_secs(STUCK_SECS){let _=ws_eval(&ws,SLOT_STOP_JS).await;stuck.remove(&agent);last.remove(&agent);tracing::warn!("Co-Work: Zusatz-Chat {agent} hing {STUCK_SECS}s ohne Fortschritt - gestoppt");}continue;}
-+                    None=>{crate::notion_live::set_generating(&agent,false);stuck.remove(&agent);}
-+                }
-+                if skipped(t.id){continue;}
-+                let Some((sig,text))=crate::notion_cowork::nudge_for(&agent) else {continue};
-+                if let Some((s,at,n))=last.get(&agent){if *s==sig&&(sig.starts_with("done:")||*n>=3||at.elapsed()<Duration::from_secs(90)){continue;}}
-+                if ws_eval(&ws,"document.hasFocus()").await.ok().and_then(|v|v.as_bool())==Some(true){continue;}
-+                if ws_eval(&ws,SLOT_IDLE_JS).await.ok().and_then(|v|v.as_bool())!=Some(true){continue;}
-+                tokio::time::sleep(Duration::from_secs(2)).await;
-+                if ws_eval(&ws,SLOT_IDLE_JS).await.ok().and_then(|v|v.as_bool())!=Some(true){continue;}
-+                if ws_send_prompt(&ws,Some(tid.as_str()),&text).await.is_ok(){let n=last.get(&agent).filter(|(s,_,_)|*s==sig).map(|x|x.2+1).unwrap_or(1);last.insert(agent.clone(),(sig,std::time::Instant::now(),n));}
-+            }
-+        }
-+    }
-+}
-+/// Jedes laufende Konto nutzt automatisch ALLE freien bestehenden Chats, solange ein Co-Work-Projekt fuer das Konto aktiv ist.
-+/// Chats, die gerade generieren, werden uebersprungen; es wird nie ein neuer Notion-Chat erstellt. Pro Durchgang hoechstens 1 Chat je Konto (RAM-Schonung).
-+async fn auto_fill(tabs:&[Tab]){
-+    if crate::notion_cowork::project_count()==0||crate::notion_cowork::open_task_count()==0{return;}
-+    let running=tokio::task::spawn_blocking({let t=tabs.to_vec();move||running_ids(&t)}).await.unwrap_or_default();
-+    for(i,t)in tabs.iter().enumerate(){
-+        if !running.contains(&t.id)||is_paused(t.id){continue;}
-+        if tab_ai_off(t.id)||tab_no_mcp(t.id){continue;}
-+        let sl=slots_of(t.id);if 1+sl.len()>=MAX_CHATS_PER_ACCOUNT{continue;}
-+        let main=welcome_url(t).map(|u|url_tid(&u)).unwrap_or_default();
-+        let chats=lock(&ACCOUNT).get(&t.id).and_then(|a|a["chats_live"].as_array().cloned()).unwrap_or_default();
-+        let free=chats.iter().any(|c|{let id=norm_tid(c["id"].as_str().unwrap_or(""));id.len()==32&&id!=main&&!sl.contains(&id)&&c["open"].as_bool()!=Some(true)&&c["running"].as_bool()!=Some(true)});
-+        if !free{continue;}
-+        if !lock(&SLOT_BUSY).insert(t.id){continue;}
-+        let (t2,id)=(t.clone(),t.id);
-+        tokio::spawn(async move{let r=add_chat(t2,i,None).await;if let Err(e)=&r{mark_account(id,"slots_state",json!(format!("Auto: {e}")));}lock(&SLOT_BUSY).remove(&id);});
-+    }
-+}
-+pub(crate) fn ensure_multichat(){if cfg!(test)||tokio::runtime::Handle::try_current().is_err(){return;}if !LIVE_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(live_monitor());}if !SLOTS_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(slot_monitor());}}
++pub(crate) fn ensure_multichat(){if cfg!(test)||tokio::runtime::Handle::try_current().is_err(){return;}if !LIVE_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(live_monitor());}if !SLOTS_STARTED.swap(true,Ordering::SeqCst){tokio::spawn(team_loop());}}
 +/// Live-Bridge fuer Zusatz-Chats: wie wake_agent, aber im Slot-Tab des Agents.
 +fn wake_slot(i:usize,tid:String,agent:String,text:String){
 +    let port=cdp_port(i);
@@ -11955,6 +11942,7 @@ index 0000000..cd64139
 +    #[test] fn notion_multichat_rate(){let mut e=json!({"usage":0,"rate_used":42.4,"rate_limit":100.0,"rate_status":"within_limit"});apply_rate(&mut e);assert_eq!(e["usage"],json!(42));assert_eq!(e["rate_pct"],json!(42));assert!(e.get("exhausted").is_none()||e["exhausted"]!=json!(true));let mut f=json!({"usage":10,"rate_used":100.0,"rate_limit":100.0,"rate_status":"over_limit"});apply_rate(&mut f);assert_eq!(f["exhausted"],json!(true));assert_eq!(f["usage"],json!(100));let mut g=json!({"usage":70,"rate_used":5.0,"rate_limit":100.0});apply_rate(&mut g);assert_eq!(g["usage"],json!(70));}
 +    #[test] fn notion_multichat_slot_agent(){let t=Tab{id:2,label:"Tab 2".into(),email:"a@b.c".into(),role:"Tab 1".into(),url:String::new(),autostart:true};assert_eq!(slot_agent(&t,2),"AdiCode-Tab1-K2");let m=Tab{role:"Main 1".into(),..t.clone()};assert_eq!(slot_agent(&m,3),"AdiCode-Main1-K3");}
 +}
++include!("notion_team.rs");
 diff --git a/agent/src/notion_project_memory.rs b/agent/src/notion_project_memory.rs
 new file mode 100644
 index 0000000..b8a14cc
@@ -13682,6 +13670,215 @@ index 0000000..30c6120
 +- Planning: thinking_sequentialthinking for hard problems; skills brainstorm -> plan -> tdd -> review -> verify -> finish.
 +- Memory: project_memory_* + HANDOUT.md (durable), memory_* (graph notes).
 +If an add-on is missing: tell the user to enable it in the AdiCode app (Add-ons) and which key it needs."#;
+diff --git a/agent/src/notion_team.rs b/agent/src/notion_team.rs
+new file mode 100644
+index 0000000..0ee5721
+--- /dev/null
++++ b/agent/src/notion_team.rs
+@@ -0,0 +1,203 @@
++// ===================== Co-Work Team (1.0.125, komplett neu) =====================
++// Prinzip: EIN Konto, MEHRERE Chats, EINE Aufgabe. Ersetzt slot_monitor + auto_fill.
++// Eine einzige Schleife pro Konto, ohne versteckte Sperren:
++//   1. Laeuft das Konto?  -> nur: antwortet das Fenster (CDP-Port). Sonst nichts tun.
++//   2. Chat-Liste direkt von Notion lesen (LIVE_JS).
++//   3. Mitglieder (chat-slots.json): generiert -> Live-Status an die Bridge;
++//      ruhig + Neuigkeiten vom Board -> Nachricht direkt in den Chat (Hintergrund-Tab).
++//   4. Gibt es ein Co-Work mit offenen Tasks: naechsten freien Chat einladen
++//      (nicht der Chat, in dem der Nutzer schreibt, nicht generierend, nicht gerade benutzt).
++//      Die Einladung enthaelt den Hinweis, sich mit dem AdiCode-MCP zu verbinden (neue Chats).
++//   5. Jeder Grund, warum ein Chat NICHT mitmacht, steht sichtbar im Konto (slots_state) + timeline.log.
++// Es wird nie ein neuer Notion-Chat erstellt (open_target erlaubt nur bestehende t=...).
++
++static TEAM_STARTED: AtomicBool = AtomicBool::new(false);
++static TEAM_STATE: Lazy<Mutex<BTreeMap<u32, String>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
++static TEAM_SENT: Lazy<Mutex<BTreeMap<String, (String, std::time::Instant, u32)>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
++static TEAM_FAIL: Lazy<Mutex<BTreeMap<String, std::time::Instant>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
++const TEAM_TICK_SECS: u64 = 8;
++const TEAM_RETRY_SECS: u64 = 300;
++const TEAM_FRESH_SECS: i64 = 45;
++
++fn team_mark(id: u32, s: String) {
++    let changed = lock(&TEAM_STATE).insert(id, s.clone()).as_deref() != Some(s.as_str());
++    if changed {
++        tl(&format!("tab{id} TEAM {s}"));
++        mark_account(id, "slots_state", json!(s));
++    }
++}
++
++/// Einladung fuer einen freien Chat. Funktioniert auch in einem ganz neuen Chat ohne AdiCode-Verlauf.
++fn team_prompt(agent: &str, pid: &str, title: &str) -> String {
++    format!("AdiCode Co-Work (automatische Nachricht von AdiCode, vom Nutzer eingerichtet): In diesem Notion-Konto arbeiten mehrere Chats gleichzeitig an EINER Aufgabe. Egal, was vorher in diesem Chat stand: du bist ab jetzt Agent \"{agent}\".\n0. Nutze den AdiCode-MCP-Connector (Tools cowork_join, cowork_claim, cowork_update ...). Siehst du diese Tools nicht, verbinde dich zuerst mit dem AdiCode-MCP und mach dann hier weiter.\n1. adicode_skill name=cowork laden.\n2. cowork_join mit project \"{pid}\", role worker, agent \"{agent}\" (Projekt: {title}).\n3. Schleife: cowork_claim -> Task erledigen -> cowork_update (1 Satz Ergebnis) -> cowork_claim ... bis nichts mehr frei ist, dann cowork_wait. Nachrichten, Updates und Release-Hinweise kommen ueber die AdiCode-Bridge an deine Tool-Antworten.")
++}
++
++fn team_updated_secs_ago(c: &Value, now_ms: i64) -> Option<i64> {
++    let u = c["updated"].as_i64().or_else(|| c["updated"].as_f64().map(|f| f as i64))?;
++    if u <= 0 { return None; }
++    let ms = if u > 100_000_000_000 { u } else { u * 1000 };
++    Some((now_ms - ms) / 1000)
++}
++
++async fn team_ready(ws: &str, tid: &str) -> bool {
++    for _ in 0..30 {
++        let here = ws_eval(ws, "location.href").await.ok().and_then(|v| v.as_str().map(String::from)).map(|u| url_tid(&u) == tid).unwrap_or(false);
++        if here && ws_eval(ws, SLOT_IDLE_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { return true; }
++        tokio::time::sleep(Duration::from_millis(500)).await;
++    }
++    false
++}
++
++/// Bestehenden Chat im Hintergrund-Tab oeffnen (oder den schon offenen Tab nehmen). Gibt (ws, neu geoeffnete target-id) zurueck.
++async fn team_open(port: u16, tid: &str) -> Result<(String, Option<String>), String> {
++    if let Some(ws) = slot_ws(port, tid).await { return Ok((ws, None)); }
++    let targets = page_targets(port).await;
++    let origin = origin_of(&targets);
++    let tg = open_target(port, &format!("{origin}/chat?t={tid}")).await?;
++    match target_ws_by_id(port, &tg, 20).await {
++        Ok(ws) => Ok((ws, Some(tg))),
++        Err(e) => { close_target(port, &tg).await; Err(e) }
++    }
++}
++
++async fn team_invite(t: &Tab, i: usize, tid: &str, agent: &str, pid: &str, title: &str) -> Result<(), String> {
++    let port = cdp_port(i);
++    let (ws, opened) = team_open(port, tid).await?;
++    let fail = |e: String| async { if let Some(tg) = &opened { close_target(port, tg).await; } Err::<(), String>(e) };
++    if !team_ready(&ws, tid).await { return fail("Chat-Eingabe nicht bereit (Chat arbeitet oder laedt nicht)".into()).await; }
++    if ws_eval(&ws, AI_OFF_JS).await.ok().map(|v| v.is_object()).unwrap_or(false) { return fail("KI ist in diesem Workspace deaktiviert".into()).await; }
++    if let Err(e) = ws_send_prompt(&ws, Some(tid), &team_prompt(agent, pid, title)).await { return fail(e).await; }
++    tl(&format!("tab{} TEAM-INVITE {agent} t={tid} p={pid}", t.id));
++    Ok(())
++}
++
++async fn team_deliver(port: u16, tid: &str, text: &str) -> Result<(), String> {
++    let (ws, _) = team_open(port, tid).await?;
++    let mut idle = false;
++    for _ in 0..20 {
++        if ws_eval(&ws, SLOT_IDLE_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { idle = true; break; }
++        tokio::time::sleep(Duration::from_millis(500)).await;
++    }
++    if !idle { return Err("Chat arbeitet gerade".into()); }
++    if ws_eval(&ws, "document.hasFocus()").await.ok().and_then(|v| v.as_bool()) == Some(true) { return Err("Nutzer ist gerade in diesem Chat".into()); }
++    ws_send_prompt(&ws, Some(tid), text).await
++}
++
++async fn team_tab(t: &Tab, i: usize) {
++    let sl = slots_of(t.id);
++    let agents: Vec<String> = (0..sl.len()).map(|j| slot_agent(t, j + 2)).collect();
++    if skipped(t.id) { team_mark(t.id, "Konto uebersprungen".into()); return; }
++    if tab_offline(i) {
++        for a in &agents { crate::notion_live::set_generating(a, false); lock(&SLOT_OFF).insert(a.clone()); }
++        team_mark(t.id, "Fenster zu - Konto macht nicht mit".into());
++        return;
++    }
++    for a in &agents { lock(&SLOT_OFF).remove(a); }
++    let port = cdp_port(i);
++    let v = match js_eval(port, LIVE_JS).await {
++        Ok(v) if v["ok"].as_bool() == Some(true) => v,
++        Ok(v) => { team_mark(t.id, format!("Chat-Liste nicht lesbar: {}", v["error"].as_str().unwrap_or("unbekannt"))); return; }
++        Err(e) => { team_mark(t.id, format!("Chat-Liste nicht lesbar: {e}")); return; }
++    };
++    let chats = v["chats"].as_array().cloned().unwrap_or_default();
++    let running: HashSet<String> = chats.iter().filter(|c| c["running"].as_bool() == Some(true)).filter_map(|c| c["id"].as_str().map(norm_tid)).collect();
++
++    // Mitglieder: Live-Status + Board-Neuigkeiten zustellen.
++    for (j, tid) in sl.iter().enumerate() {
++        let agent = slot_agent(t, j + 2);
++        let gen = running.contains(tid);
++        crate::notion_live::set_generating(&agent, gen);
++        if gen || is_paused(t.id) { continue; }
++        let Some((sig, text)) = crate::notion_cowork::nudge_for(&agent) else { continue };
++        let prev = lock(&TEAM_SENT).get(&agent).cloned();
++        if let Some((s, at, n)) = &prev { if *s == sig && (sig.starts_with("done:") || *n >= 3 || at.elapsed() < Duration::from_secs(90)) { continue; } }
++        match team_deliver(port, tid, &text).await {
++            Ok(()) => {
++                let n = prev.filter(|(s, _, _)| *s == sig).map(|x| x.2 + 1).unwrap_or(1);
++                lock(&TEAM_SENT).insert(agent.clone(), (sig.clone(), std::time::Instant::now(), n));
++                tl(&format!("tab{} TEAM-SEND {agent} {sig}", t.id));
++            }
++            Err(e) => tl(&format!("tab{} TEAM-SEND {agent} verschoben: {e}", t.id)),
++        }
++    }
++
++    // Einladen: naechster freier Chat.
++    if is_paused(t.id) { team_mark(t.id, format!("{} Chat(s) im Team - Konto pausiert", 1 + sl.len())); return; }
++    let Some((pid, title)) = crate::notion_cowork::active_project() else { team_mark(t.id, format!("{} Chat(s) im Team - kein Co-Work mit offenen Tasks", 1 + sl.len())); return; };
++    if 1 + sl.len() >= MAX_CHATS_PER_ACCOUNT { team_mark(t.id, format!("{} Chats im Team (Maximum)", 1 + sl.len())); return; }
++    let targets = page_targets(port).await;
++    let open: HashSet<String> = targets.iter().map(|x| url_tid(x["url"].as_str().unwrap_or(""))).filter(|s| !s.is_empty()).collect();
++    let main = welcome_url(t).map(|u| url_tid(&u)).unwrap_or_default();
++    let now_ms = chrono::Utc::now().timestamp_millis();
++    let mut why: Vec<String> = Vec::new();
++    let mut pick: Option<String> = None;
++    for c in &chats {
++        let Some(id) = c["id"].as_str().map(norm_tid) else { continue };
++        if id.len() != 32 || sl.contains(&id) { continue; }
++        let short = id[..8].to_string();
++        if id == main { why.push(format!("{short}: Haupt-Chat")); continue; }
++        if open.contains(&id) { why.push(format!("{short}: offen im Fenster (Nutzer)")); continue; }
++        if running.contains(&id) { why.push(format!("{short}: generiert gerade")); continue; }
++        if team_updated_secs_ago(c, now_ms).map(|s| s < TEAM_FRESH_SECS).unwrap_or(false) { why.push(format!("{short}: gerade benutzt")); continue; }
++        if lock(&TEAM_FAIL).get(&id).map(|at| at.elapsed() < Duration::from_secs(TEAM_RETRY_SECS)).unwrap_or(false) { why.push(format!("{short}: letzter Versuch fehlgeschlagen")); continue; }
++        pick = Some(id);
++        break;
++    }
++    let Some(tid) = pick else {
++        let w = if why.is_empty() { "keine weiteren Chats in diesem Konto".to_string() } else { why.join(", ") };
++        team_mark(t.id, format!("{} Chat(s) im Team - kein freier Chat ({w})", 1 + sl.len()));
++        return;
++    };
++    let k = sl.len() + 2;
++    let agent = slot_agent(t, k);
++    match team_invite(t, i, &tid, &agent, &pid, &title).await {
++        Ok(()) => {
++            let mut all = slots_all();
++            let n = { let v = all.entry(t.id).or_default(); if !v.contains(&tid) { v.push(tid.clone()); } v.len() };
++            slots_save(&all);
++            lock(&TEAM_SENT).insert(agent.clone(), (format!("join:{pid}"), std::time::Instant::now(), 1));
++            team_mark(t.id, format!("{agent} eingeladen - {} Chats im Team", 1 + n));
++        }
++        Err(e) => {
++            lock(&TEAM_FAIL).insert(tid.clone(), std::time::Instant::now());
++            team_mark(t.id, format!("Chat {} nicht nutzbar: {e}", &tid[..8]));
++        }
++    }
++}
++
++async fn team_loop() {
++    loop {
++        tokio::time::sleep(human_sleep(Duration::from_secs(TEAM_TICK_SECS), 40)).await;
++        let tabs = load();
++        for (i, t) in tabs.iter().enumerate() {
++            if tokio::time::timeout(Duration::from_secs(120), team_tab(t, i)).await.is_err() {
++                team_mark(t.id, "Zeitueberschreitung beim Pruefen der Chats".into());
++            }
++        }
++    }
++}
++
++#[allow(dead_code)]
++pub(crate) fn ensure_team() {
++    if cfg!(test) || tokio::runtime::Handle::try_current().is_err() { return; }
++    if !TEAM_STARTED.swap(true, Ordering::SeqCst) { tokio::spawn(team_loop()); }
++}
++
++#[cfg(test)]
++mod team_tests {
++    use super::*;
++    #[test]
++    fn notion_team_prompt_has_join_and_mcp_hint() {
++        let p = team_prompt("AdiCode-Tab2-K2", "p14", "Live-Test");
++        assert!(p.contains("cowork_join mit project \"p14\""));
++        assert!(p.contains("agent \"AdiCode-Tab2-K2\""));
++        assert!(p.contains("AdiCode-MCP"));
++    }
++    #[test]
++    fn notion_team_updated_age() {
++        let now = 1_800_000_000_000i64;
++        assert_eq!(team_updated_secs_ago(&json!({"updated": now - 10_000}), now), Some(10));
++        assert_eq!(team_updated_secs_ago(&json!({"updated": (now / 1000) - 100}), now), Some(100));
++        assert_eq!(team_updated_secs_ago(&json!({}), now), None);
++    }
++}
 diff --git a/agent/src/notion_updates.rs b/agent/src/notion_updates.rs
 new file mode 100644
 index 0000000..715730b
