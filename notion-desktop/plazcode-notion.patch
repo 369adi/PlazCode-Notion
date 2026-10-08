@@ -10595,7 +10595,7 @@ index 0000000..fc2ff59
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..798adca
+index 0000000..793168c
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
 @@ -0,0 +1,1344 @@
@@ -10788,7 +10788,7 @@ index 0000000..798adca
 +    Ok(Tab { id: t.id, label: if label.is_empty() { format!("Tab {}", t.id) } else { label }, email, role: String::new(), url, autostart: t.autostart })
 +}
 +
-+const BROWSERS: [(&str, &str); 3] = [("Chrome", r"Google\Chrome\Application\chrome.exe"), ("Edge", r"Microsoft\Edge\Application\msedge.exe"), ("Brave", r"BraveSoftware\Brave-Browser\Application\brave.exe")];
++const BROWSERS: [(&str, &str); 1] = [("Brave", r"BraveSoftware\Brave-Browser\Application\brave.exe")];
 +fn browser_file() -> PathBuf { base().join("browser") }
 +fn token_file() -> PathBuf { base().join("token-mode") }
 +fn token_high() -> bool { std::fs::read_to_string(token_file()).map(|s| s.trim()=="high").unwrap_or(false) }
@@ -10804,7 +10804,7 @@ index 0000000..798adca
 +}
 +pub fn chosen_browser() -> Option<String> { std::fs::read_to_string(browser_file()).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) }
 +/// Der vom Nutzer gewaehlte Browser. Ohne Auswahl startet kein Tab.
-+pub fn browser() -> Option<(&'static str, PathBuf)> { let c = chosen_browser()?; installed_browsers().into_iter().find(|(n, _)| n.eq_ignore_ascii_case(&c)) }
++pub fn browser() -> Option<(&'static str, PathBuf)> { let _ = chosen_browser(); installed_browsers().into_iter().next() }
 +pub fn browser_name() -> Value { browser().map(|(n, _)| json!(n)).unwrap_or(Value::Null) }
 +pub fn list() -> Value { json!(load().into_iter().map(|t| json!({"id":t.id,"label":t.label})).collect::<Vec<_>>()) }
 +
@@ -10911,7 +10911,7 @@ index 0000000..798adca
 +    if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],port)),Duration::from_millis(300)).is_ok(){if running_ids(std::slice::from_ref(t)).contains(&t.id){return Ok(name);}return Err(format!("Port {port} f\u{fc}r Tab {} ist noch von einem anderen Browser-Fenster (anderes Konto) belegt. Bitte unter Co-Work einmal \u{201e}Alle stoppen\u{201c} und neu starten.",t.id));}
 +    if !t.email.is_empty(){let tabs=load();if let Some(o)=tabs.iter().find(|o|o.id!=t.id&&o.email.eq_ignore_ascii_case(&t.email)){if running_ids(std::slice::from_ref(o)).contains(&o.id){windows::set_hidden(std::slice::from_ref(o),false);return Err(format!("Das Konto {} ist schon in {} offen - dieses Fenster wurde nach vorn geholt. Ein Konto laeuft nur in einem Fenster, sonst teilen sich zwei Fenster den Speicher und Notion wird fehlerhaft.",t.email,o.label));}}}
 +    mark_clean_exit(&d);
-+    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--hide-crash-restore-bubble","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion","--disable-popup-blocking"]).arg("--host-resolver-rules=MAP api.segment.io 127.0.0.2, MAP api.amplitude.com 127.0.0.2, MAP api2.amplitude.com 127.0.0.2, MAP statsig.an.net 127.0.0.2, MAP featuregates.org 127.0.0.2, MAP events.statsigapi.net 127.0.0.2, MAP google-analytics.com 127.0.0.2, MAP cdn.pendo.io 127.0.0.2").arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;
++    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--hide-crash-restore-bubble","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion","--disable-popup-blocking"]).arg("--host-resolver-rules=MAP api.segment.io 127.0.0.2, MAP api.amplitude.com 127.0.0.2, MAP api2.amplitude.com 127.0.0.2, MAP statsig.an.net 127.0.0.2, MAP featuregates.org 127.0.0.2, MAP events.statsigapi.net 127.0.0.2, MAP google-analytics.com 127.0.0.2, MAP cdn.pendo.io 127.0.0.2, MAP *.intercom.io 127.0.0.2, MAP *.intercomcdn.com 127.0.0.2, MAP www.googletagmanager.com 127.0.0.2, MAP *.google-analytics.com 127.0.0.2, MAP *.doubleclick.net 127.0.0.2, MAP connect.facebook.net 127.0.0.2, MAP *.sentry.io 127.0.0.2, MAP *.datadoghq.com 127.0.0.2, MAP *.splunkcloud.com 127.0.0.2, MAP *.fpjs.io 127.0.0.2, MAP *.fpnpmcdn.net 127.0.0.2, MAP *.fingerprint.com 127.0.0.2, MAP *.hotjar.com 127.0.0.2, MAP *.fullstory.com 127.0.0.2, MAP *.clarity.ms 127.0.0.2, MAP *.hs-scripts.com 127.0.0.2, MAP *.hs-analytics.net 127.0.0.2, MAP static.ads-twitter.com 127.0.0.2, MAP *.pendo.io 127.0.0.2, MAP *.statsig.com 127.0.0.2, MAP *.statsigapi.net 127.0.0.2").arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;
 +    // Privacy: Telemetrie-Blocker injizieren, sobald CDP da ist (Hintergrund, stoert niemanden).
 +    let p=port;tokio::spawn(async move{privacy_start(p).await;});
 +    Ok(name)
@@ -13672,10 +13672,10 @@ index 0000000..30c6120
 +If an add-on is missing: tell the user to enable it in the AdiCode app (Add-ons) and which key it needs."#;
 diff --git a/agent/src/notion_team.rs b/agent/src/notion_team.rs
 new file mode 100644
-index 0000000..0ee5721
+index 0000000..217361a
 --- /dev/null
 +++ b/agent/src/notion_team.rs
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,206 @@
 +// ===================== Co-Work Team (1.0.125, komplett neu) =====================
 +// Prinzip: EIN Konto, MEHRERE Chats, EINE Aufgabe. Ersetzt slot_monitor + auto_fill.
 +// Eine einzige Schleife pro Konto, ohne versteckte Sperren:
@@ -13696,6 +13696,8 @@ index 0000000..0ee5721
 +const TEAM_TICK_SECS: u64 = 8;
 +const TEAM_RETRY_SECS: u64 = 300;
 +const TEAM_FRESH_SECS: i64 = 45;
++/// Nutzer sitzt wirklich in diesem Chat: Tab sichtbar + fokussiert + Eingabe hat Text oder Fokus.
++const TEAM_USER_JS: &str = "(()=>{if(document.visibilityState!=='visible'||!document.hasFocus())return false;const a=document.activeElement;return !!(a&&(a.isContentEditable||a.tagName==='TEXTAREA'||a.tagName==='INPUT'))})()";
 +
 +fn team_mark(id: u32, s: String) {
 +    let changed = lock(&TEAM_STATE).insert(id, s.clone()).as_deref() != Some(s.as_str());
@@ -13742,6 +13744,7 @@ index 0000000..0ee5721
 +    let port = cdp_port(i);
 +    let (ws, opened) = team_open(port, tid).await?;
 +    let fail = |e: String| async { if let Some(tg) = &opened { close_target(port, tg).await; } Err::<(), String>(e) };
++    if opened.is_none() && ws_eval(&ws, TEAM_USER_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { return Err("Nutzer ist gerade in diesem Chat".into()); }
 +    if !team_ready(&ws, tid).await { return fail("Chat-Eingabe nicht bereit (Chat arbeitet oder laedt nicht)".into()).await; }
 +    if ws_eval(&ws, AI_OFF_JS).await.ok().map(|v| v.is_object()).unwrap_or(false) { return fail("KI ist in diesem Workspace deaktiviert".into()).await; }
 +    if let Err(e) = ws_send_prompt(&ws, Some(tid), &team_prompt(agent, pid, title)).await { return fail(e).await; }
@@ -13750,14 +13753,14 @@ index 0000000..0ee5721
 +}
 +
 +async fn team_deliver(port: u16, tid: &str, text: &str) -> Result<(), String> {
-+    let (ws, _) = team_open(port, tid).await?;
++    let (ws, opened) = team_open(port, tid).await?;
 +    let mut idle = false;
 +    for _ in 0..20 {
 +        if ws_eval(&ws, SLOT_IDLE_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { idle = true; break; }
 +        tokio::time::sleep(Duration::from_millis(500)).await;
 +    }
 +    if !idle { return Err("Chat arbeitet gerade".into()); }
-+    if ws_eval(&ws, "document.hasFocus()").await.ok().and_then(|v| v.as_bool()) == Some(true) { return Err("Nutzer ist gerade in diesem Chat".into()); }
++    if opened.is_none() && ws_eval(&ws, TEAM_USER_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { return Err("Nutzer ist gerade in diesem Chat".into()); }
 +    ws_send_prompt(&ws, Some(tid), text).await
 +}
 +
@@ -13813,8 +13816,8 @@ index 0000000..0ee5721
 +        let Some(id) = c["id"].as_str().map(norm_tid) else { continue };
 +        if id.len() != 32 || sl.contains(&id) { continue; }
 +        let short = id[..8].to_string();
-+        if id == main { why.push(format!("{short}: Haupt-Chat")); continue; }
-+        if open.contains(&id) { why.push(format!("{short}: offen im Fenster (Nutzer)")); continue; }
++        if id == main && running.contains(&id) { continue; }
++        let _ = open.contains(&id);
 +        if running.contains(&id) { why.push(format!("{short}: generiert gerade")); continue; }
 +        if team_updated_secs_ago(c, now_ms).map(|s| s < TEAM_FRESH_SECS).unwrap_or(false) { why.push(format!("{short}: gerade benutzt")); continue; }
 +        if lock(&TEAM_FAIL).get(&id).map(|at| at.elapsed() < Duration::from_secs(TEAM_RETRY_SECS)).unwrap_or(false) { why.push(format!("{short}: letzter Versuch fehlgeschlagen")); continue; }
@@ -13837,7 +13840,7 @@ index 0000000..0ee5721
 +            team_mark(t.id, format!("{agent} eingeladen - {} Chats im Team", 1 + n));
 +        }
 +        Err(e) => {
-+            lock(&TEAM_FAIL).insert(tid.clone(), std::time::Instant::now());
++            if !e.contains("Nutzer") { lock(&TEAM_FAIL).insert(tid.clone(), std::time::Instant::now()); }
 +            team_mark(t.id, format!("Chat {} nicht nutzbar: {e}", &tid[..8]));
 +        }
 +    }

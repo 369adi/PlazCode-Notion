@@ -289,6 +289,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Sichtbarer Status pro Konto**: Im Konto steht jetzt, wie viele Chats im Team sind und warum ein Chat nicht mitmacht (z. B. gerade offen im Fenster oder KI deaktiviert).
 - **Kein falscher Alarm mehr bei KI deaktiviert**: Erkannt wird nur noch der echte Notion-Hinweis, nicht mehr eigener Chat-Text.
 - **Co-Work hilft weiter**: Agents ohne freien Task bieten Hilfe an; Co-Work-Nachrichten laufen direkt ueber die Live-Bridge.
+## Neu in 1.0.126
+- **Alle Chats eines Kontos machen mit**: Auch der Start-Chat und Chats, die gerade im Fenster offen sind, werden zum Co-Work eingeladen. Ausgelassen wird nur ein Chat, der gerade generiert oder in dem du wirklich gerade tippst.
+- **Kein falsches 'Nutzer ist gerade in diesem Chat' mehr**: Hintergrund-Tabs gelten nicht mehr als 'vom Nutzer benutzt'.
+- **Notion-Tabs nur noch in Brave**: Chrome/Edge werden fuer Konto-Tabs nicht mehr verwendet. Jedes Konto hat weiterhin einen eigenen Profilordner mit eigenen Cookies und bleibt eingeloggt.
+- **Weniger Lag**: Tracking-, Analyse- und Fingerprint-Skripte (Intercom, Google Tag Manager, Sentry, Datadog, Splunk, FingerprintJS, Hotjar, Statsig, Pendo u. a.) werden in den Notion-Tabs geblockt.
 ## Neu in 1.0.34–1.0.23
 (fixiert in 1.0.29: lokale schnelle Releases; Kompaktversion der alten Einzelnachrichten)
 
