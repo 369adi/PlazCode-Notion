@@ -9,6 +9,15 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.128
+
+- Weniger MCP-Abbrueche bei vielen Chats: Notions Dauer-Verbindung (GET /mcp) wird jetzt als ruhiger SSE-Stream mit Keep-Alive gehalten statt alle paar Sekunden abgelehnt (halbiert die Tunnel-Last).
+- ngrok-Fehler landen im Log, Abbrueche sind nachvollziehbar.
+- Co-Work laeuft nur noch in Brave: alte Edge/Chrome-Fenster mit Co-Work-Konto werden automatisch beendet und in Brave neu geoeffnet.
+- Co-Work-Login oeffnet im selben Coworker-Brave, kein zweites Fenster mehr.
+- Jedes Konto wird automatisch als Chat und Coworker erkannt.
+- Update-Knopf zeigt an, wenn ein Update vorgeladen und sofort bereit ist.
+
 ## Neu in 1.0.127
 - **Chats holen sich immer Hilfe**: Jede Aufgabe mit mehreren unabhaengigen Teilen wird sofort per Co-Work auf mehrere Chats verteilt; grosse Teilaufgaben werden automatisch weiter zerlegt.
 - **Stabil mit vielen Chats gleichzeitig**: Add-on-Pool (pc, codebase, files, git ... bis zu 3 parallele Instanzen), Builds laufen mit niedriger Prioritaet und halben Kernen, ngrok-Tunnel mit hoher Prioritaet.

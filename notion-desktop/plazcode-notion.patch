@@ -1488,7 +1488,7 @@ index 0000000..ab68b62
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..533c01c 100644
+index 07dc4c0..94f7e64 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -2092,7 +2092,7 @@ index 07dc4c0..533c01c 100644
        var Summary=document.createElement('p'); Summary.textContent=Release.summary; Card.appendChild(Summary);
        [['added','New additions'],['improved','Improvements'],['fixed','Bug fixes']].forEach(function (Section) {
          if (!Array.isArray(Release[Section[0]]) || !Release[Section[0]].length) return;
-@@ -905,12 +1273,12 @@ __PLAZCODE_VERSION_UI__
+@@ -905,32 +1273,47 @@ __PLAZCODE_VERSION_UI__
    function Refreshupdates() {
      if (Updatepolling) return Promise.resolve(); Updatepolling = true;
      return Api('/api/desktop/update').then(function (Value) {
@@ -2107,8 +2107,10 @@ index 07dc4c0..533c01c 100644
        PlazCodeVersion.render(Byid('settingsVersion'), Value.desktop_version || Value.installed || '__PLAZCODE_VERSION__', Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        if (Value.latest) PlazCodeVersion.render(Byid('updateLatest'), Value.latest, Object.assign({},Value,{latest:Value.desktop_latest || Value.latest}), '');
        else Byid('updateLatest').textContent = 'Not checked';
-@@ -919,18 +1287,18 @@ __PLAZCODE_VERSION_UI__
-       Byid('installUpdate').disabled = Updating || Value.available !== true;
+       Renderreleasenotes(Value.release_notes);
+       Byid('updateMessage').textContent = Value.error || Value.message || '';
+-      Byid('installUpdate').disabled = Updating || Value.available !== true;
++      Updatebutton(Value);
        Byid('checkUpdates').disabled = Updating;
        Byid('updateOverlay').hidden = (!Updating || Value.background === true) && (!Value.error || UpdateerrorDismissed);
 -      Byid('updateOverlayTitle').textContent = Value.error ? 'Update could not finish' : 'PlazCode is updating';
@@ -2120,7 +2122,23 @@ index 07dc4c0..533c01c 100644
 -    }).catch(function (Error) { ['sidebarVersion','titleVersion','settingsVersion','updateInstalled'].forEach(function(Id){PlazCodeVersion.render(Byid(Id),'__PLAZCODE_VERSION__',{check_error:'Bridge unavailable.'},Id==='titleVersion'?'PlazCode ':Id==='updateInstalled'||Id==='settingsVersion'?'':'v');}); if (!Updating) Byid('updateMessage').textContent = Error.message || String(Error); }).then(function () { Updatepolling = false; });
 +    }).catch(function (Error) { ['sidebarVersion','titleVersion','settingsVersion','updateInstalled'].forEach(function(Id){PlazCodeVersion.render(Byid(Id),'__PLAZCODE_VERSION__',{check_error:'Bridge unavailable.'},Id==='titleVersion'?'AdiCode ':Id==='updateInstalled'||Id==='settingsVersion'?'':'v');}); if (!Updating) Byid('updateMessage').textContent = Error.message || String(Error); }).then(function () { Updatepolling = false; });
    }
-   function Updateaction(Action) {
+-  function Updateaction(Action) {
++  /* 1.0.128 (#3): Knopf erst aktiv + gruen, wenn das Update im Hintergrund fertig vorgeladen ist (staged); waehrend des Vorladens Fortschritt. */
++    function Updatestate(Value) {
++      if (!Value || Value.available !== true) return 'none';
++      if (Value.staged === true) return 'ready';
++      if (Value.staging === true) return 'staging';
++      return 'available';
++    }
++    function Updatebutton(Value) {
++      var B = Byid('installUpdate'); var S = Updatestate(Value);
++      var P = Math.round(((Value && Value.progress) || 0) > 1 ? Value.progress : ((Value && Value.progress) || 0) * 100);
++      B.disabled = Updating || S === 'none' || S === 'staging';
++      B.classList.toggle('update-ready', S === 'ready');
++      B.style.background = S === 'ready' ? '#1f9d55' : ''; B.style.borderColor = S === 'ready' ? '#1f9d55' : '';
++      B.textContent = S === 'ready' ? 'Jetzt aktualisieren (sofort)' : S === 'staging' ? ('Wird vorgeladen … ' + P + '%') : 'Update now';
++    }
++    function Updateaction(Action) {
      Updating = true; UpdateerrorDismissed = false;
      Byid('checkUpdates').disabled = true; Byid('installUpdate').disabled = true;
      Byid('updateOverlay').hidden = false; Byid('updateError').hidden = true; Byid('closeUpdateError').hidden = true;
@@ -2129,7 +2147,7 @@ index 07dc4c0..533c01c 100644
      Byid('updateOverlayMessage').textContent = 'Contacting the release server…'; Byid('updateProgress').value = 0;
      return Api('/api/desktop/update',{method:'POST',body:JSON.stringify({action:Action})}).then(Refreshupdates).catch(function (Error) {
        Updating = false; Byid('updateOverlayTitle').textContent='Update could not start'; Byid('updateError').hidden=false; Byid('updateError').textContent=Error.message || String(Error); Byid('closeUpdateError').hidden=false; Byid('checkUpdates').disabled=false;
-@@ -1206,5 +1574,414 @@ __PLAZCODE_VERSION_UI__
+@@ -1206,5 +1589,414 @@ __PLAZCODE_VERSION_UI__
    }
  }());
  </script>
@@ -5670,10 +5688,10 @@ index 0000000..36e15d1
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..8c47f72
+index 0000000..6b9b013
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1899 @@
+@@ -0,0 +1,1932 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -6045,11 +6063,20 @@ index 0000000..8c47f72
 +fn canonical_worker(p: &Project, wanted: &str) -> String {
 +    let tabs = crate::notion_profiles::worker_tab_agents();
 +    if tabs.iter().any(|t| t == wanted) { return wanted.to_string(); }
++    // Eindeutige Tab-Namen (Konto + Chat, z. B. AdiCode-Tab3-K2) nie umbenennen: sonst koennte ein Chat aus Konto B
++    // die Identitaet eines gerade generierenden Chats aus Konto A bekommen.
++    if is_tab_agent(wanted) { return wanted.to_string(); }
 +    // Generierende Worker-Tabs (auch wenn der Main sie schon automatisch eingetragen hat): genau einer = der Joiner.
 +    let gen: Vec<&String> = tabs.iter().filter(|t| crate::notion_live::is_generating(t)).collect();
 +    let fresh: Vec<&String> = gen.iter().copied().filter(|t| !p.agents.contains_key(*t)).collect();
 +    let c = if fresh.len() == 1 { fresh } else { gen };
 +    if c.len() == 1 { c[0].clone() } else { wanted.to_string() }
++}
++/// Name im Schema AdiCode-Tab<N> oder AdiCode-Tab<N>-K<M> (eindeutig pro Konto + Chat).
++fn is_tab_agent(name: &str) -> bool {
++    let Some(rest) = name.strip_prefix("AdiCode-Tab") else { return false };
++    let (tab, k) = match rest.split_once("-K") { Some((a, b)) => (a, Some(b)), None => (rest, None) };
++    !tab.is_empty() && tab.chars().all(|c| c.is_ascii_digit()) && k.map(|k| !k.is_empty() && k.chars().all(|c| c.is_ascii_digit())).unwrap_or(true)
 +}
 +fn join_agent(p: &mut Project, wanted: &str, role: &str) -> String {
 +    let mut name: String = wanted.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(32).collect();
@@ -7132,6 +7159,30 @@ index 0000000..8c47f72
 +        let pr = ok(dispatch(&mut b, "cowork_prompt", &json!({"agent": "main", "text": "Bitte noch ein Leaderboard"})));
 +        assert!(pr.contains("Prompt #2") && pr.contains("3 Worker"), "{pr}");
 +        assert!(dispatch(&mut b, "cowork_prompt", &json!({"agent": "main"})).is_err());
++    }
++
++    #[test]
++    fn two_accounts_share_one_project() {
++        // Konto A (Tab1) und Konto B (Tab3) im selben Co-Work: eigene Namen, eigene Tasks, Nachrichten hin und her.
++        assert!(is_tab_agent("AdiCode-Tab1") && is_tab_agent("AdiCode-Tab3-K2"));
++        assert!(!is_tab_agent("AdiCode-TabX") && !is_tab_agent("AdiCode-Tab3-K") && !is_tab_agent("agent-1"));
++        let mut b = Board::default();
++        ok(dispatch(&mut b, "cowork_start", &json!({"title": "X", "goal": "G", "agent": "AdiCode-Tab1", "assess": false, "tasks": [{"title": "a"}, {"title": "b"}]})));
++        let ja = ok(dispatch(&mut b, "cowork_join", &json!({"agent": "AdiCode-Tab1-K2"})));
++        let jb = ok(dispatch(&mut b, "cowork_join", &json!({"agent": "AdiCode-Tab3-K2"})));
++        assert!(ja.contains("AdiCode-Tab1-K2") && jb.contains("AdiCode-Tab3-K2"), "{ja}\n{jb}");
++        let p = b.projects.values().next().unwrap();
++        assert!(p.agents.contains_key("AdiCode-Tab1-K2") && p.agents.contains_key("AdiCode-Tab3-K2"));
++        ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "AdiCode-Tab1-K2"})));
++        ok(dispatch(&mut b, "cowork_claim", &json!({"agent": "AdiCode-Tab3-K2"})));
++        let p = b.projects.values().next().unwrap();
++        let mine = |a: &str| p.tasks.iter().filter(|t| t.owner == a).map(|t| t.id).collect::<Vec<_>>();
++        let (ta, tb) = (mine("AdiCode-Tab1-K2"), mine("AdiCode-Tab3-K2"));
++        assert!(ta.iter().all(|id| !tb.contains(id)), "gleicher Task fuer zwei Konten: {ta:?} {tb:?}");
++        assert!(ok(dispatch(&mut b, "cowork_message", &json!({"agent": "AdiCode-Tab1-K2", "to": "AdiCode-Tab3-K2", "text": "hallo von Konto A"}))).contains("AdiCode-Tab3-K2"));
++        assert!(ok(dispatch(&mut b, "cowork_board", &json!({"agent": "AdiCode-Tab3-K2"}))).contains("hallo von Konto A"));
++        ok(dispatch(&mut b, "cowork_message", &json!({"agent": "AdiCode-Tab3-K2", "to": "AdiCode-Tab1-K2", "text": "zurueck von Konto B"})));
++        assert!(ok(dispatch(&mut b, "cowork_board", &json!({"agent": "AdiCode-Tab1-K2"}))).contains("zurueck von Konto B"));
 +    }
 +
 +    #[test]
@@ -9227,10 +9278,10 @@ index 0000000..58b6c9b
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..e976867
+index 0000000..f8e36ad
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1449 @@
+@@ -0,0 +1,1456 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -9579,7 +9630,7 @@ index 0000000..e976867
 +    let args = params.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
 +    *lock(&SHARED.last_request) = Some((chrono::Local::now(), name.clone()));
 +    let session = params["_session"].as_str().unwrap_or("").to_string();
-+    crate::notion_profiles::ensure_gen_monitor(); crate::notion_live::record(&session, &name, &args);
++    crate::notion_profiles::ensure_gen_monitor(); crate::notion_profiles::migrate_once(); crate::notion_live::record(&session, &name, &args);
 +    if let Some(out) = crate::notion_cowork::call(&name, &args, &session).await {
 +        return out;
 +    }
@@ -10075,8 +10126,14 @@ index 0000000..e976867
 +        return (StatusCode::UNAUTHORIZED, [("www-authenticate", "Bearer realm=\"AdiCode\"")], format!("unauthorized: {reason}")).into_response();
 +    }
 +    if method == axum::http::Method::DELETE { return StatusCode::OK.into_response(); }
++    if method == axum::http::Method::GET {
++        // Ohne SSE-Stream fragt Notion alle paar Sekunden erneut per GET (405) -> ca. halbe Tunnel-Last
++        // und Verbindungsabbrueche bei vielen Chats. Ein ruhiger SSE-Stream mit Keep-Alive haelt EINE Verbindung.
++        let stream = futures::stream::pending::<Result<axum::response::sse::Event, std::convert::Infallible>>();
++        return axum::response::sse::Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15))).into_response();
++    }
 +    if method != axum::http::Method::POST {
-+        return (StatusCode::METHOD_NOT_ALLOWED, [("allow", "POST, DELETE")], "method not allowed").into_response();
++        return (StatusCode::METHOD_NOT_ALLOWED, [("allow", "GET, POST, DELETE")], "method not allowed").into_response();
 +    }
 +    SHARED.requests.fetch_add(1, Ordering::Relaxed);
 +    let parsed: Value = match serde_json::from_slice(&body) {
@@ -10266,6 +10323,7 @@ index 0000000..e976867
 +                        tracing::info!("[notion] ngrok online: https://{d}/mcp");
 +                    }
 +                    if line.contains("lvl=eror") || line.contains("lvl=crit") || line.contains("ERR_NGROK") || line.contains("unknown flag") {
++                        tracing::warn!("[notion] ngrok-Log: {}", line.chars().take(300).collect::<String>());
 +                        *lock(&le) = line.clone();
 +                    }
 +                }
@@ -10800,10 +10858,10 @@ index 0000000..96af036
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..793168c
+index 0000000..039addb
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1344 @@
+@@ -0,0 +1,1377 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -11020,8 +11078,27 @@ index 0000000..793168c
 +fn browser_cmds() -> Vec<(sysinfo::Pid, String)> {
 +    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
 +    let mut sys = System::new(); sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
-+    sys.processes().iter().filter_map(|(pid,p)| { let cmd=p.cmd().iter().map(|a|a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" "); cmd.contains("--user-data-dir=").then_some((*pid,cmd)) }).collect()
++    sys.processes().iter().filter_map(|(pid,p)| { let cmd=p.cmd().iter().map(|a|a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" "); (cmd.contains("--user-data-dir=")&&!is_foreign(p)).then_some((*pid,cmd)) }).collect()
 +}
++/// 1.0.128: Co-Work laeuft NUR in Brave. Edge/Chrome mit einem Co-Work-Profil (Altlast frueherer Versionen) zaehlen nicht als laufend.
++fn is_foreign(p: &sysinfo::Process) -> bool { let n = p.name().to_string_lossy().to_ascii_lowercase(); n == "msedge.exe" || n == "chrome.exe" }
++/// Beendet Edge/Chrome-Prozesse, die ein Co-Work-Profil belegen, damit der Tab sauber in Brave startet.
++fn kill_foreign(dir: &str) -> usize {
++    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
++    let mut sys = System::new(); sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
++    let mut n = 0;
++    for p in sys.processes().values() {
++        if !is_foreign(p) { continue; }
++        let cmd = p.cmd().iter().map(|a| a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" ");
++        if cmd_uses(&cmd, dir) && p.kill() { n += 1; }
++    }
++    if n > 0 { tl(&format!("FREMD-BROWSER {n} Edge/Chrome-Prozess(e) mit {dir} beendet -> Neustart in Brave")); std::thread::sleep(Duration::from_millis(1500)); }
++    n
++}
++/// Beim Start: alle Co-Work-Profile, die noch in Edge/Chrome laufen, in Brave neu oeffnen.
++pub fn migrate_to_brave() { if cfg!(test) { return; } for t in load() { if kill_foreign(&dir(t.id).display().to_string()) > 0 { let _ = launch(&t, &start_url(&t)); } } }
++/// Einmal pro App-Start (beim ersten Tool-Aufruf) im Hintergrund ausfuehren.
++pub fn migrate_once() { static ONCE: std::sync::Once = std::sync::Once::new(); ONCE.call_once(|| { if tokio::runtime::Handle::try_current().is_ok() { tokio::task::spawn_blocking(migrate_to_brave); } }); }
 +fn running_ids(tabs: &[Tab]) -> Vec<u32> { let cmds=browser_cmds(); tabs.iter().filter(|t| {port_open(port_for_id(t.id))||{let d=dir(t.id).display().to_string();cmds.iter().any(|(_,c)|cmd_uses(c,&d))}}).map(|t|t.id).collect() }
 +/// 1.0.124: Tab gilt auch als laufend, wenn sein CDP-Port antwortet (die WebView2-Kommandozeile enthaelt den Profilordner nicht immer -> Co-Work holte nie Zusatz-Chats).
 +fn port_open(port:u16)->bool{ if cfg!(test){return false;} std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],port)),Duration::from_millis(150)).is_ok() }
@@ -11111,15 +11188,28 @@ index 0000000..793168c
 +fn tab_index(id:u32)->usize{load().iter().position(|t|t.id==id).unwrap_or(0)}
 +pub(crate) fn launch(t:&Tab,url:&str)->Result<&'static str,String>{start_load_watchdog();windows::hide_helpers();
 +    mark_account(t.id,"usage_error",Value::Null);mark_account(t.id,"check",json!("Tab startet \u{2026}"));
-+    let(name,exe)=browser().ok_or("Erst unter Co-Work einen Browser ausw\u{e4}hlen.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;
++    let(name,exe)=browser().ok_or("Erst unter Co-Work einen Browser ausw\u{e4}hlen.")?;let d=dir(t.id);std::fs::create_dir_all(&d).map_err(|e|e.to_string())?;kill_foreign(&d.display().to_string());
 +    let port=cdp_port(tab_index(t.id));
 +    if std::net::TcpStream::connect_timeout(&std::net::SocketAddr::from(([127,0,0,1],port)),Duration::from_millis(300)).is_ok(){if running_ids(std::slice::from_ref(t)).contains(&t.id){return Ok(name);}return Err(format!("Port {port} f\u{fc}r Tab {} ist noch von einem anderen Browser-Fenster (anderes Konto) belegt. Bitte unter Co-Work einmal \u{201e}Alle stoppen\u{201c} und neu starten.",t.id));}
 +    if !t.email.is_empty(){let tabs=load();if let Some(o)=tabs.iter().find(|o|o.id!=t.id&&o.email.eq_ignore_ascii_case(&t.email)){if running_ids(std::slice::from_ref(o)).contains(&o.id){windows::set_hidden(std::slice::from_ref(o),false);return Err(format!("Das Konto {} ist schon in {} offen - dieses Fenster wurde nach vorn geholt. Ein Konto laeuft nur in einem Fenster, sonst teilen sich zwei Fenster den Speicher und Notion wird fehlerhaft.",t.email,o.label));}}}
++    // 1.0.128: Profil laeuft schon (ohne offenen CDP-Port) -> kein zweiter Brave-Start, sonst oeffnet Brave ein fremdes Fenster ausserhalb der Coworker.
++    if !spawn_needed(running_ids(std::slice::from_ref(t)).contains(&t.id)){windows::set_hidden(std::slice::from_ref(t),false);ensure_monitors();return Ok(name);}
 +    mark_clean_exit(&d);
 +    std::process::Command::new(&exe).arg(format!("--user-data-dir={}",d.display())).args(["--no-first-run","--hide-crash-restore-bubble","--no-default-browser-check","--disable-background-timer-throttling","--disable-backgrounding-occluded-windows","--disable-renderer-backgrounding","--disable-features=CalculateNativeWinOcclusion","--disable-popup-blocking"]).arg("--host-resolver-rules=MAP api.segment.io 127.0.0.2, MAP api.amplitude.com 127.0.0.2, MAP api2.amplitude.com 127.0.0.2, MAP statsig.an.net 127.0.0.2, MAP featuregates.org 127.0.0.2, MAP events.statsigapi.net 127.0.0.2, MAP google-analytics.com 127.0.0.2, MAP cdn.pendo.io 127.0.0.2, MAP *.intercom.io 127.0.0.2, MAP *.intercomcdn.com 127.0.0.2, MAP www.googletagmanager.com 127.0.0.2, MAP *.google-analytics.com 127.0.0.2, MAP *.doubleclick.net 127.0.0.2, MAP connect.facebook.net 127.0.0.2, MAP *.sentry.io 127.0.0.2, MAP *.datadoghq.com 127.0.0.2, MAP *.splunkcloud.com 127.0.0.2, MAP *.fpjs.io 127.0.0.2, MAP *.fpnpmcdn.net 127.0.0.2, MAP *.fingerprint.com 127.0.0.2, MAP *.hotjar.com 127.0.0.2, MAP *.fullstory.com 127.0.0.2, MAP *.clarity.ms 127.0.0.2, MAP *.hs-scripts.com 127.0.0.2, MAP *.hs-analytics.net 127.0.0.2, MAP static.ads-twitter.com 127.0.0.2, MAP *.pendo.io 127.0.0.2, MAP *.statsig.com 127.0.0.2, MAP *.statsigapi.net 127.0.0.2").arg("--remote-debugging-address=127.0.0.1").arg(format!("--remote-debugging-port={port}")).arg(format!("--app={url}")).spawn().map_err(|e|format!("{name} konnte nicht gestartet werden: {e}"))?;
 +    // Privacy: Telemetrie-Blocker injizieren, sobald CDP da ist (Hintergrund, stoert niemanden).
 +    let p=port;tokio::spawn(async move{privacy_start(p).await;});
++    // 1.0.128 (#5): jedes gestartete/eingeloggte Konto wird automatisch erkannt: Live-Chatliste + Team-Schleife (Chats als Coworker ins aktive Co-Work einladen).
++    ensure_monitors();
 +    Ok(name)
++}
++/// Neuer Brave-Prozess nur, wenn das Profil des Tabs noch nicht laeuft.
++fn spawn_needed(running:bool)->bool{!running}
++#[cfg(test)]
++mod login_tests{
++    use super::*;
++    #[test] fn laufendes_profil_startet_kein_zweites_fenster(){assert!(!spawn_needed(true));}
++    #[test] fn gestopptes_profil_wird_gestartet(){assert!(spawn_needed(false));}
++    #[test] fn login_url_bleibt_https(){let t=Tab{id:1,email:"a@b.de".into(),..Default::default()};assert!(login_url(&t).starts_with("https://"));}
 +}
 +/// Co-Work-Tabs werden hart beendet -> Profil vor dem Start als sauber beendet markieren, damit beim Sichtbarmachen keine Wiederherstellen-Leiste erscheint.
 +fn mark_clean_exit(d:&std::path::Path){let p=d.join("Default").join("Preferences");let Ok(s)=std::fs::read_to_string(&p) else {return};let Ok(mut v)=serde_json::from_str::<Value>(&s) else {return};let Some(o)=v.as_object_mut() else {return};let pr=o.entry("profile").or_insert_with(||json!({}));if let Some(pr)=pr.as_object_mut(){pr.insert("exit_type".into(),json!("Normal"));pr.insert("exited_cleanly".into(),json!(true));}if let Ok(n)=serde_json::to_string(&v){let _=std::fs::write(&p,n);}}
@@ -11955,7 +12045,8 @@ index 0000000..793168c
 +        "cowork_copy_prompt"=>find(id).map(|t|prompt_for(&t)),
 +        "cowork_stop"=>find(id).map(|t|format!("Tab {} gestoppt ({} Prozesse).",t.id,stop_ids(&[t.id]))),
 +        "open_notion_window"=>match id{Some(_)=>find(id).and_then(|t|open_tab(&t)),None=>add_tab().and_then(|_|load().last().cloned().ok_or("Tab fehlt.".into())).and_then(|t|open_tab(&t))},
-+        "cowork_login"=>find(id).and_then(|t|{if t.email.is_empty(){return Err("Erst E-Mail-Konto eintragen und speichern.".into());}let url=login_url(&t);launch(&t,&url).map(|b|format!("Login für {} geöffnet ({b}).",t.email))}),
++        // 1.0.128: Login immer im Coworker-Brave (gleiches Profil/Fenster): laeuft der Tab, per CDP navigieren statt neues Fenster zu starten.
++        "cowork_login"=>find(id).and_then(login_view),
 +        "delete_notion_profile"|"cowork_delete"=>delete(id),
 +        "rename_notion_profile"=>find(id).and_then(|t|{let mut tabs=load();if let Some(x)=tabs.iter_mut().find(|x|x.id==t.id){x.label=clean(v.get("label").and_then(Value::as_str).unwrap_or(""),40);}save(&tabs).map(|_|"Name gespeichert.".into())}),
 +        _=>return None,
@@ -12324,10 +12415,10 @@ index 0000000..d694a1d
 \ No newline at end of file
 diff --git a/agent/src/notion_roblox_plus.rs b/agent/src/notion_roblox_plus.rs
 new file mode 100644
-index 0000000..726ff1d
+index 0000000..b19e014
 --- /dev/null
 +++ b/agent/src/notion_roblox_plus.rs
-@@ -0,0 +1,989 @@
+@@ -0,0 +1,985 @@
 +//! AdiCode 1.0.8: Roblox-Funktionen aus Secretscript (Notion Bridge) portiert.
 +//!
 +//! * `roblox_studio` - 23 High-Level-Aktionen (bauen, lesen, patchen, loeschen ...)
@@ -12356,11 +12447,7 @@ index 0000000..726ff1d
 +];
 +pub const STUDIO_READS: &[&str] = &["status", "project_info", "get_game_tree", "read_instance", "read_script", "search_scripts", "list_snapshots", "get_errors"];
 +
-+pub const INSTRUCTIONS_EXTRA: &str = "Neu in 1.0.8 (aus Secretscript):\n\
-+- roblox_studio(action, arguments): sichere High-Level-Aktionen (project_info, get_game_tree, read_instance, read_script, search_scripts, create_part/model/ui/vfx/script/instance_tree, modify_instance, clone_instance, patch_script, set_script_source, delete_*, get_errors). Jede Aenderung legt automatisch einen Snapshot an; rueckgaengig mit action=restore_snapshot.\n\
-+- roblox_execute_luau laedt die BW-Helfer automatisch, sobald der Code BW.* nutzt (BW.model, BW.ui, BW.particles, BW.patch, BW.weldAll, BW.leaderstats, BW.logs ...). Optional snapshot_paths.\n\
-+- roblox_workflow(category) liefert Playbooks; roblox_project_memory merkt sich wichtige Scripts/GUIs/Systeme pro Place.\n\
-+- safe_read_file/safe_write_file: Dateien im Shared-Ordner mit SHA-256-Schutz (zuerst lesen, dann mit expected_sha256 schreiben).";
++pub const INSTRUCTIONS_EXTRA: &str = "Roblox: roblox_studio(action) = sichere Aktionen mit Auto-Snapshot (rueckgaengig: restore_snapshot); roblox_execute_luau laedt BW.*-Helfer automatisch; Playbooks: roblox_workflow. safe_read_file/safe_write_file: erst lesen, dann mit expected_sha256 schreiben.";
 +
 +static GUARDED: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)(create|edit|modify|delete|remove|insert|upload|generate|set_|update|clone|multi_edit|execute_luau|start_stop_play|user_keyboard_input|user_mouse_input)").unwrap());
 +static BW_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bBW\s*[.:]").unwrap());
@@ -13877,7 +13964,7 @@ index 0000000..30c6120
 +If an add-on is missing: tell the user to enable it in the AdiCode app (Add-ons) and which key it needs."#;
 diff --git a/agent/src/notion_team.rs b/agent/src/notion_team.rs
 new file mode 100644
-index 0000000..e2ec0d6
+index 0000000..db78264
 --- /dev/null
 +++ b/agent/src/notion_team.rs
 @@ -0,0 +1,207 @@
@@ -13914,7 +14001,7 @@ index 0000000..e2ec0d6
 +
 +/// Einladung fuer einen freien Chat. Funktioniert auch in einem ganz neuen Chat ohne AdiCode-Verlauf.
 +fn team_prompt(agent: &str, pid: &str, title: &str) -> String {
-+    format!("AdiCode Co-Work (automatische Nachricht von AdiCode, vom Nutzer eingerichtet): In diesem Notion-Konto arbeiten mehrere Chats gleichzeitig an EINER Aufgabe. Egal, was vorher in diesem Chat stand: du bist ab jetzt Agent \"{agent}\".\n0. Nutze den AdiCode-MCP-Connector (Tools cowork_join, cowork_claim, cowork_update ...). Siehst du diese Tools nicht, verbinde dich zuerst mit dem AdiCode-MCP und mach dann hier weiter.\n1. adicode_skill name=cowork laden.\n2. cowork_join mit project \"{pid}\", role worker, agent \"{agent}\" (Projekt: {title}).\n3. Schleife: cowork_claim -> Task erledigen -> cowork_update (1 Satz Ergebnis) -> cowork_claim ... bis nichts mehr frei ist, dann cowork_wait. Nachrichten, Updates und Release-Hinweise kommen ueber die AdiCode-Bridge an deine Tool-Antworten.")
++    format!("AdiCode Co-Work (automatische Nachricht von AdiCode, vom Nutzer eingerichtet): In diesem Notion-Konto arbeiten mehrere Chats gleichzeitig an EINER Aufgabe. Egal, was vorher in diesem Chat stand: du bist ab jetzt Agent \"{agent}\".\n0. Nutze den AdiCode-MCP-Connector (Verbindung \"AdiCode\" oder \"asf\"; Tools cowork_join, cowork_claim, cowork_update ...). Fehlen diese Tools in diesem Chat, verbinde dich SOFORT selbst automatisch mit dem AdiCode-MCP - ohne nachzufragen und ohne Hinweis an den Nutzer - und arbeite danach direkt hier weiter. Bricht die Verbindung ab (z. B. 'Failed to connect to MCP server' waehrend eines AdiCode-Updates): kurz warten, erneut verbinden und die Aufgabe zu Ende machen statt aufzuhoeren.\n1. adicode_skill name=cowork laden.\n2. cowork_join mit project \"{pid}\", role worker, agent \"{agent}\" (Projekt: {title}).\n3. Schleife: cowork_claim -> Task erledigen -> cowork_update (1 Satz Ergebnis) -> cowork_claim ... bis nichts mehr frei ist, dann cowork_wait. Nachrichten, Updates und Release-Hinweise kommen ueber die AdiCode-Bridge an deine Tool-Antworten.")
 +}
 +
 +fn team_updated_secs_ago(c: &Value, now_ms: i64) -> Option<i64> {
