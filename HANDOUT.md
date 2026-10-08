@@ -2,3 +2,4 @@
 - **1.0.124**: Co-Work: running_ids erkennt Tabs zusaetzlich per CDP-Port (9300+id); tab_no_mcp (mcp=Fehlt..., ohne mcp_saved) -> agent_unavailable + auto_fill ueberspringen.
 - **1.0.125**: 1.0.125: notion_team.rs (team_loop ersetzt slot_monitor+auto_fill; tab_offline per CDP-Port; Einladung via team_invite ohne THREAD_OK_JS; Zustellung team_deliver max 3x je Signatur); notion_cowork::active_project; AI_OFF_JS nur sichtbarer kurzer Hinweis; tab_no_mcp=false.
 - **1.0.126**: 1.0.126: notion_team.rs Haupt-Chat + offene Chats einladbar, TEAM_USER_JS (sichtbar+fokus+Eingabe) nur bei nicht selbst geoeffnetem Tab, kein TEAM_FAIL-Cooldown bei 'Nutzer'; notion_profiles.rs BROWSERS nur Brave, browser() ignoriert Auswahl, host-resolver-rules um Tracker/Fingerprint-Hosts erweitert.
+- **1.0.130**: Co-Work kontenuebergreifend (Test two_accounts_share_one_project), Co-Work-Tab nur Brave + Aktualisieren-Knopf, Edge-Altlasten raus.

@@ -315,6 +315,11 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - **Kein falsches 'Nutzer ist gerade in diesem Chat' mehr**: Hintergrund-Tabs gelten nicht mehr als 'vom Nutzer benutzt'.
 - **Notion-Tabs nur noch in Brave**: Chrome/Edge werden fuer Konto-Tabs nicht mehr verwendet. Jedes Konto hat weiterhin einen eigenen Profilordner mit eigenen Cookies und bleibt eingeloggt.
 - **Weniger Lag**: Tracking-, Analyse- und Fingerprint-Skripte (Intercom, Google Tag Manager, Sentry, Datadog, Splunk, FingerprintJS, Hotjar, Statsig, Pendo u. a.) werden in den Notion-Tabs geblockt.
+## Neu in 1.0.130
+- **Zwei Konten arbeiten zusammen**: Chats aus verschiedenen Notion-Konten koennen demselben Co-Work-Projekt beitreten, Tasks uebernehmen und sich Nachrichten schicken. Chat-Namen (z. B. AdiCode-Tab3-K2) werden nie mehr auf einen anderen Chat umgebogen.
+- **Co-Work-Tab nur noch Brave**: Browser-Auswahl zeigt nur Brave, Edge/Chrome-Texte und -Icons sind raus. Fehlt Brave: 'Brave nicht gefunden - bitte installieren'.
+- **Neuer Knopf 'Aktualisieren'**: laedt Tabs, Konten und Ports im Co-Work-Tab sofort neu.
+- **Aufgeraeumt**: Edge/WebView2-Altlasten im Co-Work-Backend entfernt.
 ## Neu in 1.0.34–1.0.23
 (fixiert in 1.0.29: lokale schnelle Releases; Kompaktversion der alten Einzelnachrichten)
 
