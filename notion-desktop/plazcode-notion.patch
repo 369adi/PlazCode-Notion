@@ -5845,10 +5845,10 @@ index 0000000..36e15d1
 +</script>
 diff --git a/agent/src/notion_cowork.rs b/agent/src/notion_cowork.rs
 new file mode 100644
-index 0000000..ce8ff01
+index 0000000..4ddefb2
 --- /dev/null
 +++ b/agent/src/notion_cowork.rs
-@@ -0,0 +1,1975 @@
+@@ -0,0 +1,1980 @@
 +//! AdiCode (unofficial fork): Co-Work.
 +//! Several Notion AI chats (browser tabs) connected to the same AdiCode
 +//! server work on one project at the same time through a shared board.
@@ -6440,9 +6440,14 @@ index 0000000..ce8ff01
 +        if task.status == "open" && deps_done(p, task) { line.push_str(" <- frei"); }
 +        o.push_str(&line);
 +        o.push('\n');
-+        if !task.detail.is_empty() { o.push_str(&format!("    {}\n", short(&task.detail, 400))); }
++        // Kompakt gegen Notion-Lag: erledigte Tasks nur 1 Zeile + kurzes Ergebnis, offene kurze Beschreibung.
++        if task.status == "done" {
++            if !task.result.is_empty() { o.push_str(&format!("    Ergebnis: {}\n", short(&task.result, 100))); }
++            continue;
++        }
++        if !task.detail.is_empty() { o.push_str(&format!("    {}\n", short(&task.detail, 220))); }
 +        if !task.files.is_empty() { o.push_str(&format!("    Dateien: {}\n", task.files.join(", "))); }
-+        if !task.result.is_empty() { o.push_str(&format!("    Ergebnis: {}\n", short(&task.result, 600))); }
++        if !task.result.is_empty() { o.push_str(&format!("    Ergebnis: {}\n", short(&task.result, 300))); }
 +    }
 +    if !p.tasks.is_empty() && done == p.tasks.len() { o.push_str("\nALLE TASKS ERLEDIGT. Lead: cowork_results aufrufen und alles zu EINER finalen, optimierten Antwort fuer den Nutzer zusammenfuehren.\n"); }
 +    if !p.locks.is_empty() {
@@ -11416,10 +11421,10 @@ index 0000000..58b6c9b
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..bec780c
+index 0000000..68ed6d2
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1654 @@
+@@ -0,0 +1,1655 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -11934,9 +11939,10 @@ index 0000000..bec780c
 +    }
 +}
 +
-+const SPILL_AT: usize = 80_000;
-+const SPILL_HEAD: usize = 60_000;
-+const SPILL_TAIL: usize = 15_000;
++// Klein halten: jede Antwort wird im Notion-Chat gerendert, grosse Antworten lassen lange Chats laggen.
++const SPILL_AT: usize = 6_000;
++const SPILL_HEAD: usize = 3_500;
++const SPILL_TAIL: usize = 1_500;
 +const SLIM_DESC: usize = 300;
 +const SLIM_PROP_DESC: usize = 600;
 +/// Add-on-Tools (nicht AdiCode-eigene): Feld-Beschreibungen knapper, Volltext per adicode_find_tools.
@@ -13194,10 +13200,10 @@ index 0000000..96af036
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..0d2edd1
+index 0000000..8472d48
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1378 @@
+@@ -0,0 +1,1384 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -13771,7 +13777,10 @@ index 0000000..0d2edd1
 +}
 +fn set_status(s:impl Into<String>){let s=s.into();tl(&format!("STATUS {s}"));*lock(&COWORK_STATUS)=s;}
 +pub(crate) fn status_text()->String{lock(&COWORK_STATUS).clone()}
-+pub(crate) fn mcp_ok(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)||load().iter().find(|t|t.id==id).map(|t|mem_get(&t.email,"mcp_ok2").as_bool()==Some(true)).unwrap_or(false)}
++pub(crate) fn mcp_ok(id:u32)->bool{lock(&ACCOUNT).get(&id).and_then(|a|a["mcp"].as_str()).map(|s|s=="Verbunden"||s=="Bereits verbunden").unwrap_or(false)||load().iter().find(|t|t.id==id).map(|t|mcp_url_ok(&t.email)).unwrap_or(false)}
++/// p15#12: gemerkte MCP-Verbindung gilt nur mit der aktuellen (Tailscale-)URL; alte ngrok-Eintraege werden neu eingerichtet.
++pub(crate) fn mcp_url_fresh(saved:&str,cur:&str)->bool{!cur.is_empty()&&!cur.contains("ngrok")&&saved==cur}
++pub(crate) fn mcp_url_ok(email:&String)->bool{mem_get(email,"mcp_ok2").as_bool()==Some(true)&&mcp_url_fresh(mem_get(email,"mcp_url").as_str().unwrap_or(""),&crate::notion_mcp::cowork_connection().0)}
 +static CHECKING: AtomicBool = AtomicBool::new(false);
 +/// Seite fertig geladen? (readyState, kein Spinner, App-Geruest da)
 +const READY_JS:&str=r#"(()=>{const vis=e=>{if(!e)return false;const r=e.getBoundingClientRect();return r.width>0&&r.height>0};if(document.readyState!=='complete')return false;const busy=[...document.querySelectorAll('[role=progressbar],.loading-spinner,[class*=LoadingSpinner],[class*=loading-spinner]')].some(vis);const app=document.querySelector('.notion-sidebar,nav,main,.notion-frame,[class*=sidebar]');return !busy&&!!app&&((document.body&&document.body.innerText)||'').trim().length>25})()"#;
@@ -13980,7 +13989,7 @@ index 0000000..0d2edd1
 +    if !ok{mark_account(t.id,"check",json!("Auto-Login \u{2026}"));for _ in 0..40{let st=setup_phase(port,"onboard",&t.email).await;if st.starts_with("workspace"){ok=true;break;}tokio::time::sleep(Duration::from_secs(3)).await;if logged_in(port).await{ok=true;break;}}}
 +    if !ok{mark_account(t.id,"check",json!("Nicht eingeloggt \u{2013} Login nutzen"));return Err(format!("{}: nicht in Notion eingeloggt",t.role));}
 +    mark_account(t.id,"check",json!("Stelle Notion auf Englisch \u{2026}"));match english_once(&t,port).await{Ok(v)=>mark_account(t.id,"lang",json!(v)),Err(e)=>mark_account(t.id,"lang",json!(e))}step(t.id,1);let mut missing:Vec<&str>=Vec::new();let mut errs:Vec<String>=Vec::new();mark_account(t.id,"check",json!("Pr\u{fc}fe Trial \u{2026}"));check_entitlement(&t,i).await;if lock(&ACCOUNT).get(&t.id).and_then(|a|a["trial_state"].as_str().map(|s|s.starts_with("Kein aktives Entitlement"))).unwrap_or(false){mark_account(t.id,"check",json!("Aktiviere Entitlement \u{2026}"));if let Err(e)=ensure_entitlement(&t,i).await{missing.push("Trial");errs.push(e);}}
-+    if mem_get(&t.email,"mcp_ok2").as_bool()==Some(true){mark_account(t.id,"check",json!("AdiCode-MCP gemerkt \u{2013} \u{fc}bersprungen"));mark_account(t.id,"mcp",json!("Verbunden (gemerkt)"));mark_account(t.id,"mcp_saved",json!(true));if mem_get(&t.email,"mcp_perm3").as_bool()!=Some(true){mark_account(t.id,"check",json!("Setze AdiCode-Rechte auf Run automatically \u{2026}"));let _=tokio::time::timeout(Duration::from_secs(90),mcp_finish(&t,cdp_port(i))).await;mcp_cleanup(cdp_port(i)).await;}}else{mark_account(t.id,"check",json!("Pr\u{fc}e AdiCode-MCP \u{2026}"));match setup_mcp_safe(&t,i).await{Ok(_)=>{mem_set(&t.email,"mcp_ok2",json!(true));mark_account(t.id,"mcp_saved",json!(true));}Err(e)=>{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));missing.push("MCP");errs.push(format!("{}: MCP {e}",t.role));}}}
++    if mcp_url_ok(&t.email){mark_account(t.id,"check",json!("AdiCode-MCP gemerkt \u{2013} \u{fc}bersprungen"));mark_account(t.id,"mcp",json!("Verbunden (gemerkt)"));mark_account(t.id,"mcp_saved",json!(true));if mem_get(&t.email,"mcp_perm3").as_bool()!=Some(true){mark_account(t.id,"check",json!("Setze AdiCode-Rechte auf Run automatically \u{2026}"));let _=tokio::time::timeout(Duration::from_secs(90),mcp_finish(&t,cdp_port(i))).await;mcp_cleanup(cdp_port(i)).await;}}else{mark_account(t.id,"check",json!("Pr\u{fc}e AdiCode-MCP \u{2026}"));match setup_mcp_safe(&t,i).await{Ok(_)=>{mem_set(&t.email,"mcp_ok2",json!(true));mem_set(&t.email,"mcp_url",json!(crate::notion_mcp::cowork_connection().0));mark_account(t.id,"mcp_saved",json!(true));}Err(e)=>{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));missing.push("MCP");errs.push(format!("{}: MCP {e}",t.role));}}}
 +    step(t.id,2);mark_account(t.id,"check",json!("Pr\u{fc}fe Modelle \u{2026}"));
 +    if let Err(e)=ensure_models(&t,i).await{missing.push("Modell");errs.push(e);}step(t.id,3);step(t.id,4);
 +    mark_account(t.id,"check",json!("Pr\u{fc}e Usage \u{2026}"));
@@ -14111,15 +14120,15 @@ index 0000000..0d2edd1
 +    mark_account(t.id,"mcp_perm",json!(if r["ok"].as_bool()==Some(true){format!("Run automatically: {}",r["perm"].as_array().map(|a|a.iter().filter_map(|v|v.as_str()).map(|s|s.trim_start_matches("ok:")).collect::<Vec<_>>().join(", ")).unwrap_or_default())}else{format!("Run automatically offen: {}",r["error"].as_str().unwrap_or("?"))}));
 +}
 +pub(crate) async fn setup_mcp(t:&Tab,i:usize)->Result<String,String>{
-+    let(url,token)=crate::notion_mcp::cowork_connection();if url.is_empty()||token.is_empty(){return Err("MCP-URL oder Token fehlt in AdiCode.".into());}let port=cdp_port(i);
++    let(url,token)=crate::notion_mcp::cowork_connection();if url.contains("ngrok"){return Err("Tailscale-Adresse noch nicht bereit (alte ngrok-URL) - bitte kurz warten.".into());}if url.is_empty()||token.is_empty(){return Err("MCP-URL oder Token fehlt in AdiCode.".into());}let port=cdp_port(i);
 +    let _=english_once(t,port).await;
 +    if !open_settings(port).await{return Err("Einstellungen lie\u{df}en sich nicht \u{f6}ffnen (Workspace-Men\u{fc} oben/unten nicht gefunden).".into());}
-+    let open=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms*(0.5+Math.random()*0.3)));const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};const exact=(sel,text)=>[...document.querySelectorAll(sel)].find(e=>vis(e)&&(e.innerText||e.getAttribute('aria-label')||'').trim().toLowerCase()===text);let sidebar=document.querySelector('[aria-label=\"Lock sidebar open\"]');if(sidebar)sidebar.click();await sleep(500);if(![...document.querySelectorAll('input')].find(e=>/^(search settings|einstellungen durchsuchen|in einstellungen suchen)/i.test(e.getAttribute('aria-label')||e.placeholder||''))){const ws=[...document.querySelectorAll('[role=\"button\"]')].find(e=>vis(e)&&e.getBoundingClientRect().x<30&&e.getBoundingClientRect().y<45&&(e.innerText||'').trim());if(ws)ws.click();await sleep(500);const dlgEl=document.querySelector('[role=dialog]');const inDlg=t=>dlgEl&&[...dlgEl.querySelectorAll('button,[role=button],[role=menuitem]')].find(e=>vis(e)&&(e.innerText||'').trim().toLowerCase()===t);const settings=inDlg('settings')||inDlg('einstellungen')||exact('button,[role=\"button\"]','settings')||exact('button,[role=\"button\"]','einstellungen');if(settings)settings.click();await sleep(1200);}const connections=exact('[role=\"tab\"]','connections')||exact('[role=\"tab\"]','verbindungen');if(connections)connections.click();await sleep(1200);const hasA=()=>/\b(AdiCode|PlazCode)\b/i.test([...document.querySelectorAll('[role=dialog]')].map(d=>d.innerText||'').join(' '));const tabs=[...document.querySelectorAll('[role=tab]')].filter(vis);const conn=tabs.find(e=>/^(connected|verbunden|installed|installiert)\b/i.test((e.innerText||'').trim()));const mng=tabs.find(e=>/^(manage|verwalten)$/i.test((e.innerText||'').trim()));if(conn){conn.click();await sleep(1100);if(hasA())return {existing:true};}if(mng){mng.click();await sleep(1100);if(hasA())return {existing:true};const all=[...document.querySelectorAll('button,[role=button]')].find(e=>vis(e)&&/^(all connections|alle verbindungen)/i.test((e.innerText||'').trim()));if(all){all.click();await sleep(1300);if(hasA())return {existing:true};}}const discover=exact('[role=\"tab\"]','discover')||exact('[role=\"tab\"]','verbindungen durchsuchen')||exact('[role=\"tab\"]','entdecken');const disc2=discover||[...document.querySelectorAll('[role=tab]')].find(e=>vis(e)&&/^(browse connections|browse|discover|entdecken|verbindungen durchsuchen)$/i.test((e.innerText||e.getAttribute('aria-label')||'').trim()));if(disc2){disc2.click();await sleep(1200);}else{await sleep(700);}let custom=null,addClicked=false,att=0;const press=e=>{for(const t of ['pointerdown','mousedown','pointerup','mouseup','click']){e.dispatchEvent(new (t[0]==='p'?PointerEvent:MouseEvent)(t,{bubbles:true,cancelable:true,view:window}))}};for(let k=0;k<14&&!custom;k++){const lb=e=>(e.innerText||e.getAttribute('aria-label')||'').trim();const pr=t=>/^(\+\s*)?(add connection|verbindung hinzuf|neue verbindung)/i.test(t)?0:/^(\+\s*)?(configure|konfigurieren)\b/i.test(t)?1:/^(\+\s*)?(add|hinzuf\u00fcgen)$/i.test(t)?2:9;const abs=[...document.querySelectorAll('button,[role=button]')].filter(e=>vis(e)&&pr(lb(e))<9).sort((x,y)=>pr(lb(x))-pr(lb(y)));const ab=abs.length?abs[Math.floor(att/2)%abs.length]:null;if(ab&&k%2===0){if(att%2===0)ab.click();else press(ab);att++;addClicked=true;await sleep(1100);}const cs=[...document.querySelectorAll('[role=\"menuitem\"],button,[role=\"button\"]')].filter(e=>vis(e)&&/custom mcp|custom connection|benutzerdefinierte?r? (mcp|verbindung)|individuelle?r? (mcp|verbindung)|eigene[nr]? (mcp|server)|new mcp connection|neue mcp|\bcustom\b[^\n]{0,20}\b(mcp|server|connector)\b|add mcp server|mcp-server hinzuf/i.test((e.innerText||''));custom=cs.find(e=>e.getAttribute('role')==='menuitem')||cs[0]||null;if(!custom)await sleep(700);}if(!custom)return {error:'Custom MCP fehlt'};custom.click();await sleep(700);const input=[...document.querySelectorAll('input')].find(e=>vis(e)&&/example\.com\/mcp/i.test(e.placeholder||''));if(!input)return {error:'URL-Feld fehlt'};const d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(input,__URL__);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));await sleep(300);const dl=input.closest('[role=dialog]')||[...document.querySelectorAll('[role=dialog]')].filter(vis).pop()||document;const btn=[...dl.querySelectorAll('button,[role=\"button\"]')].find(e=>vis(e)&&/^(connect|verbinden)$/.test((e.innerText||'').trim().toLowerCase()));if(!btn)return {error:'Connect 1 fehlt'};const r=btn.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()"#.replace("__URL__",&json!(url).to_string());
++    let open=r#"(async()=>{const sleep=ms=>new Promise(r=>setTimeout(r,ms*(0.5+Math.random()*0.3)));const vis=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};const exact=(sel,text)=>[...document.querySelectorAll(sel)].find(e=>vis(e)&&(e.innerText||e.getAttribute('aria-label')||'').trim().toLowerCase()===text);let sidebar=document.querySelector('[aria-label=\"Lock sidebar open\"]');if(sidebar)sidebar.click();await sleep(500);if(![...document.querySelectorAll('input')].find(e=>/^(search settings|einstellungen durchsuchen|in einstellungen suchen)/i.test(e.getAttribute('aria-label')||e.placeholder||''))){const ws=[...document.querySelectorAll('[role=\"button\"]')].find(e=>vis(e)&&e.getBoundingClientRect().x<30&&e.getBoundingClientRect().y<45&&(e.innerText||'').trim());if(ws)ws.click();await sleep(500);const dlgEl=document.querySelector('[role=dialog]');const inDlg=t=>dlgEl&&[...dlgEl.querySelectorAll('button,[role=button],[role=menuitem]')].find(e=>vis(e)&&(e.innerText||'').trim().toLowerCase()===t);const settings=inDlg('settings')||inDlg('einstellungen')||exact('button,[role=\"button\"]','settings')||exact('button,[role=\"button\"]','einstellungen');if(settings)settings.click();await sleep(1200);}const connections=exact('[role=\"tab\"]','connections')||exact('[role=\"tab\"]','verbindungen');if(connections)connections.click();await sleep(1200);const hasA=()=>/\b(AdiCode|PlazCode)\b/i.test([...document.querySelectorAll('[role=dialog]')].map(d=>d.innerText||'').join(' '));const tabs=[...document.querySelectorAll('[role=tab]')].filter(vis);const conn=tabs.find(e=>/^(connected|verbunden|installed|installiert)\b/i.test((e.innerText||'').trim()));const mng=tabs.find(e=>/^(manage|verwalten)$/i.test((e.innerText||'').trim()));if(conn){conn.click();await sleep(1100);if(hasA()&&!__STALE__)return {existing:true};}if(mng){mng.click();await sleep(1100);if(hasA()&&!__STALE__)return {existing:true};const all=[...document.querySelectorAll('button,[role=button]')].find(e=>vis(e)&&/^(all connections|alle verbindungen)/i.test((e.innerText||'').trim()));if(all){all.click();await sleep(1300);if(hasA()&&!__STALE__)return {existing:true};}}const discover=exact('[role=\"tab\"]','discover')||exact('[role=\"tab\"]','verbindungen durchsuchen')||exact('[role=\"tab\"]','entdecken');const disc2=discover||[...document.querySelectorAll('[role=tab]')].find(e=>vis(e)&&/^(browse connections|browse|discover|entdecken|verbindungen durchsuchen)$/i.test((e.innerText||e.getAttribute('aria-label')||'').trim()));if(disc2){disc2.click();await sleep(1200);}else{await sleep(700);}let custom=null,addClicked=false,att=0;const press=e=>{for(const t of ['pointerdown','mousedown','pointerup','mouseup','click']){e.dispatchEvent(new (t[0]==='p'?PointerEvent:MouseEvent)(t,{bubbles:true,cancelable:true,view:window}))}};for(let k=0;k<14&&!custom;k++){const lb=e=>(e.innerText||e.getAttribute('aria-label')||'').trim();const pr=t=>/^(\+\s*)?(add connection|verbindung hinzuf|neue verbindung)/i.test(t)?0:/^(\+\s*)?(configure|konfigurieren)\b/i.test(t)?1:/^(\+\s*)?(add|hinzuf\u00fcgen)$/i.test(t)?2:9;const abs=[...document.querySelectorAll('button,[role=button]')].filter(e=>vis(e)&&pr(lb(e))<9).sort((x,y)=>pr(lb(x))-pr(lb(y)));const ab=abs.length?abs[Math.floor(att/2)%abs.length]:null;if(ab&&k%2===0){if(att%2===0)ab.click();else press(ab);att++;addClicked=true;await sleep(1100);}const cs=[...document.querySelectorAll('[role=\"menuitem\"],button,[role=\"button\"]')].filter(e=>vis(e)&&/custom mcp|custom connection|benutzerdefinierte?r? (mcp|verbindung)|individuelle?r? (mcp|verbindung)|eigene[nr]? (mcp|server)|new mcp connection|neue mcp|\bcustom\b[^\n]{0,20}\b(mcp|server|connector)\b|add mcp server|mcp-server hinzuf/i.test((e.innerText||''));custom=cs.find(e=>e.getAttribute('role')==='menuitem')||cs[0]||null;if(!custom)await sleep(700);}if(!custom)return {error:'Custom MCP fehlt'};custom.click();await sleep(700);const input=[...document.querySelectorAll('input')].find(e=>vis(e)&&/example\.com\/mcp/i.test(e.placeholder||''));if(!input)return {error:'URL-Feld fehlt'};const d=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');d.set.call(input,__URL__);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));await sleep(300);const dl=input.closest('[role=dialog]')||[...document.querySelectorAll('[role=dialog]')].filter(vis).pop()||document;const btn=[...dl.querySelectorAll('button,[role=\"button\"]')].find(e=>vis(e)&&/^(connect|verbinden)$/.test((e.innerText||'').trim().toLowerCase()));if(!btn)return {error:'Connect 1 fehlt'};const r=btn.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()"#.replace("__URL__",&json!(url).to_string());
 +    let first=cdp(port,vec![json!({"method":"Runtime.evaluate","params":{"expression":open,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null);
 +    if first["existing"].as_bool().unwrap_or(false){mcp_finish(t,port).await;let mut a=lock(&ACCOUNT);a.entry(t.id).or_insert_with(||json!({}))["mcp"]=json!("Bereits verbunden");return Ok("MCP bereits verbunden.".into());}if !first.is_object()||first.get("error").is_some(){return Err(first["error"].as_str().unwrap_or("MCP-Dialog nicht gefunden").into());}trusted_click(port,&first).await?;tokio::time::sleep(Duration::from_millis(800)).await;wait_ready(port,10).await;
 +    let fill=FILL_JS.replace("__TOKEN__",&json!(token).to_string());
 +    let mut second=Value::Null;for _ in 0..15{if mcp_already(t,port).await{mcp_finish(t,port).await;return Ok("MCP bereits verbunden.".into());}second=js_eval(port,&fill).await.unwrap_or(Value::Null);if second.is_object(){break;}tokio::time::sleep(Duration::from_millis(700)).await;}if !second.is_object(){if mcp_already(t,port).await{mcp_finish(t,port).await;return Ok("MCP bereits verbunden.".into());}return Err("Finaler MCP-Connect-Knopf fehlt.".into());}trusted_click(port,&second).await?;tokio::time::sleep(Duration::from_secs(2)).await;if mcp_already(t,port).await{mcp_finish(t,port).await;return Ok("MCP bereits verbunden.".into());}
-+    let verify=r#"(()=>{const body=(document.body&&document.body.innerText)||'';const dt=[...document.querySelectorAll('[role=dialog]')].map(d=>d.innerText||'').join(' ');return /\bAdiCode\b/i.test(dt)||(/Installed connections|Installierte Verbindungen/i.test(body)&&/\bAdiCode\b/i.test(body))})()"#;let ok=poll_js(port,verify,20).await.as_bool().unwrap_or(false);if ok{mcp_finish(t,port).await;}let mut a=lock(&ACCOUNT);a.entry(t.id).or_insert_with(||json!({}))["mcp"]=json!(if ok{"Verbunden"}else{"Manueller Fallback nötig"});if ok{Ok("MCP verbunden.".into())}else{Err("MCP-Verbindung konnte nicht bestätigt werden.".into())}
++    let verify=r#"(()=>{const body=(document.body&&document.body.innerText)||'';const dt=[...document.querySelectorAll('[role=dialog]')].map(d=>d.innerText||'').join(' ');return /\bAdiCode\b/i.test(dt)||(/Installed connections|Installierte Verbindungen/i.test(body)&&/\bAdiCode\b/i.test(body))})()"#;let stale=mem_get(&t.email,"mcp_url").as_str()!=Some(url.as_str());let open_s=open.replace("__STALE__",if stale{"true"}else{"false"});let open=open_s.as_str();let ok=poll_js(port,verify,20).await.as_bool().unwrap_or(false);if ok{mcp_finish(t,port).await;}let mut a=lock(&ACCOUNT);a.entry(t.id).or_insert_with(||json!({}))["mcp"]=json!(if ok{"Verbunden"}else{"Manueller Fallback nötig"});if ok{Ok("MCP verbunden.".into())}else{Err("MCP-Verbindung konnte nicht bestätigt werden.".into())}
 +}
 +/// Usage-Check: fragt die interne Notion-API des eingeloggten Kontos (getSpaces + getAIUsageEligibility[V2]) ab, Fallback Seitentext. Erkennt aufgebrauchte Kontingente.
 +const USAGE_JS:&str=r#"(async()=>{const body=(document.body&&document.body.innerText)||'';const exText=/used your (trial )?AI allowance|add a payment method to unlock more AI|KI-Kontingent (ist )?aufgebraucht|AI-Guthaben aufgebraucht|out of AI responses/i.test(body);const post=(p,b)=>fetch('/api/v3/'+p,{method:'POST',credentials:'include',headers:{'content-type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.ok?r.json():null).catch(()=>null);const out={usage:null,used:null,limit:null,basic_used:null,basic_limit:null,premium_used:null,premium_limit:null,plan_type:null,exhausted:exText,usage_source:'nicht gefunden',usage_error:null,models:[],checked:new Date().toLocaleTimeString(),url:location.href};try{const sp=await post('getSpaces',{});let spaceId=null;if(sp){for(const u of Object.values(sp)){const ids=Object.keys((u&&u.space)||{});if(ids.length){spaceId=ids[0];break;}}}if(!spaceId){out.usage_error='Nicht eingeloggt oder kein Workspace';return out;}const v1=await post('getAIUsageEligibility',{spaceId,surface:'ai_module'});const v2=await post('getAIUsageEligibilityV2',{spaceId,surface:'ai_module'});if(v1){out.plan_type=v1.type||null;out.basic_used=v1.userUsage??v1.spaceUsage??null;out.basic_limit=v1.userLimit??v1.spaceLimit??null;if(v1.isEligible===false)out.exhausted=true;out.usage_source='getAIUsageEligibility';}if(v2){const b=v2.basicCredits||{};if(out.basic_used==null)out.basic_used=b.userUsage??null;if(out.basic_limit==null)out.basic_limit=b.userLimit??null;const ps=(v2.premiumCredits&&v2.premiumCredits.perSource)||{};let pu=0,pl=0;for(const s of Object.values(ps)){if(s&&typeof s.limit==='number'){pu+=s.usageTotal||0;pl+=s.limit;}}if(pl>0){out.premium_used=pu;out.premium_limit=pl;}out.usage_source=v1?'getAIUsageEligibility + V2':'getAIUsageEligibilityV2';}const unlimited=out.plan_type==='unlimited';if(out.premium_limit){out.used=out.premium_used;out.limit=out.premium_limit;out.usage=Math.min(100,Math.round(out.premium_used/out.premium_limit*100));}else if(!unlimited&&out.basic_limit){out.used=out.basic_used;out.limit=out.basic_limit;out.usage=Math.min(100,Math.round(out.basic_used/out.basic_limit*100));}else if(unlimited){out.usage=0;}if(!unlimited&&!out.premium_limit&&out.basic_limit&&out.basic_used>=out.basic_limit)out.exhausted=true;}catch(e){out.usage_error='Usage-Abfrage fehlgeschlagen: '+e;}if(out.exhausted)out.usage=100;return out})()"#;
@@ -14369,7 +14378,7 @@ index 0000000..0d2edd1
 +        "cowork_forget"=>find(id).map(|t|{mem_forget(&t.email);mark_account(t.id,"mcp_saved",json!(false));mark_account(t.id,"model_ok",Value::Null);format!("Gemerkte Checks f\u{fc}r {} gel\u{f6}scht \u{2013} n\u{e4}chster Check pr\u{fc}ft MCP und Modelle neu.",t.email)}),
 +        "cowork_set_english"=>find(id).map(|t|{let i=tab_index(t.id);tokio::spawn(async move{let r=set_english(cdp_port(i)).await;mark_account(t.id,"lang",json!(r.unwrap_or_else(|e|e)));});"Sprache wird auf English (US) gestellt.".into()}),
 +        "cowork_check_step"=>{let st=v.get("step").and_then(Value::as_str).unwrap_or("").to_string();find(id).map(|t|{let i=tab_index(t.id);let jid=t.id;let h=tokio::spawn(run_step(t,i,st));lock(&CHECK_JOBS).insert(jid,h.abort_handle());"Einzelschritt gestartet.".to_string()})},
-+        "cowork_setup_mcp"=>find(id).map(|t|{let i=tab_index(t.id);let jid=t.id;mark_account(jid,"checking",json!(true));let h=tokio::spawn(async move{match setup_mcp_safe(&t,i).await{Ok(_)=>{mem_set(&t.email,"mcp_ok2",json!(true));mark_account(t.id,"mcp_saved",json!(true));}Err(e)=>{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));}}mark_account(t.id,"checking",json!(false));});lock(&CHECK_JOBS).insert(jid,h.abort_handle());"MCP-Check gestartet.".into()}),
++        "cowork_setup_mcp"=>find(id).map(|t|{let i=tab_index(t.id);let jid=t.id;mark_account(jid,"checking",json!(true));let h=tokio::spawn(async move{match setup_mcp_safe(&t,i).await{Ok(_)=>{mem_set(&t.email,"mcp_ok2",json!(true));mem_set(&t.email,"mcp_url",json!(crate::notion_mcp::cowork_connection().0));mark_account(t.id,"mcp_saved",json!(true));}Err(e)=>{mark_account(t.id,"mcp",json!(format!("Fehlt: {e}")));}}mark_account(t.id,"checking",json!(false));});lock(&CHECK_JOBS).insert(jid,h.abort_handle());"MCP-Check gestartet.".into()}),
 +        "cowork_takeover"=>find(id).map(|t|{lock(&PAUSED).insert(t.id);windows::set_hidden(std::slice::from_ref(&t),false);let i=tab_index(t.id);tokio::spawn(async move{stop_generation(cdp_port(i)).await;let _=cdp(cdp_port(i),vec![json!({"method":"Page.bringToFront"})]).await;});format!("Tab {} ({}) \u{fc}bernommen: AdiCode schickt keine Erinnerungen mehr, du kannst dort selbst schreiben.",t.id,t.role)}),
 +        "cowork_release"=>find(id).map(|t|{lock(&PAUSED).remove(&t.id);format!("Tab {} ({}) wieder an Co-Work \u{fc}bergeben.",t.id,t.role)}),
 +        "cowork_auto_mcp"=>{let on=v.as_bool().or_else(||v.get("on").and_then(Value::as_bool)).unwrap_or(false);let r=if on{std::fs::create_dir_all(base()).and_then(|_|std::fs::write(auto_mcp_file(),"1"))}else{match std::fs::remove_file(auto_mcp_file()){Err(e) if e.kind()!=std::io::ErrorKind::NotFound=>Err(e),_=>Ok(())}};ensure_monitors();r.map(|_|if on{"Auto-MCP an: neue Tabs bekommen AdiCode automatisch, sobald sie in Notion eingeloggt sind.".to_string()}else{"Auto-MCP aus.".to_string()}).map_err(|e|e.to_string())},
@@ -14576,6 +14585,9 @@ index 0000000..0d2edd1
 +    #[test] fn notion_multichat_slot_agent(){let t=Tab{id:2,label:"Tab 2".into(),email:"a@b.c".into(),role:"Tab 1".into(),url:String::new(),autostart:true};assert_eq!(slot_agent(&t,2),"AdiCode-Tab1-K2");let m=Tab{role:"Main 1".into(),..t.clone()};assert_eq!(slot_agent(&m,3),"AdiCode-Main1-K3");}
 +}
 +include!("notion_team.rs");
++
++#[cfg(test)]
++mod p15_12_tests{use super::*;#[test]fn mcp_url_fresh_rejects_old_ngrok(){let ts="https://pc.tail1234.ts.net/k/abc/mcp";assert!(mcp_url_fresh(ts,ts));assert!(!mcp_url_fresh("https://veal.ngrok-free.dev/k/abc/mcp",ts));assert!(!mcp_url_fresh("",ts));assert!(!mcp_url_fresh(ts,""));let ng="https://veal.ngrok-free.dev/k/abc/mcp";assert!(!mcp_url_fresh(ng,ng));}}
 diff --git a/agent/src/notion_profiles.rs.k2bak b/agent/src/notion_profiles.rs.k2bak
 new file mode 100644
 index 0000000..039addb
@@ -18282,9 +18294,333 @@ index 0000000..db78264
 +}
 diff --git a/agent/src/notion_updates.rs b/agent/src/notion_updates.rs
 new file mode 100644
-index 0000000..8324f92
+index 0000000..c906331
 --- /dev/null
 +++ b/agent/src/notion_updates.rs
+@@ -0,0 +1,318 @@
++//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
++//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
++//! und kann per Datei `update-now` eine sofortige Pruefung anstossen.
++use axum::{extract::Query, response::IntoResponse, Json};
++use serde::Deserialize;
++use serde_json::{json, Value};
++use std::path::PathBuf;
++use std::sync::Mutex;
++use std::time::{Duration, Instant};
++
++const REPO: &str = "369adi/PlazCode-Notion";
++const TAG_PREFIX: &str = "notion-desktop-v";
++const NGROK_ZIP: &str = "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip";
++const CACHE_SECS: u64 = 600;
++
++static CACHE: Mutex<Option<(Instant, Value)>> = Mutex::new(None);
++
++fn cache() -> std::sync::MutexGuard<'static, Option<(Instant, Value)>> { CACHE.lock().unwrap_or_else(|e| e.into_inner()) }
++
++pub fn base_dir() -> PathBuf {
++    std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion")
++}
++
++pub fn current_version() -> String {
++    std::env::current_exe().ok()
++        .and_then(|e| e.parent().map(|d| d.join(".version")))
++        .and_then(|p| std::fs::read_to_string(p).ok())
++        .map(|s| s.trim().to_string())
++        .filter(|s| !s.is_empty())
++        .unwrap_or_else(|| "dev".into())
++}
++
++fn parse_ver(s: &str) -> Option<(u32, u32, u32)> {
++    let p = s.trim().split('.').map(|x| x.parse::<u32>().ok()).collect::<Option<Vec<u32>>>()?;
++    if p.is_empty() || p.len() > 4 { return None; }
++    Some((p[0], *p.get(1).unwrap_or(&0), *p.get(2).unwrap_or(&0)))
++}
++
++/// Abschnitt "## Neu in <version>" aus den Release-Notes (README) herausschneiden.
++fn notes_for(body: &str, version: &str) -> String {
++    let body = body.replace("\r\n", "\n");
++    let head = format!("## Neu in {version}");
++    let Some(rest) = body.match_indices(&head).map(|(i, _)| &body[i + head.len()..]).find(|r| !r.starts_with(|c: char| c.is_ascii_digit() || c == '.')) else { return String::new() };
++    let end = rest.find("\n## ").unwrap_or(rest.len());
++    rest[..end].trim().trim_start_matches(':').trim().to_string()
++}
++
++/// Notes einer Version: erst im eigenen Release-Body, sonst in allen anderen Bodies (README spaeterer Releases
++/// enthaelt alle "## Neu in"-Abschnitte) - so fehlen Notes nie, wenn ein Body ohne aktuellen Abschnitt erstellt wurde.
++fn notes_any(own: &str, all: &[String], version: &str) -> String {
++    let n = notes_for(own, version);
++    if !n.is_empty() { return n; }
++    all.iter().map(|b| notes_for(b, version)).find(|n| !n.is_empty()).unwrap_or_default()
++}
++
++fn log_tail() -> String {
++    let raw = std::fs::read_to_string(base_dir().join("logs").join("launcher.log")).unwrap_or_default();
++    let lines: Vec<&str> = raw.lines().collect();
++    lines[lines.len().saturating_sub(8)..].join("\n")
++}
++
++fn client(secs: u64) -> Result<reqwest::Client, String> {
++    reqwest::Client::builder().timeout(Duration::from_secs(secs)).user_agent("PlazCode-Notion").build().map_err(|e| e.to_string())
++}
++
++async fn fetch_releases() -> Result<Vec<Value>, String> {
++    let r = client(15)?
++        .get(format!("https://api.github.com/repos/{REPO}/releases?per_page=15"))
++        .header("Accept", "application/vnd.github+json")
++        .send().await.map_err(|e| format!("GitHub nicht erreichbar: {e}"))?;
++    if !r.status().is_success() { return Err(format!("GitHub antwortet mit HTTP {}", r.status())); }
++    let list: Vec<Value> = r.json().await.map_err(|e| e.to_string())?;
++    let all_bodies: Vec<String> = list.iter().filter_map(|rel| rel.get("body").and_then(Value::as_str).map(str::to_string)).collect();
++    let mut out: Vec<((u32, u32, u32), Value)> = list.into_iter().filter_map(|rel| {
++        if rel.get("draft").and_then(Value::as_bool).unwrap_or(false) { return None; }
++        let ver = rel.get("tag_name")?.as_str()?.strip_prefix(TAG_PREFIX)?.to_string();
++        let key = parse_ver(&ver)?;
++        let body = rel.get("body").and_then(Value::as_str).unwrap_or("");
++        let date = rel.get("published_at").and_then(Value::as_str).and_then(|d| d.get(..10)).unwrap_or("").to_string();
++        Some((key, json!({"version": ver, "date": date, "url": rel.get("html_url").cloned().unwrap_or(Value::Null), "notes": notes_any(body, &all_bodies, &ver)})))
++    }).collect();
++    out.sort_by(|a, b| b.0.cmp(&a.0));
++    Ok(out.into_iter().map(|(_, v)| v).collect())
++}
++
++pub async fn info(force: bool) -> Value {
++    let current = current_version();
++    let cached = cache().as_ref().filter(|(t, _)| !force && t.elapsed().as_secs() < CACHE_SECS).map(|(_, v)| v.clone());
++    let mut v = match cached {
++        Some(v) => v,
++        None => match fetch_releases().await {
++            Ok(releases) => {
++                let latest = releases.first().and_then(|r| r["version"].as_str()).unwrap_or("").to_string();
++                let v = json!({"releases": releases, "latest": latest, "checked": chrono::Local::now().format("%H:%M:%S").to_string()});
++                *cache() = Some((Instant::now(), v.clone()));
++                v
++            }
++            Err(e) => { let mut old = cache().as_ref().map(|(_, v)| v.clone()).unwrap_or_else(|| json!({"releases": [], "latest": ""})); old["error"] = json!(e); old }
++        },
++    };
++    let available = match (parse_ver(v["latest"].as_str().unwrap_or("")), parse_ver(&current)) { (Some(l), Some(c)) => l > c, _ => false };
++    v["ok"] = json!(true);
++    v["current"] = json!(current);
++    v["update_available"] = json!(available);
++    v["log"] = json!(log_tail());
++    v
++}
++
++#[derive(Deserialize)]
++pub struct UpdatesQuery { #[serde(default)] force: Option<u8> }
++
++pub async fn updates_handler(Query(q): Query<UpdatesQuery>) -> impl IntoResponse {
++    Json(info(q.force.unwrap_or(0) == 1).await)
++}
++
++// ---------- ngrok-Ersteinrichtung ----------
++
++/// Liegt die ngrok.yml nur virtualisiert beim Store-ngrok, in %LOCALAPPDATA%\ngrok kopieren (sonst fehlt dem eigenen ngrok der Token).
++pub fn ensure_real_ngrok_config() {
++    let Some(la) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) else { return };
++    let real = la.join("ngrok").join("ngrok.yml");
++    if real.is_file() { return; }
++    if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
++        for e in rd.flatten() {
++            if !e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { continue; }
++            let f = e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml");
++            if f.is_file() { let _ = std::fs::create_dir_all(la.join("ngrok")); let _ = std::fs::copy(&f, &real); return; }
++        }
++    }
++}
++
++pub fn has_authtoken() -> bool { !authtoken_mask().is_empty() }
++
++/// Gespeicherter Authtoken maskiert (z. B. "2abc...wxyz"), leer = keiner.
++pub fn authtoken_mask() -> String {
++    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
++    let mut files = Vec::new();
++    if let Some(la) = env("LOCALAPPDATA") {
++        files.push(la.join("ngrok").join("ngrok.yml"));
++        if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
++            for e in rd.flatten() { if e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { files.push(e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml")); } }
++        }
++    }
++    if let Some(up) = env("USERPROFILE") {
++        files.push(up.join(".config").join("ngrok").join("ngrok.yml"));
++        files.push(up.join(".ngrok2").join("ngrok.yml"));
++    }
++    if let Some(ad) = env("APPDATA") { files.push(ad.join("ngrok").join("ngrok.yml")); }
++    for f in &files {
++        if let Ok(t) = std::fs::read_to_string(f) {
++            for l in t.lines() {
++                if let Some(v) = l.trim_start().strip_prefix("authtoken:") {
++                    let v = v.trim().trim_matches(|c| c == '"' || c == '\'');
++                    if v.len() > 15 && v.is_ascii() { return format!("{}…{}", &v[..4], &v[v.len() - 4..]); }
++                }
++            }
++        }
++    }
++    String::new()
++}
++
++fn hidden(cmd: &mut tokio::process::Command) -> &mut tokio::process::Command {
++    #[cfg(windows)]
++    { cmd.creation_flags(0x0800_0000); }
++    cmd
++}
++
++pub(crate) async fn install_ngrok() -> Result<String, String> {
++    let dir = base_dir();
++    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
++    let zip = dir.join("ngrok-download.zip");
++    let bytes = client(240)?.get(NGROK_ZIP).send().await.map_err(|e| format!("Download fehlgeschlagen: {e}"))?
++        .error_for_status().map_err(|e| format!("Download fehlgeschlagen: {e}"))?
++        .bytes().await.map_err(|e| format!("Download fehlgeschlagen: {e}"))?;
++    if bytes.len() < 1_000_000 { return Err("Download unvollständig. Bitte nochmal versuchen.".into()); }
++    tokio::fs::write(&zip, &bytes).await.map_err(|e| e.to_string())?;
++    let tar = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join("System32").join("tar.exe")).filter(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("tar"));
++    let _ = tokio::task::spawn_blocking(crate::notion_mcp::stop_all_ngrok).await;
++    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
++    let _ = std::fs::remove_file(dir.join("ngrok.exe"));
++    let mut cmd = tokio::process::Command::new(tar);
++    let st = hidden(cmd.arg("-xf").arg(&zip).arg("-C").arg(&dir)).status().await.map_err(|e| format!("Entpacken fehlgeschlagen: {e}"))?;
++    let _ = tokio::fs::remove_file(&zip).await;
++    let exe = dir.join("ngrok.exe");
++    if !st.success() || !exe.is_file() { return Err("ngrok konnte nicht entpackt werden.".into()); }
++    ensure_real_ngrok_config();
++    crate::notion_mcp::use_ngrok_exe(&exe);
++    crate::notion_mcp::restart_tunnel();
++    Ok(format!("ngrok installiert ({}). Jetzt den Authtoken eintragen.", exe.display()))
++}
++
++pub(crate) async fn set_authtoken(raw: &str) -> Result<String, String> {
++    let tok: String = raw.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
++    if tok.len() < 20 { return Err("Das sieht nicht nach einem ngrok-Authtoken aus (dashboard.ngrok.com → Your Authtoken).".into()); }
++    let exe = crate::notion_mcp::ngrok_exe().ok_or("ngrok.exe fehlt – klicke zuerst auf „ngrok installieren“.")?;
++    let mut cmd = tokio::process::Command::new(exe);
++    let out = hidden(cmd.args(["config", "add-authtoken", tok.as_str()])).output().await.map_err(|e| e.to_string())?;
++    if !out.status.success() {
++        let err = String::from_utf8_lossy(&out.stderr).trim().chars().take(300).collect::<String>();
++        return Err(format!("ngrok meldet: {err}"));
++    }
++    crate::notion_mcp::restart_tunnel();
++    Ok("Authtoken gespeichert. Der Tunnel startet neu.".into())
++}
++
++/// 1.0.130: true, wenn diese Instanz durch "Jetzt updaten" gestartet wurde (Marker wird verbraucht).
++pub fn take_show_marker() -> bool {
++    let p = base_dir().join("show-after-update");
++    let hit = p.is_file();
++    if hit { let _ = std::fs::remove_file(&p); }
++    hit
++}
++
++/// Nur manuell (Knopf in AdiCode): erst alle aktiven Notion-Tabs benachrichtigen, dann installieren und neu starten.
++async fn update_now() -> Result<String, String> {
++    let mut v = info(false).await;
++    if !v["update_available"].as_bool().unwrap_or(false) { v = info(true).await; }
++    if !v["update_available"].as_bool().unwrap_or(false) { return Ok(format!("Kein neues Update ({} ist aktuell).", current_version())); }
++    std::fs::create_dir_all(base_dir()).map_err(|e| e.to_string())?;
++    let latest = v["latest"].as_str().unwrap_or("?").to_string();
++    *cache() = None;
++    // 1.0.130: nach dem Neustart oeffnet sich das Fenster der neuen Version automatisch (statt versteckt im Tray).
++    let _ = std::fs::write(base_dir().join("show-after-update"), &latest);
++    // Erst alle gerade arbeitenden Notion-Tabs warnen (Verbindung ist kurz weg), danach installieren und neu starten.
++    tokio::spawn(async move {
++        // Task #2: der Hinweis an die Tabs darf das Update nicht aufhalten (vorher bis ~30 s) - max 3 s, dann sofort installieren.
++        let _ = tokio::time::timeout(Duration::from_secs(3), crate::notion_live::announce_update(&latest)).await;
++        let trig = base_dir().join("update-now");
++        if let Err(e) = std::fs::write(&trig, "1") { eprintln!("[updates] Trigger: {e}"); }
++        // Der Launcher holt den Trigger binnen 1 s ab. Liegt er nach 4 s noch da (Launcher laeuft nicht), installiert die App selbst.
++        tokio::time::sleep(Duration::from_secs(4)).await;
++        if !trig.is_file() { return; }
++        let _ = std::fs::remove_file(&trig);
++        if let Err(e) = direct_install().await { eprintln!("[updates] Direkt-Update: {e}"); }
++    });
++    Ok(format!("Update auf {} wird vorbereitet: alle aktiven Notion-Tabs bekommen zuerst den Hinweis, dass die Verbindung kurz weg ist. Danach aktualisiert AdiCode und startet neu.", v["latest"].as_str().unwrap_or("?")))
++}
++
++async fn direct_install() -> Result<(), String> {
++    let v = info(true).await;
++    if !v["update_available"].as_bool().unwrap_or(false) { return Err("kein neueres Release".into()); }
++    // 1.0.132: vorgeladenes, geprueftes Update (notion_stage, #1) nutzen -> kein Download beim Klick.
++    if let Some(exe) = crate::notion_stage::staged_exe(v["latest"].as_str().unwrap_or("")) {
++        std::process::Command::new(&exe).spawn().map_err(|e| e.to_string())?;
++        tokio::time::sleep(Duration::from_millis(800)).await;
++        std::process::exit(0)
++    }
++    let url = format!("https://github.com/{}/releases/latest/download/PlazCode-Notion.exe", REPO);
++    let bytes = client(180)?.get(url).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
++    if bytes.len() < 1_000_000 || &bytes[..2] != b"MZ" { return Err("Download ist keine gueltige exe".into()); }
++    let p = std::env::temp_dir().join("AdiCode-update.exe");
++    std::fs::write(&p, &bytes).map_err(|e| e.to_string())?;
++    std::process::Command::new(&p).spawn().map_err(|e| e.to_string())?;
++    // 1.0.130: alte Instanz beendet sich, damit keine versteckte Version im Tray zurueckbleibt.
++    tokio::time::sleep(Duration::from_millis(800)).await;
++    std::process::exit(0)
++}
++
++/// Tailscale (kostenloser Tunnel mit fester Adresse, ersetzt ngrok) per winget installieren.
++pub(crate) async fn install_tailscale() -> Result<String, String> {
++    if crate::notion_mcp::tailscale_exe().is_some() { return Ok("Tailscale ist schon installiert.".into()); }
++    let mut cmd = tokio::process::Command::new("winget");
++    cmd.args(["install", "--id", "Tailscale.Tailscale", "-e", "--silent", "--accept-package-agreements", "--accept-source-agreements"])
++        .stdin(std::process::Stdio::null()).kill_on_drop(true);
++    #[cfg(windows)]
++    cmd.creation_flags(0x0800_0000);
++    let out = tokio::time::timeout(Duration::from_secs(600), cmd.output()).await
++        .map_err(|_| "Tailscale-Installation dauert zu lange (10 Min).".to_string())?
++        .map_err(|e| format!("winget nicht verfuegbar ({e}). Tailscale bitte von tailscale.com/download installieren."))?;
++    for _ in 0..20 { if crate::notion_mcp::tailscale_exe().is_some() { break; } tokio::time::sleep(Duration::from_secs(1)).await; }
++    if crate::notion_mcp::tailscale_exe().is_some() {
++        crate::notion_mcp::restart_tunnel();
++        return Ok("Tailscale installiert. Jetzt in der Tailscale-App kostenlos anmelden - danach verbindet AdiCode automatisch.".into());
++    }
++    let txt = String::from_utf8_lossy(&out.stdout).to_string();
++    let tail: String = txt.trim().chars().rev().take(250).collect::<Vec<_>>().into_iter().rev().collect();
++    Err(format!("Tailscale-Installation fehlgeschlagen: {tail}"))
++}
++
++/// Aktionen der Notion-AI-/Updates-Seite. `None` = nicht zustaendig.
++pub async fn action(name: &str, v: &Value) -> Option<Result<String, String>> {
++    Some(match name {
++        "update_now" => update_now().await,
++        "install_ngrok" => install_ngrok().await,
++        "install_tailscale" => install_tailscale().await,
++        "set_ngrok_authtoken" => set_authtoken(v.as_str().unwrap_or("")).await,
++        _ => return None,
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn versions_and_notes() {
++        assert!(parse_ver("1.0.10") > parse_ver("1.0.9"));
++        assert_eq!(parse_ver("x"), None);
++        let body = "# T\r\n## Neu in 1.0.10: Updates\r\n- a\r\n## Neu in 1.0.1\r\n- b\r\n## Start\r\n";
++        assert_eq!(notes_for(body, "1.0.10"), "Updates\n- a");
++        assert_eq!(notes_for(body, "1.0.1"), "- b");
++        assert_eq!(notes_for(body, "1.0.2"), "");
++    }
++}
++
++#[cfg(test)]
++mod notes_any_tests {
++    #[test]
++    fn falls_back_to_other_bodies() {
++        let all = vec!["## Neu in 1.0.131
++B
++## Neu in 1.0.130
++A".to_string()];
++        assert_eq!(super::notes_any("README ohne Abschnitt", &all, "1.0.130"), "A");
++        assert_eq!(super::notes_any("## Neu in 1.0.130
++X", &all, "1.0.130"), "X");
++        assert_eq!(super::notes_any("", &all, "9.9.9"), "");
++    }
++}
+diff --git a/agent/src/notion_updates.rs.k2bak b/agent/src/notion_updates.rs.k2bak
+new file mode 100644
+index 0000000..8324f92
+--- /dev/null
++++ b/agent/src/notion_updates.rs.k2bak
 @@ -0,0 +1,288 @@
 +//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
 +//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
@@ -18556,277 +18892,6 @@ index 0000000..8324f92
 +        "update_now" => update_now().await,
 +        "install_ngrok" => install_ngrok().await,
 +        "install_tailscale" => install_tailscale().await,
-+        "set_ngrok_authtoken" => set_authtoken(v.as_str().unwrap_or("")).await,
-+        _ => return None,
-+    })
-+}
-+
-+#[cfg(test)]
-+mod tests {
-+    use super::*;
-+    #[test]
-+    fn versions_and_notes() {
-+        assert!(parse_ver("1.0.10") > parse_ver("1.0.9"));
-+        assert_eq!(parse_ver("x"), None);
-+        let body = "# T\r\n## Neu in 1.0.10: Updates\r\n- a\r\n## Neu in 1.0.1\r\n- b\r\n## Start\r\n";
-+        assert_eq!(notes_for(body, "1.0.10"), "Updates\n- a");
-+        assert_eq!(notes_for(body, "1.0.1"), "- b");
-+        assert_eq!(notes_for(body, "1.0.2"), "");
-+    }
-+}
-diff --git a/agent/src/notion_updates.rs.k2bak b/agent/src/notion_updates.rs.k2bak
-new file mode 100644
-index 0000000..0b6eea2
---- /dev/null
-+++ b/agent/src/notion_updates.rs.k2bak
-@@ -0,0 +1,265 @@
-+//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
-+//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
-+//! und kann per Datei `update-now` eine sofortige Pruefung anstossen.
-+use axum::{extract::Query, response::IntoResponse, Json};
-+use serde::Deserialize;
-+use serde_json::{json, Value};
-+use std::path::PathBuf;
-+use std::sync::Mutex;
-+use std::time::{Duration, Instant};
-+
-+const REPO: &str = "369adi/PlazCode-Notion";
-+const TAG_PREFIX: &str = "notion-desktop-v";
-+const NGROK_ZIP: &str = "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip";
-+const CACHE_SECS: u64 = 600;
-+
-+static CACHE: Mutex<Option<(Instant, Value)>> = Mutex::new(None);
-+
-+fn cache() -> std::sync::MutexGuard<'static, Option<(Instant, Value)>> { CACHE.lock().unwrap_or_else(|e| e.into_inner()) }
-+
-+pub fn base_dir() -> PathBuf {
-+    std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion")
-+}
-+
-+pub fn current_version() -> String {
-+    std::env::current_exe().ok()
-+        .and_then(|e| e.parent().map(|d| d.join(".version")))
-+        .and_then(|p| std::fs::read_to_string(p).ok())
-+        .map(|s| s.trim().to_string())
-+        .filter(|s| !s.is_empty())
-+        .unwrap_or_else(|| "dev".into())
-+}
-+
-+fn parse_ver(s: &str) -> Option<(u32, u32, u32)> {
-+    let p = s.trim().split('.').map(|x| x.parse::<u32>().ok()).collect::<Option<Vec<u32>>>()?;
-+    if p.is_empty() || p.len() > 4 { return None; }
-+    Some((p[0], *p.get(1).unwrap_or(&0), *p.get(2).unwrap_or(&0)))
-+}
-+
-+/// Abschnitt "## Neu in <version>" aus den Release-Notes (README) herausschneiden.
-+fn notes_for(body: &str, version: &str) -> String {
-+    let body = body.replace("\r\n", "\n");
-+    let head = format!("## Neu in {version}");
-+    let Some(rest) = body.match_indices(&head).map(|(i, _)| &body[i + head.len()..]).find(|r| !r.starts_with(|c: char| c.is_ascii_digit() || c == '.')) else { return String::new() };
-+    let end = rest.find("\n## ").unwrap_or(rest.len());
-+    rest[..end].trim().trim_start_matches(':').trim().to_string()
-+}
-+
-+fn log_tail() -> String {
-+    let raw = std::fs::read_to_string(base_dir().join("logs").join("launcher.log")).unwrap_or_default();
-+    let lines: Vec<&str> = raw.lines().collect();
-+    lines[lines.len().saturating_sub(8)..].join("\n")
-+}
-+
-+fn client(secs: u64) -> Result<reqwest::Client, String> {
-+    reqwest::Client::builder().timeout(Duration::from_secs(secs)).user_agent("PlazCode-Notion").build().map_err(|e| e.to_string())
-+}
-+
-+async fn fetch_releases() -> Result<Vec<Value>, String> {
-+    let r = client(15)?
-+        .get(format!("https://api.github.com/repos/{REPO}/releases?per_page=15"))
-+        .header("Accept", "application/vnd.github+json")
-+        .send().await.map_err(|e| format!("GitHub nicht erreichbar: {e}"))?;
-+    if !r.status().is_success() { return Err(format!("GitHub antwortet mit HTTP {}", r.status())); }
-+    let list: Vec<Value> = r.json().await.map_err(|e| e.to_string())?;
-+    let mut out: Vec<((u32, u32, u32), Value)> = list.into_iter().filter_map(|rel| {
-+        if rel.get("draft").and_then(Value::as_bool).unwrap_or(false) { return None; }
-+        let ver = rel.get("tag_name")?.as_str()?.strip_prefix(TAG_PREFIX)?.to_string();
-+        let key = parse_ver(&ver)?;
-+        let body = rel.get("body").and_then(Value::as_str).unwrap_or("");
-+        let date = rel.get("published_at").and_then(Value::as_str).and_then(|d| d.get(..10)).unwrap_or("").to_string();
-+        Some((key, json!({"version": ver, "date": date, "url": rel.get("html_url").cloned().unwrap_or(Value::Null), "notes": notes_for(body, &ver)})))
-+    }).collect();
-+    out.sort_by(|a, b| b.0.cmp(&a.0));
-+    Ok(out.into_iter().map(|(_, v)| v).collect())
-+}
-+
-+pub async fn info(force: bool) -> Value {
-+    let current = current_version();
-+    let cached = cache().as_ref().filter(|(t, _)| !force && t.elapsed().as_secs() < CACHE_SECS).map(|(_, v)| v.clone());
-+    let mut v = match cached {
-+        Some(v) => v,
-+        None => match fetch_releases().await {
-+            Ok(releases) => {
-+                let latest = releases.first().and_then(|r| r["version"].as_str()).unwrap_or("").to_string();
-+                let v = json!({"releases": releases, "latest": latest, "checked": chrono::Local::now().format("%H:%M:%S").to_string()});
-+                *cache() = Some((Instant::now(), v.clone()));
-+                v
-+            }
-+            Err(e) => { let mut old = cache().as_ref().map(|(_, v)| v.clone()).unwrap_or_else(|| json!({"releases": [], "latest": ""})); old["error"] = json!(e); old }
-+        },
-+    };
-+    let available = match (parse_ver(v["latest"].as_str().unwrap_or("")), parse_ver(&current)) { (Some(l), Some(c)) => l > c, _ => false };
-+    v["ok"] = json!(true);
-+    v["current"] = json!(current);
-+    v["update_available"] = json!(available);
-+    v["log"] = json!(log_tail());
-+    v
-+}
-+
-+#[derive(Deserialize)]
-+pub struct UpdatesQuery { #[serde(default)] force: Option<u8> }
-+
-+pub async fn updates_handler(Query(q): Query<UpdatesQuery>) -> impl IntoResponse {
-+    Json(info(q.force.unwrap_or(0) == 1).await)
-+}
-+
-+// ---------- ngrok-Ersteinrichtung ----------
-+
-+/// Liegt die ngrok.yml nur virtualisiert beim Store-ngrok, in %LOCALAPPDATA%\ngrok kopieren (sonst fehlt dem eigenen ngrok der Token).
-+pub fn ensure_real_ngrok_config() {
-+    let Some(la) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) else { return };
-+    let real = la.join("ngrok").join("ngrok.yml");
-+    if real.is_file() { return; }
-+    if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
-+        for e in rd.flatten() {
-+            if !e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { continue; }
-+            let f = e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml");
-+            if f.is_file() { let _ = std::fs::create_dir_all(la.join("ngrok")); let _ = std::fs::copy(&f, &real); return; }
-+        }
-+    }
-+}
-+
-+pub fn has_authtoken() -> bool { !authtoken_mask().is_empty() }
-+
-+/// Gespeicherter Authtoken maskiert (z. B. "2abc...wxyz"), leer = keiner.
-+pub fn authtoken_mask() -> String {
-+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
-+    let mut files = Vec::new();
-+    if let Some(la) = env("LOCALAPPDATA") {
-+        files.push(la.join("ngrok").join("ngrok.yml"));
-+        if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
-+            for e in rd.flatten() { if e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { files.push(e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml")); } }
-+        }
-+    }
-+    if let Some(up) = env("USERPROFILE") {
-+        files.push(up.join(".config").join("ngrok").join("ngrok.yml"));
-+        files.push(up.join(".ngrok2").join("ngrok.yml"));
-+    }
-+    if let Some(ad) = env("APPDATA") { files.push(ad.join("ngrok").join("ngrok.yml")); }
-+    for f in &files {
-+        if let Ok(t) = std::fs::read_to_string(f) {
-+            for l in t.lines() {
-+                if let Some(v) = l.trim_start().strip_prefix("authtoken:") {
-+                    let v = v.trim().trim_matches(|c| c == '"' || c == '\'');
-+                    if v.len() > 15 && v.is_ascii() { return format!("{}…{}", &v[..4], &v[v.len() - 4..]); }
-+                }
-+            }
-+        }
-+    }
-+    String::new()
-+}
-+
-+fn hidden(cmd: &mut tokio::process::Command) -> &mut tokio::process::Command {
-+    #[cfg(windows)]
-+    { cmd.creation_flags(0x0800_0000); }
-+    cmd
-+}
-+
-+pub(crate) async fn install_ngrok() -> Result<String, String> {
-+    let dir = base_dir();
-+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-+    let zip = dir.join("ngrok-download.zip");
-+    let bytes = client(240)?.get(NGROK_ZIP).send().await.map_err(|e| format!("Download fehlgeschlagen: {e}"))?
-+        .error_for_status().map_err(|e| format!("Download fehlgeschlagen: {e}"))?
-+        .bytes().await.map_err(|e| format!("Download fehlgeschlagen: {e}"))?;
-+    if bytes.len() < 1_000_000 { return Err("Download unvollständig. Bitte nochmal versuchen.".into()); }
-+    tokio::fs::write(&zip, &bytes).await.map_err(|e| e.to_string())?;
-+    let tar = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join("System32").join("tar.exe")).filter(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("tar"));
-+    let _ = tokio::task::spawn_blocking(crate::notion_mcp::stop_all_ngrok).await;
-+    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
-+    let _ = std::fs::remove_file(dir.join("ngrok.exe"));
-+    let mut cmd = tokio::process::Command::new(tar);
-+    let st = hidden(cmd.arg("-xf").arg(&zip).arg("-C").arg(&dir)).status().await.map_err(|e| format!("Entpacken fehlgeschlagen: {e}"))?;
-+    let _ = tokio::fs::remove_file(&zip).await;
-+    let exe = dir.join("ngrok.exe");
-+    if !st.success() || !exe.is_file() { return Err("ngrok konnte nicht entpackt werden.".into()); }
-+    ensure_real_ngrok_config();
-+    crate::notion_mcp::use_ngrok_exe(&exe);
-+    crate::notion_mcp::restart_tunnel();
-+    Ok(format!("ngrok installiert ({}). Jetzt den Authtoken eintragen.", exe.display()))
-+}
-+
-+pub(crate) async fn set_authtoken(raw: &str) -> Result<String, String> {
-+    let tok: String = raw.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
-+    if tok.len() < 20 { return Err("Das sieht nicht nach einem ngrok-Authtoken aus (dashboard.ngrok.com → Your Authtoken).".into()); }
-+    let exe = crate::notion_mcp::ngrok_exe().ok_or("ngrok.exe fehlt – klicke zuerst auf „ngrok installieren“.")?;
-+    let mut cmd = tokio::process::Command::new(exe);
-+    let out = hidden(cmd.args(["config", "add-authtoken", tok.as_str()])).output().await.map_err(|e| e.to_string())?;
-+    if !out.status.success() {
-+        let err = String::from_utf8_lossy(&out.stderr).trim().chars().take(300).collect::<String>();
-+        return Err(format!("ngrok meldet: {err}"));
-+    }
-+    crate::notion_mcp::restart_tunnel();
-+    Ok("Authtoken gespeichert. Der Tunnel startet neu.".into())
-+}
-+
-+/// 1.0.130: true, wenn diese Instanz durch "Jetzt updaten" gestartet wurde (Marker wird verbraucht).
-+pub fn take_show_marker() -> bool {
-+    let p = base_dir().join("show-after-update");
-+    let hit = p.is_file();
-+    if hit { let _ = std::fs::remove_file(&p); }
-+    hit
-+}
-+
-+/// Nur manuell (Knopf in AdiCode): erst alle aktiven Notion-Tabs benachrichtigen, dann installieren und neu starten.
-+async fn update_now() -> Result<String, String> {
-+    let mut v = info(false).await;
-+    if !v["update_available"].as_bool().unwrap_or(false) { v = info(true).await; }
-+    if !v["update_available"].as_bool().unwrap_or(false) { return Ok(format!("Kein neues Update ({} ist aktuell).", current_version())); }
-+    std::fs::create_dir_all(base_dir()).map_err(|e| e.to_string())?;
-+    let latest = v["latest"].as_str().unwrap_or("?").to_string();
-+    *cache() = None;
-+    // 1.0.130: nach dem Neustart oeffnet sich das Fenster der neuen Version automatisch (statt versteckt im Tray).
-+    let _ = std::fs::write(base_dir().join("show-after-update"), &latest);
-+    // Erst alle gerade arbeitenden Notion-Tabs warnen (Verbindung ist kurz weg), danach installieren und neu starten.
-+    tokio::spawn(async move {
-+        crate::notion_live::announce_update(&latest).await;
-+        let trig = base_dir().join("update-now");
-+        if let Err(e) = std::fs::write(&trig, "1") { eprintln!("[updates] Trigger: {e}"); }
-+        // Der Launcher holt den Trigger binnen 1 s ab. Liegt er nach 4 s noch da (Launcher laeuft nicht), installiert die App selbst.
-+        tokio::time::sleep(Duration::from_secs(4)).await;
-+        if !trig.is_file() { return; }
-+        let _ = std::fs::remove_file(&trig);
-+        if let Err(e) = direct_install().await { eprintln!("[updates] Direkt-Update: {e}"); }
-+    });
-+    Ok(format!("Update auf {} wird vorbereitet: alle aktiven Notion-Tabs bekommen zuerst den Hinweis, dass die Verbindung kurz weg ist. Danach aktualisiert AdiCode und startet neu.", v["latest"].as_str().unwrap_or("?")))
-+}
-+
-+async fn direct_install() -> Result<(), String> {
-+    let v = info(true).await;
-+    if !v["update_available"].as_bool().unwrap_or(false) { return Err("kein neueres Release".into()); }
-+    let url = format!("https://github.com/{}/releases/latest/download/PlazCode-Notion.exe", REPO);
-+    let bytes = client(180)?.get(url).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
-+    if bytes.len() < 1_000_000 || &bytes[..2] != b"MZ" { return Err("Download ist keine gueltige exe".into()); }
-+    let p = std::env::temp_dir().join("AdiCode-update.exe");
-+    std::fs::write(&p, &bytes).map_err(|e| e.to_string())?;
-+    std::process::Command::new(&p).spawn().map_err(|e| e.to_string())?;
-+    // 1.0.130: alte Instanz beendet sich, damit keine versteckte Version im Tray zurueckbleibt.
-+    tokio::time::sleep(Duration::from_millis(800)).await;
-+    std::process::exit(0)
-+}
-+
-+/// Aktionen der Notion-AI-/Updates-Seite. `None` = nicht zustaendig.
-+pub async fn action(name: &str, v: &Value) -> Option<Result<String, String>> {
-+    Some(match name {
-+        "update_now" => update_now().await,
-+        "install_ngrok" => install_ngrok().await,
 +        "set_ngrok_authtoken" => set_authtoken(v.as_str().unwrap_or("")).await,
 +        _ => return None,
 +    })

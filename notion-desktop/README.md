@@ -9,6 +9,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.132
+
+- Lange Chats laggen viel weniger: Tool-Antworten werden ab 6.000 Zeichen gekuerzt (Rest liegt als Datei bereit), das Co-Work-Board ist kompakt.
+- Release-Notes im Updates-Tab zeigen immer die neueste Version (Fallback aus anderen Releases).
+- Tailscale statt ngrok, Brave-only Co-Work und Sofort-Update aus 1.0.130/1.0.131 inklusive.
+
 ## Neu in 1.0.131
 
 - Jetzt aktualisieren ist sofort fertig: neue Versionen werden im Hintergrund vorgeladen und geprueft, beim Klick wird nur noch getauscht.
