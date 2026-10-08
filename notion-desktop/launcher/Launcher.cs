@@ -77,6 +77,11 @@ static class Launcher
         EnsureExtracted(current.ToString());
         if (FindApp() == null) StartApp();
 
+        // Neue Releases im Hintergrund vorladen, damit "Jetzt aktualisieren" sofort installiert.
+        Thread pre = new Thread(delegate() { Prefetch(current); });
+        pre.IsBackground = true;
+        pre.Start();
+
         // Watch for new releases while AdiCode is running.
         while (true)
         {
@@ -106,6 +111,10 @@ static class Launcher
         string tmp = Path.Combine(Path.GetTempPath(), "PlazCode-Notion-" + latest + ".exe");
         try
         {
+            // Sofort-Update: im Hintergrund vorgeladene exe nutzen statt erst jetzt 40 MB zu laden.
+            string staged = StagedPath(latest);
+            if (LooksLikeExe(staged)) { File.Copy(staged, tmp, true); Log("using prefetched " + staged); }
+            else
             using (WebClient wc = new WebClient())
             {
                 wc.Headers.Add("User-Agent", "PlazCode-Notion-Launcher");
@@ -142,6 +151,36 @@ static class Launcher
             Log("update failed: " + ex.Message);
             TryDelete(tmp);
             return false;
+        }
+    }
+
+    static string StagedPath(Version v) { return Path.Combine(BaseDir, "staged-" + v + ".exe"); }
+
+    static void Prefetch(Version current)
+    {
+        while (true)
+        {
+            try
+            {
+                string tag; Version latest;
+                if (LatestRelease(out tag, out latest) && latest.CompareTo(current) > 0)
+                {
+                    string staged = StagedPath(latest);
+                    if (!LooksLikeExe(staged))
+                    {
+                        foreach (string old in Directory.GetFiles(BaseDir, "staged-*")) TryDelete(old);
+                        string part = staged + ".part";
+                        using (WebClient wc = new WebClient())
+                        {
+                            wc.Headers.Add("User-Agent", "PlazCode-Notion-Launcher");
+                            wc.DownloadFile("https://github.com/" + Repo + "/releases/download/" + tag + "/" + AssetName, part);
+                        }
+                        if (LooksLikeExe(part)) { File.Move(part, staged); Log("prefetched " + latest); } else TryDelete(part);
+                    }
+                }
+            }
+            catch (Exception ex) { Log("prefetch failed: " + ex.Message); }
+            Thread.Sleep(60000);
         }
     }
 

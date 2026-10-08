@@ -9,6 +9,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.129
+
+- Co-Work stoppen beendet jetzt wirklich alle Co-Work-Tabs (auch wenn sie in Edge/Chrome liefen) und schliesst die Notion-Tabs in allen offenen Browsern.
+- Alle starten startet alle Co-Work-Tabs in Brave (fremde Browser auf den Co-Work-Ports werden vorher beendet).
+- Jetzt aktualisieren wirkt sofort: der Launcher laedt neue Versionen schon im Hintergrund vor, kein 30-Sekunden-Warten mehr mit verstecktem Fenster.
+- Chats verbinden sich automatisch mit dem AdiCode-MCP und machen nach Verbindungsabbruechen selbst weiter.
+
 ## Neu in 1.0.128
 
 - Weniger MCP-Abbrueche bei vielen Chats: Notions Dauer-Verbindung (GET /mcp) wird jetzt als ruhiger SSE-Stream mit Keep-Alive gehalten statt alle paar Sekunden abgelehnt (halbiert die Tunnel-Last).
