@@ -2661,10 +2661,10 @@ index 04ebefa..3ebe82f 100644
              Event::UserEvent(UiEvent::Maximize) => window.set_maximized(!window.is_maximized()),
              Event::UserEvent(UiEvent::Drag) => {
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..857f993 100644
+index 77cc050..a8d9c42 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,25 @@ mod media;
+@@ -81,6 +81,26 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -2687,10 +2687,11 @@ index 77cc050..857f993 100644
 +mod notion_release;
 +mod notion_local_llm;
 +mod notion_output;
++mod plugin_host;
  
  #[cfg(windows)]
  mod win_msg {
-@@ -188,6 +207,23 @@ impl AppState {
+@@ -188,6 +208,23 @@ impl AppState {
  }
  
  /// Persistent stdio client for Roblox Studio's built-in MCP server.
@@ -2714,7 +2715,7 @@ index 77cc050..857f993 100644
  struct McpRuntime {
      child: Option<Child>,
      stdin: Option<ChildStdin>,
-@@ -335,7 +371,23 @@ impl McpRuntime {
+@@ -335,7 +372,23 @@ impl McpRuntime {
          Ok(())
      }
  
@@ -2739,7 +2740,7 @@ index 77cc050..857f993 100644
          self.ensure().await?;
          if self.tools.is_empty() { self.list_tools().await?; }
          let targeted = studio_session::needs_id(&self.tools, name);
-@@ -726,13 +778,20 @@ fn main() {
+@@ -726,13 +779,20 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -2762,7 +2763,7 @@ index 77cc050..857f993 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +890,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +891,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -2772,7 +2773,7 @@ index 77cc050..857f993 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +940,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +941,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -2784,7 +2785,7 @@ index 77cc050..857f993 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -936,7 +1000,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -936,7 +1001,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          headers.insert("origin", origin.clone());
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
@@ -2800,7 +2801,7 @@ index 77cc050..857f993 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +1019,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +1020,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -2808,7 +2809,7 @@ index 77cc050..857f993 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +1049,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +1050,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -2829,7 +2830,7 @@ index 77cc050..857f993 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1274,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1275,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -2837,7 +2838,7 @@ index 77cc050..857f993 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1290,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1291,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -2845,7 +2846,7 @@ index 77cc050..857f993 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1548,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1549,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -2853,7 +2854,7 @@ index 77cc050..857f993 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1620,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1621,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -2861,7 +2862,7 @@ index 77cc050..857f993 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1629,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1630,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -9566,10 +9567,10 @@ index 0000000..58b6c9b
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..a7dedf3
+index 0000000..ba4c089
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1673 @@
+@@ -0,0 +1,1676 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -10166,8 +10167,11 @@ index 0000000..a7dedf3
 +/// Jeder Tool-Aufruf laeuft in einer eigenen Task: ein Panic reisst den Server nicht mit,
 +/// und nach TOOL_TIMEOUT_SECS bekommt Notion sofort eine Antwort (der Job laeuft weiter).
 +/// Anfrage-Drossel: verteilt Tool-Aufrufe zeitlich (Warteschlange), statt sie abzulehnen.
-+static THROTTLE_NEXT: Lazy<tokio::sync::Mutex<Option<Instant>>> = Lazy::new(|| tokio::sync::Mutex::new(None));
-+async fn throttle_gate() { let ms = lock(&SHARED.settings).throttle_ms; if ms == 0 { return; } let mut next = THROTTLE_NEXT.lock().await; let now = Instant::now(); if let Some(t) = *next { if t > now { tokio::time::sleep(t - now).await; } } *next = Some(Instant::now() + Duration::from_millis(ms)); }
++static THROTTLE_NEXT: Lazy<Mutex<std::collections::HashMap<String, Instant>>> = Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
++/// Pro Session eigener Takt; der Slot wird reserviert und die Sperre VOR dem Warten freigegeben, damit parallele Chats nicht aufeinander warten.
++async fn throttle_gate(session: &str) { let ms = lock(&SHARED.settings).throttle_ms; if ms == 0 { return; } let wait = throttle_reserve(&mut lock(&THROTTLE_NEXT), session, Instant::now(), Duration::from_millis(ms)); if !wait.is_zero() { tokio::time::sleep(wait).await; } }
++fn throttle_reserve(m: &mut std::collections::HashMap<String, Instant>, session: &str, now: Instant, gap: Duration) -> Duration { m.retain(|_, t| *t + Duration::from_secs(120) > now); let slot = m.get(session).copied().filter(|t| *t > now).unwrap_or(now); m.insert(session.to_string(), slot + gap); slot.saturating_duration_since(now) }
++#[cfg(test)] mod throttle_tests { use super::*; #[test] fn notion_throttle_per_session_parallel() { let mut m = std::collections::HashMap::new(); let now = Instant::now(); let g = Duration::from_millis(500); for s in ["a", "b", "c", "d", "e"] { assert!(throttle_reserve(&mut m, s, now, g).is_zero(), "{s}"); } assert_eq!(throttle_reserve(&mut m, "a", now, g), g); assert_eq!(throttle_reserve(&mut m, "a", now, g), g * 2); } }
 +
 +/// Hintergrund-Jobs: braucht ein Tool laenger als soft_timeout_s, antwortet AdiCode sofort und der Aufruf
 +/// laeuft weiter. Notion kann parallel weiterarbeiten; das Ergebnis haengt sich an die naechste Tool-Antwort.
@@ -10250,7 +10254,7 @@ index 0000000..a7dedf3
 +    let name = params["name"].as_str().unwrap_or("").to_string();
 +    let session = params["_session"].as_str().unwrap_or("").to_string();
 +    let is_job = name == "adicode_job";
-+    if !is_job { throttle_gate().await; }
++    if !is_job { throttle_gate(&session).await; }
 +    let soft = { let v = lock(&SHARED.settings).soft_timeout_s; if v == 0 || is_job { TOOL_TIMEOUT_SECS } else { v.clamp(3, TOOL_TIMEOUT_SECS) } };
 +    let task_state = state.clone();
 +    let task_params = params.clone();
@@ -11564,7 +11568,7 @@ index 0000000..f58c732
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..652191c
+index 0000000..e3505dd
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
 @@ -0,0 +1,1399 @@
@@ -12798,7 +12802,7 @@ index 0000000..652191c
 +// hintereinander gestartet werden. REGEL (Nutzer): AdiCode erstellt NIE einen neuen Chat - Co-Work-Chats sind immer
 +// bestehende Chats des Kontos (open_target/ws_send_prompt lehnen alles ohne t=<id> ab). Pro Chat-Tab braucht der
 +// Browser ca. 350-400 MB RAM (15 Tabs: freier RAM 5,1 -> 0,5 GB) -> RAM-Waechter.
-+pub(crate) const MAX_CHATS_PER_ACCOUNT:usize=8;
++pub(crate) const MAX_CHATS_PER_ACCOUNT:usize=3; // 1.0.128: Nutzerwunsch - Haupt-Chat + max. 2 Coworker
 +const MIN_FREE_RAM_MB:u64=1200;
 +static LIVE_STARTED:AtomicBool=AtomicBool::new(false);
 +static SLOTS_STARTED:AtomicBool=AtomicBool::new(false);
@@ -15077,10 +15081,10 @@ index 0000000..bba4580
 \ No newline at end of file
 diff --git a/agent/src/notion_team.rs b/agent/src/notion_team.rs
 new file mode 100644
-index 0000000..db78264
+index 0000000..65bb573
 --- /dev/null
 +++ b/agent/src/notion_team.rs
-@@ -0,0 +1,207 @@
+@@ -0,0 +1,217 @@
 +// ===================== Co-Work Team (1.0.125, komplett neu) =====================
 +// Prinzip: EIN Konto, MEHRERE Chats, EINE Aufgabe. Ersetzt slot_monitor + auto_fill.
 +// Eine einzige Schleife pro Konto, ohne versteckte Sperren:
@@ -15098,8 +15102,10 @@ index 0000000..db78264
 +static TEAM_STATE: Lazy<Mutex<BTreeMap<u32, String>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
 +static TEAM_SENT: Lazy<Mutex<BTreeMap<String, (String, std::time::Instant, u32)>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
 +static TEAM_FAIL: Lazy<Mutex<BTreeMap<String, std::time::Instant>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
-+const TEAM_TICK_SECS: u64 = 8;
++const TEAM_TICK_SECS: u64 = 20; // 1.0.128: seltener pruefen = weniger MCP-/CDP-Last
 +const TEAM_RETRY_SECS: u64 = 120;
++/// 1.0.128: hoechstens 2 Coworker insgesamt (also 3 Chats, die gleichzeitig arbeiten).
++pub(crate) const MAX_COWORKERS_TOTAL: usize = 2;
 +const TEAM_FRESH_SECS: i64 = 45;
 +/// Nutzer sitzt wirklich in diesem Chat: Tab sichtbar + fokussiert + Eingabe hat Text oder Fokus.
 +const TEAM_USER_JS: &str = "(()=>{if(document.visibilityState!=='visible'||!document.hasFocus())return false;const a=document.activeElement;return !!(a&&(a.isContentEditable||a.tagName==='TEXTAREA'||a.tagName==='INPUT'))})()";
@@ -15155,6 +15161,8 @@ index 0000000..db78264
 +    if ws_eval(&ws, AI_OFF_JS).await.ok().map(|v| v.is_object()).unwrap_or(false) { return fail("KI ist in diesem Workspace deaktiviert".into()).await; }
 +    if let Err(e) = ws_send_prompt(&ws, Some(tid), &team_prompt(agent, pid, title)).await { return fail(e).await; }
 +    tl(&format!("tab{} TEAM-INVITE {agent} t={tid} p={pid}", t.id));
++    // 1.0.128: nur fuer die Einladung geoeffneten Tab wieder schliessen (Chat laeuft serverseitig weiter) - keine Tab-Flut.
++    if let Some(tg) = &opened { tokio::time::sleep(Duration::from_secs(3)).await; close_target(port, tg).await; }
 +    Ok(())
 +}
 +
@@ -15165,9 +15173,12 @@ index 0000000..db78264
 +        if ws_eval(&ws, SLOT_IDLE_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { idle = true; break; }
 +        tokio::time::sleep(Duration::from_millis(500)).await;
 +    }
-+    if !idle { return Err("Chat arbeitet gerade".into()); }
++    if !idle { if let Some(tg) = &opened { close_target(port, tg).await; } return Err("Chat arbeitet gerade".into()); }
 +    if opened.is_none() && ws_eval(&ws, TEAM_USER_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { return Err("Nutzer ist gerade in diesem Chat".into()); }
-+    ws_send_prompt(&ws, Some(tid), text).await
++    let r = ws_send_prompt(&ws, Some(tid), text).await;
++    // 1.0.128: nur zum Zustellen geoeffneten Tab wieder schliessen - keine Tab-Flut.
++    if let Some(tg) = &opened { tokio::time::sleep(Duration::from_secs(3)).await; close_target(port, tg).await; }
++    r
 +}
 +
 +async fn team_tab(t: &Tab, i: usize) {
@@ -15212,6 +15223,9 @@ index 0000000..db78264
 +    if is_paused(t.id) { team_mark(t.id, format!("{} Chat(s) im Team - Konto pausiert", 1 + sl.len())); return; }
 +    let Some((pid, title)) = crate::notion_cowork::active_project() else { team_mark(t.id, format!("{} Chat(s) im Team - kein Co-Work mit offenen Tasks", 1 + sl.len())); return; };
 +    if 1 + sl.len() >= MAX_CHATS_PER_ACCOUNT { team_mark(t.id, format!("{} Chats im Team (Maximum)", 1 + sl.len())); return; }
++    // 1.0.128: insgesamt (alle Konten) max. MAX_COWORKERS_TOTAL Coworker = 3 gleichzeitig arbeitende Chats.
++    let total: usize = slots_all().values().map(|v| v.len()).sum();
++    if total >= MAX_COWORKERS_TOTAL { team_mark(t.id, format!("{} Chat(s) im Team - Co-Work voll ({} Coworker, Maximum)", 1 + sl.len(), total)); return; }
 +    let targets = page_targets(port).await;
 +    let open: HashSet<String> = targets.iter().map(|x| url_tid(x["url"].as_str().unwrap_or(""))).filter(|s| !s.is_empty()).collect();
 +    let main = welcome_url(t).map(|u| url_tid(&u)).unwrap_or_default();
@@ -15610,6 +15624,651 @@ index 0000000..c906331
 +        assert_eq!(super::notes_any("## Neu in 1.0.130
 +X", &all, "1.0.130"), "X");
 +        assert_eq!(super::notes_any("", &all, "9.9.9"), "");
++    }
++}
+diff --git a/agent/src/plugin_host.rs b/agent/src/plugin_host.rs
+new file mode 100644
+index 0000000..b759a94
+--- /dev/null
++++ b/agent/src/plugin_host.rs
+@@ -0,0 +1,639 @@
++//! Plugin-Host (Minimal) nach ADR work/upd134/hybrid_adr.md.
++//! EIN Node-Prozess (plugin-runner.js) laedt alle TS-Plugins; Rust spricht mit ihm
++//! ueber stdio, NDJSON, JSON-RPC 2.0. Ohne Node/Runner bleibt alles bei den Rust-Builtins.
++#![allow(dead_code)]
++
++use futures::future::BoxFuture;
++use once_cell::sync::Lazy;
++use serde_json::{json, Value};
++use std::collections::{HashMap, HashSet, VecDeque};
++use std::path::{Path, PathBuf};
++use std::process::Stdio;
++use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
++use std::sync::Arc;
++use std::time::{Duration, Instant, SystemTime};
++use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
++use tokio::process::{Child, ChildStdin, Command};
++use tokio::sync::{oneshot, Mutex};
++
++pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
++pub const TOOL_PREFIX: &str = "plg_";
++const BACKOFF_MIN: Duration = Duration::from_secs(1);
++const BACKOFF_MAX: Duration = Duration::from_secs(30);
++const MAX_CRASHES_PER_MIN: usize = 5;
++
++/// Antwort des Hosts auf Requests vom Runner (host.cdp_eval, host.notify, host.call_tool, ...).
++pub type HostFn = Arc<dyn Fn(String, Value) -> BoxFuture<'static, Result<Value, String>> + Send + Sync>;
++
++#[derive(Clone, Debug)]
++pub struct Config {
++    pub program: PathBuf,
++    pub args: Vec<String>,
++    pub plugins_dir: PathBuf,
++    pub data_dir: PathBuf,
++    pub host_version: String,
++    pub timeout: Duration,
++}
++
++impl Config {
++    /// Standardpfade laut ADR; None = kein Runner/Node vorhanden -> Rust-Fallbacks.
++    pub fn default_paths() -> Option<Config> {
++        let base = crate::notion_updates::base_dir();
++        let runtime = base.join("runtime");
++        let script = runtime.join("plugin-runner.js");
++        if !script.is_file() {
++            return None;
++        }
++        let program = find_node(&runtime)?;
++        Some(Config {
++            program,
++            args: vec!["--max-old-space-size=128".into(), script.to_string_lossy().into_owned()],
++            plugins_dir: base.join("plugins"),
++            data_dir: base.join("plugin-data"),
++            host_version: crate::notion_updates::current_version(),
++            timeout: DEFAULT_TIMEOUT,
++        })
++    }
++}
++
++/// Portable node.exe im runtime-Ordner, sonst node aus dem PATH.
++pub fn find_node(runtime: &Path) -> Option<PathBuf> {
++    let exe = if cfg!(windows) { "node.exe" } else { "node" };
++    let local = runtime.join(exe);
++    if local.is_file() {
++        return Some(local);
++    }
++    std::env::var_os("PATH").and_then(|p| std::env::split_paths(&p).map(|d| d.join(exe)).find(|c| c.is_file()))
++}
++
++/// "plg_<plugin>_<tool>" -> "<plugin>".
++pub fn plugin_of(name: &str) -> Option<String> {
++    let rest = name.strip_prefix(TOOL_PREFIX)?;
++    let (plugin, tool) = rest.split_once('_')?;
++    if plugin.is_empty() || tool.is_empty() {
++        return None;
++    }
++    Some(plugin.to_string())
++}
++
++/// Nur Tools mit plg_-Praefix (keine Builtins ueberschreiben) und nicht deaktivierte Plugins.
++pub fn filter_tools(list: &Value, disabled: &HashSet<String>) -> Vec<Value> {
++    list.as_array()
++        .map(|a| {
++            a.iter()
++                .filter(|t| {
++                    t.get("name").and_then(Value::as_str).and_then(plugin_of).map_or(false, |p| !disabled.contains(&p))
++                })
++                .cloned()
++                .collect()
++        })
++        .unwrap_or_default()
++}
++
++/// Neustart-Backoff 1 s -> 30 s, Absturzzaehler pro Minute.
++#[derive(Debug)]
++pub struct Backoff {
++    delay: Duration,
++    next_try: Option<Instant>,
++    crashes: VecDeque<Instant>,
++}
++
++impl Default for Backoff {
++    fn default() -> Self {
++        Backoff { delay: BACKOFF_MIN, next_try: None, crashes: VecDeque::new() }
++    }
++}
++
++impl Backoff {
++    pub fn can_try(&self, now: Instant) -> bool {
++        self.next_try.map_or(true, |t| now >= t)
++    }
++    pub fn current_delay(&self) -> Duration {
++        self.delay
++    }
++    /// Absturz/Startfehler melden; true = mehr als 5 Abstuerze in 60 s.
++    pub fn failed(&mut self, now: Instant) -> bool {
++        self.next_try = Some(now + self.delay);
++        self.delay = (self.delay * 2).min(BACKOFF_MAX);
++        self.crashes.push_back(now);
++        while let Some(&first) = self.crashes.front() {
++            if now.saturating_duration_since(first) > Duration::from_secs(60) {
++                self.crashes.pop_front();
++            } else {
++                break;
++            }
++        }
++        self.crashes.len() > MAX_CRASHES_PER_MIN
++    }
++    pub fn ok(&mut self) {
++        self.delay = BACKOFF_MIN;
++        self.next_try = None;
++    }
++}
++
++type Pending = Arc<std::sync::Mutex<HashMap<u64, oneshot::Sender<Result<Value, String>>>>>;
++
++fn lock_pending(p: &Pending) -> std::sync::MutexGuard<'_, HashMap<u64, oneshot::Sender<Result<Value, String>>>> {
++    p.lock().unwrap_or_else(|e| e.into_inner())
++}
++
++async fn write_line(stdin: &Mutex<ChildStdin>, v: &Value) -> Result<(), String> {
++    let mut line = v.to_string();
++    line.push('\n');
++    let mut g = stdin.lock().await;
++    g.write_all(line.as_bytes()).await.map_err(|e| format!("Runner-stdin: {e}"))?;
++    g.flush().await.map_err(|e| format!("Runner-stdin: {e}"))
++}
++
++fn handle_incoming(msg: Value, pending: &Pending, stdin: &Arc<Mutex<ChildStdin>>, host: Option<&HostFn>) {
++    if let Some(method) = msg.get("method").and_then(Value::as_str).map(str::to_string) {
++        let params = msg.get("params").cloned().unwrap_or(Value::Null);
++        if method == "host.log" {
++            let level = params.get("level").and_then(Value::as_str).unwrap_or("info");
++            let text = params.get("msg").and_then(Value::as_str).unwrap_or("");
++            tracing::info!(target: "plugin", "[{level}] {text}");
++        }
++        let Some(id) = msg.get("id").cloned() else { return };
++        let host = host.cloned();
++        let stdin = stdin.clone();
++        tokio::spawn(async move {
++            let res = if method == "host.log" {
++                Ok(Value::Null)
++            } else {
++                match host {
++                    Some(h) => (*h)(method.clone(), params).await,
++                    None => Err(format!("{method} wird vom Host nicht unterstuetzt")),
++                }
++            };
++            let reply = match res {
++                Ok(v) => json!({"jsonrpc": "2.0", "id": id, "result": v}),
++                Err(e) => json!({"jsonrpc": "2.0", "id": id, "error": {"code": -32000, "message": e}}),
++            };
++            let _ = write_line(&stdin, &reply).await;
++        });
++        return;
++    }
++    let Some(id) = msg.get("id").and_then(Value::as_u64) else { return };
++    let Some(tx) = lock_pending(pending).remove(&id) else { return };
++    let res = match msg.get("error") {
++        Some(err) => Err(err.get("message").and_then(Value::as_str).unwrap_or("Plugin-Fehler").to_string()),
++        None => Ok(msg.get("result").cloned().unwrap_or(Value::Null)),
++    };
++    let _ = tx.send(res);
++}
++
++/// Ein laufender Node-Runner.
++pub struct Runner {
++    child: Mutex<Child>,
++    stdin: Arc<Mutex<ChildStdin>>,
++    pending: Pending,
++    next_id: AtomicU64,
++    alive: Arc<AtomicBool>,
++}
++
++impl Runner {
++    pub async fn spawn(cfg: &Config, host: Option<HostFn>) -> Result<Arc<Runner>, String> {
++        let mut cmd = Command::new(&cfg.program);
++        cmd.args(&cfg.args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).kill_on_drop(true);
++        #[cfg(windows)]
++        {
++            // CREATE_NO_WINDOW | BELOW_NORMAL_PRIORITY_CLASS
++            cmd.creation_flags(0x0800_0000 | 0x0000_4000);
++        }
++        let mut child = cmd
++            .spawn()
++            .map_err(|e| format!("Plugin-Runner startet nicht ({}): {e}", cfg.program.display()))?;
++        let stdin = child.stdin.take().ok_or_else(|| "Plugin-Runner: kein stdin".to_string())?;
++        let stdout = child.stdout.take().ok_or_else(|| "Plugin-Runner: kein stdout".to_string())?;
++        let runner = Arc::new(Runner {
++            child: Mutex::new(child),
++            stdin: Arc::new(Mutex::new(stdin)),
++            pending: Arc::new(std::sync::Mutex::new(HashMap::new())),
++            next_id: AtomicU64::new(1),
++            alive: Arc::new(AtomicBool::new(true)),
++        });
++        let (pending, alive, stdin2) = (runner.pending.clone(), runner.alive.clone(), runner.stdin.clone());
++        tokio::spawn(async move {
++            let mut lines = BufReader::new(stdout).lines();
++            while let Ok(Some(line)) = lines.next_line().await {
++                let Ok(msg) = serde_json::from_str::<Value>(line.trim()) else { continue };
++                handle_incoming(msg, &pending, &stdin2, host.as_ref());
++            }
++            alive.store(false, Ordering::SeqCst);
++            let waiting: Vec<_> = lock_pending(&pending).drain().collect();
++            for (_, tx) in waiting {
++                let _ = tx.send(Err("Plugin-Runner beendet".into()));
++            }
++        });
++        Ok(runner)
++    }
++
++    pub fn is_alive(&self) -> bool {
++        self.alive.load(Ordering::SeqCst)
++    }
++
++    pub async fn request(&self, method: &str, params: Value, timeout: Duration) -> Result<Value, String> {
++        if !self.is_alive() {
++            return Err("Plugin-Runner beendet".into());
++        }
++        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
++        let (tx, rx) = oneshot::channel();
++        lock_pending(&self.pending).insert(id, tx);
++        let msg = json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params});
++        if let Err(e) = write_line(&self.stdin, &msg).await {
++            lock_pending(&self.pending).remove(&id);
++            return Err(e);
++        }
++        match tokio::time::timeout(timeout, rx).await {
++            Ok(Ok(r)) => r,
++            Ok(Err(_)) => Err("Plugin-Runner beendet".into()),
++            Err(_) => {
++                lock_pending(&self.pending).remove(&id);
++                Err(format!("Timeout nach {:.1} s bei {method}", timeout.as_secs_f32()))
++            }
++        }
++    }
++
++    pub async fn notify(&self, method: &str, params: Value) -> Result<(), String> {
++        write_line(&self.stdin, &json!({"jsonrpc": "2.0", "method": method, "params": params})).await
++    }
++
++    pub async fn kill(&self) {
++        let mut c = self.child.lock().await;
++        let _ = c.start_kill();
++    }
++}
++
++#[derive(Default)]
++struct HostState {
++    backoff: Backoff,
++    disabled: HashSet<String>,
++    last_plugin: Option<String>,
++    plugins: Value,
++}
++
++/// Ueberwacht den Runner: Start bei Bedarf, Neustart mit Backoff, Deaktivierung bei Absturzschleife.
++pub struct PluginHost {
++    cfg: std::sync::Mutex<Option<Config>>,
++    host_fn: std::sync::Mutex<Option<HostFn>>,
++    runner: Mutex<Option<Arc<Runner>>>,
++    state: std::sync::Mutex<HostState>,
++}
++
++impl PluginHost {
++    pub fn new(cfg: Option<Config>, host_fn: Option<HostFn>) -> Self {
++        PluginHost {
++            cfg: std::sync::Mutex::new(cfg),
++            host_fn: std::sync::Mutex::new(host_fn),
++            runner: Mutex::new(None),
++            state: std::sync::Mutex::new(HostState::default()),
++        }
++    }
++
++    pub fn configure(&self, cfg: Option<Config>, host_fn: Option<HostFn>) {
++        *self.cfg.lock().unwrap_or_else(|e| e.into_inner()) = cfg;
++        *self.host_fn.lock().unwrap_or_else(|e| e.into_inner()) = host_fn;
++    }
++
++    fn st(&self) -> std::sync::MutexGuard<'_, HostState> {
++        self.state.lock().unwrap_or_else(|e| e.into_inner())
++    }
++
++    fn config(&self) -> Option<Config> {
++        self.cfg.lock().unwrap_or_else(|e| e.into_inner()).clone()
++    }
++
++    fn timeout(&self) -> Duration {
++        self.config().map(|c| c.timeout).unwrap_or(DEFAULT_TIMEOUT)
++    }
++
++    pub fn plugins_dir(&self) -> Option<PathBuf> {
++        self.config().map(|c| c.plugins_dir)
++    }
++
++    pub fn disabled_plugins(&self) -> Vec<String> {
++        let mut v: Vec<String> = self.st().disabled.iter().cloned().collect();
++        v.sort();
++        v
++    }
++
++    /// Ergebnis des letzten init (Plugin-Liste).
++    pub fn plugins(&self) -> Value {
++        self.st().plugins.clone()
++    }
++
++    pub async fn is_running(&self) -> bool {
++        self.runner.lock().await.as_ref().map_or(false, |r| r.is_alive())
++    }
++
++    fn note_failure(&self, why: &str) {
++        let mut s = self.st();
++        if s.backoff.failed(Instant::now()) {
++            if let Some(p) = s.last_plugin.clone() {
++                if s.disabled.insert(p.clone()) {
++                    tracing::warn!("Plugin-Host: >{MAX_CRASHES_PER_MIN} Abstuerze/min - Plugin {p} deaktiviert");
++                }
++            }
++        }
++        tracing::warn!("Plugin-Host: {why}");
++    }
++
++    async fn ensure(&self) -> Result<Arc<Runner>, String> {
++        let mut slot = self.runner.lock().await;
++        if let Some(r) = slot.as_ref() {
++            if r.is_alive() {
++                return Ok(r.clone());
++            }
++        }
++        if slot.take().is_some() {
++            self.note_failure("Plugin-Runner abgestuerzt");
++        }
++        let can_try = self.st().backoff.can_try(Instant::now());
++        if !can_try {
++            return Err("Plugin-Runner pausiert (Neustart-Backoff) - Rust-Builtins bleiben aktiv".into());
++        }
++        let cfg = self
++            .config()
++            .ok_or_else(|| "Kein Node/Plugin-Runner gefunden - Rust-Builtins bleiben aktiv".to_string())?;
++        let host = self.host_fn.lock().unwrap_or_else(|e| e.into_inner()).clone();
++        let runner = match Runner::spawn(&cfg, host).await {
++            Ok(r) => r,
++            Err(e) => {
++                self.note_failure(&e);
++                return Err(e);
++            }
++        };
++        let init = json!({
++            "hostVersion": cfg.host_version,
++            "pluginsDir": cfg.plugins_dir.to_string_lossy(),
++            "dataDir": cfg.data_dir.to_string_lossy(),
++            "disabled": self.disabled_plugins(),
++        });
++        match runner.request("init", init, cfg.timeout.max(Duration::from_secs(10))).await {
++            Ok(v) => {
++                let mut s = self.st();
++                s.plugins = v;
++                s.backoff.ok();
++            }
++            Err(e) => {
++                runner.kill().await;
++                self.note_failure(&e);
++                return Err(format!("Plugin-Runner init: {e}"));
++            }
++        }
++        *slot = Some(runner.clone());
++        Ok(runner)
++    }
++
++    /// Startet den Runner (falls noetig) und liefert die Plugin-Liste aus init.
++    pub async fn start(&self) -> Result<Value, String> {
++        self.ensure().await?;
++        Ok(self.plugins())
++    }
++
++    /// Plugin-Tools (plg_<plugin>_<tool>); leer, wenn kein Runner laeuft.
++    pub async fn list_tools(&self) -> Vec<Value> {
++        let Ok(r) = self.ensure().await else { return Vec::new() };
++        let Ok(list) = r.request("list_tools", json!({}), self.timeout()).await else { return Vec::new() };
++        let disabled = self.st().disabled.clone();
++        filter_tools(&list, &disabled)
++    }
++
++    pub async fn call_tool(&self, name: &str, args: Value) -> Result<Value, String> {
++        let plugin = plugin_of(name).ok_or_else(|| format!("{name} ist kein Plugin-Tool"))?;
++        let disabled = self.st().disabled.contains(&plugin);
++        if disabled {
++            return Err(format!("Plugin {plugin} ist deaktiviert (Absturzschleife)"));
++        }
++        self.st().last_plugin = Some(plugin);
++        let r = self.ensure().await?;
++        r.request("call_tool", json!({"name": name, "args": args}), self.timeout()).await
++    }
++
++    /// Injects [{plugin, name, js, when}]; leer ohne Runner.
++    pub async fn get_inject(&self) -> Vec<Value> {
++        let Ok(r) = self.ensure().await else { return Vec::new() };
++        match r.request("get_inject", json!({}), self.timeout()).await {
++            Ok(Value::Array(a)) => a,
++            _ => Vec::new(),
++        }
++    }
++
++    pub async fn reload(&self, plugin: Option<String>) -> Result<Value, String> {
++        let r = self.ensure().await?;
++        let v = r.request("reload", json!({"plugin": plugin}), self.timeout()).await?;
++        self.st().plugins = v.clone();
++        Ok(v)
++    }
++
++    pub async fn shutdown(&self) {
++        let r = self.runner.lock().await.take();
++        if let Some(r) = r {
++            let _ = r.notify("shutdown", json!({})).await;
++            tokio::time::sleep(Duration::from_millis(200)).await;
++            r.kill().await;
++        }
++    }
++}
++
++/// Juengste Aenderungszeit im plugins-Ordner (2 Ebenen tief).
++pub fn plugins_mtime(dir: &Path) -> Option<SystemTime> {
++    fn walk(d: &Path, depth: u8, best: &mut Option<SystemTime>) {
++        let Ok(rd) = std::fs::read_dir(d) else { return };
++        for e in rd.flatten() {
++            let Ok(md) = e.metadata() else { continue };
++            if let Ok(t) = md.modified() {
++                if best.map_or(true, |b| t > b) {
++                    *best = Some(t);
++                }
++            }
++            if md.is_dir() && depth > 0 {
++                walk(&e.path(), depth - 1, best);
++            }
++        }
++    }
++    let mut best = std::fs::metadata(dir).ok()?.modified().ok();
++    walk(dir, 2, &mut best);
++    best
++}
++
++pub static HOST: Lazy<PluginHost> = Lazy::new(|| PluginHost::new(Config::default_paths(), None));
++static WATCHER: AtomicBool = AtomicBool::new(false);
++
++/// Hot-Reload: prueft den plugins-Ordner alle 2 s und laedt bei Aenderung neu (nur wenn der Runner laeuft).
++pub fn ensure_watcher() {
++    if cfg!(test) || WATCHER.swap(true, Ordering::SeqCst) {
++        return;
++    }
++    if tokio::runtime::Handle::try_current().is_err() {
++        WATCHER.store(false, Ordering::SeqCst);
++        return;
++    }
++    tokio::spawn(async {
++        let mut last: Option<SystemTime> = None;
++        loop {
++            tokio::time::sleep(Duration::from_secs(2)).await;
++            let dir = HOST.plugins_dir();
++            let m = tokio::task::spawn_blocking(move || dir.and_then(|d| plugins_mtime(&d))).await.ok().flatten();
++            if m != last {
++                if last.is_some() && HOST.is_running().await {
++                    let _ = HOST.reload(None).await;
++                }
++                last = m;
++            }
++        }
++    });
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const FAKE_RUNNER: &str = r#"
++const rl = require('readline').createInterface({ input: process.stdin });
++const send = o => process.stdout.write(JSON.stringify(o) + '\n');
++const waiting = {};
++rl.on('line', l => {
++  const m = JSON.parse(l);
++  if (m.method === undefined) { if (waiting[m.id]) { waiting[m.id](m); delete waiting[m.id]; } return; }
++  const r = x => send({ jsonrpc: '2.0', id: m.id, result: x });
++  switch (m.method) {
++    case 'init':
++      send({ jsonrpc: '2.0', method: 'host.log', params: { level: 'info', msg: 'fake runner' } });
++      r({ plugins: [{ name: 'demo', version: '1', ok: true }], disabled: m.params.disabled || [] });
++      break;
++    case 'list_tools':
++      r([{ name: 'plg_demo_echo', description: 'e', inputSchema: {} }, { name: 'bad_tool', description: 'x', inputSchema: {} }]);
++      break;
++    case 'call_tool': {
++      const n = m.params.name;
++      if (n === 'plg_demo_echo') r({ content: [{ type: 'text', text: JSON.stringify(m.params.args) }] });
++      else if (n === 'plg_demo_slow') { }
++      else if (n === 'plg_demo_crash') process.exit(1);
++      else if (n === 'plg_demo_ask') {
++        waiting['h1'] = resp => r({ content: [{ type: 'text', text: JSON.stringify(resp.result) }] });
++        send({ jsonrpc: '2.0', id: 'h1', method: 'host.call_tool', params: { name: 'x', args: {} } });
++      }
++      else send({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'unknown tool' } });
++      break;
++    }
++    case 'get_inject': r([]); break;
++    case 'shutdown': process.exit(0);
++    default: send({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'nope' } });
++  }
++});
++"#;
++
++    fn fake_cfg(tag: &str, timeout: Duration) -> Option<Config> {
++        let node = find_node(Path::new("__kein_runtime__"))?;
++        let dir = std::env::temp_dir().join(format!("plg-host-test-{}-{tag}", std::process::id()));
++        std::fs::create_dir_all(&dir).ok()?;
++        let script = dir.join("runner.js");
++        std::fs::write(&script, FAKE_RUNNER).ok()?;
++        Some(Config {
++            program: node,
++            args: vec![script.to_string_lossy().into_owned()],
++            plugins_dir: dir.join("plugins"),
++            data_dir: dir.join("data"),
++            host_version: "test".into(),
++            timeout,
++        })
++    }
++
++    #[test]
++    fn notion_plugin_host_backoff() {
++        let mut b = Backoff::default();
++        let t0 = Instant::now();
++        assert!(b.can_try(t0));
++        assert!(!b.failed(t0));
++        assert!(!b.can_try(t0));
++        assert!(b.can_try(t0 + Duration::from_secs(1)));
++        assert_eq!(b.current_delay(), Duration::from_secs(2));
++        for _ in 0..10 {
++            b.failed(t0);
++        }
++        assert_eq!(b.current_delay(), BACKOFF_MAX);
++        assert!(b.failed(t0), "mehr als 5 Abstuerze/min muessen gemeldet werden");
++        b.ok();
++        assert!(b.can_try(t0));
++        assert_eq!(b.current_delay(), BACKOFF_MIN);
++    }
++
++    #[test]
++    fn notion_plugin_host_names() {
++        assert_eq!(plugin_of("plg_chat-turbo_run").as_deref(), Some("chat-turbo"));
++        assert_eq!(plugin_of("plg_demo_a_b").as_deref(), Some("demo"));
++        assert_eq!(plugin_of("pc_job"), None);
++        assert_eq!(plugin_of("plg_demo"), None);
++        let list = json!([{"name": "plg_a_x"}, {"name": "plg_b_y"}, {"name": "pc_job"}]);
++        let mut disabled = HashSet::new();
++        assert_eq!(filter_tools(&list, &disabled).len(), 2);
++        disabled.insert("b".to_string());
++        let f = filter_tools(&list, &disabled);
++        assert_eq!(f.len(), 1);
++        assert_eq!(f[0]["name"], "plg_a_x");
++    }
++
++    #[tokio::test]
++    async fn notion_plugin_host_fallback_without_node() {
++        let h = PluginHost::new(None, None);
++        assert!(h.list_tools().await.is_empty());
++        assert!(h.get_inject().await.is_empty());
++        assert!(h.call_tool("plg_x_y", json!({})).await.is_err());
++        let missing = Config {
++            program: PathBuf::from("Z:/gibt/es/nicht/node.exe"),
++            args: vec![],
++            plugins_dir: PathBuf::from("Z:/x"),
++            data_dir: PathBuf::from("Z:/y"),
++            host_version: "test".into(),
++            timeout: Duration::from_millis(200),
++        };
++        let h2 = PluginHost::new(Some(missing), None);
++        assert!(h2.list_tools().await.is_empty());
++        assert!(!h2.is_running().await);
++    }
++
++    #[tokio::test]
++    async fn notion_plugin_host_fake_runner() {
++        let Some(cfg) = fake_cfg("rpc", Duration::from_millis(500)) else {
++            eprintln!("kein node im PATH - Test uebersprungen");
++            return;
++        };
++        let host_fn: HostFn = Arc::new(|m: String, _p: Value| -> BoxFuture<'static, Result<Value, String>> {
++            Box::pin(async move { Ok(json!({ "pong": m })) })
++        });
++        let h = PluginHost::new(Some(cfg), Some(host_fn));
++        let tools = h.list_tools().await;
++        assert_eq!(tools.len(), 1, "nur plg_-Tools: {tools:?}");
++        assert_eq!(tools[0]["name"], "plg_demo_echo");
++        assert_eq!(h.plugins()["plugins"][0]["name"], "demo");
++        let r = h.call_tool("plg_demo_echo", json!({"a": 1})).await.unwrap();
++        assert_eq!(r["content"][0]["text"], "{\"a\":1}");
++        let r = h.call_tool("plg_demo_ask", json!({})).await.unwrap();
++        assert!(r["content"][0]["text"].as_str().unwrap_or("").contains("host.call_tool"));
++        let e = h.call_tool("plg_demo_slow", json!({})).await.unwrap_err();
++        assert!(e.contains("Timeout"), "{e}");
++        assert!(h.call_tool("plg_demo_unknown", json!({})).await.is_err());
++        assert!(h.call_tool("bad_tool", json!({})).await.is_err());
++        assert!(h.is_running().await);
++        h.shutdown().await;
++        assert!(!h.is_running().await);
++    }
++
++    #[tokio::test]
++    async fn notion_plugin_host_restart_backoff() {
++        let Some(cfg) = fake_cfg("crash", Duration::from_secs(5)) else {
++            eprintln!("kein node im PATH - Test uebersprungen");
++            return;
++        };
++        let h = PluginHost::new(Some(cfg), None);
++        assert!(h.call_tool("plg_demo_crash", json!({})).await.is_err());
++        let e = h.call_tool("plg_demo_echo", json!({})).await.unwrap_err();
++        assert!(e.contains("pausiert"), "{e}");
++        tokio::time::sleep(Duration::from_millis(1200)).await;
++        let r = h.call_tool("plg_demo_echo", json!({"n": 2})).await.unwrap();
++        assert_eq!(r["content"][0]["text"], "{\"n\":2}");
++        assert!(h.disabled_plugins().is_empty());
++        h.shutdown().await;
 +    }
 +}
 diff --git a/agent/src/roblox_helpers.luau b/agent/src/roblox_helpers.luau

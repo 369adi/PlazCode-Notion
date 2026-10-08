@@ -9,6 +9,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.141
+
+- Weniger Tabs: Hintergrund-Tabs, die AdiCode nur zum Einladen oder Zustellen einer Co-Work-Nachricht oeffnet, werden danach wieder geschlossen (keine Tab-Flut, weniger MCP-Last).
+- Team-Pruefung nur noch alle 20 s statt alle 8 s.
+- Co-Work: hoechstens 2 Coworker insgesamt (also 3 Chats, die gleichzeitig arbeiten); pro Konto hoechstens 3 Chats statt 8.
+
 ## Neu in 1.0.140
 
 - Refresh-Sperre direkt im Loeschschritt: vor dem Loeschen wird jedes Mal geprueft, welches Konto eingeloggt ist. Ist es nicht geladen, wird gewartet; ist es ein anderes Konto, wird nichts geloescht, sondern abgemeldet und mit der richtigen E-Mail eingeloggt.
