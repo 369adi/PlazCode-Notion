@@ -9,6 +9,12 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.131
+
+- Jetzt aktualisieren ist sofort fertig: neue Versionen werden im Hintergrund vorgeladen und geprueft, beim Klick wird nur noch getauscht.
+- Die alte AdiCode-Version wird beim Update sofort beendet und bleibt nicht mehr versteckt im Tray offen.
+- Der Hinweis an die Notion-Tabs vor dem Update haelt nichts mehr auf (max. 3 Sekunden).
+
 ## Neu in 1.0.129
 
 - Co-Work stoppen beendet jetzt wirklich alle Co-Work-Tabs (auch wenn sie in Edge/Chrome liefen) und schliesst die Notion-Tabs in allen offenen Browsern.

@@ -139,6 +139,8 @@ static class Launcher
                 File.Copy(tmp, target, true);
                 TryDelete(tmp);
             }
+            // Task #2: alte Instanz jetzt sofort beenden, damit nichts versteckt im Tray weiterlaeuft.
+            StopAppGraceful();
             ProcessStartInfo psi = new ProcessStartInfo(target, "--updated");
             psi.UseShellExecute = false;
             psi.WorkingDirectory = Path.GetDirectoryName(target);
@@ -286,6 +288,22 @@ static class Launcher
         catch (Exception ex) { Log("restore Co-Work windows failed: " + ex.Message); }
     }
 
+    // Task #2: erst freundlich (CloseMainWindow, max 2,5 s), sonst hart inkl. Kindprozesse (ngrok, Add-ons); Co-Work-Browser bleiben.
+    static void StopAppGraceful()
+    {
+        RestoreCoWorkWindows();
+        Process p;
+        int guard = 0;
+        while ((p = FindApp()) != null && guard++ < 10)
+        {
+            bool asked = false;
+            try { asked = p.CloseMainWindow(); } catch { }
+            bool gone = false;
+            try { gone = asked && p.WaitForExit(2500); } catch { }
+            if (!gone) { Log("stopping app pid " + p.Id + " for update"); KillTree(p.Id); }
+            Thread.Sleep(200);
+        }
+    }
     static void StopApp()
     {
         RestoreCoWorkWindows();
