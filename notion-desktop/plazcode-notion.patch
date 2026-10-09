@@ -9568,10 +9568,10 @@ index 0000000..58b6c9b
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..9f95987
+index 0000000..0fdbcd2
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1709 @@
+@@ -0,0 +1,1712 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -10426,6 +10426,9 @@ index 0000000..9f95987
 +    if path == "/health" { return "ok".into_response(); }
 +    if method == axum::http::Method::OPTIONS { return StatusCode::NO_CONTENT.into_response(); }
 +    if !is_mcp_path(path) { return StatusCode::NOT_FOUND.into_response(); }
++    // 1.0.142: Notion prueft die Verbindung regelmaessig per HEAD ohne Token. Ein 401 darauf liess Notion die
++    // Verbindung als kaputt markieren (Abbrueche/"couldn't validate"). HEAD liefert keine Daten -> immer 200.
++    if method == axum::http::Method::HEAD { return StatusCode::OK.into_response(); }
 +    let token = settings().token;
 +    if let Err(reason) = auth_check(&headers, &uri, &token) {
 +        if path.is_empty() && method == axum::http::Method::GET { return "AdiCode MCP-Server laeuft. In Notion https://<domain>/mcp + Bearer-Token oder die URL mit Schluessel eintragen.".into_response(); }
@@ -15338,10 +15341,10 @@ index 0000000..65bb573
 +}
 diff --git a/agent/src/notion_updates.rs b/agent/src/notion_updates.rs
 new file mode 100644
-index 0000000..c906331
+index 0000000..b09b6a7
 --- /dev/null
 +++ b/agent/src/notion_updates.rs
-@@ -0,0 +1,318 @@
+@@ -0,0 +1,389 @@
 +//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
 +//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
 +//! und kann per Datei `update-now` eine sofortige Pruefung anstossen.
@@ -15366,12 +15369,73 @@ index 0000000..c906331
 +}
 +
 +pub fn current_version() -> String {
++    // 1.0.142: lokal installierter Build (Notion-Agent hat gebaut) hat Vorrang, solange die exe noch genau diese ist.
++    if let Some(v) = installed_local().and_then(|v| v["version"].as_str().map(str::to_string)) { return v; }
 +    std::env::current_exe().ok()
 +        .and_then(|e| e.parent().map(|d| d.join(".version")))
 +        .and_then(|p| std::fs::read_to_string(p).ok())
 +        .map(|s| s.trim().to_string())
 +        .filter(|s| !s.is_empty())
 +        .unwrap_or_else(|| "dev".into())
++}
++
++// ---------- 1.0.142: lokale Updates (ohne GitHub) ----------
++// Der Notion-Agent baut auf dem PC und legt %LOCALAPPDATA%\PlazCodeNotion\local-update\PlazCode.exe
++// + local-update.json {version, build, date, notes} ab. Der Update-Tab zeigt das wie ein Release an;
++// "Jetzt updaten" tauscht die exe und startet AdiCode neu.
++fn local_dir() -> PathBuf { base_dir().join("local-update") }
++
++fn installed_local() -> Option<Value> {
++    let exe = std::env::current_exe().ok()?;
++    let v: Value = serde_json::from_str(&std::fs::read_to_string(exe.parent()?.join("local-version.json")).ok()?).ok()?;
++    let len = std::fs::metadata(&exe).ok()?.len();
++    (v["exe_len"].as_u64() == Some(len)).then_some(v)
++}
++
++fn local_update() -> Option<Value> {
++    let meta: Value = serde_json::from_str(&std::fs::read_to_string(local_dir().join("local-update.json")).ok()?).ok()?;
++    let len = std::fs::metadata(local_dir().join("PlazCode.exe")).ok()?.len();
++    if len < 1_000_000 { return None; }
++    let build = meta["build"].as_str()?.to_string();
++    if installed_local().and_then(|v| v["build"].as_str().map(str::to_string)).as_deref() == Some(build.as_str()) { return None; }
++    Some(meta)
++}
++
++async fn install_local(meta: Value) -> Result<String, String> {
++    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
++    let dir = exe.parent().ok_or("kein App-Ordner")?.to_path_buf();
++    let new_exe = local_dir().join("PlazCode.exe");
++    let old = dir.join("PlazCode.exe.old");
++    let label = meta["version"].as_str().unwrap_or("lokal").to_string();
++    let _ = std::fs::remove_file(&old);
++    // Laufende exe darf unter Windows umbenannt (nicht ueberschrieben) werden.
++    std::fs::rename(&exe, &old).map_err(|e| format!("alte exe nicht umbenennbar: {e}"))?;
++    if let Err(e) = std::fs::copy(&new_exe, &exe) { let _ = std::fs::rename(&old, &exe); return Err(format!("neue exe nicht kopierbar: {e}")); }
++    let len = std::fs::metadata(&exe).map(|m| m.len()).unwrap_or(0);
++    let marker = json!({"version": label, "build": meta["build"], "exe_len": len});
++    let _ = std::fs::write(dir.join("local-version.json"), marker.to_string());
++    let _ = std::fs::write(base_dir().join("show-after-update"), &label);
++    *cache() = None;
++    let pid = std::process::id();
++    let ps = format!("$p={pid}; for($i=0;$i -lt 100 -and (Get-Process -Id $p -EA 0);$i++){{Start-Sleep -Milliseconds 300}}; Start-Sleep -Milliseconds 500; Start-Process -FilePath '{}' -WorkingDirectory '{}'", exe.display(), dir.display());
++    let spawn = |flags: u32| {
++        let mut c = std::process::Command::new("powershell.exe");
++        c.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", &ps]);
++        #[cfg(windows)]
++        { use std::os::windows::process::CommandExt; c.creation_flags(flags); }
++        #[cfg(not(windows))]
++        let _ = flags;
++        c.spawn()
++    };
++    // Aus dem Job-Objekt des Launchers ausbrechen, damit der Neustarter das Beenden ueberlebt.
++    if spawn(0x0100_0000 | 0x0800_0000).is_err() { spawn(0x0800_0000).map_err(|e| format!("Neustart nicht moeglich: {e}"))?; }
++    let l2 = label.clone();
++    tokio::spawn(async move {
++        let _ = tokio::time::timeout(Duration::from_secs(3), crate::notion_live::announce_update(&l2)).await;
++        tokio::time::sleep(Duration::from_millis(600)).await;
++        std::process::exit(0)
++    });
++    Ok(format!("Lokales Update {label} wird installiert - AdiCode startet in wenigen Sekunden neu."))
 +}
 +
 +fn parse_ver(s: &str) -> Option<(u32, u32, u32)> {
@@ -15442,7 +15506,16 @@ index 0000000..c906331
 +            Err(e) => { let mut old = cache().as_ref().map(|(_, v)| v.clone()).unwrap_or_else(|| json!({"releases": [], "latest": ""})); old["error"] = json!(e); old }
 +        },
 +    };
-+    let available = match (parse_ver(v["latest"].as_str().unwrap_or("")), parse_ver(&current)) { (Some(l), Some(c)) => l > c, _ => false };
++    let mut available = match (parse_ver(v["latest"].as_str().unwrap_or("")), parse_ver(&current)) { (Some(l), Some(c)) => l > c, _ => false };
++    if let Some(l) = local_update() {
++        let lv = format!("{} (lokal)", l["version"].as_str().unwrap_or("neu"));
++        let entry = json!({"version": lv, "date": l["date"].clone(), "url": Value::Null, "notes": l["notes"].clone(), "local": true});
++        if let Some(a) = v["releases"].as_array_mut() { a.insert(0, entry); } else { v["releases"] = json!([entry]); }
++        v["latest"] = json!(lv);
++        v["local_update"] = l;
++        available = true;
++    }
++    if let Some(l) = installed_local() { v["current_build"] = l["build"].clone(); }
 +    v["ok"] = json!(true);
 +    v["current"] = json!(current);
 +    v["update_available"] = json!(available);
@@ -15557,6 +15630,7 @@ index 0000000..c906331
 +
 +/// Nur manuell (Knopf in AdiCode): erst alle aktiven Notion-Tabs benachrichtigen, dann installieren und neu starten.
 +async fn update_now() -> Result<String, String> {
++    if let Some(l) = local_update() { return install_local(l).await; }
 +    let mut v = info(false).await;
 +    if !v["update_available"].as_bool().unwrap_or(false) { v = info(true).await; }
 +    if !v["update_available"].as_bool().unwrap_or(false) { return Ok(format!("Kein neues Update ({} ist aktuell).", current_version())); }
