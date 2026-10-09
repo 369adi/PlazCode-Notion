@@ -1488,7 +1488,7 @@ index 0000000..ab68b62
 +  else start();
 +})();
 diff --git a/agent/src/desktop.html b/agent/src/desktop.html
-index 07dc4c0..63503e3 100644
+index 07dc4c0..a6a347f 100644
 --- a/agent/src/desktop.html
 +++ b/agent/src/desktop.html
 @@ -3,7 +3,7 @@
@@ -2593,7 +2593,7 @@ index 07dc4c0..63503e3 100644
 +      }).catch(function (Er) { UStop("Update konnte nicht starten: " + (Er.message || String(Er))); });
 +    });
 +    document.querySelectorAll("[data-page=fupdates]").forEach(function (Btn) { Btn.addEventListener("click", function () { UPoll(false); }); });
-+    setInterval(function () { if (!UBusy && document.querySelector("#page-fupdates.active")) UPoll(false); }, 15000);
++    setInterval(function () { if (!UBusy) UPoll(false); }, 4000); /* 1.0.144: lokales Update erscheint live, auch wenn der Update-Tab nicht offen ist */
 +    setTimeout(function () { UPoll(false); }, 1500);
 +    var C = $("nEnabled"); if (C) C.onchange = function () { Act("toggle_ngrok", C.checked); };
 +    Poll();
@@ -2661,10 +2661,10 @@ index 04ebefa..3ebe82f 100644
              Event::UserEvent(UiEvent::Maximize) => window.set_maximized(!window.is_maximized()),
              Event::UserEvent(UiEvent::Drag) => {
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..635ca29 100644
+index 77cc050..63ca064 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,27 @@ mod media;
+@@ -81,6 +81,28 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -2679,6 +2679,7 @@ index 77cc050..635ca29 100644
 +mod notion_updates;
 +mod notion_stage;
 +mod notion_brave_prefs;
++mod notion_tab_icons;
 +mod notion_chat;
 +mod notion_live;
 +mod notion_blender;
@@ -2692,7 +2693,7 @@ index 77cc050..635ca29 100644
  
  #[cfg(windows)]
  mod win_msg {
-@@ -188,6 +209,23 @@ impl AppState {
+@@ -188,6 +210,23 @@ impl AppState {
  }
  
  /// Persistent stdio client for Roblox Studio's built-in MCP server.
@@ -2716,7 +2717,7 @@ index 77cc050..635ca29 100644
  struct McpRuntime {
      child: Option<Child>,
      stdin: Option<ChildStdin>,
-@@ -335,7 +373,23 @@ impl McpRuntime {
+@@ -335,7 +374,23 @@ impl McpRuntime {
          Ok(())
      }
  
@@ -2741,7 +2742,7 @@ index 77cc050..635ca29 100644
          self.ensure().await?;
          if self.tools.is_empty() { self.list_tools().await?; }
          let targeted = studio_session::needs_id(&self.tools, name);
-@@ -726,13 +780,20 @@ fn main() {
+@@ -726,13 +781,20 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -2764,7 +2765,7 @@ index 77cc050..635ca29 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +892,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +893,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -2774,7 +2775,7 @@ index 77cc050..635ca29 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +942,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +943,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -2786,7 +2787,7 @@ index 77cc050..635ca29 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -936,7 +1002,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -936,7 +1003,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          headers.insert("origin", origin.clone());
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
@@ -2802,7 +2803,7 @@ index 77cc050..635ca29 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +1021,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +1022,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -2810,7 +2811,7 @@ index 77cc050..635ca29 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +1051,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +1052,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -2831,7 +2832,7 @@ index 77cc050..635ca29 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1276,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1277,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -2839,7 +2840,7 @@ index 77cc050..635ca29 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1197,12 +1286,13 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1197,12 +1287,13 @@ async fn desktop_shell_handler() -> impl IntoResponse {
          .replace("__PLAZCODE_TEMPLATE_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/templates.js")))
          .replace("__PLAZCODE_VERSION_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/version.js")))
          .replace("__PLAZCODE_PAIRING_KEY__", "")
@@ -2854,7 +2855,7 @@ index 77cc050..635ca29 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1212,7 +1302,7 @@ async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
+@@ -1212,7 +1303,7 @@ async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
          .replace("__PLAZCODE_TEMPLATE_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/templates.js")))
          .replace("__PLAZCODE_VERSION_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/version.js")))
          .replace("__PLAZCODE_PAIRING_KEY__", state.pairing_key.as_str())
@@ -2863,7 +2864,7 @@ index 77cc050..635ca29 100644
      Html(html)
  }
  
-@@ -1460,6 +1550,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1551,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -2871,7 +2872,7 @@ index 77cc050..635ca29 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1622,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1623,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -2879,7 +2880,7 @@ index 77cc050..635ca29 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1631,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1632,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -4035,7 +4036,7 @@ index 0000000..e67ed6c
 +}
 diff --git a/agent/src/notion_chat.rs b/agent/src/notion_chat.rs
 new file mode 100644
-index 0000000..7e0a4df
+index 0000000..bc6430e
 --- /dev/null
 +++ b/agent/src/notion_chat.rs
 @@ -0,0 +1,566 @@
@@ -4188,7 +4189,7 @@ index 0000000..7e0a4df
 +            np::windows::set_hidden(std::slice::from_ref(t), false);
 +            return Err("Das Main-Konto ist nicht bei Notion angemeldet. Bitte im geoeffneten Fenster anmelden und dann erneut senden.".into());
 +        }
-+        if i == 12 && v["onchat"].as_bool() != Some(true) { if let Some(w) = np::welcome_url(t) { let _ = s.navigate(&w).await; } }
++        /* 1.0.146: kein Auto-Navigate zum gespeicherten Chat */
 +        sleep(500).await;
 +    }
 +    np::windows::set_hidden(std::slice::from_ref(t), false);
@@ -4221,7 +4222,7 @@ index 0000000..7e0a4df
 +    if !np::chat_own().is_empty() { return wait_own(s).await; }
 +    let here = s.eval("return location.href;").await?.as_str().unwrap_or("").to_string();
 +    if let Some(w) = np::welcome_url(t) { if !tid_of(&w).is_empty() && tid_of(&w) == tid_of(&here) { return Ok(()); } }
-+    np::prepare_chat(t, np::main_index()).await.map_err(|e| format!("Chat Willkommen bei Notion nicht gefunden - es wird bewusst kein neuer Chat gestartet ({e})."))?;
++    /* 1.0.146: kein Navigate zum gespeicherten Chat - aktuelle Seite bleibt */
 +    wait_composer(s, t).await
 +}
 +async fn ensure_main() -> Result<(), String> {
@@ -4250,7 +4251,7 @@ index 0000000..7e0a4df
 +        drop(s);
 +        let _ = np::setup_mcp(&t, 0).await;
 +        let mut s2 = Session::page().await?;
-+        if np::chat_own().is_empty() { if let Some(w) = np::welcome_url(&t) { let _ = s2.navigate(&w).await; } }
++        /* 1.0.146: kein Auto-Navigate nach MCP-Setup */
 +        sleep(1500).await;
 +        if np::chat_own().is_empty() { wait_composer(&mut s2, &t).await?; } else { wait_own(&mut s2).await?; }
 +    }
@@ -11621,10 +11622,10 @@ index 0000000..f58c732
 +}
 diff --git a/agent/src/notion_profiles.rs b/agent/src/notion_profiles.rs
 new file mode 100644
-index 0000000..03cca67
+index 0000000..d4e963d
 --- /dev/null
 +++ b/agent/src/notion_profiles.rs
-@@ -0,0 +1,1399 @@
+@@ -0,0 +1,1402 @@
 +//! AdiCode Co-Work 2.0: four isolated Notion profiles with automatic roles and CDP kickoff.
 +use axum::{response::IntoResponse, Json};
 +use futures::{SinkExt, StreamExt};
@@ -11705,10 +11706,10 @@ index 0000000..03cca67
 +/// 1.0.139: Refresh loescht nur, wenn im Tab wirklich das Konto des Tabs eingeloggt ist. Sonst Notion-Logout + Login mit der richtigen E-Mail.
 +async fn refresh_guard(t:&Tab,i:usize,port:u16)->bool{let cur=js_eval(port,WHO_JS).await.ok().and_then(|v|v.as_str().map(|s|s.to_lowercase())).unwrap_or_default();let me=t.email.to_lowercase();if cur.is_empty()||cur.split(',').any(|e|e.trim()==me){return false;}tl(&format!("REFRESH-GUARD tab{} eingeloggt als {cur} statt {me} - nichts geloescht, Notion-Logout",t.id));mark_account(t.id,"refresh_state",json!(format!("Falsches Konto eingeloggt ({cur}) - wird abgemeldet, nichts gel\u{f6}scht")));notion_logout(port).await;tokio::time::sleep(Duration::from_secs(2)).await;single_tab(port).await;let _=login_view(t.clone());post_refresh_setup(t.clone(),i).await;true}
 +async fn notion_logout(port:u16){let urls=json!(["https://www.notion.so","https://notion.so","https://www.notion.com","https://notion.com","https://app.notion.com"]);if let Ok(v)=cdp(port,vec![json!({"method":"Network.getCookies","params":{"urls":urls}})]).await{let cs=v.last().and_then(|x|x.pointer("/result/cookies")).and_then(|c|c.as_array()).cloned().unwrap_or_default();let cmds:Vec<Value>=cs.iter().map(|c|json!({"method":"Network.deleteCookies","params":{"name":c["name"],"domain":c["domain"],"path":c["path"]}})).collect();if !cmds.is_empty(){let _=cdp(port,cmds).await;}}}
-+async fn refresh_account(t:Tab,i:usize){let port=cdp_port(i);if !wait_cdp(port).await{mark_account(t.id,"refresh_state",json!("Tab nicht erreichbar"));return;}let js=REFRESH_JS.replace("__GO__","true").replace("__EM__",&t.email.to_lowercase());mark_account(t.id,"refresh_state",json!("Warte auf Notion ..."));single_tab(port).await;let _=cdp(port,vec![json!({"method":"Page.bringToFront"})]).await;tokio::time::sleep(Duration::from_millis(800)).await;if refresh_guard(&t,i,port).await{return;}match {let mut r=js_eval(port,&js).await;for _ in 0..15{let early=match &r{Ok(v)=>v["msg"].as_str().unwrap_or("").starts_with("Einstellungen nicht gefunden"),Err(_)=>true};if !early{break;}tokio::time::sleep(Duration::from_secs(2)).await;r=js_eval(port,&js).await;}r}{Ok(r)=>{if r["msg"].as_str().unwrap_or("").starts_with("WRONG:"){tl(&format!("REFRESH-GUARD tab{} {}",t.id,r["msg"].as_str().unwrap_or("")));if !refresh_guard(&t,i,port).await{mark_account(t.id,"refresh_state",json!("Falsches Konto eingeloggt - nichts gel\u{f6}scht"));}return;}let ok=r["ok"].as_bool().unwrap_or(false);let msg=r["msg"].as_str().unwrap_or("").to_string();mark_account(t.id,"refresh_state",json!(msg.clone()));mark_account(t.id,"check",json!(msg));if ok{let lm=mem_get(&t.email,"login_method");mem_forget(&t.email);if !lm.is_null(){mem_set(&t.email,"login_method",lm);}mark_account(t.id,"chat_ok",json!(false));mark_account(t.id,"refresh_state",json!("Konto gel\u{f6}scht - Gmail-Login mit derselben E-Mail wird ge\u{f6}ffnet ..."));tokio::time::sleep(human_sleep(Duration::from_secs(6),40)).await;single_tab(port).await;let _=login_view(t.clone());post_refresh_setup(t.clone(),i).await;}}Err(e)=>{mark_account(t.id,"refresh_state",json!(e.to_string()));}}}
++async fn refresh_account(t:Tab,i:usize){let port=cdp_port(i);if !wait_cdp(port).await{mark_account(t.id,"refresh_state",json!("Tab nicht erreichbar"));return;}let js=REFRESH_JS.replace("__GO__","true").replace("__EM__",&t.email.to_lowercase());mark_account(t.id,"refresh_state",json!("Warte auf Notion ..."));single_tab(port).await;let _=cdp(port,vec![json!({"method":"Page.bringToFront"})]).await;tokio::time::sleep(Duration::from_millis(800)).await;if refresh_guard(&t,i,port).await{return;}match {let mut r=js_eval(port,&js).await;for _ in 0..15{let early=match &r{Ok(v)=>v["msg"].as_str().unwrap_or("").starts_with("Einstellungen nicht gefunden"),Err(_)=>true};if !early{break;}tokio::time::sleep(Duration::from_secs(2)).await;r=js_eval(port,&js).await;}r}{Ok(r)=>{if r["msg"].as_str().unwrap_or("").starts_with("WRONG:"){tl(&format!("REFRESH-GUARD tab{} {}",t.id,r["msg"].as_str().unwrap_or("")));if !refresh_guard(&t,i,port).await{mark_account(t.id,"refresh_state",json!("Falsches Konto eingeloggt - nichts gel\u{f6}scht"));}return;}let ok=r["ok"].as_bool().unwrap_or(false);let msg=r["msg"].as_str().unwrap_or("").to_string();mark_account(t.id,"refresh_state",json!(msg.clone()));mark_account(t.id,"check",json!(msg));if ok{let lm=mem_get(&t.email,"login_method");mem_forget(&t.email);if !lm.is_null(){mem_set(&t.email,"login_method",lm);}mark_account(t.id,"chat_ok",json!(false));mark_account(t.id,"refresh_state",json!("Konto gel\u{f6}scht - Gmail-Login mit derselben E-Mail wird ge\u{f6}ffnet ..."));tokio::time::sleep(Duration::from_millis(700)).await;single_tab(port).await;let _=login_view(t.clone());post_refresh_setup(t.clone(),i).await;}}Err(e)=>{mark_account(t.id,"refresh_state",json!(e.to_string()));}}}
 +// Login = gleicher Ablauf wie Refresh (Login-Ansicht im Coworker-Brave + post_refresh_setup), aber OHNE Konto-Loeschen und ohne Account-Memory zu vergessen.
 +async fn login_account(t:Tab,i:usize){mark_account(t.id,"chat_ok",json!(false));mark_account(t.id,"refresh_state",json!("Login wird ge\u{f6}ffnet ..."));match login_view(t.clone()){Ok(_)=>{post_refresh_setup(t,i).await;}Err(e)=>{mark_account(t.id,"refresh_state",json!(e));}}}
-+const SETUP_JS:&str=r#"(async()=>{const PH='__PH__';const sleep=ms=>new Promise(r=>setTimeout(r,ms*(0.5+Math.random()*0.3)));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const norm=x=>(x.innerText||'').trim().replace(/\s+/g,' ');const clickT=(re,root,sel)=>{const e=[...(root||document).querySelectorAll(sel||'div[role=button],button,a,[role=tab],[role=menuitem],[role=radio],label')].filter(vis).find(x=>re.test(norm(x))&&!/^(skip to content|zum inhalt springen)$/i.test(norm(x)));if(e){if(PH==='onboard'){const ck=re.source+'|'+body.slice(0,300);window.__clk=window.__clk||{};if(Date.now()-(window.__clk[ck]||0)<20000)return true;window.__clk[ck]=Date.now()}e.click();return true}return false};const body=document.body.innerText||'';const dlgs=[...document.querySelectorAll('[role=dialog]')].filter(vis);const dlg=dlgs.length?dlgs[dlgs.length-1]:null;const dlgOpen=()=>document.querySelector('input[aria-label^=Search],input[aria-label^=Einstellungen]');const openSettings=async()=>{if(dlgOpen())return true;let st=[...document.querySelectorAll('div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>/^(settings|einstellungen)$/i.test(norm(e)));if(!st){const sw=document.querySelector('.notion-sidebar-switcher,[class*=switcher]');if(sw){sw.click();for(let k=0;k<12&&!st;k++){await sleep(500);st=[...document.querySelectorAll('div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>/^(settings|einstellungen)$/i.test(norm(e)))}}}if(!st)return false;st.click();await sleep(1500);return !!dlgOpen()};const tab=async(re)=>{const d=dlgOpen().closest('[role=dialog]');const t=[...d.querySelectorAll('[role=tab]')].filter(vis).find(e=>re.test(norm(e)));if(!t)return false;t.click();await sleep(1500);return true};try{if(PH==='onboard'){if(document.readyState==='complete'&&(document.body.innerText||'').trim().length<40&&!document.querySelector('#sidebar-tab-chats')){const k=+sessionStorage.getItem('__blank')||0;if(!k){sessionStorage.setItem('__blank',String(Date.now()))}else if(Date.now()-k>8000){sessionStorage.setItem('__blank','0');if(location.pathname==='/'||location.pathname===''){location.reload()}else{location.href=location.origin+'/'}return {state:'reload'}}return {state:'blank'}}sessionStorage.setItem('__blank','0');if(/cookie preferences|cookie-einstellungen/i.test(body)&&clickT(/^(okay|ok)$/i)){return {state:'cookie-ok'}}if(/cookie notice|cookie-hinweis/i.test(body)&&clickT(/^(reject all|alle ablehnen)$/i)){return {state:'cookie'}}if(/cookie preferences|cookie-einstellungen/i.test(body)){return {state:'cookie-wait'}}if(/notion\.(so|com)$/.test(location.host)&&(document.querySelector('input[type=email]')||/\/(login|signup)/.test(location.pathname)||/continue with google|weiter mit google/i.test(body))&&!document.querySelector('#sidebar-tab-chats')){if(!window.__gclick||Date.now()-window.__gclick>8000){if(clickT(/^(continue with google|weiter mit google|mit google fortfahren|google)$/i)){window.__gclick=Date.now();return {state:'notion-google'}}}return {state:'login'}}if(/accounts\.google\.com/.test(location.host)){const em='__EM__';if(/That.s an error|Das ist ein Fehler|(^|[^0-9])400([^0-9]|$)/i.test(body)&&!document.querySelector('[data-identifier],[data-email]')&&body.length<600){return {state:'google-error'}}const acs=[...document.querySelectorAll('[data-identifier],[data-email]')].filter(e=>(e.getAttribute('data-identifier')||e.getAttribute('data-email'))===em);const acv=acs.filter(vis);const ac=acv[acv.length-1]||acs[acs.length-1];if(ac){ac.click();return {state:'google-konto'}}if(clickT(/^(weiter|continue|fortfahren|zulassen|allow)$/i))return {state:'google-weiter'};return {state:'google'}}if(/What kind of work do you do|Welche Art von Arbeit/i.test(body)){clickT(/^(marketing)$/i);await sleep(500);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-work'}}if(/What do you want to get done|Was m.chtest du erledigen/i.test(body)){clickT(/^(track projects and tasks|projekte und aufgaben)/i);await sleep(500);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-goals'}}if(/Start with your real work|Starte mit deiner echten Arbeit/i.test(body)){clickT(/^(skip for now|vorerst .berspringen|.berspringen|sp.ter)/i);return {state:'step-connect'}}if(/Who else is on your team|Wer ist (sonst )?noch in deinem Team/i.test(body)){if(!clickT(/^(skip|skip for now|.berspringen)/i))clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-team'}}if(/Choose your plan|W.hle dein(en)? (Plan|Abo)/i.test(body)&&!/Try free for 30 days.*Skip/i.test(body)){clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-plan'}}if(/Notion is 50% faster|Desktop.?App/i.test(body)&&/Skip for now|.berspringen/i.test(body)){clickT(/^(skip for now|vorerst .berspringen|.berspringen|sp.ter)/i);return {state:'step-desktop'}}if(/How do you want to use Notion|Wie m.chtest du Notion/i.test(body)){clickT(/for work|f.r die arbeit|beruflich|arbeit/i);await sleep(600);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step1'}}if(/Start with your team|Notion works best|Mit deinem Team/i.test(body)){if(!clickT(/^(skip|skip for now|.berspringen|sp.ter)/i))clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step2'}}if(/Choose your plan|W.hle dein(en)? (Plan|Abo)|Plan w.hlen/i.test(body)){clickT(/continue with free|mit .*kostenlos|kostenlos fortfahren/i);return {state:'step3'}}if(document.querySelector('.notion-sidebar,.notion-sidebar-container')&&!/Choose your plan|How do you want to use/i.test(body))return {state:'workspace'};return {state:'wait'}}if(PH==='trial'){if(!(await openSettings()))return {state:'noset'};if(!(await tab(/^(notion ai|notion-ki)/i)))return {state:'noai'};await tab(/^(ai connectors|ki-connectors|connectors)/i);if(!clickT(/^(try for free|kostenlos testen|gratis testen)/i,dlgOpen().closest('[role=dialog]')))return {state:'notry'};await sleep(2000);const d2=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();if(d2&&clickT(/^(try for free|kostenlos testen|gratis testen|start free trial)/i,d2)){await sleep(3500);return {state:'trialstarted'}}return {state:'nodlg'}}if(PH==='cancel'){if(!(await openSettings()))return {state:'noset'};let ok=await tab(/^(billing|abrechnung|plans|tarife|upgrade plan)/i);if(!ok)return {state:'nobilling'};await sleep(1200);const rootD=dlgOpen().closest('[role=dialog]');if(!clickT(/cancel (free )?trial|trial (beenden|k.ndigen)|testversion (beenden|k.ndigen)|cancel plan/i,rootD))return {state:'nocancel'};await sleep(1800);const d3=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();if(d3){clickT(/^(cancel (free )?trial|confirm|cancel plan|yes|best.tigen|beenden|k.ndigen)/i,d3);await sleep(2500)}return {state:'cancelled'}}return {state:'unknown'}}catch(e){return {state:'err',msg:String(e&&e.message||e)}}})()"#;
++const SETUP_JS:&str=r#"(async()=>{const PH='__PH__';const sleep=ms=>new Promise(r=>setTimeout(r,ms*(0.5+Math.random()*0.3)));const vis=e=>{const r=e.getBoundingClientRect();return r.width>0&&r.height>0};const norm=x=>(x.innerText||'').trim().replace(/\s+/g,' ');const clickT=(re,root,sel)=>{const e=[...(root||document).querySelectorAll(sel||'div[role=button],button,a,[role=tab],[role=menuitem],[role=radio],label')].filter(vis).find(x=>re.test(norm(x))&&!/^(skip to content|zum inhalt springen)$/i.test(norm(x)));if(e){if(PH==='onboard'){const ck=re.source+'|'+body.slice(0,300);window.__clk=window.__clk||{};if(Date.now()-(window.__clk[ck]||0)<20000)return true;window.__clk[ck]=Date.now()}e.click();return true}return false};const body=document.body.innerText||'';const dlgs=[...document.querySelectorAll('[role=dialog]')].filter(vis);const dlg=dlgs.length?dlgs[dlgs.length-1]:null;const dlgOpen=()=>document.querySelector('input[aria-label^=Search],input[aria-label^=Einstellungen]');const openSettings=async()=>{if(dlgOpen())return true;let st=[...document.querySelectorAll('div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>/^(settings|einstellungen)$/i.test(norm(e)));if(!st){const sw=document.querySelector('.notion-sidebar-switcher,[class*=switcher]');if(sw){sw.click();for(let k=0;k<12&&!st;k++){await sleep(500);st=[...document.querySelectorAll('div[role=button],div[role=menuitem],[role=tab],button,a')].filter(vis).find(e=>/^(settings|einstellungen)$/i.test(norm(e)))}}}if(!st)return false;st.click();await sleep(1500);return !!dlgOpen()};const tab=async(re)=>{const d=dlgOpen().closest('[role=dialog]');const t=[...d.querySelectorAll('[role=tab]')].filter(vis).find(e=>re.test(norm(e)));if(!t)return false;t.click();await sleep(1500);return true};try{if(PH==='onboard'){if(document.readyState==='complete'&&(document.body.innerText||'').trim().length<40&&!document.querySelector('#sidebar-tab-chats')){const k=+sessionStorage.getItem('__blank')||0;if(!k){sessionStorage.setItem('__blank',String(Date.now()))}else if(Date.now()-k>45000){sessionStorage.setItem('__blank','0');if(location.pathname==='/'||location.pathname===''){location.reload()}else{location.href=location.origin+'/'}return {state:'reload'}}return {state:'blank'}}sessionStorage.setItem('__blank','0');if(/cookie preferences|cookie-einstellungen/i.test(body)&&clickT(/^(okay|ok)$/i)){return {state:'cookie-ok'}}if(/cookie notice|cookie-hinweis/i.test(body)&&clickT(/^(reject all|alle ablehnen)$/i)){return {state:'cookie'}}if(/cookie preferences|cookie-einstellungen/i.test(body)){return {state:'cookie-wait'}}if(/notion\.(so|com)$/.test(location.host)&&(document.querySelector('input[type=email]')||/\/(login|signup)/.test(location.pathname)||/continue with google|weiter mit google/i.test(body))&&!document.querySelector('#sidebar-tab-chats')){if(!window.__gclick||Date.now()-window.__gclick>8000){if(clickT(/^(continue with google|weiter mit google|mit google fortfahren|google)$/i)){window.__gclick=Date.now();return {state:'notion-google'}}}return {state:'login'}}if(/accounts\.google\.com/.test(location.host)){const em='__EM__';if(/That.s an error|Das ist ein Fehler|(^|[^0-9])400([^0-9]|$)/i.test(body)&&!document.querySelector('[data-identifier],[data-email]')&&body.length<600){return {state:'google-error'}}const acs=[...document.querySelectorAll('[data-identifier],[data-email]')].filter(e=>(e.getAttribute('data-identifier')||e.getAttribute('data-email'))===em);const acv=acs.filter(vis);const ac=acv[acv.length-1]||acs[acs.length-1];if(ac){ac.click();return {state:'google-konto'}}if(clickT(/^(weiter|continue|fortfahren|zulassen|allow)$/i))return {state:'google-weiter'};return {state:'google'}}if(/What kind of work do you do|Welche Art von Arbeit/i.test(body)){clickT(/^(marketing)$/i);await sleep(500);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-work'}}if(/What do you want to get done|Was m.chtest du erledigen/i.test(body)){clickT(/^(track projects and tasks|projekte und aufgaben)/i);await sleep(500);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-goals'}}if(/Start with your real work|Starte mit deiner echten Arbeit/i.test(body)){clickT(/^(skip for now|vorerst .berspringen|.berspringen|sp.ter)/i);return {state:'step-connect'}}if(/Who else is on your team|Wer ist (sonst )?noch in deinem Team/i.test(body)){if(!clickT(/^(skip|skip for now|.berspringen)/i))clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-team'}}if(/Choose your plan|W.hle dein(en)? (Plan|Abo)/i.test(body)&&!/Try free for 30 days.*Skip/i.test(body)){clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step-plan'}}if(/Notion is 50% faster|Desktop.?App/i.test(body)&&/Skip for now|.berspringen/i.test(body)){clickT(/^(skip for now|vorerst .berspringen|.berspringen|sp.ter)/i);return {state:'step-desktop'}}if(/How do you want to use Notion|Wie m.chtest du Notion/i.test(body)){clickT(/for work|f.r die arbeit|beruflich|arbeit/i);await sleep(600);clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step1'}}if(/Start with your team|Notion works best|Mit deinem Team/i.test(body)){if(!clickT(/^(skip|skip for now|.berspringen|sp.ter)/i))clickT(/^(continue|weiter|fortfahren)$/i);return {state:'step2'}}if(/Choose your plan|W.hle dein(en)? (Plan|Abo)|Plan w.hlen/i.test(body)){clickT(/continue with free|mit .*kostenlos|kostenlos fortfahren/i);return {state:'step3'}}if(document.querySelector('.notion-sidebar,.notion-sidebar-container')&&!/Choose your plan|How do you want to use/i.test(body))return {state:'workspace'};return {state:'wait'}}if(PH==='trial'){if(!(await openSettings()))return {state:'noset'};if(!(await tab(/^(notion ai|notion-ki)/i)))return {state:'noai'};await tab(/^(ai connectors|ki-connectors|connectors)/i);if(!clickT(/^(try for free|kostenlos testen|gratis testen)/i,dlgOpen().closest('[role=dialog]')))return {state:'notry'};await sleep(2000);const d2=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();if(d2&&clickT(/^(try for free|kostenlos testen|gratis testen|start free trial)/i,d2)){await sleep(3500);return {state:'trialstarted'}}return {state:'nodlg'}}if(PH==='cancel'){if(!(await openSettings()))return {state:'noset'};let ok=await tab(/^(billing|abrechnung|plans|tarife|upgrade plan)/i);if(!ok)return {state:'nobilling'};await sleep(1200);const rootD=dlgOpen().closest('[role=dialog]');if(!clickT(/cancel (free )?trial|trial (beenden|k.ndigen)|testversion (beenden|k.ndigen)|cancel plan/i,rootD))return {state:'nocancel'};await sleep(1800);const d3=[...document.querySelectorAll('[role=dialog]')].filter(vis).pop();if(d3){clickT(/^(cancel (free )?trial|confirm|cancel plan|yes|best.tigen|beenden|k.ndigen)/i,d3);await sleep(2500)}return {state:'cancelled'}}return {state:'unknown'}}catch(e){return {state:'err',msg:String(e&&e.message||e)}}})()"#;
 +fn is_g(v:&Value)->bool{v["url"].as_str().unwrap_or("").contains("accounts.google.com")}
 +async fn google_close(port:u16){let list:Vec<Value>=match reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await{Ok(r)=>r.json().await.unwrap_or_default(),Err(_)=>return};let pages:Vec<Value>=list.into_iter().filter(|v|v["type"]=="page").collect();let others=pages.iter().filter(|v|!is_g(v)).count();for v in pages.iter().filter(|v|is_g(v)){if others>0{if let Some(id)=v["id"].as_str(){let _=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json/close/{id}")).timeout(Duration::from_secs(3)).send().await;}}else if let Some(ws)=v["webSocketDebuggerUrl"].as_str(){let _=cdp_ws(ws,vec![json!({"method":"Page.navigate","params":{"url":"https://www.notion.so/login"}})]).await;}}}
 +async fn google_ws(port:u16)->Option<String>{let list:Vec<Value>=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await.ok()?.json().await.ok()?;list.into_iter().filter(|v|{let o=chat_own();o.is_empty()||v["id"].as_str()!=Some(o.as_str())}).find(|v|v["type"]=="page"&&v["url"].as_str().unwrap_or("").contains("accounts.google.com")).and_then(|v|v["webSocketDebuggerUrl"].as_str().map(str::to_string))}
@@ -11722,14 +11723,14 @@ index 0000000..03cca67
 +    }
 +}
 +
-+async fn post_refresh_setup(t:Tab,i:usize){let port=cdp_port(i);mark_account(t.id,"refresh_state",json!("Warte auf Gmail-Login, dann Einrichtung ..."));let mut ws=false;let mut sg=false;let mut gone=0u32;for it in 0..240{tokio::time::sleep(human_sleep(Duration::from_millis(1500),50)).await;
++async fn post_refresh_setup(t:Tab,i:usize){let port=cdp_port(i);mark_account(t.id,"refresh_state",json!("Warte auf Gmail-Login, dann Einrichtung ..."));let mut ws=false;let mut sg=false;let mut gone=0u32;for it in 0..400u32{tokio::time::sleep(if it<40{Duration::from_millis(350)}else{human_sleep(Duration::from_millis(1500),50)}).await;
 +    if target(port).await.is_err(){
 +        // FIX: Nutzer ist gerade auf accounts.google.com im Tab -> Sign-up/Login laufen lassen, nicht wegnavigieren.
 +        if on_google(port).await{gone=0;}
-+        else{gone+=1;if gone==2||gone%20==0{mark_account(t.id,"refresh_state",json!("Google-Login geschlossen \u{2013} Zum Chat automatisch ..."));goto_chat_auto(&t,i).await;}}
++        else{gone+=1;if gone==6{mark_account(t.id,"refresh_state",json!("Google-Login geschlossen \u{2013} Zum Chat automatisch ..."));goto_chat_auto(&t,i).await;}}
 +        continue;
 +    }
-+    gone=0;let st=setup_phase(port,"onboard",&t.email).await;if st.starts_with("google"){sg=true;}else if sg&&!st.starts_with("login")&&!st.starts_with("notion-google")&&!st.starts_with("err"){sg=false;mark_account(t.id,"refresh_state",json!("Notion wird nach dem Google-Login neu geladen"));let _=js_eval(port,"(()=>{location.href=location.origin+String.fromCharCode(47);return 1})()").await;tokio::time::sleep(Duration::from_secs(5)).await;continue;}if st.starts_with("workspace"){ws=true;break;}if it>=6&&!sg&&!["step","google","login","notion-google"].iter().any(|p|st.starts_with(p))&&logged_in(port).await{ws=true;break;}if st.starts_with("step"){mark_account(t.id,"refresh_state",json!(format!("Einrichtung: {}",st)));}}if !ws{mark_account(t.id,"refresh_state",json!("Einrichtung: Workspace nicht erreicht (Login pruefen)"));return;}tokio::time::sleep(Duration::from_secs(4)).await;mark_account(t.id,"refresh_state",json!("Login ok \u{2013} Check l\u{e4}uft (Trial, MCP, Modelle, Chat) \u{2026}"));match check_one(t.clone(),i).await{Ok(())=>{/* Kein Start-Prompt mehr in den Chat (legte teils einen neuen Chat an) */mark_account(t.id,"refresh_state",json!("Konto neu eingerichtet und gepr\u{fc}ft"));}Err(e)=>{mark_account(t.id,"refresh_state",json!(format!("Eingerichtet, aber: {e}")))}}}
++    gone=0;let st=setup_phase(port,"onboard",&t.email).await;if st.starts_with("google"){sg=true;}else if sg&&!st.starts_with("login")&&!st.starts_with("notion-google")&&!st.starts_with("err"){sg=false;mark_account(t.id,"refresh_state",json!("Notion wird nach dem Google-Login neu geladen"));let _=js_eval(port,"(()=>{location.href=location.origin+String.fromCharCode(47);return 1})()").await;tokio::time::sleep(Duration::from_secs(5)).await;continue;}if st.starts_with("workspace"){ws=true;break;}if it>=16&&!sg&&!["step","google","login","notion-google"].iter().any(|p|st.starts_with(p))&&logged_in(port).await{ws=true;break;}if st.starts_with("step"){mark_account(t.id,"refresh_state",json!(format!("Einrichtung: {}",st)));}}if !ws{mark_account(t.id,"refresh_state",json!("Einrichtung: Workspace nicht erreicht (Login pruefen)"));return;}tokio::time::sleep(Duration::from_secs(4)).await;mark_account(t.id,"refresh_state",json!("Login ok \u{2013} Check l\u{e4}uft (Trial, MCP, Modelle, Chat) \u{2026}"));match check_one(t.clone(),i).await{Ok(())=>{/* Kein Start-Prompt mehr in den Chat (legte teils einen neuen Chat an) */mark_account(t.id,"refresh_state",json!("Konto neu eingerichtet und gepr\u{fc}ft"));}Err(e)=>{mark_account(t.id,"refresh_state",json!(format!("Eingerichtet, aber: {e}")))}}}
 +
 +/// Refresh: Google-Popup weg -> wie Knopf Zum Chat (Tab oeffnen bzw. auf Notion navigieren).
 +async fn goto_chat_auto(t:&Tab,i:usize){if !running_ids(std::slice::from_ref(t)).contains(&t.id){let _=launch(t,&start_url(t));}else if let Ok(ws)=any_target(cdp_port(i)).await{let _=cdp_ws(&ws,vec![json!({"method":"Page.navigate","params":{"url":start_url(t)}})]).await;}windows::set_hidden(std::slice::from_ref(t),false);}
@@ -11973,6 +11974,7 @@ index 0000000..03cca67
 +    // Privacy: Telemetrie-Blocker injizieren, sobald CDP da ist (Hintergrund, stoert niemanden).
 +    let p=port;tokio::spawn(async move{privacy_start(p).await;});
 +    // 1.0.128 (#5): jedes gestartete/eingeloggte Konto wird automatisch erkannt: Live-Chatliste + Team-Schleife (Chats als Coworker ins aktive Co-Work einladen).
++    crate::notion_tab_icons::ensure_started();
 +    ensure_monitors();
 +    Ok(name)
 +}
@@ -12310,7 +12312,7 @@ index 0000000..03cca67
 +            if st.as_str()==Some("layout"){since.remove(&t.id);continue;} /* 1.0.143: kein Auto-Refresh mehr */ if false&&st.as_str()==Some("layout"){if user_present(port).await{since.remove(&t.id);continue;}let e=lay.entry(t.id).or_insert((std::time::Instant::now(),0));if e.1<2&&e.0.elapsed()>=Duration::from_secs(8){e.1+=1;e.0=std::time::Instant::now();let cmd=match welcome_url(t){Some(u)=>json!({"method":"Page.navigate","params":{"url":u}}),None=>json!({"method":"Page.reload","params":{"ignoreCache":true}})};let _=cdp(port,vec![cmd]).await;mark_account(t.id,"load_state",json!("Notion ohne Chat-Leiste geladen \u{2013} neu ge\u{f6}ffnet"));tracing::warn!("Tab {}: Notion ohne Chat-Leiste, neu geoeffnet",t.id);}since.remove(&t.id);continue;}else if lay.get(&t.id).map_or(false,|e|e.0.elapsed()>=Duration::from_secs(600)){lay.remove(&t.id);}
 +            if st.as_bool()!=Some(true){since.remove(&t.id);continue;}
 +            let e=since.entry(t.id).or_insert((std::time::Instant::now(),0));
-+            if e.0.elapsed()>=Duration::from_secs(20)&&!user_present(port).await{
++            if false&&e.0.elapsed()>=Duration::from_secs(20)&&!user_present(port).await{ /* 1.0.145: kein Auto-Reload mehr */
 +                e.1+=1;e.0=std::time::Instant::now();
 +                let cmd=if e.1>=3{e.1=0;json!({"method":"Page.navigate","params":{"url":NOTION_URL}})}else{json!({"method":"Page.reload","params":{"ignoreCache":true}})};
 +                let _=cmd;mark_account(t.id,"load_state",json!("Notion l\u{e4}dt langsam (kein Auto-Refresh)"));tracing::warn!("Tab {}: Notion hing beim Laden, neu geladen",t.id);
@@ -12340,12 +12342,12 @@ index 0000000..03cca67
 +    if let Some(u)=known.as_ref(){
 +        let here=js_eval(port,"location.href").await?;
 +        if here.as_str()!=Some(u.as_str()){cdp(port,vec![json!({"method":"Page.navigate","params":{"url":u}})]).await?;tokio::time::sleep(Duration::from_secs(3)).await;}
-+        let noacc=js_eval(port,"/don.t have access to this chat|keinen Zugriff auf diesen Chat/i.test(document.body.innerText)").await.ok().and_then(|v|v.as_bool()).unwrap_or(false);if noacc{mem_set(&t.email,"welcome_url",Value::Null);mark_account(t.id,"welcome_url",Value::Null);cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;tokio::time::sleep(Duration::from_secs(4)).await;}
++        let mut noacc=false;for _ in 0..8{noacc=js_eval(port,"/don.t have access to this chat|keinen Zugriff auf diesen Chat|no longer shared with you/i.test(document.body.innerText)").await.ok().and_then(|v|v.as_bool()).unwrap_or(false);if noacc{break;}tokio::time::sleep(Duration::from_millis(700)).await;}if noacc{mem_set(&t.email,"welcome_url",Value::Null);mark_account(t.id,"welcome_url",Value::Null);cdp(port,vec![json!({"method":"Page.navigate","params":{"url":NOTION_URL}})]).await?;tokio::time::sleep(Duration::from_secs(4)).await;}
 +        found=true;
 +    }
 +    if !found{
 +        for attempt in 0..4{
-+            if attempt>0{let cmd=if attempt%2==1{json!({"method":"Page.reload","params":{"ignoreCache":true}})}else{json!({"method":"Page.navigate","params":{"url":NOTION_URL}})};cdp(port,vec![cmd]).await?;tokio::time::sleep(Duration::from_secs(5)).await;}
++            if attempt>0{/* 1.0.145: kein Reload/Navigate mehr beim Check */tokio::time::sleep(Duration::from_secs(5)).await;}
 +            let r=js_eval(port,FIND_WELCOME).await?;
 +            if r["found"].as_bool().unwrap_or(false){found=true;break;}
 +        }
@@ -12887,6 +12889,8 @@ index 0000000..03cca67
 +pub(crate) async fn single_tab(port:u16){let pages=page_targets(port).await;if pages.len()<=1{return;}let keep=pages.iter().find(|v|!v["url"].as_str().unwrap_or("").contains("/login")).or(pages.first()).and_then(|v|v["id"].as_str()).unwrap_or("").to_string();if let Ok(b)=browser_ws(port).await{for v in &pages{if let Some(id)=v["id"].as_str(){if id!=keep{let _=cdp_ws(&b,vec![json!({"method":"Target.closeTarget","params":{"targetId":id}})]).await;}}}}}
 +async fn browser_ws(port:u16)->Result<String,String>{let v:Value=reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json/version")).timeout(Duration::from_secs(3)).send().await.map_err(|e|e.to_string())?.json().await.map_err(|e|e.to_string())?;v["webSocketDebuggerUrl"].as_str().map(String::from).ok_or("Browser-CDP fehlt".into())}
 +async fn open_target(port:u16,url:&str)->Result<String,String>{if url_tid(url).is_empty(){return Err("Nur bestehende Chats (Link mit t=) - AdiCode erstellt nie einen neuen Notion-Chat.".into());}if let Some(t)=load().get((port as usize).saturating_sub(9301)){if lock(&CHECK_JOBS).contains_key(&t.id){return Err("Konto wird gerade eingerichtet - Chat spaeter.".into());}}/* 1.0.137: ein Tab pro Konto - bestehenden Tab auf den Chat umschalten statt neuen Tab/Fenster */let pages=page_targets(port).await;let p=pages.iter().find(|v|!v["url"].as_str().unwrap_or("").contains("/login")).or(pages.first()).ok_or_else(||"Tab laeuft nicht".to_string())?;let id=p["id"].as_str().ok_or_else(||"Tab-ID fehlt".to_string())?.to_string();let ws=p["webSocketDebuggerUrl"].as_str().ok_or_else(||"Tab-WS fehlt".to_string())?.to_string();cdp_ws(&ws,vec![json!({"method":"Page.navigate","params":{"url":url}})]).await?;Ok(id)}
++/// 1.0.147: oeffnet einen bestehenden Chat in einem neuen Hintergrund-Tab (sichtbarer Tab bleibt unangetastet).
++async fn open_bg_target(port:u16,url:&str)->Result<String,String>{if url_tid(url).is_empty(){return Err("Nur bestehende Chats (Link mit t=) - AdiCode erstellt nie einen neuen Notion-Chat.".into());}if let Some(t)=load().get((port as usize).saturating_sub(9301)){if lock(&CHECK_JOBS).contains_key(&t.id){return Err("Konto wird gerade eingerichtet - Chat spaeter.".into());}}let b=browser_ws(port).await?;let r=cdp_ws(&b,vec![json!({"method":"Target.createTarget","params":{"url":url,"background":true,"newWindow":true}})]).await?;let id=r.iter().find_map(|v|v.pointer("/result/targetId").or_else(||v.pointer("/targetId")).and_then(Value::as_str).map(String::from)).ok_or_else(||"Hintergrund-Tab konnte nicht geoeffnet werden".to_string())?;if let Ok(wr)=cdp_ws(&b,vec![json!({"method":"Browser.getWindowForTarget","params":{"targetId":id}})]).await{if let Some(w)=wr.iter().find_map(|v|v.pointer("/result/windowId").and_then(Value::as_i64)){let _=cdp_ws(&b,vec![json!({"method":"Browser.setWindowBounds","params":{"windowId":w,"bounds":{"windowState":"minimized"}}})]).await;}}tl(&format!("port{port} BG-TAB {url}"));Ok(id)}
 +async fn close_target(port:u16,id:&str){let rest=page_targets(port).await.iter().filter(|v|v["id"].as_str()!=Some(id)&&!v["url"].as_str().unwrap_or("").contains("/login")).count();if rest==0{return;}if let Ok(b)=browser_ws(port).await{let _=cdp_ws(&b,vec![json!({"method":"Target.closeTarget","params":{"targetId":id}})]).await;}}
 +async fn target_ws_by_id(port:u16,id:&str,secs:u64)->Result<String,String>{for _ in 0..secs*2{let list:Vec<Value>=match reqwest::Client::new().get(format!("http://127.0.0.1:{port}/json")).timeout(Duration::from_secs(3)).send().await{Ok(r)=>r.json().await.unwrap_or_default(),Err(_)=>Vec::new()};if let Some(ws)=list.iter().find(|v|v["id"].as_str()==Some(id)).and_then(|v|v["webSocketDebuggerUrl"].as_str()){return Ok(ws.to_string());}tokio::time::sleep(Duration::from_millis(500)).await;}Err("Neuer Chat-Tab nicht erreichbar".into())}
 +async fn ws_eval(ws:&str,expr:&str)->Result<Value,String>{Ok(cdp_ws(ws,vec![json!({"method":"Runtime.evaluate","params":{"expression":expr,"awaitPromise":true,"returnByValue":true}})]).await?.last().and_then(|v|v.pointer("/result/result/value")).cloned().unwrap_or(Value::Null))}
@@ -14974,6 +14978,125 @@ index 0000000..9d6af6b
 +        let _ = std::fs::remove_dir_all(&root);
 +    }
 +}
+diff --git a/agent/src/notion_tab_icons.rs b/agent/src/notion_tab_icons.rs
+new file mode 100644
+index 0000000..93853a7
+--- /dev/null
++++ b/agent/src/notion_tab_icons.rs
+@@ -0,0 +1,113 @@
++//! 1.0.145: eigene, nummerierte Fenster-Icons (1, 2, 3, 4 ...) fuer die Co-Work-Brave-Fenster,
++//! damit man sie in der Taskleiste / Alt+Tab sofort unterscheiden kann (statt ueberall Notion-/Brave-Icon).
++//! Nummer = Reihenfolge der laufenden Co-Work-Profile nach CDP-Port (Tab 1 = kleinster Port).
++use std::sync::atomic::{AtomicBool, Ordering};
++use std::time::Duration;
++
++type H = isize;
++#[link(name = "user32")]
++extern "system" {
++    fn EnumWindows(cb: extern "system" fn(H, isize) -> i32, l: isize) -> i32;
++    fn GetWindowThreadProcessId(w: H, pid: *mut u32) -> u32;
++    fn IsWindowVisible(w: H) -> i32;
++    fn GetWindow(w: H, cmd: u32) -> H;
++    fn GetClassNameW(w: H, buf: *mut u16, n: i32) -> i32;
++    fn SendMessageTimeoutW(w: H, msg: u32, wp: usize, lp: isize, flags: u32, timeout: u32, res: *mut usize) -> isize;
++    #[link_name = "LoadImageW"]
++    fn load_image_w(inst: H, name: *const u16, kind: u32, cx: i32, cy: i32, flags: u32) -> H;
++}
++const WM_GETICON: u32 = 0x7F;
++const WM_SETICON: u32 = 0x80;
++const SMTO_ABORTIFHUNG: u32 = 2;
++
++const ICONS: [&[u8]; 9] = [
++    include_bytes!("tab_icons/tab1.ico"), include_bytes!("tab_icons/tab2.ico"), include_bytes!("tab_icons/tab3.ico"),
++    include_bytes!("tab_icons/tab4.ico"), include_bytes!("tab_icons/tab5.ico"), include_bytes!("tab_icons/tab6.ico"),
++    include_bytes!("tab_icons/tab7.ico"), include_bytes!("tab_icons/tab8.ico"), include_bytes!("tab_icons/tab9.ico"),
++];
++
++fn wide(s: &str) -> Vec<u16> { s.encode_utf16().chain(Some(0)).collect() }
++fn icon_dir() -> std::path::PathBuf {
++    std::path::PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_default()).join("PlazCodeNotion").join("tab-icons")
++}
++/// Schreibt tabN.ico (falls noetig) und laedt (gross, klein).
++fn handles(n: usize, cache: &mut Vec<Option<(H, H)>>) -> Option<(H, H)> {
++    if n == 0 || n > 9 { return None; }
++    if let Some(h) = cache[n - 1] { return Some(h); }
++    let dir = icon_dir();
++    let _ = std::fs::create_dir_all(&dir);
++    let p = dir.join(format!("tab{n}.ico"));
++    let bytes = ICONS[n - 1];
++    if std::fs::read(&p).map(|b| b != bytes).unwrap_or(true) { let _ = std::fs::write(&p, bytes); }
++    let w = wide(&p.to_string_lossy());
++    let big = unsafe { load_image_w(0, w.as_ptr(), 1, 48, 48, 0x10) };
++    let small = unsafe { load_image_w(0, w.as_ptr(), 1, 16, 16, 0x10) };
++    if big == 0 || small == 0 { return None; }
++    cache[n - 1] = Some((big, small));
++    Some((big, small))
++}
++
++/// (Browser-PID, Nummer 1..9) aller laufenden Co-Work-Brave-Profile.
++fn scan() -> Vec<(u32, usize)> {
++    use std::os::windows::process::CommandExt;
++    let ps = r#"Get-CimInstance Win32_Process -Filter "Name='brave.exe'" | ?{ $_.CommandLine -match 'PlazCodeNotion\\profiles' -and $_.CommandLine -notmatch '--type=' } | %{ '{0}|{1}' -f $_.ProcessId, ([regex]::Match($_.CommandLine,'--remote-debugging-port=(\d+)').Groups[1].Value) }"#;
++    let out = match std::process::Command::new("powershell").args(["-NoProfile", "-NonInteractive", "-Command", ps]).creation_flags(0x0800_0000).output() {
++        Ok(o) => String::from_utf8_lossy(&o.stdout).to_string(),
++        Err(_) => return vec![],
++    };
++    let mut v: Vec<(u32, u32)> = out.lines().filter_map(|l| { let mut it = l.trim().split('|'); Some((it.next()?.parse().ok()?, it.next()?.parse().ok()?)) }).collect();
++    v.sort_by_key(|x| x.1);
++    v.dedup_by_key(|x| x.1);
++    v.into_iter().enumerate().map(|(i, (pid, _))| (pid, i + 1)).collect()
++}
++
++extern "system" fn collect(w: H, l: isize) -> i32 {
++    let list = unsafe { &mut *(l as *mut Vec<(H, u32)>) };
++    unsafe {
++        if IsWindowVisible(w) != 0 && GetWindow(w, 4) == 0 {
++            let mut buf = [0u16; 64];
++            let n = GetClassNameW(w, buf.as_mut_ptr(), 64);
++            if n > 0 && String::from_utf16_lossy(&buf[..n as usize]) == "Chrome_WidgetWin_1" {
++                let mut pid = 0u32;
++                GetWindowThreadProcessId(w, &mut pid);
++                list.push((w, pid));
++            }
++        }
++    }
++    1
++}
++
++fn apply(map: &[(u32, usize)], cache: &mut Vec<Option<(H, H)>>) {
++    let mut wins: Vec<(H, u32)> = vec![];
++    unsafe { EnumWindows(collect, &mut wins as *mut _ as isize); }
++    for (w, pid) in wins {
++        let Some(&(_, n)) = map.iter().find(|m| m.0 == pid) else { continue };
++        let Some((big, small)) = handles(n, cache) else { continue };
++        let mut cur = 0usize;
++        unsafe {
++            SendMessageTimeoutW(w, WM_GETICON, 1, 0, SMTO_ABORTIFHUNG, 300, &mut cur);
++            if cur as H != big {
++                let mut r = 0usize;
++                SendMessageTimeoutW(w, WM_SETICON, 1, big, SMTO_ABORTIFHUNG, 300, &mut r);
++                SendMessageTimeoutW(w, WM_SETICON, 0, small, SMTO_ABORTIFHUNG, 300, &mut r);
++            }
++        }
++    }
++}
++
++/// Startet (einmalig) den Hintergrund-Thread, der die Icons setzt und nach Brave-Resets erneut setzt.
++pub fn ensure_started() {
++    static STARTED: AtomicBool = AtomicBool::new(false);
++    if STARTED.swap(true, Ordering::SeqCst) { return; }
++    std::thread::spawn(|| {
++        let mut cache: Vec<Option<(H, H)>> = vec![None; 9];
++        let mut map: Vec<(u32, usize)> = vec![];
++        let mut tick = 0u32;
++        loop {
++            if tick % 5 == 0 { map = scan(); }
++            tick = tick.wrapping_add(1);
++            if !map.is_empty() { apply(&map, &mut cache); }
++            std::thread::sleep(Duration::from_secs(if map.is_empty() { 8 } else { 2 }));
++        }
++    });
++}
 diff --git a/agent/src/notion_tabs_stop.rs b/agent/src/notion_tabs_stop.rs
 new file mode 100644
 index 0000000..bba4580
@@ -15134,10 +15257,10 @@ index 0000000..bba4580
 \ No newline at end of file
 diff --git a/agent/src/notion_team.rs b/agent/src/notion_team.rs
 new file mode 100644
-index 0000000..65bb573
+index 0000000..b1d68d5
 --- /dev/null
 +++ b/agent/src/notion_team.rs
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,264 @@
 +// ===================== Co-Work Team (1.0.125, komplett neu) =====================
 +// Prinzip: EIN Konto, MEHRERE Chats, EINE Aufgabe. Ersetzt slot_monitor + auto_fill.
 +// Eine einzige Schleife pro Konto, ohne versteckte Sperren:
@@ -15157,9 +15280,12 @@ index 0000000..65bb573
 +static TEAM_FAIL: Lazy<Mutex<BTreeMap<String, std::time::Instant>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
 +const TEAM_TICK_SECS: u64 = 20; // 1.0.128: seltener pruefen = weniger MCP-/CDP-Last
 +const TEAM_RETRY_SECS: u64 = 120;
++static TEAM_DFAIL: Lazy<Mutex<BTreeMap<String, std::time::Instant>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
 +/// 1.0.128: hoechstens 2 Coworker insgesamt (also 3 Chats, die gleichzeitig arbeiten).
 +pub(crate) const MAX_COWORKERS_TOTAL: usize = 2;
 +const TEAM_FRESH_SECS: i64 = 45;
++/// 1.0.149: Chat ohne Zugriff (geloescht / anderes Konto) erkennen.
++const TEAM_NOACC_JS: &str = "/don.t have access to this chat|keinen Zugriff auf diesen Chat|no longer shared with you/i.test(document.body.innerText)";
 +/// Nutzer sitzt wirklich in diesem Chat: Tab sichtbar + fokussiert + Eingabe hat Text oder Fokus.
 +const TEAM_USER_JS: &str = "(()=>{if(document.visibilityState!=='visible'||!document.hasFocus())return false;const a=document.activeElement;return !!(a&&(a.isContentEditable||a.tagName==='TEXTAREA'||a.tagName==='INPUT'))})()";
 +
@@ -15187,7 +15313,7 @@ index 0000000..65bb573
 +async fn team_ready(ws: &str, tid: &str) -> bool {
 +    for _ in 0..80 {
 +        let here = ws_eval(ws, "location.href").await.ok().and_then(|v| v.as_str().map(String::from)).map(|u| url_tid(&u) == tid).unwrap_or(false);
-+        if here && ws_eval(ws, SLOT_IDLE_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { return true; }
++        if here && ws_eval(ws, SLOT_IDLE_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { return true; } if here && ws_eval(ws, TEAM_NOACC_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { return false; }
 +        tokio::time::sleep(Duration::from_millis(500)).await;
 +    }
 +    false
@@ -15198,7 +15324,7 @@ index 0000000..65bb573
 +    if let Some(ws) = slot_ws(port, tid).await { return Ok((ws, None)); }
 +    let targets = page_targets(port).await;
 +    let origin = origin_of(&targets);
-+    let tg = open_target(port, &format!("{origin}/chat?t={tid}")).await?;
++    let tg = open_bg_target(port, &format!("{origin}/chat?t={tid}")).await?; /* 1.0.147: nie den sichtbaren Tab umschalten */
 +    match target_ws_by_id(port, &tg, 20).await {
 +        Ok(ws) => Ok((ws, Some(tg))),
 +        Err(e) => { close_target(port, &tg).await; Err(e) }
@@ -15226,7 +15352,8 @@ index 0000000..65bb573
 +        if ws_eval(&ws, SLOT_IDLE_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { idle = true; break; }
 +        tokio::time::sleep(Duration::from_millis(500)).await;
 +    }
-+    if !idle { if let Some(tg) = &opened { close_target(port, tg).await; } return Err("Chat arbeitet gerade".into()); }
++    if !idle && opened.is_some() && team_ready(&ws, tid).await { idle = true; } /* 1.0.148: frischer Tab laedt bis 40 s */
++if !idle { let noacc = ws_eval(&ws, TEAM_NOACC_JS).await.ok().and_then(|v| v.as_bool()) == Some(true); if let Some(tg) = &opened { close_target(port, tg).await; } return Err(if noacc { "kein Zugriff auf diesen Chat".to_string() } else { "Chat arbeitet gerade oder laedt nicht".to_string() }); }
 +    if opened.is_none() && ws_eval(&ws, TEAM_USER_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { return Err("Nutzer ist gerade in diesem Chat".into()); }
 +    let r = ws_send_prompt(&ws, Some(tid), text).await;
 +    // 1.0.128: nur zum Zustellen geoeffneten Tab wieder schliessen - keine Tab-Flut.
@@ -15234,8 +15361,38 @@ index 0000000..65bb573
 +    r
 +}
 +
++/// 1.0.148: chat-slots.json aufraeumen. Alte Versionen haben bis zu 13 Coworker hinterlassen,
++/// obwohl max. MAX_COWORKERS_TOTAL erlaubt sind. Entfernt: Haupt-Chats, Duplikate, alles ueber den Limits.
++fn team_prune() {
++    let tabs = load();
++    let mains: HashSet<String> = tabs.iter().filter_map(|t| welcome_url(t).map(|u| url_tid(&u))).filter(|s| !s.is_empty()).collect();
++    let all = slots_all();
++    let mut seen: HashSet<String> = HashSet::new();
++    let mut total = 0usize;
++    let mut out: BTreeMap<u32, Vec<String>> = BTreeMap::new();
++    let mut dropped: Vec<String> = Vec::new();
++    for (id, v) in &all {
++        let mut keep: Vec<String> = Vec::new();
++        for raw in v {
++            let tid = norm_tid(raw);
++            if tid.len() != 32 || mains.contains(&tid) || seen.contains(&tid) || 1 + keep.len() >= MAX_CHATS_PER_ACCOUNT || total >= MAX_COWORKERS_TOTAL {
++                dropped.push(format!("tab{id}:{}", &tid[..tid.len().min(8)]));
++                continue;
++            }
++            seen.insert(tid.clone());
++            total += 1;
++            keep.push(tid);
++        }
++        if !keep.is_empty() { out.insert(*id, keep); }
++    }
++    if !dropped.is_empty() {
++        slots_save(&out);
++        tl(&format!("TEAM aufgeraeumt: {} alte/doppelte Co-Work-Chats entfernt ({})", dropped.len(), dropped.join(", ")));
++    }
++}
++
 +async fn team_tab(t: &Tab, i: usize) {
-+    let sl = slots_of(t.id);
++    team_prune();    let sl = slots_of(t.id);
 +    let agents: Vec<String> = (0..sl.len()).map(|j| slot_agent(t, j + 2)).collect();
 +    if skipped(t.id) { team_mark(t.id, "Konto uebersprungen".into()); return; }
 +    if tab_offline(i) {
@@ -15252,6 +15409,18 @@ index 0000000..65bb573
 +    };
 +    let chats = v["chats"].as_array().cloned().unwrap_or_default();
 +    let running: HashSet<String> = chats.iter().filter(|c| c["running"].as_bool() == Some(true)).filter_map(|c| c["id"].as_str().map(norm_tid)).collect();
++    // 1.0.149: Co-Work-Chats, die nicht (mehr) in der Chat-Liste dieses Kontos stehen, entfernen (kein Zugriff / geloescht / fremdes Konto).
++    let ids: HashSet<String> = chats.iter().filter_map(|c| c["id"].as_str().map(norm_tid)).collect();
++    let sl: Vec<String> = if ids.is_empty() { sl } else {
++        let (keep, gone): (Vec<String>, Vec<String>) = sl.into_iter().partition(|x| ids.contains(x));
++        if !gone.is_empty() {
++            let mut all = slots_all();
++            if keep.is_empty() { all.remove(&t.id); } else { all.insert(t.id, keep.clone()); }
++            slots_save(&all);
++            tl(&format!("tab{} TEAM {} Co-Work-Chat(s) entfernt - nicht in der Chat-Liste des Kontos", t.id, gone.len()));
++        }
++        keep
++    };
 +
 +    // Mitglieder: Live-Status + Board-Neuigkeiten zustellen.
 +    for (j, tid) in sl.iter().enumerate() {
@@ -15262,13 +15431,14 @@ index 0000000..65bb573
 +        let Some((sig, text)) = crate::notion_cowork::nudge_for(&agent) else { continue };
 +        let prev = lock(&TEAM_SENT).get(&agent).cloned();
 +        if let Some((s, at, n)) = &prev { if *s == sig && (sig.starts_with("done:") || *n >= 3 || at.elapsed() < Duration::from_secs(90)) { continue; } }
-+        match team_deliver(port, tid, &text).await {
++        if lock(&TEAM_DFAIL).get(&agent).map(|at| at.elapsed() < Duration::from_secs(TEAM_RETRY_SECS)).unwrap_or(false) { continue; }
++match team_deliver(port, tid, &text).await {
 +            Ok(()) => {
 +                let n = prev.filter(|(s, _, _)| *s == sig).map(|x| x.2 + 1).unwrap_or(1);
 +                lock(&TEAM_SENT).insert(agent.clone(), (sig.clone(), std::time::Instant::now(), n));
-+                tl(&format!("tab{} TEAM-SEND {agent} {sig}", t.id));
++                lock(&TEAM_DFAIL).remove(&agent); tl(&format!("tab{} TEAM-SEND {agent} {sig}", t.id));
 +            }
-+            Err(e) => tl(&format!("tab{} TEAM-SEND {agent} verschoben: {e}", t.id)),
++            Err(e) => { if e.contains("kein Zugriff") { let mut all = slots_all(); if let Some(v) = all.get_mut(&t.id) { v.retain(|x| x != tid); } all.retain(|_, v| !v.is_empty()); slots_save(&all); tl(&format!("tab{} TEAM {agent} entfernt - kein Zugriff auf Chat {}", t.id, &tid[..8])); continue; } lock(&TEAM_DFAIL).insert(agent.clone(), std::time::Instant::now()); tl(&format!("tab{} TEAM-SEND {agent} verschoben (neuer Versuch in {TEAM_RETRY_SECS} s): {e}", t.id)); }
 +        }
 +    }
 +
@@ -15280,7 +15450,7 @@ index 0000000..65bb573
 +    let total: usize = slots_all().values().map(|v| v.len()).sum();
 +    if total >= MAX_COWORKERS_TOTAL { team_mark(t.id, format!("{} Chat(s) im Team - Co-Work voll ({} Coworker, Maximum)", 1 + sl.len(), total)); return; }
 +    let targets = page_targets(port).await;
-+    let open: HashSet<String> = targets.iter().map(|x| url_tid(x["url"].as_str().unwrap_or(""))).filter(|s| !s.is_empty()).collect();
++    let _ = targets.len();
 +    let main = welcome_url(t).map(|u| url_tid(&u)).unwrap_or_default();
 +    let now_ms = chrono::Utc::now().timestamp_millis();
 +    let mut why: Vec<String> = Vec::new();
@@ -15289,8 +15459,8 @@ index 0000000..65bb573
 +        let Some(id) = c["id"].as_str().map(norm_tid) else { continue };
 +        if id.len() != 32 || sl.contains(&id) { continue; }
 +        let short = id[..8].to_string();
-+        if id == main && running.contains(&id) { continue; }
-+        let _ = open.contains(&id);
++        if id == main { continue; } /* 1.0.148: Haupt-Chat nie einladen */
++        
 +        if running.contains(&id) { why.push(format!("{short}: generiert gerade")); continue; }
 +        if team_updated_secs_ago(c, now_ms).map(|s| s < TEAM_FRESH_SECS).unwrap_or(false) { why.push(format!("{short}: gerade benutzt")); continue; }
 +        if lock(&TEAM_FAIL).get(&id).map(|at| at.elapsed() < Duration::from_secs(TEAM_RETRY_SECS)).unwrap_or(false) { why.push(format!("{short}: letzter Versuch fehlgeschlagen")); continue; }
@@ -15324,7 +15494,7 @@ index 0000000..65bb573
 +        tokio::time::sleep(human_sleep(Duration::from_secs(TEAM_TICK_SECS), 40)).await;
 +        let tabs = load();
 +        for (i, t) in tabs.iter().enumerate() {
-+            if tokio::time::timeout(Duration::from_secs(120), team_tab(t, i)).await.is_err() {
++            if tokio::time::timeout(Duration::from_secs(240), team_tab(t, i)).await.is_err() {
 +                team_mark(t.id, "Zeitueberschreitung beim Pruefen der Chats".into());
 +            }
 +        }
@@ -15357,10 +15527,10 @@ index 0000000..65bb573
 +}
 diff --git a/agent/src/notion_updates.rs b/agent/src/notion_updates.rs
 new file mode 100644
-index 0000000..1802478
+index 0000000..99e8d3b
 --- /dev/null
 +++ b/agent/src/notion_updates.rs
-@@ -0,0 +1,392 @@
+@@ -0,0 +1,424 @@
 +//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
 +//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
 +//! und kann per Datei `update-now` eine sofortige Pruefung anstossen.
@@ -15400,6 +15570,37 @@ index 0000000..1802478
 +// + local-update.json {version, build, date, notes} ab. Der Update-Tab zeigt das wie ein Release an;
 +// "Jetzt updaten" tauscht die exe und startet AdiCode neu.
 +fn local_dir() -> PathBuf { base_dir().join("local-update") }
++
++// 1.0.144: README vom lokalen Build (local-build.ps1 kopiert sie mit) -> Release-Notes sofort lokal, ohne GitHub.
++fn local_readme() -> String { std::fs::read_to_string(local_dir().join("README.md")).unwrap_or_default().trim_start_matches('\u{feff}').to_string() }
++
++fn readme_versions(readme: &str) -> Vec<String> {
++    readme.match_indices("## Neu in ").map(|(i, h)| readme[i + h.len()..].chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect::<String>().trim_end_matches('.').to_string()).filter(|v| parse_ver(v).is_some()).collect()
++}
++
++/// Ergaenzt/ersetzt Release-Notes aus der lokalen README und fuegt lokal gebaute, noch nicht veroeffentlichte Versionen ein.
++fn merge_local_notes(v: &mut Value, current: &str) {
++    let readme = local_readme();
++    if readme.is_empty() { return; }
++    let base = |s: &str| s.trim_end_matches(" (lokal)").to_string();
++    let mut top = parse_ver(current);
++    if let Some(lv) = v["local_update"]["version"].as_str().and_then(parse_ver) { if Some(lv) > top { top = Some(lv); } }
++    if !v["releases"].is_array() { v["releases"] = json!([]); }
++    let a = v["releases"].as_array_mut().unwrap();
++    let mut have = std::collections::HashSet::new();
++    for r in a.iter_mut() {
++        let ver = base(r["version"].as_str().unwrap_or(""));
++        let n = notes_for(&readme, &ver);
++        if !n.is_empty() && (r["notes"].as_str().unwrap_or("").trim().is_empty() || r["local"].as_bool() == Some(true)) { r["notes"] = json!(n); }
++        have.insert(ver);
++    }
++    for ver in readme_versions(&readme) {
++        if have.contains(&ver) || parse_ver(&ver) > top { continue; }
++        a.push(json!({"version": ver.clone(), "date": "", "url": Value::Null, "notes": notes_for(&readme, &ver), "local": true}));
++        have.insert(ver);
++    }
++    a.sort_by(|x, y| parse_ver(&base(y["version"].as_str().unwrap_or(""))).cmp(&parse_ver(&base(x["version"].as_str().unwrap_or("")))));
++}
 +
 +fn installed_local() -> Option<Value> {
 +    let exe = std::env::current_exe().ok()?;
@@ -15534,6 +15735,7 @@ index 0000000..1802478
 +        // Installierter lokaler Build ist neuer als GitHub -> "Neueste" = installierte Version.
 +        if c > l { v["latest"] = json!(current.clone()); }
 +    } else if v["latest"].as_str().unwrap_or("").is_empty() { v["latest"] = json!(current.clone()); }
++    merge_local_notes(&mut v, &current);
 +    if let Some(l) = installed_local() { v["current_build"] = l["build"].clone(); }
 +    v["ok"] = json!(true);
 +    v["current"] = json!(current);
@@ -16717,6 +16919,984 @@ index 0000000..a9fbbb6
 +	end
 +	return result
 +end
+diff --git a/agent/src/tab_icons/tab1.ico b/agent/src/tab_icons/tab1.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..064a7bab88360a114321aea18de2af3899b36e87
+GIT binary patch
+literal 4714
+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
+KO8@aU<KF=oG;0+A
+
+literal 0
+HcmV?d00001
+
+diff --git a/agent/src/tab_icons/tab2.ico b/agent/src/tab_icons/tab2.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..26e50149692330605fa1cad2220f0b25feca5e6e
+GIT binary patch
+literal 5786
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/agent/src/tab_icons/tab3.ico b/agent/src/tab_icons/tab3.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..4f6e344a17f9e6602ec450a3a6a85b4aca3a3efa
+GIT binary patch
+literal 6041
+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
+E0ijxXIRF3v
+
+literal 0
+HcmV?d00001
+
+diff --git a/agent/src/tab_icons/tab4.ico b/agent/src/tab_icons/tab4.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..829f94bf4a838862c5ecf5878789cbdc5559b8e5
+GIT binary patch
+literal 5435
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/agent/src/tab_icons/tab5.ico b/agent/src/tab_icons/tab5.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..ae79cc2607a1d11913f3f2b84a406e2c6ae750a4
+GIT binary patch
+literal 5658
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/agent/src/tab_icons/tab6.ico b/agent/src/tab_icons/tab6.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..aa4ab12f4ef717046879c317df3a0f3258e1dfb5
+GIT binary patch
+literal 6023
+zcmbVPc|4Tu*S}`L*hg6=!l1_%BKtmsNE(r%Y;9!EzJwWM3z39}EGb(NvhO2Xn@0#`
+z9o5+PZ7i92N4<Z%fBZi0`+1-FeD1lfbIx_nx$bkm_jP}703d)4Ad!GJqCp@8fXe^?
+z6zY#$Pm_CT7aILXmVyEh0|P)-_K&<rldI@x4z%B)|2H-OULydAHN9|_m5G;$re-xV
+z)H9=vv<v`=pr`!{Zcwk&28g%WSzYk@pW|~h0q&?{q60uhBJ;27hw&Ki8d`Y+z}9|v
+zLApJPZqXdrjP!IasbCWx%eg>xkdcK|<%Uiayd{&9l(adWaUAEil7#sLJ4b3JhpS$B
+z626CvDIAAJGEebVG*5qcR2z5E@5+imu=Se5<PwXz9y#MeV~2+DqZ3RTU*M;wBlSWJ
+z^<3JTL~g3pf@vx7m(ywSPRQ6zVF%5020f=eF4UIMT^P$d<to+8xq#MT{p@SOt*1e>
+z(oE&{u*<=_Hv}B-XImMrplhYSU|MUyn!lk2UuI{1lIY!7jbR^&VaWBE_0_6vZ;IOW
+zl|h@dibP#tV>md;#2giiZtbFzZ9U7v9JT9{^p$o0xc<X1D-)xxsxg_mncxSUnt3Ot
+zr`-NVyS}(LG{rj^kwMiyY6Hl{!XXon!F^h}fRX+Mz1O<-;s2rVv{nMt@4^%PHFs#j
+z|G)4T4hwH+Tz&c31(*(!KNf>-d&Ya~D9e#pT@j?=k@L4n2XtQE>L$*-$qzCz9$emH
+zFqA!^Xu@U0y8dp|@8Rw3jEQlXQ-R-ZIr>ffvpCUn#EFI8=FN6&dZocwX?@>RC`4pK
+zU5@9G_2X)Pi?-^U#~(e4kQ3|pbxfsWBQ9Q*nlsK^8iM|?VQX*L&2o&$edmni5RVE!
+zTU;9H&CXYM=C%V@?wxAxbPuK5_7Hfr-AM@ih&5K!o$Z)!*AGJN6MRa(fssNYvvs@y
+zX;}z;!{gPHkGlKH+!!M^i13K^IihF9U2hcKJJT|!6U4NlbC=i-Kq52V%)dUBQrh2A
+z3U@CYIGvk#YZ5X$iH=tck2n_UcffQ;(&1+V_Ksn@2F{>eRb+aFkRIM;z0|;)QYDvN
+zh8tO@NSWQfVSSR#{u8OCJ+e1htwVHeacvc5&&+6-<>y}Ue>4tFv!j1E&O0b*^ItWt
+z?XYo{XP44ijoUGt-IKFKVo~N}6(*U72h1IPZEY9tdU6)JvQZ#1Zy((YlhU6xy)VNr
+zg|JcMYGaF(={K7Fj@nfcZ632Za?0)WZX`Q=!e)XTDw-&c)jgh^lGd?UN;km)KfAZE
+zbmT@{I59iDHCFXySknEkg9BaR#?$`Bg(e$DpGsZ5;-3aOJ6ZGCef!%!v`XP+CXer?
+zZ)u>M?xL8B2Yn{ygS_x$s~ogv>iU7F?H0!T7oTM>L8tJj4STdiscr8ab6rK4;V-qE
+zvr2Pr#&?zRKVJ%T{UFV*7(Ac7Ss^=;Msx>8N7~{A{5yIGPOUkj-9=jgbYm<UCZfe*
+z&3^al=aN|i#+G=OsQ65X?_Q2$<)$jfcEm&>Tp89-zJ`Ap*G8DVg7Jkp3rpz;AICP^
+zK?YfiTpl`F1hqoPSc(?19SLhPcjfU;*cSq4d>M}`=VgX1$$okYKLLArS7R%bE?`Hf
+zz8dcJexHqC8JX#+3X?X@<=i^*a+NDyr%zXR5fxTocv4hi-=I9S;8g?gwclu+zUq5|
+z6nIl~Rm|POnxpj?zfyF*OjYde{b1@m`JrV_-FCSs1)|%zWEJ{1x7GiF720_WWPfAj
+z3UoL6-(Urrc!-rdXO=R`jNv+*-D12f25zEqOx!>8A6qM+;=?<|3tZ@_;77SU!xcTb
+z7<)N!M5?i{B|I)29=G;WeIcvSV`3t4yw+cy$fFfB@u_4*ePd$L%llk{Na>X))vUKa
+zy?#?;adM7&r^xSKLX_O!Rko%}+ZAuNEv!Z}IaWSgEv>SBF~yoDm)ROIN9WjCc<t{;
+zZ%f)MaABr(0xi7P8FFrXg0ZSwWGGSaNTcNT;8myj`zagGcl^|UV1}|!XX(xeyPylc
+ztwdN@nl498DR+g*nQ(dxxWq)BP&Hj<aEpoNUKi{|R|#=bSU+XVp)A$Z7fS7HSkqU0
+znza5Z?gimmfkE?JbEJijeCFXnEQ@240|8cjo_{4Nn<^~$3ko)G)GCu3PpQ?w-_Y|a
+zE7#`=q4HD{Tgf!b+FwcX_}n6-#*$e4Q%D9`S6_`u74~f`%06bh7;+3|y;ovw%QjL;
+z25L3Jr|FR>uJc?=hT`^Dzy9?|4zqzfE<}Q#e}^K(b2Hx4Ci;9?3L4Hx3Szyr0LoM?
+ztRweWT*oJZ4rG5^;$ptm1;X>cLw`KTT2O|Zrmx#1LYap^?sv18(b6}*W>8gF6<fJU
+zzt*O^^lF`uBfgRE=6=UfNn(vz6ShoV$crA3RcuZ?6SJ^_0sYu7DA6{CW^S#oYPWbL
+zBZRx8$SWNI31rEMI&taXs=6M9jxcpGLM+-XhVFbzf6zZ6mrVF>Viri0T|(qAO0CO>
+z%BIpUA6|F4EgyUN?Wj|a&wAULB08zKNmYf3xZVc?D|#C85xNku?M#Kmrt%|m{wHRM
+zR`TCdvOkQl`b#d`-5F_mNY;!MzFuaM+&n3qBcRgwk>6os4^m*PHlJV~z5Bl-A99Fw
+z@EiHoUPTW72Kj96hsY1GT^iTCbNmWt)ReSMgU?)l{>K!_KNI7$dFzHt^>+;P;80;C
+z5*`kVN=L>p!tV>A5pX&d4k7!a2=QR~i2z^6%Of^Ds^k^T)k{}hF27l>^<SR+<dAPM
+zx@_IAkm%^v$n07|9j*UGR>+xTqW%=`?Z@FMBHQGg9yYe@-i&Edi5u3z?H)u$ZGp1Q
+z#%3GL!V=k@wc7in!Kt`SxhEnq;b7|>4xW_!ScWrWddgL+m7k(&zHoU!Bcpn0?cFKV
+zyXYXsh9_v2p`wV0{mPp0%<83GA`j!wrS=lH85@sOrgP)@1%dMG#;|ifdlgqqckws0
+zKLn|*Gee#4DveI!u1+qsQ7Dg>qXj9tc-}1k%B!7Zgim6xp;q~Wf=d6l4v%rgaRa?+
+zQQETjXYF1?oSP?$W|v`^sw)L=D_@63UfPL(SWeo8-h|D!Y#RHt3(^w`6!f)nCYdv>
+zG6qjgKl{jj-nbSXdrG*U?-rM!{aF{s<dV>(mQ;1NNd^4eogR$YVA(8R%SE81P@1jR
+zw-aW${dRixT1c&SusQg(7}e8XxChZ*-VOUY#z4Pcti`LH#8fMxE4_X_ThOqFA*WNf
+zWEE!Sd!x}cz4`z%KYhJ2t6<M2WU3Rqa9G#TS>6wOdR{}|bIun&TR5iSVY@?<&6auS
+zlrlq-T2@WSkMDKv=qrxOnOvVAb+&sjp?R)(@XiaqeNPZfQf5WCdlJNRD41hP%XF)A
+z>?ya}ZSe-|(UWk@Yo&QQ*>(05gJ!&9w$8g`yWI0ZqBGU`J@6@Qc#^he+Qx@@2CB*|
+zOnmUkJ-7<-sQ5USBf{$|gK5J+`8RSt$J?nmNQwd9FZ#|gZBvHQb^a7?ru(Phrg_iH
+zcPn=oin@16UA+g|rfJ4MfW~*`qL2BWK+|0%7=llh*0f9^wPI|lre~=Ayi==m;GAF0
+z7>u~eo~tw-_Usb?zVi;y>5aySQ=q7gjR6m;=d*<j57kh-J_eIjMTtIx!8<Rl17xmk
+zBQNYL|1K22&H*r;2#|XN4ou~spa=y4m*N4CGys501mGY18#6&neKOd4ZD)Vwlpl_=
+z`<*0+v-a8}Px8d6QD<`6h7)nr=6(OX6_HvkYVcjw6Oo{3u(_<IAz<%EBG1{@1HWQV
+ztc@7%z}GV%C}?f5Fh@p9T}z;eT~8l;(aTxhu){U0+@or_7P{xVtTcy=ZXw^28T{dx
+zxn%)<8x1NcttcVXLL&YxnfVGFQ@qLe>b3s|eV}(1q!{GvG?eu|L*Qo-c(XCe_qf-u
+zs8f@;cE40t4$#K|{t8%KsvZAg?f!fD&+{9Lr!HK0>-WUux3#`sgOaIDWf{G6`H$Vu
+zhVpcI>k1bH$qz~5lb)7%w)X0G?5B6;+>QRM(am%{cM^(LgQ6Km49#!+4pe+^bKc^s
+z`vZyJ`rG;O+hvl!rxqDAy`H|4qQ6~V7@quP+j@_uChf$z6&FvY&nB=3Am$-3ytv4L
+z8~3|&vZ70{s&t1kY{x!v)36cg`!SE)vMg~1j`4wGoPAs`$6s~dG|wUxj-u$oAJXyt
+z*~MSZ0Sm!i7p$CjoL`tL?pbiskGyUQ9>pBi=Y<|?N2O148Lz{RmekxBl<r|T{&&XC
+ztW&K%nd<|)c=pzP_f-K634{ttfp$+^w%q|v%oV(L0U?)SfnnG%K`=oO0!7maFx>mR
+zBNq;0OuT1?^nY|S!7;8wWD2j_Ft{0DLyLO;<YI}j7$S0*PD>cvc%#*KWnrt`1!|1I
+zTb9fmY&BPFX*bD~-v=?I_w3sD-TeCd$?Ro}aGLpxX02rDW~J?DqA(K36}h-ushyE+
+z5|yPTYg<pkj_=DaMJsXuIm_(rO7iv+F^Iqf$15)^Q`HK|K#&7WRLOR~tZLP661YnT
+zC1jHN?f9!WY}xCe5aLpS*qp7!@$xWM4v;N1OmW%7eW=IvoDernof`{Z^?k<+A--Rq
+zYZ-mLZ})VpQDp%)-anNe)VwW^WcelxG^{45uY{t8ujy-YG=~m)j*q5X7IbDZo8h}Z
+zeC7=TU{lYAmU+J`<VIVyMC&^}J=2`Ex@X7+A?k~*TMk*MQ@`kwRs5u+wq$2HP9%WU
+z8zHNX0h)cex#UXvF3GM9hH`EwA&#_d=Ud;t;Pl0oOe#)skWk4ISB2wwSd*-tEH9*$
+z<-6CCu8Sy3bkQg4f`E!KP^Cdv#6h{lN6quOc7zg&q=OJUy*6#ITZ4*UcBHTHUa->O
+zk!7Ss_}IS`=>U;B)0L-W)d-Hl@eB(Rm~rUOp&g!1N@NiNuxCJ@cNxobX;h2zLJ1LC
+zq@uxUR6AasHYW+8^EqAMd1#<vxeS%cSNWj9L{ry{nho>B-5=us0toz;q;(&{8;*~@
+z1jEEdaWjN<e3e$Yyx{86b&D4J>Q<_*)4kVkXJ2LoHn3k2`SLvvl^I)gODz~Hdj<r=
+z@B`<aQK`C%s97Y(3aL|Ll)wrh3ORuDYfmxKU;45`%WlM$^Faw`N<g}oyG=8s4EZ@g
+zFCZkHwxtdPUV@Jru1jz!Pa?I+(6Y_<2c?o=y3#pr<<_6*>u75NF2I}#y+Qg}XLCL8
+z#4yt~KVxQ}h`pex_^zQQ<TIlZt(vPNEI;d$-5(bs+|13j=UJZ9A|={3Gf`ViK6pzv
+zpDnW4DuJC32dhM10fNQJUj+qSPBt3epN~U`ZF|qqFDo2jmX)?bbv^U?uJ>uH)|`qN
+z5~GHz9W>eOD^ek8NFbmA#h52d`IcH?8RnhNO)1Jr&|2<mQZbD)A6nqMasTRV1UNO+
+z?bkgkbFIvy+`2F35I^MERN8S}QV3-Pv;y<^_DR3$07PyAEwMg!v0AEEAHzHZL5h5l
+zq?NKFRKqeJYn;%3Ew#HP>cb(_8K5_x=H1j}CY;02{KY<o5m1dYCBu+%p2HCDz0k5<
+z%c=`c@Kal|s!+n?Ello=Qv(xU<U@<jucM|y|E+SyEIe<!G1h-62CO;+78T5dp;K$+
+zC3|IGp&-PbpxqL8`L`}tKYxozB?YRR%h4Xbe+DX>{I|byyN0xcIbsXE;24(FfiTI1
+z2!)ayZ-M|&rYVLT;m%LnoX>sU8?ftS!W^ocpAL09S+V2=Y8(^q3W}n=r7DUtU2M!f
+z3M!WOUTJj6u4+Tk+=;KNv`h*!xIRA)(s<B^qrD8y51Bi~HN0QKH~biKq40DTwyHzX
+zq6=*VQvdU2<#Frh6Ybyj$y2qbPih^E(}G%g6fqj><PsStyTf&LHR;PH-skOXCLSJZ
+z*o_Knl#fkwDET$BP%n0`;`@L$6Yb!$g}D}U=TQ2PK;kpz+9H-{nV)m*<MZ}OMr$M}
+z{ybkha;{eE_&ygGB<aY4CbXC<k@A3crpFo(OVbdAX0AI%P)HJQLR6XnG$YWy8FvJM
+z=X`P;I<nB4Yj+xfzw`tJ9Wkn#bJj~224<Jd5O?tA(RoqYB6&3NiY}rfz?ox67yQHs
+z5u2585BfE<%|nbtfLET0njD$c)r@zsQY#awYyf^5WJXs#KQ-9jZ>zOcsRMqV>ki3R
+zP|79e71GJK=5RsLjv3hD2My`9bPYB1yQrz&BM?)lqSh9o>g_+zzs#~@v5hWoio{&t
+z7$*gT+<SKwKTFi2TuiY!o96tdADlpf`~l89-qPh>-;&x3)JLl|I;_EKiu|T|!!AQQ
+zBD+jaR`>G||ABRkX7$jBazZc!v+L(rSrDkPP6tSbRK)itP#3WSrfMNOM*$|k0i^e?
+zu(p8QV3Q3D<gO!)5Gn4s4q1$bqIQMx$#d<kuV@T-hc?Y3C$z3Wjz4SynBt7-twNxp
+z5}*}8qg4E%On@5(ss3iO3>gy)gy78-d)l#(-2Pn5jxhLZPd2mHBN{@$piLtR0t4&U
+zUZEI(bA=DJwP^R(@;hcoildk-C8T<3?j4QQ{Rmc~k^Rh2yW{NiDeeMF``Au5VA{Yn
+zPSro;?Ap+z)`9YR_E$~<3BS&O`hjGsi!luDc28-i8>|<!<Ax+3GBKR<=2Y4k9Lzb=
+zAtZ#6sG4+quBH+ow<8L?s@e*vd9!rj_Sc;O+{H~Oe#~ucu2tOa*ewI_?n%wT1Z(D&
+zLuUg(V>5a(UsT~#eoX^2zc)bxy#<4U$GY(7q`2i`ZSx@tWuQ$Tyf_;{7R~4AT)hGM
+zpKVaY7WSeCdztRuK_rRtZ+o_1q%NFe=e(r>410-19<RQGi)d*Vx2>!<Dq1Xtom}0)
+zR+mSY6Pk{J(1%O(2SXAL^mvtw>7G?a?TNu0v>pOvC*S$?F@Ha4)dX6e>yFb+z+Gfv
+zfeuZ3uI!e*Iyev$@!%zx)MK~Yt_AIY83Zs_U8x~CTBw=DyLAwHHX}k@1ZJ{s$jJa#
+zms3mo2foJp3^W=ph$MWT+uYwZFQS|e+ju01!nD43uZ_nZSPTj(hpMc%!xRU`Lc7R&
+znU`^&P&)XAEf{H7<4xnweh7VuuwKZ+8l3&v*g=Lc2No4iM1KDWDq-=;m%+(`J@e?Q
+z!F0%(pBG^FqC*R}QZDhb4*JBTV&==+r%v%0_8Iw~F5?YJ&h+yt)kkmEGIigF<_+wn
+thN3-cuf2X{CG(+vuULOc8yN|+e@+D>5+p5(_KCW_k@x^nh5z|s`(M_MfPDY}
+
+literal 0
+HcmV?d00001
+
+diff --git a/agent/src/tab_icons/tab7.ico b/agent/src/tab_icons/tab7.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..28f0d56dc635ca08eb97ec353585131596ce757f
+GIT binary patch
+literal 5337
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/agent/src/tab_icons/tab8.ico b/agent/src/tab_icons/tab8.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..7953eb206a37e475562530082e8a7d0391393bb7
+GIT binary patch
+literal 6406
+zcmb_<cT`hNzwS<fKq!IGLJ>j}M1>$-DFKwCg3%YHybyX-1f}-?(m@bZkdC0DAiX!K
+zf-g!}K#B-R=$!ykayEYFk8{qt>z;MLb!V;FGr!r>pXd3_3;;j?8i0ib08=aw4gr8W
+z003Yx|FZi*dmM~d?7wUsC;+^N0RRs7FZ(o@-=P5;fZ?S55()r#=>Z^$ps&q@<UxYP
+zOu9OkZ-FT|0>DB?3w{N*sFq*?al56h0TlJ{Er15xUR_Te07~N-4lPgmqj%LYb^`$B
+zwv!0ybjh~?8}RC0RyR<*VQqnj?jG55kE2qPT-97XVRsl4x3X+Wg@|_#nwmqimBs|%
+zU-oZ^s0OMzyrvx|A=KR{);AvsAbM&8)dE!!ZAZ<<oS4MR(+BEqP&_Sr_BECm^`EVP
+zP@gD%@5;(Is`(9Nz?y~EjK3Ii!|e_g5nNp!e?+bMiB4fcYZ^ujlI&mcHmBm{Lvf#I
+zN$X@4g%%$5siT2G%%(RJY4o>mE2KmL56nuqdnhuI9HFHGVp6bjb*uSBEG_(V5k8qj
+zGreXn@DpRhQg<<hLAg)V0yBH>o_+)`i>z2M<S8FG{n~g*T^2;oaiE%e6I?_lIMHot
+znT&~cwM>|6R$|rJXH67V|HPB&@nG7R#x*S%0A?FA3_Dd7kHNhIbg$@NF4C|F`9Gil
+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
+
+literal 0
+HcmV?d00001
+
+diff --git a/agent/src/tab_icons/tab9.ico b/agent/src/tab_icons/tab9.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..05e29ca7cf91bedc1075e6e7c1fa9d5ba2800d06
+GIT binary patch
+literal 6300
+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
+B7GD4W
+
+literal 0
+HcmV?d00001
+
 diff --git a/agent/src/tray.rs b/agent/src/tray.rs
 index 3c12cf0..0a37d7d 100644
 --- a/agent/src/tray.rs

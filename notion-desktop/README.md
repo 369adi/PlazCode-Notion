@@ -9,6 +9,38 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.149
+
+- Co-Work: Kein zweiter Tab mehr, der immer wieder aufgeht und neu laedt. Ursache: zwei eingetragene Coworker-Chats hatten keinen Zugriff mehr (You don't have access) - AdiCode hat trotzdem alle 1-2 Minuten versucht, ihnen etwas zuzustellen. Solche Chats werden jetzt erkannt und sofort entfernt, ebenso alle, die nicht in der Chat-Liste des Kontos stehen.
+- Co-Work: Nachrichten an Coworker werden in einem eigenen, sofort minimierten Fenster zugestellt statt als sichtbarer zweiter Tab neben deinem Chat.
+
+## Neu in 1.0.148
+
+- Co-Work: chat-slots werden aufgeraeumt - alte Versionen hatten bis zu 13 Coworker eingetragen (erlaubt: 2). Jetzt gelten die Limits wirklich (3 Chats pro Konto, 2 Coworker gesamt), Duplikate und Haupt-Chats fliegen raus.
+- Co-Work: dein Haupt-Chat wird nie mehr als Coworker eingeladen (vorher passierte das, sobald er gerade nicht generierte).
+- Co-Work: Nachrichten an Coworker scheitern nicht mehr an zu kurzer Ladezeit (frischer Hintergrund-Tab bekommt bis 40 s). Fehlgeschlagene Zustellung wartet 2 Minuten statt alle 10 s einen neuen Hintergrund-Tab zu oeffnen.
+
+## Neu in 1.0.147
+
+- Behoben: Nach "Alle starten" hat die Co-Work-Team-Schleife den sichtbaren Notion-Tab alle ~10 s auf andere Chats umgeschaltet (sah aus wie staendiges Neuladen, teils auf Chats ohne Zugriff). Chats werden jetzt nur noch in einem Hintergrund-Tab geoeffnet und danach wieder geschlossen - dein Tab bleibt, wo er ist.
+
+## Neu in 1.0.146
+
+- Nach dem Start springt Notion nicht mehr automatisch zu einem gespeicherten Chat-Link und laedt nicht mehr neu (behebt 'You don't have access to this chat').
+- Kaputte Chat-Links werden zuverlaessig erkannt und geloescht.
+
+## Neu in 1.0.145
+
+- Co-Work: jedes Brave-Fenster aus 'Alle starten' bekommt ein eigenes, nummeriertes Icon (1, 2, 3, 4 ... in eigener Farbe) in Taskleiste und Alt+Tab.
+- Refresh: Google-Login oeffnet sich ohne Pause (vorher ca. 6 s Wartezeit) und wird viel schneller erkannt.
+- Kein automatisches Neuladen der Notion-Seite mehr waehrend Refresh und Check (Lade-Watchdog, Chat-Vorbereitung und Leer-Seiten-Reload entschaerft).
+
+## Neu in 1.0.144
+
+- Release-Notes kommen bei lokalen Builds sofort aus der lokalen README - kein Warten auf GitHub.
+- Lokal gebaute, noch nicht veroeffentlichte Versionen erscheinen mit Notes im Update-Tab.
+- Update-Tab prueft alle 4 Sekunden live: ein fertiger lokaler Build zeigt sofort 'Neu starten'.
+
 ## Neu in 1.0.143
 
 - Co-Work: 'Alle starten' startet nur noch die Tabs, kein Check mehr.
