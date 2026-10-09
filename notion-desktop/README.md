@@ -14,6 +14,7 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Weniger Tabs: Hintergrund-Tabs, die AdiCode nur zum Einladen oder Zustellen einer Co-Work-Nachricht oeffnet, werden danach wieder geschlossen (keine Tab-Flut, weniger MCP-Last).
 - Team-Pruefung nur noch alle 20 s statt alle 8 s.
 - Co-Work: hoechstens 2 Coworker insgesamt (also 3 Chats, die gleichzeitig arbeiten); pro Konto hoechstens 3 Chats statt 8.
+- Tailscale-Autostart: laeuft Tailscale beim AdiCode-Start (oder spaeter) nicht, startet AdiCode automatisch den Tailscale-Dienst und die Tailscale-App und verbindet per `tailscale up` - Notion muss den MCP-Server nicht mehr mit "We couldn't validate this MCP server" ablehnen. Nur die erste Anmeldung bei Tailscale bleibt Handarbeit.
 
 ## Neu in 1.0.140
 

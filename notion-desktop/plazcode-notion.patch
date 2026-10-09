@@ -2661,10 +2661,10 @@ index 04ebefa..3ebe82f 100644
              Event::UserEvent(UiEvent::Maximize) => window.set_maximized(!window.is_maximized()),
              Event::UserEvent(UiEvent::Drag) => {
 diff --git a/agent/src/main.rs b/agent/src/main.rs
-index 77cc050..a8d9c42 100644
+index 77cc050..30d1e7f 100644
 --- a/agent/src/main.rs
 +++ b/agent/src/main.rs
-@@ -81,6 +81,26 @@ mod media;
+@@ -81,6 +81,27 @@ mod media;
  mod cancellation;
  mod chat_history;
  mod engram;
@@ -2688,10 +2688,11 @@ index 77cc050..a8d9c42 100644
 +mod notion_local_llm;
 +mod notion_output;
 +mod plugin_host;
++mod notion_plugin_update;
  
  #[cfg(windows)]
  mod win_msg {
-@@ -188,6 +208,23 @@ impl AppState {
+@@ -188,6 +209,23 @@ impl AppState {
  }
  
  /// Persistent stdio client for Roblox Studio's built-in MCP server.
@@ -2715,7 +2716,7 @@ index 77cc050..a8d9c42 100644
  struct McpRuntime {
      child: Option<Child>,
      stdin: Option<ChildStdin>,
-@@ -335,7 +372,23 @@ impl McpRuntime {
+@@ -335,7 +373,23 @@ impl McpRuntime {
          Ok(())
      }
  
@@ -2740,7 +2741,7 @@ index 77cc050..a8d9c42 100644
          self.ensure().await?;
          if self.tools.is_empty() { self.list_tools().await?; }
          let targeted = studio_session::needs_id(&self.tools, name);
-@@ -726,13 +779,20 @@ fn main() {
+@@ -726,13 +780,20 @@ fn main() {
      std::panic::set_hook(Box::new(|info| {
          let msg = format!("{info}");
          #[cfg(windows)]
@@ -2763,7 +2764,7 @@ index 77cc050..a8d9c42 100644
          eprintln!("PlazCode Agent failed to start: {msg}");
          std::process::exit(1);
      }
-@@ -831,6 +891,9 @@ async fn start() -> anyhow::Result<()> {
+@@ -831,6 +892,9 @@ async fn start() -> anyhow::Result<()> {
              Ok(()) => {
                  info!("PlazCode exit requested — killing MCP helper tree and exiting");
                  shutdown_state.roblox_mcp.lock().await.reset().await;
@@ -2773,7 +2774,7 @@ index 77cc050..a8d9c42 100644
                  std::process::exit(0);
              }
              Err(e) => {
-@@ -878,9 +941,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -878,9 +942,11 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
              // a verified MCP connection; a scan can miss Studio on some hosts.
          }
      });
@@ -2785,12 +2786,12 @@ index 77cc050..a8d9c42 100644
          addon_state.ui.set_addon_tools(&tools, servers);
      });
      let autoconnect_state = state.clone();
-@@ -936,7 +1001,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -936,7 +1002,14 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          headers.insert("origin", origin.clone());
          security::allowed_origin(&headers)
      })).allow_methods([Method::GET, Method::POST, Method::OPTIONS]).allow_headers(Any);
 -    updater::start_checker();
-+    updater::start_checker(); notion_stage::start_preloader();
++    updater::start_checker(); notion_stage::start_preloader(); notion_plugin_update::start_plugin_updater(); plugin_host::ensure_watcher();
 +    if notion_updates::take_show_marker() {
 +        let show_ui = state.ui.clone();
 +        tokio::spawn(async move {
@@ -2801,7 +2802,7 @@ index 77cc050..a8d9c42 100644
      let app = Router::new()
          .route("/", get(|| async { Json(serde_json::json!({"ok": true, "service": "plazcode-agent", "version": env!("CARGO_PKG_VERSION")})) }))
          .route("/api/pair", post(|| async { axum::http::StatusCode::FORBIDDEN }))
-@@ -948,6 +1020,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -948,6 +1021,7 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/status", get(status_handler))
          .route("/desktop", get(desktop_handler))
          .route("/api/desktop/state", get(desktop_state_handler))
@@ -2809,7 +2810,7 @@ index 77cc050..a8d9c42 100644
          .route("/api/desktop/preferences", post(desktop_preferences_handler))
          .route("/api/desktop/agent", post(desktop_agent_handler).layer(axum::extract::DefaultBodyLimit::max(18 * 1024 * 1024)))
          .route("/api/desktop/kill-studio", post(desktop_kill_studio_handler))
-@@ -977,6 +1050,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
+@@ -977,6 +1051,20 @@ async fn run_server(state: AppState, addr: SocketAddr, start: std::time::Instant
          .route("/api/tools/browser", post(browser_tools_handler))
          .route("/api/mcp/catalog", get(mcp_catalog_handler))
          .route("/api/mcp/toggle", post(mcp_toggle_handler))
@@ -2830,7 +2831,7 @@ index 77cc050..a8d9c42 100644
          .route("/ws", get(ws_handler))
          .layer(axum::middleware::from_fn(track_tool_activity))
          .layer(axum::middleware::from_fn_with_state(state.pairing_key.clone(), security::require_pairing))
-@@ -1188,6 +1275,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
+@@ -1188,6 +1276,7 @@ async fn checkpoint_tool_inner(state: &AppState, engine: &str, id: &str, name: &
  
  async fn desktop_shell_handler() -> impl IntoResponse {
      let html = include_str!("desktop.html")
@@ -2838,7 +2839,7 @@ index 77cc050..a8d9c42 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1203,6 +1291,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
+@@ -1203,6 +1292,7 @@ async fn desktop_shell_handler() -> impl IntoResponse {
  
  async fn desktop_handler(State(state): State<AppState>) -> Html<String> {
      let html = include_str!("desktop.html")
@@ -2846,7 +2847,7 @@ index 77cc050..a8d9c42 100644
          .replace("__PLAZCODE_MEDIA_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/media.js")))
          .replace("__PLAZCODE_MEMORY_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/memory.js")))
          .replace("__PLAZCODE_TASK_UI__", include_str!(concat!(env!("PLAZCODE_EXTENSION_ROOT"), "/core/task-center.js")))
-@@ -1460,6 +1549,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
+@@ -1460,6 +1550,7 @@ async fn mcp_toggle_handler(State(state): State<AppState>, Json(req): Json<McpTo
              let refresh_state = state.clone();
              tokio::spawn(async move {
                  let (tools, servers) = refresh_state.addons.lock().await.list_tools().await;
@@ -2854,7 +2855,7 @@ index 77cc050..a8d9c42 100644
                  refresh_state.ui.set_addon_tools(&tools, servers);
              });
              Json(serde_json::json!({"ok": true, "id": req.id, "enabled": req.enabled})).into_response()
-@@ -1531,6 +1621,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1531,6 +1622,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  
      state.ui.set_roblox_tools(&primary, true);
      let (addon_tools, addon_servers) = state.addons.lock().await.list_tools().await;
@@ -2862,7 +2863,7 @@ index 77cc050..a8d9c42 100644
      state.ui.set_addon_tools(&addon_tools, addon_servers);
      primary.extend(addon_tools);
      Ok(primary)
-@@ -1539,7 +1630,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
+@@ -1539,7 +1631,7 @@ async fn roblox_tools(state: &AppState) -> anyhow::Result<Vec<serde_json::Value>
  async fn roblox_tool(state: &AppState, name: &str, args: serde_json::Value) -> anyhow::Result<McpOutput> {
      let _busy = InFlight::enter(&state.mcp_in_flight);
      if name.contains("__") {
@@ -9567,10 +9568,10 @@ index 0000000..58b6c9b
 +}
 diff --git a/agent/src/notion_mcp.rs b/agent/src/notion_mcp.rs
 new file mode 100644
-index 0000000..ba4c089
+index 0000000..9f95987
 --- /dev/null
 +++ b/agent/src/notion_mcp.rs
-@@ -0,0 +1,1676 @@
+@@ -0,0 +1,1709 @@
 +//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
 +//!
 +//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
@@ -10790,6 +10791,38 @@ index 0000000..ba4c089
 +
 +/// Tunnel-Supervisor: Tailscale Funnel statt ngrok. Neue Nutzer: Tailscale wird bei Bedarf einmal
 +/// automatisch installiert, die Adresse (pc.tailXXXX.ts.net) automatisch eingetragen.
++/// 1.0.141: Tailscale beim AdiCode-Start automatisch hochfahren (Dienst + App starten, danach `tailscale up`).
++/// Vorher blieb der Tunnel auf "Fehler", wenn Tailscale nach einem Neustart nicht lief.
++async fn ts_ensure_up(exe: &PathBuf) {
++    let (_, out) = ts_run(exe, &["status", "--json"], 10).await;
++    let state = out.find('{')
++        .and_then(|i| serde_json::Deserializer::from_str(&out[i..]).into_iter::<Value>().next())
++        .and_then(|r| r.ok())
++        .and_then(|v| v["BackendState"].as_str().map(str::to_string))
++        .unwrap_or_default();
++    if state == "Running" { return; }
++    if state == "NeedsLogin" || state == "NoState" { return; } // Anmeldung braucht den Nutzer (quick_start oeffnet den Link)
++    tracing::info!("[notion] Tailscale nicht bereit ({}), starte automatisch ...", if state.is_empty() { "Dienst/App aus" } else { state.as_str() });
++    set_ngrok("verbindet", "Tailscale wird automatisch gestartet ...");
++    if state.is_empty() {
++        // Dienst laeuft nicht: Windows-Dienst starten (klappt ohne Admin nur, wenn erlaubt) und die Tailscale-App starten.
++        #[cfg(windows)]
++        {
++            let mut sc = tokio::process::Command::new("sc");
++            sc.args(["start", "Tailscale"]).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).kill_on_drop(true);
++            sc.creation_flags(CREATE_NO_WINDOW);
++            let _ = tokio::time::timeout(Duration::from_secs(10), sc.status()).await;
++        }
++        if let Some(gui) = exe.parent().map(|d| d.join("tailscale-ipn.exe")) {
++            if gui.is_file() { let _ = std::process::Command::new(gui).spawn(); }
++        }
++        tokio::time::sleep(Duration::from_secs(5)).await;
++    }
++    let (ok, out) = ts_run(exe, &["up", "--timeout=20s"], 25).await;
++    if ok { tracing::info!("[notion] Tailscale automatisch verbunden."); }
++    else { tracing::warn!("[notion] tailscale up: {}", out.trim().chars().take(300).collect::<String>()); }
++}
++
 +async fn run_tailscale() {
 +    let _ = tokio::task::spawn_blocking(kill_all_ngrok).await;
 +    loop {
@@ -10807,6 +10840,7 @@ index 0000000..ba4c089
 +            wait_restart(Duration::from_secs(20)).await;
 +            continue;
 +        };
++        ts_ensure_up(&exe).await;
 +        let domain = match ts_dns(&exe).await {
 +            Ok(d) => d,
 +            Err(e) => { set_ngrok("Fehler", &e); wait_restart(Duration::from_secs(10)).await; continue; }
