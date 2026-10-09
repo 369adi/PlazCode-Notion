@@ -9,6 +9,14 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.143
+
+- Co-Work: 'Alle starten' startet nur noch die Tabs, kein Check mehr.
+- Kein automatisches Neuladen der Notion-Seiten mehr.
+- Versionsanzeige oben links zeigt die installierte Version.
+- Lokale Updates erscheinen im Update-Tab (Knopf 'Neu starten').
+- Fix MCP-Abbrueche: Notion-Verbindungscheck (HEAD) wird nicht mehr mit 401 abgelehnt.
+
 ## Neu in 1.0.142
 
 - Tailscale-Autostart: laeuft Tailscale beim AdiCode-Start (oder spaeter) nicht, startet AdiCode automatisch den Tailscale-Dienst und die Tailscale-App und verbindet per `tailscale up` - Notion muss den MCP-Server nicht mehr mit "We couldn't validate this MCP server" ablehnen. Nur die erste Anmeldung bei Tailscale bleibt Handarbeit.

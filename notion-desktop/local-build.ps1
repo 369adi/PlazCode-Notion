@@ -18,7 +18,7 @@ $ver = (Get-Content "$repo\notion-desktop\VERSION" -Raw).Trim()
 $build = Get-Date -f 'yyyyMMdd-HHmmss'
 Copy-Item $exe "$base\local-update\PlazCode.exe" -Force
 $meta = [ordered]@{ version = $ver; build = $build; date = (Get-Date -f 'yyyy-MM-dd'); notes = "$Notes`n(lokal gebaut $(Get-Date -f 'dd.MM. HH:mm'))" }
-$meta | ConvertTo-Json | Set-Content "$base\local-update\local-update.json" -Encoding UTF8
+[IO.File]::WriteAllText("$base\local-update\local-update.json", ($meta | ConvertTo-Json), (New-Object System.Text.UTF8Encoding($false)))
 L "BEREIT: lokales Update $ver build $build ($((Get-Item $exe).Length) B)"
 if (-not $Install) { exit 0 }
 # Bootstrap: alte App kennt lokale Updates noch nicht -> direkt tauschen.
