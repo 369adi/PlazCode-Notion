@@ -1,0 +1,203 @@
+// ===================== Co-Work Team (1.0.125, komplett neu) =====================
+// Prinzip: EIN Konto, MEHRERE Chats, EINE Aufgabe. Ersetzt slot_monitor + auto_fill.
+// Eine einzige Schleife pro Konto, ohne versteckte Sperren:
+//   1. Laeuft das Konto?  -> nur: antwortet das Fenster (CDP-Port). Sonst nichts tun.
+//   2. Chat-Liste direkt von Notion lesen (LIVE_JS).
+//   3. Mitglieder (chat-slots.json): generiert -> Live-Status an die Bridge;
+//      ruhig + Neuigkeiten vom Board -> Nachricht direkt in den Chat (Hintergrund-Tab).
+//   4. Gibt es ein Co-Work mit offenen Tasks: naechsten freien Chat einladen
+//      (nicht der Chat, in dem der Nutzer schreibt, nicht generierend, nicht gerade benutzt).
+//      Die Einladung enthaelt den Hinweis, sich mit dem AdiCode-MCP zu verbinden (neue Chats).
+//   5. Jeder Grund, warum ein Chat NICHT mitmacht, steht sichtbar im Konto (slots_state) + timeline.log.
+// Es wird nie ein neuer Notion-Chat erstellt (open_target erlaubt nur bestehende t=...).
+
+static TEAM_STARTED: AtomicBool = AtomicBool::new(false);
+static TEAM_STATE: Lazy<Mutex<BTreeMap<u32, String>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
+static TEAM_SENT: Lazy<Mutex<BTreeMap<String, (String, std::time::Instant, u32)>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
+static TEAM_FAIL: Lazy<Mutex<BTreeMap<String, std::time::Instant>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
+const TEAM_TICK_SECS: u64 = 8;
+const TEAM_RETRY_SECS: u64 = 300;
+const TEAM_FRESH_SECS: i64 = 45;
+
+fn team_mark(id: u32, s: String) {
+    let changed = lock(&TEAM_STATE).insert(id, s.clone()).as_deref() != Some(s.as_str());
+    if changed {
+        tl(&format!("tab{id} TEAM {s}"));
+        mark_account(id, "slots_state", json!(s));
+    }
+}
+
+/// Einladung fuer einen freien Chat. Funktioniert auch in einem ganz neuen Chat ohne AdiCode-Verlauf.
+fn team_prompt(agent: &str, pid: &str, title: &str) -> String {
+    format!("AdiCode Co-Work (automatische Nachricht von AdiCode, vom Nutzer eingerichtet): In diesem Notion-Konto arbeiten mehrere Chats gleichzeitig an EINER Aufgabe. Egal, was vorher in diesem Chat stand: du bist ab jetzt Agent \"{agent}\".\n0. Nutze den AdiCode-MCP-Connector (Tools cowork_join, cowork_claim, cowork_update ...). Siehst du diese Tools nicht, verbinde dich zuerst mit dem AdiCode-MCP und mach dann hier weiter.\n1. adicode_skill name=cowork laden.\n2. cowork_join mit project \"{pid}\", role worker, agent \"{agent}\" (Projekt: {title}).\n3. Schleife: cowork_claim -> Task erledigen -> cowork_update (1 Satz Ergebnis) -> cowork_claim ... bis nichts mehr frei ist, dann cowork_wait. Nachrichten, Updates und Release-Hinweise kommen ueber die AdiCode-Bridge an deine Tool-Antworten.")
+}
+
+fn team_updated_secs_ago(c: &Value, now_ms: i64) -> Option<i64> {
+    let u = c["updated"].as_i64().or_else(|| c["updated"].as_f64().map(|f| f as i64))?;
+    if u <= 0 { return None; }
+    let ms = if u > 100_000_000_000 { u } else { u * 1000 };
+    Some((now_ms - ms) / 1000)
+}
+
+async fn team_ready(ws: &str, tid: &str) -> bool {
+    for _ in 0..30 {
+        let here = ws_eval(ws, "location.href").await.ok().and_then(|v| v.as_str().map(String::from)).map(|u| url_tid(&u) == tid).unwrap_or(false);
+        if here && ws_eval(ws, SLOT_IDLE_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { return true; }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    false
+}
+
+/// Bestehenden Chat im Hintergrund-Tab oeffnen (oder den schon offenen Tab nehmen). Gibt (ws, neu geoeffnete target-id) zurueck.
+async fn team_open(port: u16, tid: &str) -> Result<(String, Option<String>), String> {
+    if let Some(ws) = slot_ws(port, tid).await { return Ok((ws, None)); }
+    let targets = page_targets(port).await;
+    let origin = origin_of(&targets);
+    let tg = open_target(port, &format!("{origin}/chat?t={tid}")).await?;
+    match target_ws_by_id(port, &tg, 20).await {
+        Ok(ws) => Ok((ws, Some(tg))),
+        Err(e) => { close_target(port, &tg).await; Err(e) }
+    }
+}
+
+async fn team_invite(t: &Tab, i: usize, tid: &str, agent: &str, pid: &str, title: &str) -> Result<(), String> {
+    let port = cdp_port(i);
+    let (ws, opened) = team_open(port, tid).await?;
+    let fail = |e: String| async { if let Some(tg) = &opened { close_target(port, tg).await; } Err::<(), String>(e) };
+    if !team_ready(&ws, tid).await { return fail("Chat-Eingabe nicht bereit (Chat arbeitet oder laedt nicht)".into()).await; }
+    if ws_eval(&ws, AI_OFF_JS).await.ok().map(|v| v.is_object()).unwrap_or(false) { return fail("KI ist in diesem Workspace deaktiviert".into()).await; }
+    if let Err(e) = ws_send_prompt(&ws, Some(tid), &team_prompt(agent, pid, title)).await { return fail(e).await; }
+    tl(&format!("tab{} TEAM-INVITE {agent} t={tid} p={pid}", t.id));
+    Ok(())
+}
+
+async fn team_deliver(port: u16, tid: &str, text: &str) -> Result<(), String> {
+    let (ws, _) = team_open(port, tid).await?;
+    let mut idle = false;
+    for _ in 0..20 {
+        if ws_eval(&ws, SLOT_IDLE_JS).await.ok().and_then(|v| v.as_bool()) == Some(true) { idle = true; break; }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+    if !idle { return Err("Chat arbeitet gerade".into()); }
+    if ws_eval(&ws, "document.hasFocus()").await.ok().and_then(|v| v.as_bool()) == Some(true) { return Err("Nutzer ist gerade in diesem Chat".into()); }
+    ws_send_prompt(&ws, Some(tid), text).await
+}
+
+async fn team_tab(t: &Tab, i: usize) {
+    let sl = slots_of(t.id);
+    let agents: Vec<String> = (0..sl.len()).map(|j| slot_agent(t, j + 2)).collect();
+    if skipped(t.id) { team_mark(t.id, "Konto uebersprungen".into()); return; }
+    if tab_offline(i) {
+        for a in &agents { crate::notion_live::set_generating(a, false); lock(&SLOT_OFF).insert(a.clone()); }
+        team_mark(t.id, "Fenster zu - Konto macht nicht mit".into());
+        return;
+    }
+    for a in &agents { lock(&SLOT_OFF).remove(a); }
+    let port = cdp_port(i);
+    let v = match js_eval(port, LIVE_JS).await {
+        Ok(v) if v["ok"].as_bool() == Some(true) => v,
+        Ok(v) => { team_mark(t.id, format!("Chat-Liste nicht lesbar: {}", v["error"].as_str().unwrap_or("unbekannt"))); return; }
+        Err(e) => { team_mark(t.id, format!("Chat-Liste nicht lesbar: {e}")); return; }
+    };
+    let chats = v["chats"].as_array().cloned().unwrap_or_default();
+    let running: HashSet<String> = chats.iter().filter(|c| c["running"].as_bool() == Some(true)).filter_map(|c| c["id"].as_str().map(norm_tid)).collect();
+
+    // Mitglieder: Live-Status + Board-Neuigkeiten zustellen.
+    for (j, tid) in sl.iter().enumerate() {
+        let agent = slot_agent(t, j + 2);
+        let gen = running.contains(tid);
+        crate::notion_live::set_generating(&agent, gen);
+        if gen || is_paused(t.id) { continue; }
+        let Some((sig, text)) = crate::notion_cowork::nudge_for(&agent) else { continue };
+        let prev = lock(&TEAM_SENT).get(&agent).cloned();
+        if let Some((s, at, n)) = &prev { if *s == sig && (sig.starts_with("done:") || *n >= 3 || at.elapsed() < Duration::from_secs(90)) { continue; } }
+        match team_deliver(port, tid, &text).await {
+            Ok(()) => {
+                let n = prev.filter(|(s, _, _)| *s == sig).map(|x| x.2 + 1).unwrap_or(1);
+                lock(&TEAM_SENT).insert(agent.clone(), (sig.clone(), std::time::Instant::now(), n));
+                tl(&format!("tab{} TEAM-SEND {agent} {sig}", t.id));
+            }
+            Err(e) => tl(&format!("tab{} TEAM-SEND {agent} verschoben: {e}", t.id)),
+        }
+    }
+
+    // Einladen: naechster freier Chat.
+    if is_paused(t.id) { team_mark(t.id, format!("{} Chat(s) im Team - Konto pausiert", 1 + sl.len())); return; }
+    let Some((pid, title)) = crate::notion_cowork::active_project() else { team_mark(t.id, format!("{} Chat(s) im Team - kein Co-Work mit offenen Tasks", 1 + sl.len())); return; };
+    if 1 + sl.len() >= MAX_CHATS_PER_ACCOUNT { team_mark(t.id, format!("{} Chats im Team (Maximum)", 1 + sl.len())); return; }
+    let targets = page_targets(port).await;
+    let open: HashSet<String> = targets.iter().map(|x| url_tid(x["url"].as_str().unwrap_or(""))).filter(|s| !s.is_empty()).collect();
+    let main = welcome_url(t).map(|u| url_tid(&u)).unwrap_or_default();
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let mut why: Vec<String> = Vec::new();
+    let mut pick: Option<String> = None;
+    for c in &chats {
+        let Some(id) = c["id"].as_str().map(norm_tid) else { continue };
+        if id.len() != 32 || sl.contains(&id) { continue; }
+        let short = id[..8].to_string();
+        if id == main { why.push(format!("{short}: Haupt-Chat")); continue; }
+        if open.contains(&id) { why.push(format!("{short}: offen im Fenster (Nutzer)")); continue; }
+        if running.contains(&id) { why.push(format!("{short}: generiert gerade")); continue; }
+        if team_updated_secs_ago(c, now_ms).map(|s| s < TEAM_FRESH_SECS).unwrap_or(false) { why.push(format!("{short}: gerade benutzt")); continue; }
+        if lock(&TEAM_FAIL).get(&id).map(|at| at.elapsed() < Duration::from_secs(TEAM_RETRY_SECS)).unwrap_or(false) { why.push(format!("{short}: letzter Versuch fehlgeschlagen")); continue; }
+        pick = Some(id);
+        break;
+    }
+    let Some(tid) = pick else {
+        let w = if why.is_empty() { "keine weiteren Chats in diesem Konto".to_string() } else { why.join(", ") };
+        team_mark(t.id, format!("{} Chat(s) im Team - kein freier Chat ({w})", 1 + sl.len()));
+        return;
+    };
+    let k = sl.len() + 2;
+    let agent = slot_agent(t, k);
+    match team_invite(t, i, &tid, &agent, &pid, &title).await {
+        Ok(()) => {
+            let mut all = slots_all();
+            let n = { let v = all.entry(t.id).or_default(); if !v.contains(&tid) { v.push(tid.clone()); } v.len() };
+            slots_save(&all);
+            lock(&TEAM_SENT).insert(agent.clone(), (format!("join:{pid}"), std::time::Instant::now(), 1));
+            team_mark(t.id, format!("{agent} eingeladen - {} Chats im Team", 1 + n));
+        }
+        Err(e) => {
+            lock(&TEAM_FAIL).insert(tid.clone(), std::time::Instant::now());
+            team_mark(t.id, format!("Chat {} nicht nutzbar: {e}", &tid[..8]));
+        }
+    }
+}
+
+async fn team_loop() {
+    loop {
+        tokio::time::sleep(human_sleep(Duration::from_secs(TEAM_TICK_SECS), 40)).await;
+        let tabs = load();
+        for (i, t) in tabs.iter().enumerate() {
+            if tokio::time::timeout(Duration::from_secs(120), team_tab(t, i)).await.is_err() {
+                team_mark(t.id, "Zeitueberschreitung beim Pruefen der Chats".into());
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn ensure_team() {
+    if cfg!(test) || tokio::runtime::Handle::try_current().is_err() { return; }
+    if !TEAM_STARTED.swap(true, Ordering::SeqCst) { tokio::spawn(team_loop()); }
+}
+
+#[cfg(test)]
+mod team_tests {
+    use super::*;
+    #[test]
+    fn notion_team_prompt_has_join_and_mcp_hint() {
+        let p = team_prompt("AdiCode-Tab2-K2", "p14", "Live-Test");
+        assert!(p.contains("cowork_join mit project \"p14\""));
+        assert!(p.contains("agent \"AdiCode-Tab2-K2\""));
+        assert!(p.contains("AdiCode-MCP"));
+    }
+    #[test]
+    fn notion_team_updated_age() {
+        let now = 1_800_000_000_000i64;
+        assert_eq!(team_updated_secs_ago(&json!({"updated": now - 10_000}), now), Some(10));
+        assert_eq!(team_updated_secs_ago(&json!({"updated": (now / 1000) - 100}), now), Some(100));
+        assert_eq!(team_updated_secs_ago(&json!({}), now), None);
+    }
+}

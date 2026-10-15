@@ -1,0 +1,493 @@
+//! AdiCode: app_verify (build/typecheck/lint/tests im Hintergrund) und
+//! adicode_profile (Tool-Profile gegen Kontext-Bloat: all, app, roblox, blender).
+
+use serde_json::{json, Value};
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::Mutex;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+static PROFILE: Mutex<Option<String>> = Mutex::new(None);
+const PROFILES: &[&str] = &["lean", "all", "app", "roblox", "blender"];
+/// Profil lean: selten genutzte, sehr grosse Add-ons aus tools/list nehmen (bleiben per adicode_call nutzbar).
+const LEAN_HIDDEN: &[&str] = &["blenderwright_", "comfyui_", "robloxstudio_"];
+const CHECKS: &[&str] = &["install", "typecheck", "lint", "test", "build"];
+
+fn state_dir() -> PathBuf { crate::mcp_addons::shared_dir().join(".adicode") }
+fn profile_file() -> PathBuf { state_dir().join("tool_profile.txt") }
+fn verify_dir() -> PathBuf { state_dir().join("verify") }
+
+fn text(msg: impl Into<String>) -> Value { json!({"content": [{"type": "text", "text": msg.into()}]}) }
+fn err(msg: impl Into<String>) -> Value { json!({"isError": true, "content": [{"type": "text", "text": msg.into()}]}) }
+
+// ------------------------------------------------------------ Tool-Profile
+
+pub(crate) fn current_profile() -> String {
+    let mut g = PROFILE.lock().unwrap_or_else(|e| e.into_inner());
+    if g.is_none() {
+        let p = std::fs::read_to_string(profile_file()).map(|s| s.trim().to_ascii_lowercase()).unwrap_or_default();
+        *g = Some(if PROFILES.contains(&p.as_str()) { p } else { "lean".to_string() });
+    }
+    g.clone().unwrap_or_else(|| "lean".to_string())
+}
+
+fn allows(profile: &str, tool: &str) -> bool {
+    let is_roblox = tool.starts_with("roblox");
+    let is_blender = tool.starts_with("blender") || tool.starts_with("adicode_blender");
+    match profile {
+        "lean" => !LEAN_HIDDEN.iter().any(|p| tool.starts_with(p)),
+        "app" => !is_roblox && !is_blender,
+        "roblox" => !is_blender,
+        "blender" => !is_roblox && !LEAN_HIDDEN.iter().any(|p| *p != "comfyui_" && tool.starts_with(p)) && !tool.starts_with("serena_"),
+        _ => true,
+    }
+}
+
+/// Wird in notion_mcp::rebuild benutzt: blendet Tools aus, die zum aktiven Profil nicht passen.
+pub(crate) fn profile_allows(tool: &str) -> bool { allows(&current_profile(), tool) }
+
+/// Laedt die KI einen Blender-Skill, wechselt AdiCode automatisch aufs schlanke Blender-Profil
+/// (Roblox, Code-Navigation ausgeblendet). Roblox-Skill aus Blender-Profil -> lean.
+/// Gibt einen Hinweistext zurueck, wenn gewechselt wurde.
+pub(crate) fn auto_profile_for_skill(skill: &str) -> Option<String> {
+    let s = skill.trim().to_ascii_lowercase();
+    let cur = current_profile();
+    let target = if s.starts_with("blender") { "blender" } else if s.starts_with("roblox") && cur == "blender" { "lean" } else { return None };
+    if cur == target || cur == "all" { return None; }
+    set_profile(target).ok()?;
+    Some(format!("[AdiCode] Tool-Profil automatisch auf '{target}' gestellt (nur passende Tools, weniger Kontext). Seltene Tools weiter per adicode_find_tools + adicode_call."))
+}
+
+fn set_profile(p: &str) -> Result<(), String> {
+    if !PROFILES.contains(&p) { return Err(format!("Unbekanntes Profil '{p}'. Erlaubt: {}", PROFILES.join(", "))); }
+    std::fs::create_dir_all(state_dir()).map_err(|e| e.to_string())?;
+    std::fs::write(profile_file(), p).map_err(|e| e.to_string())?;
+    *PROFILE.lock().unwrap_or_else(|e| e.into_inner()) = Some(p.to_string());
+    Ok(())
+}
+
+// ------------------------------------------------------------ pc_job (lange Befehle im Hintergrund)
+
+fn jobs_dir() -> PathBuf { state_dir().join("jobs") }
+
+fn job_ids() -> Vec<String> {
+    let mut v: Vec<String> = std::fs::read_dir(jobs_dir())
+        .map(|r| r.filter_map(|e| e.ok())
+            .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".log")).map(str::to_string))
+            .collect())
+        .unwrap_or_default();
+    v.sort();
+    v
+}
+
+fn job_id_arg(args: &Value) -> Option<String> {
+    let id = args["job_id"].as_str().map(str::trim).filter(|s| !s.is_empty()).map(str::to_string).or_else(|| job_ids().pop())?;
+    if id.contains('/') || id.contains('\\') || id.contains("..") { return None; }
+    Some(id)
+}
+
+fn job_state(id: &str) -> String {
+    match std::fs::read_to_string(jobs_dir().join(format!("{id}.exit"))) {
+        Ok(code) => format!("fertig (Exit-Code {})", code.trim()),
+        Err(_) => "laeuft noch".to_string(),
+    }
+}
+
+fn pc_job_schema() -> Value {
+    json!({
+        "name": "pc_job",
+        "description": "AdiCode: lange PowerShell-Befehle im Hintergrund (Builds, Tests, Installationen, Releases, alles ueber ~50 s). action=start (command, cwd, timeout_minutes) liefert sofort eine job_id; action=status zeigt laeuft/fertig, Exit-Code und die letzten Log-Zeilen; action=stop beendet den ganzen Prozessbaum; action=list zeigt die letzten Jobs. Statt pc_PowerShell nutzen, sobald ein Befehl lange dauern kann.",
+        "inputSchema": {"type": "object", "properties": {
+            "action": {"type": "string", "enum": ["start", "status", "stop", "list"], "default": "start"},
+            "command": {"type": "string", "description": "PowerShell-Befehl (fuer action=start)."},
+            "cwd": {"type": "string", "description": "Arbeitsordner, relativ zum Shared-Ordner oder absolut. Standard: Shared-Ordner."},
+            "timeout_minutes": {"type": "integer", "default": 60, "description": "1-360 Minuten, danach wird der Job beendet."},
+            "job_id": {"type": "string", "description": "Fuer status/stop; leer = letzter Job."},
+            "lines": {"type": "integer", "default": 40, "description": "Log-Zeilen bei status (5-400)."}
+        }}
+    })
+}
+
+fn job_start(args: &Value) -> Value {
+    if crate::notion_mcp::safe_shell_enabled() { return err("Sicherheitsmodus ist an: pc_job ist gesperrt."); }
+    let cmd = args["command"].as_str().unwrap_or("").trim().to_string();
+    if cmd.is_empty() { return err("command fehlt."); }
+    let dir = args["cwd"].as_str().map(str::trim).filter(|s| !s.is_empty()).map(resolve).unwrap_or_else(crate::mcp_addons::shared_dir);
+    if !dir.is_dir() { return err(format!("Ordner nicht gefunden: {}", dir.display())); }
+    let minutes = args["timeout_minutes"].as_u64().unwrap_or(60).clamp(1, 360);
+    let _ = std::fs::create_dir_all(jobs_dir());
+    let id = format!("job-{}", SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0));
+    let log = jobs_dir().join(format!("{id}.log"));
+    let Ok(file) = std::fs::File::create(&log) else { return err("Log-Datei konnte nicht angelegt werden.") };
+    let Ok(file2) = file.try_clone() else { return err("Log-Datei konnte nicht geoeffnet werden.") };
+    let _ = std::fs::write(jobs_dir().join(format!("{id}.cmd")), &cmd);
+    #[cfg(windows)]
+    let mut c = {
+        use std::os::windows::process::CommandExt;
+        let full = format!("[Console]::OutputEncoding=[Text.Encoding]::UTF8; $ProgressPreference='SilentlyContinue'; {cmd}");
+        let mut c = std::process::Command::new("powershell");
+        c.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", &full]).creation_flags(0x0800_0000);
+        c
+    };
+    #[cfg(not(windows))]
+    let mut c = {
+        let mut c = std::process::Command::new("sh");
+        c.arg("-c").arg(&cmd);
+        c
+    };
+    c.current_dir(&dir).stdin(Stdio::null()).stdout(Stdio::from(file)).stderr(Stdio::from(file2));
+    let mut child = match c.spawn() { Ok(ch) => ch, Err(e) => return err(format!("Start fehlgeschlagen: {e}")) };
+    let pid = child.id();
+    let _ = std::fs::write(jobs_dir().join(format!("{id}.pid")), pid.to_string());
+    let exit = jobs_dir().join(format!("{id}.exit"));
+    std::thread::spawn(move || {
+        let deadline = Instant::now() + Duration::from_secs(minutes * 60);
+        let result = loop {
+            match child.try_wait() {
+                Ok(Some(st)) => break st.code().map(|c| c.to_string()).unwrap_or_else(|| "beendet".to_string()),
+                Ok(None) => {
+                    if Instant::now() > deadline { kill_tree(&mut child); break "timeout".to_string(); }
+                    std::thread::sleep(Duration::from_millis(500));
+                }
+                Err(e) => break format!("fehler {e}"),
+            }
+        };
+        let _ = std::fs::write(exit, result);
+    });
+    text(format!("Job {id} gestartet (PID {pid}, Ordner {}, Timeout {minutes} min). Abfragen mit pc_job action=status job_id={id}.", dir.display()))
+}
+
+fn job_status(args: &Value) -> Value {
+    let Some(id) = job_id_arg(args) else { return err("Kein Job gefunden (job_id pruefen).") };
+    let log = jobs_dir().join(format!("{id}.log"));
+    if !log.exists() { return err(format!("Job {id} nicht gefunden.")); }
+    let n = args["lines"].as_u64().unwrap_or(40).clamp(5, 400) as usize;
+    let cmd: String = std::fs::read_to_string(jobs_dir().join(format!("{id}.cmd"))).unwrap_or_default().chars().take(160).collect();
+    text(format!("Job {id}: {}\nBefehl: {cmd}\nLog: {}\n--- letzte {n} Zeilen ---\n{}", job_state(&id), log.display(), tail(&log, n)))
+}
+
+fn job_stop(args: &Value) -> Value {
+    let Some(id) = job_id_arg(args) else { return err("job_id fehlt oder ist ungueltig.") };
+    let Ok(pid) = std::fs::read_to_string(jobs_dir().join(format!("{id}.pid"))) else { return err(format!("Job {id} nicht gefunden.")) };
+    let pid = pid.trim().to_string();
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = std::process::Command::new("taskkill").args(["/T", "/F", "/PID", &pid])
+            .stdout(Stdio::null()).stderr(Stdio::null()).creation_flags(0x0800_0000).status();
+    }
+    #[cfg(not(windows))]
+    { let _ = std::process::Command::new("kill").arg(&pid).status(); }
+    text(format!("Job {id} gestoppt (PID {pid})."))
+}
+
+fn job_list() -> Value {
+    let mut ids = job_ids();
+    ids.reverse();
+    ids.truncate(8);
+    if ids.is_empty() { return text("Noch keine Jobs."); }
+    let lines: Vec<String> = ids.iter().map(|id| {
+        let cmd: String = std::fs::read_to_string(jobs_dir().join(format!("{id}.cmd"))).unwrap_or_default().chars().take(80).collect();
+        format!("{id}: {} | {cmd}", job_state(id))
+    }).collect();
+    text(lines.join("\n"))
+}
+
+// ------------------------------------------------------------ app_verify
+
+struct Step { name: &'static str, cmd: String }
+
+fn resolve(path: &str) -> PathBuf {
+    let t = path.trim();
+    if t.is_empty() { return crate::mcp_addons::shared_dir(); }
+    let p = Path::new(t);
+    if p.is_absolute() { p.to_path_buf() } else { crate::mcp_addons::shared_dir().join(p) }
+}
+
+fn plan(dir: &Path, wanted: &[String]) -> (&'static str, Vec<Step>) {
+    let want = |n: &str| wanted.is_empty() || wanted.iter().any(|w| w == n);
+    let mut steps: Vec<Step> = Vec::new();
+    let mut add = |name: &'static str, cmd: &str| steps.push(Step { name, cmd: cmd.to_string() });
+    let stack;
+    if dir.join("package.json").exists() {
+        stack = "node";
+        let pkg: Value = std::fs::read_to_string(dir.join("package.json")).ok()
+            .and_then(|s| serde_json::from_str(&s).ok()).unwrap_or(Value::Null);
+        let script = |n: &str| pkg["scripts"][n].as_str().map(|s| s.to_string());
+        if want("install") && !dir.join("node_modules").exists() { add("install", "npm install"); }
+        if want("typecheck") && dir.join("tsconfig.json").exists() {
+            if script("typecheck").is_some() { add("typecheck", "npm run typecheck"); } else { add("typecheck", "npx --no-install tsc --noEmit"); }
+        }
+        if want("lint") && script("lint").is_some() { add("lint", "npm run lint"); }
+        if want("test") {
+            if let Some(t) = script("test") { if !t.contains("no test specified") { add("test", "npm test"); } }
+        }
+        if want("build") && script("build").is_some() { add("build", "npm run build"); }
+    } else if dir.join("Cargo.toml").exists() {
+        stack = "rust";
+        if want("typecheck") { add("typecheck", "cargo check --all-targets"); }
+        if want("lint") { add("lint", "cargo clippy --all-targets"); }
+        if want("test") { add("test", "cargo test"); }
+        if want("build") { add("build", "cargo build"); }
+    } else if dir.join("pyproject.toml").exists() || dir.join("requirements.txt").exists() || dir.join("setup.py").exists() {
+        stack = "python";
+        let pyproject = std::fs::read_to_string(dir.join("pyproject.toml")).unwrap_or_default();
+        if want("install") && dir.join("requirements.txt").exists() && !dir.join(".venv").exists() && !dir.join("venv").exists() {
+            add("install", "python -m pip install -r requirements.txt");
+        }
+        if want("typecheck") && (pyproject.contains("[tool.mypy]") || dir.join("mypy.ini").exists()) { add("typecheck", "python -m mypy ."); }
+        if want("lint") { add("lint", "python -m ruff check ."); }
+        if want("test") { add("test", "python -m pytest -q"); }
+    } else {
+        stack = "unknown";
+    }
+    (stack, steps)
+}
+
+fn tail(p: &Path, n: usize) -> String {
+    let b = std::fs::read(p).unwrap_or_default();
+    let s = String::from_utf8_lossy(&b);
+    let lines: Vec<&str> = s.lines().collect();
+    let mut t = lines[lines.len().saturating_sub(n)..].join("\n");
+    if t.len() > 4000 {
+        let mut c = t.len() - 4000;
+        while !t.is_char_boundary(c) { c += 1; }
+        t = t[c..].to_string();
+    }
+    t
+}
+
+fn kill_tree(child: &mut std::process::Child) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let _ = std::process::Command::new("taskkill").args(["/T", "/F", "/PID", &child.id().to_string()])
+            .stdout(Stdio::null()).stderr(Stdio::null()).creation_flags(0x0800_0000).status();
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn run_one(dir: &Path, cmd: &str, log: &Path, timeout: u64) -> (&'static str, Option<i32>) {
+    let Ok(file) = std::fs::File::create(log) else { return ("error", None) };
+    let Ok(file2) = file.try_clone() else { return ("error", None) };
+    #[cfg(windows)]
+    let mut c = {
+        use std::os::windows::process::CommandExt;
+        let mut c = std::process::Command::new("cmd");
+        c.arg("/C").raw_arg(cmd).creation_flags(0x0800_0000);
+        c
+    };
+    #[cfg(not(windows))]
+    let mut c = {
+        let mut c = std::process::Command::new("sh");
+        c.arg("-c").arg(cmd);
+        c
+    };
+    c.current_dir(dir).env("CI", "true").env("FORCE_COLOR", "0").env("NO_COLOR", "1")
+        .stdin(Stdio::null()).stdout(Stdio::from(file)).stderr(Stdio::from(file2));
+    let Ok(mut child) = c.spawn() else { return ("error", None) };
+    let deadline = Instant::now() + Duration::from_secs(timeout);
+    loop {
+        match child.try_wait() {
+            Ok(Some(st)) => return (if st.success() { "ok" } else { "failed" }, st.code()),
+            Ok(None) => {
+                if Instant::now() > deadline { kill_tree(&mut child); return ("timeout", None); }
+                std::thread::sleep(Duration::from_millis(300));
+            }
+            Err(_) => return ("error", None),
+        }
+    }
+}
+
+fn run_job(id: String, dir: PathBuf, stack: &'static str, steps: Vec<Step>, timeout: u64) {
+    let out_dir = verify_dir();
+    let _ = std::fs::create_dir_all(&out_dir);
+    let mut results: Vec<Value> = steps.iter().map(|s| json!({"check": s.name, "cmd": s.cmd, "status": "pending"})).collect();
+    let save = |results: &Vec<Value>, done: bool| {
+        let v = json!({"id": id, "dir": dir.to_string_lossy(), "stack": stack, "done": done, "results": results});
+        let _ = std::fs::write(out_dir.join(format!("{id}.json")), serde_json::to_string_pretty(&v).unwrap_or_default());
+    };
+    save(&results, false);
+    for (i, s) in steps.iter().enumerate() {
+        results[i]["status"] = json!("running");
+        save(&results, false);
+        let log = out_dir.join(format!("{id}-{}.log", s.name));
+        let started = Instant::now();
+        let (status, code) = run_one(&dir, &s.cmd, &log, timeout);
+        results[i]["status"] = json!(status);
+        results[i]["exit_code"] = json!(code);
+        results[i]["seconds"] = json!(started.elapsed().as_secs());
+        results[i]["log"] = json!(log.to_string_lossy());
+        results[i]["tail"] = json!(tail(&log, if status == "ok" { 3 } else { 40 }));
+        save(&results, false);
+        // Ohne Installation laufen die weiteren Schritte sowieso ins Leere.
+        if s.name == "install" && status != "ok" {
+            for r in results.iter_mut().skip(i + 1) { r["status"] = json!("skipped"); }
+            break;
+        }
+    }
+    save(&results, true);
+}
+
+fn latest_job() -> Option<String> {
+    let mut ids: Vec<String> = std::fs::read_dir(verify_dir()).ok()?
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.file_name().to_str().and_then(|n| n.strip_suffix(".json")).map(|s| s.to_string()))
+        .collect();
+    ids.sort();
+    ids.pop()
+}
+
+fn status_report(id: &str) -> Value {
+    let p = verify_dir().join(format!("{id}.json"));
+    let Some(v) = std::fs::read_to_string(&p).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) else {
+        return err(format!("Kein Verify-Lauf '{id}' gefunden."));
+    };
+    let done = v["done"].as_bool().unwrap_or(false);
+    let mut lines = vec![format!("Verify {id} | {} | Stack: {} | {}", v["dir"].as_str().unwrap_or(""), v["stack"].as_str().unwrap_or("?"),
+        if done { "FERTIG" } else { "LAEUFT NOCH - in 20-60 s erneut mit action=status abfragen" })];
+    let mut all_ok = true;
+    for r in v["results"].as_array().cloned().unwrap_or_default() {
+        let st = r["status"].as_str().unwrap_or("?");
+        if st != "ok" { all_ok = false; }
+        lines.push(format!("- {:<9} {:<8} exit={} {}s  ({})", r["check"].as_str().unwrap_or(""), st,
+            r["exit_code"].as_i64().map(|c| c.to_string()).unwrap_or_else(|| "-".into()),
+            r["seconds"].as_u64().unwrap_or(0), r["cmd"].as_str().unwrap_or("")));
+    }
+    for r in v["results"].as_array().cloned().unwrap_or_default() {
+        let st = r["status"].as_str().unwrap_or("");
+        if matches!(st, "failed" | "timeout" | "error") {
+            lines.push(format!("\n--- {} ({st}), Log: {}\n{}", r["check"].as_str().unwrap_or(""), r["log"].as_str().unwrap_or(""), r["tail"].as_str().unwrap_or("")));
+        }
+    }
+    if done { lines.push(if all_ok { "\nERGEBNIS: alles gruen.".into() } else { "\nERGEBNIS: NICHT gruen - Fehler beheben (Skill debug), dann app_verify erneut.".into() }); }
+    text(lines.join("\n"))
+}
+
+fn start_verify(args: &Value) -> Value {
+    let dir = resolve(args["path"].as_str().unwrap_or(""));
+    if !dir.is_dir() { return err(format!("Ordner nicht gefunden: {}", dir.display())); }
+    let wanted: Vec<String> = args["checks"].as_array().map(|a| a.iter().filter_map(|c| c.as_str()).map(|c| c.trim().to_ascii_lowercase())
+        .filter(|c| CHECKS.contains(&c.as_str())).collect()).unwrap_or_default();
+    let timeout = args["timeout_seconds"].as_u64().unwrap_or(600).clamp(30, 3600);
+    let (stack, steps) = plan(&dir, &wanted);
+    if steps.is_empty() {
+        return err(format!("Keine Checks fuer {} (Stack: {stack}). Erkannt werden package.json, Cargo.toml, pyproject.toml/requirements.txt. Sonst pc_PowerShell nutzen.", dir.display()));
+    }
+    let id = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0).to_string();
+    let planned: Vec<String> = steps.iter().map(|s| format!("{}: {}", s.name, s.cmd)).collect();
+    let job = id.clone();
+    let d = dir.clone();
+    std::thread::spawn(move || run_job(job, d, stack, steps, timeout));
+    text(format!("Verify gestartet (job_id {id}, Stack {stack}, {}).\n{}\nErgebnis: app_verify mit action=status (job_id optional) in 20-60 s abfragen.", dir.display(), planned.join("\n")))
+}
+
+// ------------------------------------------------------------ MCP-Schnittstelle
+
+pub(crate) fn tools() -> Vec<Value> {
+    let mut v = tools_base();
+    v.push(pc_job_schema());
+    v
+}
+
+fn tools_base() -> Vec<Value> {
+    vec![
+        json!({
+            "name": "app_verify",
+            "description": "AdiCode: prueft ein App-Projekt wirklich (install falls noetig, typecheck, lint, test, build) fuer Node/TS, Rust und Python. Laeuft im Hintergrund: action=start liefert job_id, action=status zeigt Ergebnis-Tabelle und Fehler-Logs. Pflicht vor jedem 'fertig'.",
+            "inputSchema": {"type": "object", "properties": {
+                "action": {"type": "string", "enum": ["start", "status"], "default": "start"},
+                "path": {"type": "string", "description": "Projektordner, relativ zum Shared-Ordner (z. B. work/meine-app) oder absolut."},
+                "checks": {"type": "array", "items": {"type": "string", "enum": CHECKS}, "description": "Optional: nur diese Checks. Leer = alle passenden."},
+                "timeout_seconds": {"type": "integer", "default": 600, "description": "Timeout pro Check (30-3600)."},
+                "job_id": {"type": "string", "description": "Fuer action=status; leer = letzter Lauf."}
+            }}
+        }),
+        json!({
+            "name": "adicode_profile",
+            "description": "AdiCode: Tool-Profil gegen Kontext-Bloat. lean (Standard) = alles ausser den selten genutzten Add-ons comfyui, robloxstudio (per adicode_find_tools + adicode_call trotzdem nutzbar), all = alles, app = ohne Roblox/Blender, roblox = ohne Blender, blender = schlank fuer Blender (blender_*, comfyui, pc/files; ohne Roblox, serena; codebase bleibt in jedem Profil sichtbar - wird beim Laden des blender-Skills automatisch gesetzt). Ohne Argument: aktuelles Profil. Notion uebernimmt die neue Tool-Liste beim naechsten Neuladen/Verbinden.",
+            "inputSchema": {"type": "object", "properties": {
+                "profile": {"type": "string", "enum": PROFILES}
+            }}
+        }),
+    ]
+}
+
+pub(crate) fn call(name: &str, args: &Value) -> Option<Value> {
+    match name {
+        "app_verify" => Some(match args["action"].as_str().unwrap_or("start") {
+            "status" => {
+                let id = args["job_id"].as_str().map(str::trim).filter(|s| !s.is_empty()).map(|s| s.to_string()).or_else(latest_job);
+                match id { Some(id) => status_report(&id), None => err("Noch kein Verify-Lauf vorhanden. Erst action=start.") }
+            }
+            _ => start_verify(args),
+        }),
+        "pc_job" => Some(match args["action"].as_str().unwrap_or("start") {
+            "status" => job_status(args),
+            "stop" => job_stop(args),
+            "list" => job_list(),
+            _ => job_start(args),
+        }),
+        "adicode_profile" => Some(match args["profile"].as_str().map(|s| s.trim().to_ascii_lowercase()) {
+            Some(p) if !p.is_empty() => match set_profile(&p) {
+                Ok(()) => text(format!("Tool-Profil jetzt '{p}'. Notion-Tools ggf. neu laden, damit die kuerzere Liste greift.")),
+                Err(e) => err(e),
+            },
+            _ => text(format!("Aktives Tool-Profil: '{}'. Moeglich: {}", current_profile(), PROFILES.join(", "))),
+        }),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lean_hides_rare_addons() {
+        assert!(!allows("lean", "blenderwright_render"));
+        assert!(!allows("lean", "comfyui_queue_prompt"));
+        assert!(!allows("lean", "robloxstudio_get_file_tree"));
+        assert!(allows("lean", "roblox_studio"));
+        assert!(allows("lean", "blender_get_scene_info"));
+        assert!(allows("lean", "pc_job"));
+        assert!(allows("lean", "codebase_search_code"));
+        assert!(allows("all", "comfyui_queue_prompt"));
+    }
+
+    #[test]
+    fn profiles_filter_tools() {
+        assert!(allows("all", "roblox_execute_luau"));
+        assert!(!allows("app", "roblox_execute_luau"));
+        assert!(!allows("app", "blender_get_scene_info"));
+        assert!(!allows("app", "adicode_blender"));
+        assert!(allows("app", "browser_browser_navigate"));
+        assert!(allows("roblox", "roblox_studio"));
+        assert!(!allows("roblox", "blenderwright_render"));
+        assert!(!allows("blender", "roblox_studio"));
+        assert!(allows("blender", "app_verify"));
+        assert!(allows("blender", "blender_execute_blender_code"));
+        assert!(allows("blender", "comfyui_queue_prompt"));
+        assert!(!allows("blender", "blenderwright_render"));
+        assert!(!allows("blender", "serena_find_symbol"));
+        assert!(allows("blender", "codebase_get_code_snippet"));
+        assert!(allows("app", "codebase_search_code"));
+        assert!(allows("roblox", "codebase_manage_adr"));
+    }
+
+    #[test]
+    fn plan_detects_node_scripts() {
+        let dir = std::env::temp_dir().join(format!("adicode_verify_test_{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("node_modules")).unwrap();
+        std::fs::write(dir.join("package.json"), r#"{"scripts":{"lint":"eslint .","test":"vitest run","build":"vite build"}}"#).unwrap();
+        std::fs::write(dir.join("tsconfig.json"), "{}").unwrap();
+        let (stack, steps) = plan(&dir, &[]);
+        let names: Vec<&str> = steps.iter().map(|s| s.name).collect();
+        assert_eq!(stack, "node");
+        assert_eq!(names, vec!["typecheck", "lint", "test", "build"]);
+        let (_, only) = plan(&dir, &["test".to_string()]);
+        assert_eq!(only.len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

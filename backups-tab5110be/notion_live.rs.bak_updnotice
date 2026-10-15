@@ -1,0 +1,696 @@
+//! Live-Bridge (immer an): Alle Notion-AI-Tabs sehen sich gegenseitig - auch ohne
+//! "Co-Work starten". Jeder Tool-Aufruf landet mit deutscher Klartext-Beschreibung im Live-Feed,
+//! den der AdiCode-Chat live anzeigt. Eine Datei ist fuer einen Chat genau so lange reserviert,
+//! wie er live daran arbeitet: solange sein Co-Work-Task "claimed" ist oder sein Tab gerade
+//! generiert (Stopp-Knopf sichtbar). Kein Timer. Chats ohne Namen werden nie geraten/gesperrt.
+use axum::{extract::Query, response::IntoResponse, Json};
+use once_cell::sync::Lazy;
+use regex::Regex;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::{collections::{BTreeMap, VecDeque}, sync::Mutex};
+
+const MAX_FEED: usize = 300;
+/// Herzschlag des Tab-Monitors (prueft alle 4 s). Kommt so lange kein Signal, gilt der Tab als fertig.
+const GEN_BEAT: i64 = 15;
+/// Chats ohne Aufruf seit dieser Zeit werden in der Uebersicht nicht mehr gezeigt.
+const ACTIVE_SECS: i64 = 900;
+
+#[derive(Clone)]
+struct Entry { id: u64, ts: i64, tab: String, tool: String, text: String, detail: String }
+
+struct TabInfo { label: String, seen: i64, last: String }
+
+#[derive(Default)]
+struct Live {
+    next: u64,
+    feed: VecDeque<Entry>,
+    tabs: BTreeMap<String, TabInfo>,
+    /// Datei -> (Agent, seit)
+    locks: BTreeMap<String, (String, i64)>,
+    /// Agents mit laufendem (claimed) Co-Work-Task, beim letzten Aufruf.
+    busy: Vec<String>,
+}
+
+static LIVE: Lazy<Mutex<Live>> = Lazy::new(|| Mutex::new(Live::default()));
+/// Agent -> letzter Zeitpunkt, an dem sein Tab sichtbar generiert hat (vom Tab-Monitor).
+static GEN: Lazy<Mutex<BTreeMap<String, i64>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
+
+/// Max. Ereignisse im zentralen Live-Log.
+const MAX_EVENTS: usize = 500;
+/// Laufende Tool-Aufrufe gelten nach dieser Zeit als verwaist (Schutz gegen haengende Zaehler).
+const INFLIGHT_MAX: i64 = 1800;
+
+/// Ein Ereignis im zentralen Live-Log (fortlaufende seq). kind: tool_start, tool_end, task, lock, gen, msg.
+#[derive(Clone, Debug)]
+pub(crate) struct Ev { pub seq: u64, pub ts: i64, pub agent: String, pub kind: &'static str, pub to: String, pub text: String }
+
+/// Live-Status eines Agents (eine Quelle fuer Feed, Delta und Tab-Monitor).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AgentState { pub generating: bool, pub tool: String, pub since: i64, pub inflight: u32, pub task: u64, pub files: Vec<String>, pub last_result: String }
+
+#[derive(Default)]
+struct Bus { seq: u64, evs: VecDeque<Ev>, cursor: BTreeMap<String, u64>, agents: BTreeMap<String, AgentState> }
+
+static BUS: Lazy<Mutex<Bus>> = Lazy::new(|| Mutex::new(Bus::default()));
+/// Weckt Wartende (z. B. cowork_wait), sobald ein neues Ereignis da ist.
+pub(crate) static EVENTS: Lazy<tokio::sync::Notify> = Lazy::new(tokio::sync::Notify::new);
+/// Lock-Reihenfolge: LIVE -> BUS (nie umgekehrt).
+fn bus() -> std::sync::MutexGuard<'static, Bus> { BUS.lock().unwrap_or_else(|e| e.into_inner()) }
+static FILE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"([A-Za-z0-9_\-][A-Za-z0-9_.\-]*\.(?:rs|html|md|ps1|json|log|toml|lua|luau|js|ts|py|txt|patch|css|bak\d*))\b").unwrap());
+static PAT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?i)-pattern\s+['"]([^'"]{1,80})['"]"#).unwrap());
+static SLEEP_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)start-sleep\s+(?:-s(?:econds)?\s+)?(\d+)").unwrap());
+
+fn live() -> std::sync::MutexGuard<'static, Live> { LIVE.lock().unwrap_or_else(|e| e.into_inner()) }
+fn now() -> i64 { chrono::Utc::now().timestamp() }
+fn arg(a: &Value, k: &str) -> String { a[k].as_str().unwrap_or("").trim().to_string() }
+fn file_name(p: &str) -> String {
+    let p = p.trim().trim_matches(|c: char| c == '"' || c == '\'');
+    p.rsplit(|c: char| c == '\\' || c == '/').find(|x| !x.is_empty()).unwrap_or(p).to_string()
+}
+fn cut(s: &str, n: usize) -> String {
+    let s: String = s.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
+    let s = s.trim();
+    if s.chars().count() > n { format!("{}\u{2026}", s.chars().take(n).collect::<String>()) } else { s.to_string() }
+}
+fn push(parts: &mut Vec<String>, s: String) { if !parts.contains(&s) && parts.len() < 4 { parts.push(s); } }
+fn upper_first(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() { Some(f) => f.to_uppercase().collect::<String>() + c.as_str(), None => String::new() }
+}
+fn tidy(name: &str, prefix: &str) -> String { name.trim_start_matches(prefix).replace('_', " ") }
+
+/// Uebersetzt einen PowerShell-Befehl in einen kurzen deutschen Satz.
+pub(crate) fn describe_ps(cmd: &str) -> String {
+    let l = cmd.to_ascii_lowercase();
+    let mut files: Vec<String> = Vec::new();
+    for c in FILE_RE.captures_iter(cmd) {
+        let f = c[1].to_string();
+        if !files.contains(&f) && files.len() < 3 { files.push(f); }
+    }
+    let fl = if files.is_empty() { String::new() } else { format!(" ({})", files.join(", ")) };
+    let mut parts: Vec<String> = Vec::new();
+    if l.contains("cargo test") { push(&mut parts, "führt die automatischen Tests aus".into()); }
+    if l.contains("cargo build") { push(&mut parts, "baut (kompiliert) die App".into()); }
+    if l.contains("git fetch") || l.contains("git pull") { push(&mut parts, "holt den neuesten Stand von GitHub".into()); }
+    if ["git status", "git diff", "git log", "git show"].iter().any(|w| l.contains(w)) { push(&mut parts, "schaut sich den Git-Stand an".into()); }
+    if l.contains("git commit") { push(&mut parts, "speichert die Änderungen als Git-Commit".into()); }
+    if l.contains("git push") { push(&mut parts, "lädt die Änderungen zu GitHub hoch".into()); }
+    if let Some(c) = PAT_RE.captures(cmd) { push(&mut parts, format!("durchsucht Dateien nach „{}“", cut(&c[1], 40))); }
+    else if l.contains("select-string") { push(&mut parts, format!("durchsucht Dateien{fl}")); }
+    if l.contains("get-content") || l.contains("readalltext") { push(&mut parts, format!("liest Datei-Inhalt{fl}")); }
+    if ["set-content", "add-content", "out-file", "writealltext", "writeallbytes", "writealllines", "appendalltext"].iter().any(|w| l.contains(w)) {
+        push(&mut parts, format!("schreibt/ändert Dateien{fl}"));
+    }
+    if l.contains("copy-item") { push(&mut parts, "legt eine Kopie/Backup an".into()); }
+    if l.contains("remove-item") { push(&mut parts, "löscht Dateien".into()); }
+    if l.contains("get-childitem") { push(&mut parts, "listet Dateien im Ordner auf".into()); }
+    if l.contains("websocket") || l.contains("runtime.evaluate") { push(&mut parts, "schaut live in die Notion-Fenster (Browser-Steuerung)".into()); }
+    else if l.contains("invoke-restmethod") || l.contains("invoke-webrequest") { push(&mut parts, "fragt einen lokalen Dienst ab".into()); }
+    if l.contains("start-process") { push(&mut parts, "startet ein Skript/Programm im Hintergrund".into()); }
+    if l.contains("get-process") || l.contains("get-nettcpconnection") { push(&mut parts, "prüft laufende Programme und Ports".into()); }
+    if let Some(c) = SLEEP_RE.captures(&l) { push(&mut parts, format!("wartet {} Sekunden", &c[1])); }
+    if parts.is_empty() {
+        return format!("Führt einen PowerShell-Befehl aus: {}", cut(cmd.lines().next().unwrap_or(""), 70));
+    }
+    upper_first(&parts.join(", dann "))
+}
+
+/// Deutscher Klartext fuer einen Tool-Aufruf (was die KI gerade macht).
+pub(crate) fn describe(name: &str, args: &Value) -> String {
+    let p = |k: &str| file_name(&arg(args, k));
+    let sub = |prefix: &str| tidy(name, prefix);
+    let s: String = match name {
+        "pc_PowerShell" => describe_ps(&arg(args, "command")),
+        "files_read_file" | "safe_read_file" => format!("Liest Datei {}", p("path")),
+        "files_read_multiple_files" => "Liest mehrere Dateien".into(),
+        "files_write_file" | "safe_write_file" => format!("Schreibt Datei {}", p("path")),
+        "files_edit_file" => format!("Ändert Datei {}", p("path")),
+        "files_create_directory" => format!("Legt den Ordner {} an", p("path")),
+        "files_move_file" => format!("Verschiebt {} nach {}", p("source"), p("destination")),
+        "files_list_directory" | "files_directory_tree" | "files_list_directory_with_sizes" => format!("Schaut in den Ordner {}", p("path")),
+        "files_search_files" => format!("Sucht Dateien nach „{}“", cut(&arg(args, "pattern"), 40)),
+        "files_get_file_info" => format!("Prüft Datei {}", p("path")),
+        "project_memory_open" => "Öffnet das Projektgedächtnis".into(),
+        "project_memory_search" => "Durchsucht das Projektgedächtnis".into(),
+        "project_memory_update" => "Speichert den Fortschritt im Projektgedächtnis".into(),
+        "adicode_skill" => {
+            let a = arg(args, "name");
+            let n = if a.is_empty() { arg(args, "skill") } else { a };
+            if n.is_empty() { "Lädt eine AdiCode-Anleitung".into() } else { format!("Lädt die Anleitung „{n}“") }
+        }
+        "adicode_status" => "Prüft, was in AdiCode gerade läuft".into(),
+        "adicode_restart_server" => "Startet ein AdiCode-Add-on neu".into(),
+        "cowork_start" => "Co-Work: teilt das Projekt in Aufgaben auf und startet es".into(),
+        "cowork_join" => "Co-Work: tritt dem Projekt bei".into(),
+        "cowork_board" => "Co-Work: schaut aufs Aufgaben-Board".into(),
+        "cowork_claim" => "Co-Work: übernimmt die nächste Aufgabe".into(),
+        "cowork_update" => "Co-Work: meldet den Stand einer Aufgabe".into(),
+        "cowork_prompt" => "Co-Work: gibt deine neue Nachricht an alle Tabs weiter".into(),
+        "cowork_add_tasks" => "Co-Work: fügt neue Aufgaben hinzu".into(),
+        "cowork_message" => "Co-Work: schreibt den anderen Tabs eine Nachricht".into(),
+        "cowork_lock" => "Co-Work: reserviert eine Datei".into(),
+        "cowork_wait" => "Co-Work: wartet auf die anderen Tabs".into(),
+        "cowork_results" => "Co-Work: sammelt alle Ergebnisse ein".into(),
+        "cowork_close" => "Co-Work: schließt das Projekt ab".into(),
+        "roblox_execute_luau" => "Führt Luau-Code in Roblox Studio aus".into(),
+        "roblox_studio" => format!("Roblox Studio: {}", arg(args, "action").replace('_', " ")),
+        _ if name.starts_with("git_") => format!("Git: {}", sub("git_")),
+        _ if name.starts_with("github_") => format!("GitHub: {}", sub("github_")),
+        _ if name.starts_with("browser_") => format!("Steuert den Browser: {}", sub("browser_")),
+        _ if name.starts_with("roblox_") => format!("Roblox Studio: {}", sub("roblox_")),
+        _ if name.starts_with("context7_") => "Liest aktuelle Library-Dokumentation".into(),
+        _ if name.starts_with("thinking_") => "Plant die nächsten Schritte".into(),
+        _ if name.starts_with("memory_") => "Nutzt das Projektgedächtnis".into(),
+        _ if name.starts_with("web_") => "Steuert freigegebene KI-Chat-Tabs".into(),
+        _ if name.starts_with("files_") => format!("Dateien: {}", sub("files_")),
+        _ if name.starts_with("pc_") => format!("Steuert den PC: {}", sub("pc_")),
+        _ => format!("Nutzt das Werkzeug {name}"),
+    };
+    cut(&s, 160)
+}
+
+const PS_FILE_CMDS: &[&str] = &["set-content", "add-content", "out-file", "new-item", "remove-item", "clear-content", "copy-item", "move-item", "rename-item", "tee-object"];
+const PS_VALUE_FLAGS: &[&str] = &["-value", "-encoding", "-itemtype", "-newname", "-filter", "-include", "-exclude", "-width", "-inputobject", "-type"];
+const PS_STRONG: &[&str] = &["set-content", "add-content", "out-file", "new-item", "remove-item", "move-item", "copy-item", "rename-item", "clear-content", "tee-object", "writealltext", "writeallbytes", "writealllines", "appendalltext", "git checkout", "git reset", "git restore", "git apply", "git stash", "git clean", "git merge", "git rebase", "git pull"];
+static IOFILE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r#"::(?:writealltext|writeallbytes|writealllines|appendalltext|appendalllines)\(\s*['"]([^'"]+)['"]"#).unwrap());
+
+fn ps_tokens(seg: &str) -> Vec<String> {
+    let mut v = Vec::new();
+    let mut cur = String::new();
+    let mut q: Option<char> = None;
+    for c in seg.chars() {
+        match q {
+            Some(x) if c == x => q = None,
+            Some(_) => cur.push(c),
+            None if c == '\'' || c == '"' => q = Some(c),
+            None if c.is_whitespace() => { if !cur.is_empty() { v.push(std::mem::take(&mut cur)); } }
+            None => cur.push(c),
+        }
+    }
+    if !cur.is_empty() { v.push(cur); }
+    v
+}
+
+fn ps_add(out: &mut Vec<String>, p: &str) {
+    let p = p.trim().trim_matches(|c: char| c == '(' || c == ')' || c == ',' || c == '{' || c == '}').trim_start_matches("./");
+    if p.is_empty() || p.starts_with('$') || p.starts_with('&') || p.starts_with('-') || p == "null" || p == "nul" || !p.chars().any(|c| c.is_ascii_alphabetic()) { return; }
+    let s = p.to_string();
+    if !out.contains(&s) { out.push(s); }
+}
+
+/// Zieldateien eines PowerShell-Befehls (klein, mit /). Leer = keine sicher erkennbar.
+pub(crate) fn ps_targets(cmd: &str) -> Vec<String> {
+    let low = cmd.replace('\\', "/").to_ascii_lowercase();
+    let mut out = Vec::new();
+    for seg in low.split(|c: char| c == ';' || c == '|' || c == '\n') {
+        let tk = ps_tokens(seg);
+        for (i, t) in tk.iter().enumerate() {
+            if !PS_FILE_CMDS.contains(&t.as_str()) { continue; }
+            let max = if t == "copy-item" || t == "move-item" { 2 } else { 1 };
+            let (mut j, mut pos) = (i + 1, 0);
+            while j < tk.len() {
+                let a = tk[j].as_str();
+                if PS_FILE_CMDS.contains(&a) { break; }
+                if matches!(a, "-path" | "-literalpath" | "-filepath" | "-destination") { if let Some(p) = tk.get(j + 1) { ps_add(&mut out, p); pos += 1; } j += 2; continue; }
+                if PS_VALUE_FLAGS.contains(&a) { j += 2; continue; }
+                if a.starts_with('-') { j += 1; continue; }
+                if pos < max { ps_add(&mut out, a); pos += 1; }
+                j += 1;
+            }
+        }
+        for (i, t) in tk.iter().enumerate() {
+            let r = t.trim_start_matches(|c: char| c.is_ascii_digit() || c == '*');
+            if r == ">" || r == ">>" { if let Some(p) = tk.get(i + 1) { ps_add(&mut out, p); } }
+            else if r.starts_with('>') && !r.starts_with(">&") && !r.starts_with(">>&") { ps_add(&mut out, r.trim_start_matches('>')); }
+        }
+    }
+    for m in IOFILE_RE.captures_iter(&low) { ps_add(&mut out, &m[1]); }
+    out
+}
+
+/// Aendert der PowerShell-Befehl Dateien? Nur echte Schreib-Befehle, nicht "-replace" oder "2>&1".
+pub(crate) fn ps_is_write(cmd: &str) -> bool {
+    let low = cmd.to_ascii_lowercase();
+    !ps_targets(cmd).is_empty() || PS_STRONG.iter().any(|w| low.contains(w))
+}
+
+/// Wer ruft? Explizites agent-Argument, sonst die Co-Work-Zuordnung der Session. Leer = unbekannt.
+fn ident(session: &str, args: &Value) -> String {
+    let a = arg(args, "agent");
+    if !a.is_empty() { return a; }
+    crate::notion_cowork::agent_of_session(session).unwrap_or_default()
+}
+
+/// Vom Tab-Monitor: Tab des Agents generiert gerade (true) oder ist fertig (false).
+pub(crate) fn set_generating(agent: &str, on: bool) {
+    if agent.is_empty() { return; }
+    let mut g = GEN.lock().unwrap_or_else(|e| e.into_inner());
+    let was = g.get(agent).map(|ts| now() - *ts < GEN_BEAT).unwrap_or(false);
+    if on { g.insert(agent.to_string(), now()); } else { g.remove(agent); }
+    drop(g);
+    if was != on {
+        bus().agents.entry(agent.to_string()).or_default().generating = on;
+        emit(agent, "gen", "", if on { "arbeitet (generiert)".to_string() } else { "Chat fertig".to_string() });
+    }
+}
+
+fn generating(agent: &str) -> bool {
+    GEN.lock().unwrap_or_else(|e| e.into_inner()).get(agent).map(|ts| now() - *ts < GEN_BEAT).unwrap_or(false)
+}
+
+/// Co-Work: generiert der Tab dieses Agents gerade? (fuer die Namens-Zuordnung beim Join)
+pub(crate) fn is_generating(agent: &str) -> bool { generating(agent) }
+/// Arbeitet der Agent gerade live? (laufender Co-Work-Task, Tab generiert oder Tool-Aufruf laeuft)
+fn holds(busy: &[String], agent: &str) -> bool { busy.iter().any(|b| b == agent) || generating(agent) || inflight(agent) }
+
+/// Neues Ereignis ins zentrale Log. to = Empfaenger bei msg (leer = alle).
+pub(crate) fn emit(agent: &str, kind: &'static str, to: &str, text: String) -> u64 {
+    let seq = {
+        let b = &mut *bus();
+        b.seq += 1;
+        let seq = b.seq;
+        b.evs.push_back(Ev { seq, ts: now(), agent: agent.to_string(), kind, to: to.to_string(), text: cut(&text, if kind == "msg" { 600 } else { 120 }) });
+        while b.evs.len() > MAX_EVENTS { b.evs.pop_front(); }
+        seq
+    };
+    EVENTS.notify_waiters();
+    seq
+}
+
+pub(crate) fn last_seq() -> u64 { bus().seq }
+
+/// Alle Ereignisse nach seq (aelteste zuerst).
+pub(crate) fn events_since(seq: u64) -> Vec<Ev> { bus().evs.iter().filter(|e| e.seq > seq).cloned().collect() }
+
+/// Kompakte Neuigkeiten fuer agent seit seinem letzten Abruf: nur fremde Aenderungen und
+/// Nachrichten an ihn, max. 3 Zeilen. Erster Abruf setzt nur den Cursor (kein Rueckstau).
+pub(crate) fn delta_for(agent: &str) -> Option<String> {
+    if agent.is_empty() { return None; }
+    let b = &mut *bus();
+    let cur = b.seq;
+    let Some(from) = b.cursor.insert(agent.to_string(), cur) else { return if cfg!(test) { None } else { intro(b, agent) }; };
+    let mut msgs: Vec<String> = Vec::new();
+    let mut latest: BTreeMap<&str, &Ev> = BTreeMap::new();
+    for e in b.evs.iter().filter(|e| e.seq > from && e.agent != agent && e.kind != "tool_end") {
+        if e.kind == "msg" {
+            if e.to.is_empty() || e.to == agent { msgs.push(format!("{}\u{2192}dich: {}", e.agent, e.text)); }
+            continue;
+        }
+        latest.insert(e.agent.as_str(), e);
+    }
+    let keep = msgs.len().saturating_sub(2);
+    let mut lines: Vec<String> = msgs.split_off(keep);
+    if !latest.is_empty() {
+        let s: Vec<String> = latest.values().map(|e| {
+            let task = b.agents.get(&e.agent).filter(|a| a.task > 0).map(|a| format!(" (#{})", a.task)).unwrap_or_default();
+            format!("{}: {}{task}", e.agent, e.text)
+        }).collect();
+        lines.insert(0, s.join(" \u{b7} "));
+    }
+    if lines.is_empty() { return None; }
+    Some(format!("[Live] {}", lines.join("\n[Live] ")))
+}
+
+/// Erster Kontakt eines Chats mit der Live-Bridge: wer sonst offen ist, wie man sich abstimmt und
+/// Nachrichten, die schon auf ihn warten (gilt fuer alle Chats, auch ohne Co-Work-Projekt).
+fn intro(b: &Bus, agent: &str) -> Option<String> {
+    let t = now();
+    let others: Vec<String> = b.agents.iter()
+        .filter(|(n, _)| n.as_str() != agent && b.evs.iter().rev().any(|e| &e.agent == *n && t - e.ts < ACTIVE_SECS))
+        .map(|(n, a)| if a.generating || a.inflight > 0 {
+            format!("{n} (arbeitet{})", if a.tool.is_empty() { String::new() } else { format!(": {}", cut(&a.tool, 60)) })
+        } else { n.clone() })
+        .collect();
+    let msgs: Vec<String> = b.evs.iter().filter(|e| e.kind == "msg" && e.to == agent && t - e.ts < 86_400)
+        .map(|e| format!("{}\u{2192}dich: {}", e.agent, e.text)).collect();
+    if others.is_empty() && msgs.is_empty() { return None; }
+    let mut s = format!(
+        "[Live-Bridge] Du bist {agent}. Offene Chats: {}. Alle Chats sind immer verbunden, auch ohne Co-Work: abstimmen mit cowork_message (agent: {agent}, to: <Name>, text: ...), freie Tabs werden dabei geweckt. Dateien, die ein anderer Chat gerade schreibt, sind automatisch gesperrt. Releases: jeder Chat darf ohne Nutzer-OK veroeffentlichen - erst cowork_release action=join/ready (anhaengen), dann action=publish (wartet max. 10 min auf Tabs, die noch anhaengen), danach work\\rel.ps1 + pub.ps1 und action=done.",
+        if others.is_empty() { "keine".to_string() } else { others.join(", ") });
+    for m in msgs.iter().rev().take(3).rev() { s.push_str(&format!("\n[Live] {m}")); }
+    Some(s)
+}
+
+/// Alle Agents, die die Live-Bridge schon gesehen hat.
+pub(crate) fn known_agents() -> Vec<String> { bus().agents.keys().cloned().collect() }
+
+/// Tool-Aufruf beginnt (inflight + Live-Status). Leerer Agent = unbekannt, wird ignoriert.
+pub(crate) fn tool_started(agent: &str, name: &str, args: &Value) {
+    if agent.is_empty() { return; }
+    let text = describe(name, args);
+    {
+        let b = &mut *bus();
+        let a = b.agents.entry(agent.to_string()).or_default();
+        a.inflight += 1;
+        a.tool = text.clone();
+        a.since = now();
+    }
+    if !matches!(name, "cowork_wait" | "cowork_board") { emit(agent, "tool_start", "", text); }
+}
+
+/// Tool-Aufruf ist fertig (auch bei Fehler aufrufen).
+pub(crate) fn tool_finished(agent: &str, _name: &str) {
+    if agent.is_empty() { return; }
+    let b = &mut *bus();
+    if let Some(a) = b.agents.get_mut(agent) {
+        a.inflight = a.inflight.saturating_sub(1);
+        if a.inflight == 0 { a.tool.clear(); }
+    }
+}
+
+/// Laeuft fuer den Agent gerade ein Tool-Aufruf? (z. B. cargo build -> Tab nicht stoppen)
+pub(crate) fn inflight(agent: &str) -> bool {
+    bus().agents.get(agent).map(|a| a.inflight > 0 && now() - a.since < INFLIGHT_MAX).unwrap_or(false)
+}
+
+/// Co-Work meldet Task-Wechsel (status: claimed, done, changes, blocked, open).
+pub(crate) fn note_task(agent: &str, task: u64, status: &str, title: &str, files: &[String]) {
+    if agent.is_empty() { return; }
+    {
+        let b = &mut *bus();
+        let a = b.agents.entry(agent.to_string()).or_default();
+        if status == "claimed" { a.task = task; a.files = files.to_vec(); }
+        else { if a.task == task { a.task = 0; a.files.clear(); } a.last_result = cut(title, 120); }
+    }
+    emit(agent, "task", "", format!("#{task} {status}: {}", cut(title, 80)));
+}
+
+/// Nachricht an einen Agent (leer = alle) ins Live-Log.
+pub(crate) fn note_msg(from: &str, to: &str, text: &str) { emit(from, "msg", to, text.to_string()); }
+
+/// Live-Status aller Agents (fuer Feed/UI).
+pub(crate) fn agents_json() -> Value {
+    let t = now();
+    Value::Array(bus().agents.iter().map(|(n, a)| json!({
+        "agent": n, "generating": a.generating, "tool": a.tool,
+        "tool_secs": if a.inflight > 0 { t - a.since } else { 0 }, "inflight": a.inflight,
+        "task": a.task, "files": a.files, "last_result": a.last_result,
+    })).collect())
+}
+
+/// Rohes Kommando/Pfad fuer die Live-Anzeige (max. 400 Zeichen).
+fn detail_of(args: &Value) -> String {
+    let s = ["command", "code", "path", "query", "pattern", "url"].iter()
+        .find_map(|k| args.get(*k).and_then(|v| v.as_str()).map(str::trim).filter(|v| !v.is_empty())).unwrap_or("");
+    let mut out: String = s.chars().take(400).collect();
+    if s.chars().count() > 400 { out.push('\u{2026}'); }
+    out
+}
+
+/// Jeder Tool-Aufruf: Chat merken und Klartext in den Live-Feed schreiben.
+pub(crate) fn record(session: &str, name: &str, args: &Value) {
+    let text = describe(name, args);
+    let detail = detail_of(args);
+    let who = ident(session, args);
+    let busy = crate::notion_cowork::busy_agents();
+    let t = now();
+    let l = &mut *live();
+    l.locks.retain(|_, (o, _)| holds(&busy, o));
+    l.busy = busy;
+    let (key, label) = if who.is_empty() { ("?".to_string(), "Chat ohne Namen".to_string()) } else { (who.clone(), who) };
+    let x = l.tabs.entry(key).or_insert(TabInfo { label: label.clone(), seen: t, last: String::new() });
+    x.seen = t;
+    x.last = text.clone();
+    l.next += 1;
+    let id = l.next;
+    l.feed.push_back(Entry { id, ts: t, tab: label, tool: name.to_string(), text, detail });
+    while l.feed.len() > MAX_FEED { l.feed.pop_front(); }
+    l.tabs.retain(|_, x| t - x.seen < 86_400);
+}
+
+/// Immer aktive Bridge: blockiert Schreibzugriffe auf Dateien, an denen ein anderer Chat gerade
+/// live arbeitet, und reserviert freie Dateien fuer den schreibenden Chat, solange er live arbeitet.
+pub(crate) fn guard(session: &str, name: &str, args: &Value) -> Option<String> {
+    if name.starts_with("cowork_") { return None; }
+    let who = ident(session, args);
+    if who.is_empty() { return None; }
+    let busy = crate::notion_cowork::busy_agents();
+    let t = now();
+    let l = &mut *live();
+    l.locks.retain(|_, (o, _)| holds(&busy, o));
+    let mine = holds(&busy, &who);
+    l.busy = busy;
+    let ps_t = if name == "pc_PowerShell" { ps_targets(&arg(args, "command")) } else { Vec::new() };
+    let hit: Option<(String, String, i64)> = if name == "pc_PowerShell" && ps_t.is_empty() {
+        let cmd = arg(args, "command").to_ascii_lowercase().replace('\\', "/");
+        if !ps_is_write(&cmd) { return None; }
+        l.locks.iter()
+            .find(|(k, (o, _))| {
+                let ks = k.as_str();
+                let f = ks.rsplit('/').next().unwrap_or(ks);
+                o.as_str() != who.as_str() && (cmd.contains(ks) || (f.len() >= 4 && cmd.contains(f)))
+            })
+            .map(|(k, (o, ts))| (k.clone(), o.clone(), *ts))
+    } else {
+        let targets = if ps_t.is_empty() { crate::notion_cowork::live_write_paths(name, args)? } else { ps_t.clone() };
+        let hit = targets.iter().find_map(|tg| {
+            l.locks.iter()
+                .find(|(k, (o, _))| o.as_str() != who.as_str() && crate::notion_cowork::live_same(tg, k.as_str()))
+                .map(|(k, (o, ts))| (k.clone(), o.clone(), *ts))
+        });
+        if hit.is_none() && mine {
+            for tg in targets {
+                if !l.locks.contains_key(&tg) { emit(&who, "lock", "", format!("reserviert {}", file_name(&tg))); }
+                l.locks.entry(tg).or_insert((who.clone(), t));
+            }
+        }
+        hit
+    };
+    let (path, owner, ts) = hit?;
+    emit(&who, "msg", &owner, format!("wollte {} ändern und wurde blockiert", file_name(&path)));
+    l.next += 1;
+    let id = l.next;
+    l.feed.push_back(Entry { id, ts: t, tab: who.clone(), tool: name.to_string(), detail: String::new(), text: format!("Blockiert: wollte {} ändern, aber {owner} arbeitet gerade daran", file_name(&path)) });
+    while l.feed.len() > MAX_FEED { l.feed.pop_front(); }
+    Some(format!(
+        "[AdiCode Live-Bridge] {path} wird gerade live von {owner} bearbeitet (seit {} s). Nicht ändern, sonst geht dessen Arbeit kaputt. Eine andere Aufgabe machen oder per cowork_message abstimmen. Die Datei wird automatisch frei, sobald {owner} die Aufgabe abschliesst bzw. der Chat fertig ist.",
+        t - ts
+    ))
+}
+
+/// Text fuer cowork_board: welche Chats gerade aktiv sind, was sie tun und welche Dateien live belegt sind.
+pub(crate) fn tabs_text() -> String {
+    let t = now();
+    let l = live();
+    let act: Vec<&TabInfo> = l.tabs.values().filter(|x| t - x.seen < ACTIVE_SECS).collect();
+    if act.is_empty() { return String::new(); }
+    let mut s = String::from("\n\nLive-Bridge (immer an) - aktive Chats:");
+    for x in act { s.push_str(&format!("\n- {}: {} (vor {} s)", x.label, x.last, t - x.seen)); }
+    for (k, (o, ts)) in l.locks.iter().filter(|(_, (o, _))| holds(&l.busy, o)) {
+        s.push_str(&format!("\n  Datei {k} live belegt von {o} (seit {} s)", t - ts));
+    }
+    s
+}
+
+pub(crate) fn feed(since: u64) -> Value {
+    let t = now();
+    let l = live();
+    let mut items: Vec<Value> = l.feed.iter().rev().take_while(|e| e.id > since).take(40)
+        .map(|e| json!({"id": e.id, "ts": e.ts, "tab": e.tab, "tool": e.tool, "text": e.text, "detail": e.detail}))
+        .collect();
+    items.reverse();
+    let tabs: Vec<Value> = l.tabs.values().filter(|x| t - x.seen < ACTIVE_SECS)
+        .map(|x| json!({"tab": x.label, "ago": t - x.seen, "text": x.last}))
+        .collect();
+    let lock_list: Vec<Value> = l.locks.iter().filter(|(_, (o, _))| holds(&l.busy, o))
+        .map(|(k, (o, ts))| json!({"file": file_name(k), "path": k, "owner": o, "since": t - ts}))
+        .collect();
+    let locks = lock_list.len();
+    json!({"ok": true, "now": t, "last": l.next, "items": items, "tabs": tabs, "locks": locks, "lock_list": lock_list, "agents": agents_json(), "seq": last_seq()})
+}
+
+#[derive(Deserialize)]
+pub struct FeedQuery { since: Option<u64> }
+
+pub async fn handler(Query(q): Query<FeedQuery>) -> impl IntoResponse { Json(feed(q.since.unwrap_or(0))) }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn notion_live_translates_tool_calls() {
+        let d = describe("pc_PowerShell", &json!({"command": "cd src; Select-String -Path *.rs -Pattern 'Senden-Knopf'; Start-Sleep 20"}));
+        assert!(d.starts_with("Durchsucht Dateien nach „Senden-Knopf“"), "{d}");
+        assert!(d.contains("wartet 20 Sekunden"), "{d}");
+        assert!(describe("pc_PowerShell", &json!({"command": "cargo test --release"})).contains("Tests"));
+        assert!(describe("pc_PowerShell", &json!({"command": "Get-Content src\\notion_chat.rs"})).contains("notion_chat.rs"));
+        assert_eq!(describe("files_read_file", &json!({"path": "a/b/notion_chat.rs"})), "Liest Datei notion_chat.rs");
+        assert!(describe("cowork_claim", &json!({})).starts_with("Co-Work"));
+        assert!(describe("pc_PowerShell", &json!({"command": "whoami"})).contains("whoami"));
+    }
+
+    #[test]
+    fn notion_live_ps_targets() {
+        assert_eq!(ps_targets("Set-Content -Path C:\\A\\b.txt -Value 'x y'"), vec!["c:/a/b.txt"]);
+        assert_eq!(ps_targets("'hi' | Out-File -Append -Encoding utf8 out.log"), vec!["out.log"]);
+        assert_eq!(ps_targets("echo a > .\\r.txt; cargo test 2>&1"), vec!["r.txt"]);
+        assert!(ps_targets("Get-Content x.rs 2>&1 | Out-Null").is_empty());
+        assert!(!ps_is_write("$t = $t -replace 'a','b'; Get-Content patch88.ps1"));
+        assert!(ps_is_write("Remove-Item $f"));
+        assert_eq!(ps_targets("[IO.File]::WriteAllText('C:/x/y.rs', $s)"), vec!["c:/x/y.rs"]);
+        assert_eq!(ps_targets("cmd /c dir *> 'C:\\w\\l.log'"), vec!["c:/w/l.log"]);
+        assert_eq!(ps_targets("Copy-Item a.txt b.txt -Force"), vec!["a.txt", "b.txt"]);
+    }
+
+    #[test]
+    fn notion_live_lock_only_while_live() {
+        let wa = json!({"path": "zz_live_test/x.txt", "content": "1", "agent": "live-test-a"});
+        let wb = json!({"path": "zz_live_test/x.txt", "content": "1", "agent": "live-test-b"});
+        // Chats ohne Namen: nie raten, nie sperren (jeder Notion-Aufruf kann eine neue Session sein).
+        assert!(guard("s1", "files_write_file", &json!({"path": "zz_live_test/x.txt", "content": "1"})).is_none());
+        set_generating("live-test-a", true);
+        record("s1", "files_write_file", &wa);
+        record("s2", "files_write_file", &wb);
+        assert!(guard("s1", "files_write_file", &wa).is_none());
+        let m = guard("s2", "files_write_file", &wb).expect("anderer Chat muss blockiert werden, solange A live arbeitet");
+        assert!(m.contains("Live-Bridge") && m.contains("live-test-a"), "{m}");
+        assert!(guard("s9", "files_write_file", &wa).is_none(), "gleicher Agent in neuer Session ist nicht blockiert");
+        assert!(guard("s7", "files_write_file", &json!({"path": "zz_live_test/x.txt", "content": "1"})).is_none(), "ohne Namen: nie raten, nie sperren");
+        assert_eq!(feed(0)["lock_list"][0]["owner"], "live-test-a");
+        assert!(tabs_text().contains("live belegt von live-test-a"));
+        set_generating("live-test-a", false);
+        assert!(guard("s2", "files_write_file", &wb).is_none(), "A fertig -> Datei sofort frei");
+        assert!(feed(0)["items"].as_array().map(|v| !v.is_empty()).unwrap_or(false));
+        assert!(tabs_text().contains("aktive Chats"));
+    }
+
+    #[test]
+    fn notion_live_delta_for() {
+        assert!(delta_for("dt-b").is_none(), "erster Abruf setzt nur den Cursor");
+        tool_started("dt-a", "files_write_file", &json!({"path": "q/api.rs"}));
+        note_msg("dt-a", "dt-b", "bitte #2 nach #5");
+        note_msg("dt-a", "dt-c", "geheim");
+        tool_started("dt-b", "files_read_file", &json!({"path": "q/eigen.rs"}));
+        let d = delta_for("dt-b").expect("Delta erwartet");
+        assert!(d.contains("dt-a: Schreibt Datei api.rs"), "{d}");
+        assert!(d.contains("dt-a\u{2192}dich: bitte #2 nach #5"), "{d}");
+        assert!(!d.contains("geheim") && !d.contains("eigen.rs"), "{d}");
+        assert!(d.lines().count() <= 3, "{d}");
+        assert!(delta_for("dt-b").map(|s| !s.contains("api.rs")).unwrap_or(true), "kein doppeltes Delta");
+        assert!(delta_for("").is_none());
+    }
+
+    #[test]
+    fn notion_live_inflight() {
+        assert!(!inflight("if-a"));
+        tool_started("if-a", "pc_PowerShell", &json!({"command": "cargo build --release"}));
+        tool_started("if-a", "files_read_file", &json!({"path": "x.rs"}));
+        assert!(inflight("if-a"));
+        tool_finished("if-a", "files_read_file");
+        assert!(inflight("if-a"), "noch ein Aufruf offen");
+        tool_finished("if-a", "pc_PowerShell");
+        assert!(!inflight("if-a"));
+        tool_started("", "x", &json!({}));
+        assert!(!inflight(""));
+    }
+}
+
+// ---- Update-Hinweis an alle verbundenen Notion-Tabs (auch ohne Co-Work) ----
+struct Notice { text: String, until: i64, seen: std::collections::BTreeSet<String> }
+static NOTICE: Lazy<Mutex<Option<Notice>>> = Lazy::new(|| Mutex::new(None));
+
+/// Setzt einen Hinweis, den jeder Tab genau einmal mit seinem naechsten Tool-Ergebnis bekommt.
+pub(crate) fn set_notice(text: &str, secs: i64) {
+    *NOTICE.lock().unwrap_or_else(|e| e.into_inner()) = Some(Notice { text: text.to_string(), until: now() + secs, seen: Default::default() });
+}
+
+/// Hinweis fuer diesen Tab (key = Session oder Agent). Leerer key = jedes Mal anhaengen.
+pub(crate) fn notice_for(key: &str) -> Option<String> {
+    let mut g = NOTICE.lock().unwrap_or_else(|e| e.into_inner());
+    let expired = matches!(&*g, Some(n) if now() > n.until);
+    if expired { *g = None; }
+    let n = g.as_mut()?;
+    if !key.is_empty() && !n.seen.insert(key.to_string()) { return None; }
+    Some(format!("[AdiCode-Hinweis] {}", n.text))
+}
+
+fn release_file() -> std::path::PathBuf { crate::platform::installation_root().join("logs").join("release-status.json") }
+
+/// Release-Status (geschrieben von work\release-status.ps1 aus rel.ps1/pub.ps1). Null, wenn nichts Aktuelles.
+pub(crate) fn release_status() -> serde_json::Value {
+    let v: serde_json::Value = std::fs::read_to_string(release_file()).ok()
+        .and_then(|s| serde_json::from_str(s.trim_start_matches('\u{feff}')).ok())
+        .unwrap_or(serde_json::Value::Null);
+    if !v.is_object() { return serde_json::Value::Null; }
+    let age = now() - v["updated"].as_i64().unwrap_or(0);
+    let busy = matches!(v["state"].as_str(), Some("building" | "built" | "publishing"));
+    if age < if busy { 3 * 3600 } else { 30 * 60 } { v } else { serde_json::Value::Null }
+}
+
+static RELEASE_SEEN: Lazy<Mutex<std::collections::HashSet<String>>> = Lazy::new(|| Mutex::new(std::collections::HashSet::new()));
+// Notion oeffnet oft pro Tool-Aufruf eine neue MCP-Session -> der Session-Key wechselt staendig.
+// Nicht-kritische Release-Hinweise (published/failed) deshalb zusaetzlich global drosseln (Token-Diaet).
+static RELEASE_LAST: Lazy<Mutex<std::collections::HashMap<String, i64>>> = Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
+const RELEASE_QUIET_SECS: i64 = 600;
+
+fn release_throttled(ver: &str, state: &str, t: i64) -> bool {
+    if matches!(state, "building" | "built" | "publishing") { return false; }
+    let mut last = RELEASE_LAST.lock().unwrap_or_else(|e| e.into_inner());
+    let k = format!("{ver}|{state}");
+    if last.get(&k).is_some_and(|&p| t - p < RELEASE_QUIET_SECS) { return true; }
+    last.insert(k, t);
+    false
+}
+
+/// Jeder Chat (auch ohne Co-Work) bekommt einmal pro Release-Zustand einen Hinweis an sein naechstes Tool-Ergebnis.
+pub(crate) fn release_notice(key: &str) -> Option<String> {
+    if key.is_empty() { return None; }
+    let v = release_status();
+    if v.is_null() { return None; }
+    let ver = v["version"].as_str().unwrap_or("?");
+    let state = v["state"].as_str().unwrap_or("?");
+    let by = v["by"].as_str().unwrap_or("ein Chat");
+    if !RELEASE_SEEN.lock().unwrap_or_else(|e| e.into_inner()).insert(format!("{key}|{ver}|{state}")) { return None; }
+    if release_throttled(ver, state, now()) { return None; }
+    let what = match state {
+        "building" => "wird gerade gebaut",
+        "built" => "ist gebaut und wird gleich veroeffentlicht",
+        "publishing" => "wird gerade veroeffentlicht",
+        "published" => "ist veroeffentlicht (in AdiCode auf Aktualisieren klicken)",
+        "failed" => "ist fehlgeschlagen",
+        _ => state,
+    };
+    let warn = if matches!(state, "building" | "built" | "publishing") { " Nicht parallel releasen; uncommittete Aenderungen in build-src landen sonst im naechsten Patch. Details: adicode_status -> release." } else { "" };
+    Some(format!("[AdiCode-Release] Version {ver} {what} (von {by}).{warn}"))
+}
+fn notice_marker() -> std::path::PathBuf { crate::platform::installation_root().join("logs").join("update-notice.txt") }
+
+/// Vor dem Update-Neustart: alle Tabs warnen und ihnen kurz Zeit geben, den Hinweis abzuholen.
+pub(crate) async fn announce_update(version: &str) {
+    set_notice(&format!("AdiCode wird jetzt auf Version {version} aktualisiert. Die Verbindung ist ca. 10 Sekunden weg. Bitte kurz warten und einen fehlgeschlagenen Tool-Aufruf danach einfach wiederholen."), 120);
+    let marker = notice_marker();
+    if let Some(dir) = marker.parent() { let _ = std::fs::create_dir_all(dir); }
+    let _ = std::fs::write(&marker, format!("{}\n{version}", now()));
+    let wait = if crate::updater::bridge_busy() { 20 } else { 8 };
+    tokio::time::sleep(std::time::Duration::from_secs(wait)).await;
+}
+
+/// Nach dem Neustart: einmal pro Tab melden, dass das Update fertig ist.
+pub(crate) fn startup_notice() {
+    let marker = notice_marker();
+    let Ok(s) = std::fs::read_to_string(&marker) else { return };
+    let _ = std::fs::remove_file(&marker);
+    let mut l = s.lines();
+    let ts: i64 = l.next().and_then(|t| t.trim().parse().ok()).unwrap_or(0);
+    let v = l.next().unwrap_or("").trim().to_string();
+    if now() - ts < 900 {
+        set_notice(&format!("Update auf AdiCode {v} ist fertig, die Verbindung steht wieder. Falls ein Tool-Aufruf waehrend des Updates fehlgeschlagen ist, bitte einmal wiederholen."), 600);
+    }
+}
+
+#[cfg(test)]
+mod notice_tests {
+    use super::*;
+    #[test]
+    fn update_notice_once_per_tab() {
+        set_notice("Test-Update", 60);
+        assert!(notice_for("tab-a").unwrap().contains("Test-Update"));
+        assert!(notice_for("tab-a").is_none());
+        assert!(notice_for("tab-b").is_some());
+        assert!(notice_for("").is_some());
+        set_notice("alt", -1);
+        assert!(notice_for("tab-c").is_none());
+    }
+}

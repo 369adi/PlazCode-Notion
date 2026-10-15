@@ -1,0 +1,1443 @@
+//! AdiCode (unofficial fork): Remote-MCP endpoint for Notion AI.
+//!
+//! Exposes the Roblox Studio MCP tools and all enabled MCP add-ons (pc, browser,
+//! git, ...) on a separate loopback listener (default 127.0.0.1:8787) that is
+//! published through an ngrok tunnel with a fixed domain. Notion connects to
+//! `https://<domain>/mcp` with the bearer token (or `https://<domain>/k/<token>/mcp`).
+//! No browser extension is involved.
+
+use axum::{body::Bytes, extract::State, http::{HeaderMap, StatusCode, Uri}, response::IntoResponse, Json, Router};
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::{path::PathBuf, sync::{atomic::{AtomicU32, AtomicU64, Ordering}, Mutex}, time::{Duration, Instant}};
+use tokio::io::AsyncBufReadExt;
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+const PROTOCOLS: &[&str] = &["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NotionSettings {
+    pub token: String,
+    pub domain: String,
+    pub port: u16,
+    pub ngrok_enabled: bool,
+    pub ngrok_path: String,
+    /// Token fuer die AdiCode-Browser-Erweiterung (Web-Agenten + Direkt-Modus).
+    pub web_token: String,
+    /// Sicherheitsmodus fuer pc_PowerShell & Co. (nur in der App umschaltbar).
+    pub safe_shell: bool,
+    /// Anfrage-Drossel: Mindestabstand in ms zwischen zwei Tool-Aufrufen von Notion (0 = aus).
+    pub throttle_ms: u64,
+    /// Hintergrund-Jobs: nach so vielen Sekunden antwortet AdiCode sofort, der Tool-Aufruf laeuft als Job weiter (0 = aus).
+    pub soft_timeout_s: u64,
+}
+
+impl Default for NotionSettings {
+    fn default() -> Self {
+        Self { token: String::new(), domain: String::new(), port: 8787, ngrok_enabled: true, ngrok_path: String::new(), web_token: String::new(), safe_shell: false, throttle_ms: 0, soft_timeout_s: 20 }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ExposedTool { exposed: String, internal: String, schema: Value }
+
+/// Vom Tool-Profil ausgeblendete Tools: nicht in tools/list, aber per adicode_call oder Namen aufrufbar.
+static HIDDEN: Lazy<Mutex<Vec<ExposedTool>>> = Lazy::new(|| Mutex::new(Vec::new()));
+
+struct Shared {
+    settings: Mutex<NotionSettings>,
+    listener: Mutex<(String, String)>,
+    ngrok: Mutex<(String, String)>,
+    tools: Mutex<(Vec<ExposedTool>, Option<Instant>)>,
+    addon_tools: Mutex<Vec<Value>>,
+    requests: AtomicU64,
+    last_request: Mutex<Option<(chrono::DateTime<chrono::Local>, String)>>,
+    ngrok_pid: AtomicU32,
+    restart: tokio::sync::Notify,
+    refreshing: tokio::sync::Mutex<()>,
+}
+
+static SHARED: Lazy<Shared> = Lazy::new(|| Shared {
+    settings: Mutex::new(load_settings()),
+    listener: Mutex::new(("startet".into(), String::new())),
+    ngrok: Mutex::new(("startet".into(), String::new())),
+    tools: Mutex::new((Vec::new(), None)),
+    addon_tools: Mutex::new(Vec::new()),
+    requests: AtomicU64::new(0),
+    last_request: Mutex::new(None),
+    ngrok_pid: AtomicU32::new(0),
+    restart: tokio::sync::Notify::new(),
+    refreshing: tokio::sync::Mutex::new(()),
+});
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> { m.lock().unwrap_or_else(|e| e.into_inner()) }
+
+fn data_dir() -> PathBuf {
+    std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("PlazCodeNotion")
+}
+
+fn settings_path() -> PathBuf { data_dir().join("plazcode-notion.json") }
+
+fn random_token() -> String {
+    let mut bytes = [0u8; 24];
+    let _ = getrandom::getrandom(&mut bytes);
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn clean_domain(raw: &str) -> String {
+    let d = raw.trim().trim_start_matches("https://").trim_start_matches("http://");
+    let d = d.split('/').next().unwrap_or("");
+    d.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '.').collect::<String>().to_ascii_lowercase()
+}
+
+fn load_settings() -> NotionSettings {
+    let path = settings_path();
+    if let Some(mut s) = std::fs::read_to_string(&path).ok().and_then(|raw| serde_json::from_str::<NotionSettings>(raw.trim_start_matches('\u{feff}')).ok()) {
+        if s.token.len() < 16 { s.token = random_token(); let _ = save_settings(&s); }
+        if s.web_token.len() < 16 { s.web_token = random_token(); let _ = save_settings(&s); }
+        if s.port == 0 { s.port = 8787; }
+        return s;
+    }
+    // First start: adopt token + domain of the standalone PlazCode-Notion-Bridge so
+    // an existing Notion connection keeps working unchanged.
+    let mut s = NotionSettings::default();
+    if let Some(old) = std::fs::read_to_string(data_dir().join("config.json")).ok()
+        .and_then(|raw| serde_json::from_str::<Value>(raw.trim_start_matches('\u{feff}')).ok()) {
+        if let Some(t) = old["bridgeToken"].as_str() { if t.len() >= 16 { s.token = t.to_string(); } }
+        if let Some(d) = old["ngrokDomain"].as_str() { s.domain = clean_domain(d); }
+        if let Some(p) = old["bridgePort"].as_u64() { if p > 0 && p < 65536 { s.port = p as u16; } }
+    }
+    if s.token.is_empty() { s.token = random_token(); }
+    s.web_token = random_token();
+    let _ = save_settings(&s);
+    s
+}
+
+fn save_settings(s: &NotionSettings) -> anyhow::Result<()> {
+    let path = settings_path();
+    if let Some(parent) = path.parent() { std::fs::create_dir_all(parent)?; }
+    std::fs::write(path, serde_json::to_vec_pretty(s)?)?;
+    Ok(())
+}
+
+fn settings() -> NotionSettings { lock(&SHARED.settings).clone() }
+/// URL fuer die automatische Einrichtung: der Token steckt im Pfad (/k/<token>/mcp). So klappt die
+/// Verbindung auch, wenn Notion kein Bearer-Feld anzeigt oder das Feld anders heisst (andere PCs/Konten).
+pub(crate) fn cowork_connection() -> (String, String) { let s = settings(); (if s.domain.is_empty() || s.token.is_empty() { String::new() } else { format!("https://{}/k/{}/mcp", s.domain, s.token) }, s.token) }
+pub(crate) fn safe_shell_enabled() -> bool { lock(&SHARED.settings).safe_shell }
+fn set_listener(state: &str, err: &str) { *lock(&SHARED.listener) = (state.into(), err.into()); }
+fn set_ngrok(state: &str, err: &str) { *lock(&SHARED.ngrok) = (state.into(), err.into()); }
+
+/// Start the Notion MCP listener, the ngrok supervisor and the tool refresher.
+pub(crate) fn start(state: crate::AppState) {
+    Lazy::force(&SHARED);
+    let s1 = state.clone();
+    tokio::spawn(async move { run_listener(s1).await });
+    tokio::spawn(async move { run_ngrok().await });
+    let s2 = state.clone();
+    tokio::spawn(async move { addon_watchdog(s2).await });
+    crate::notion_project_memory::start();
+    tokio::spawn(async move {
+        loop {
+            rebuild(&state);
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        }
+    });
+}
+
+/// Kill the ngrok child on application exit (process::exit skips destructors).
+pub(crate) fn shutdown() {
+    let pid = SHARED.ngrok_pid.swap(0, Ordering::Relaxed);
+    if pid != 0 { kill_pid(pid); }
+}
+
+fn kill_pid(pid: u32) {
+    #[cfg(windows)]
+    { let _ = std::process::Command::new("taskkill").args(["/F", "/T", "/PID", &pid.to_string()]).creation_flags(CREATE_NO_WINDOW).output(); }
+    #[cfg(unix)]
+    unsafe { libc::kill(pid as i32, libc::SIGTERM); }
+}
+
+// ---------------------------------------------------------------- tools
+
+fn sanitize(name: &str) -> String {
+    let mut n: String = name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' || c == '-' { c } else { '_' }).collect();
+    if n.len() > 64 {
+        use sha2::Digest;
+        let h = sha2::Sha256::digest(n.as_bytes());
+        n = format!("{}_{}", &n[..55], h.iter().take(4).map(|b| format!("{b:02x}")).collect::<String>());
+    }
+    n
+}
+
+fn status_tool() -> Value {
+    json!({
+        "name": "adicode_status",
+        "description": "AdiCode: zeigt, ob Roblox Studio verbunden ist und welche MCP-Server (pc, browser, git, ...) laufen.",
+        "inputSchema": {"type": "object", "properties": {}}
+    })
+}
+
+pub(crate) fn remember_addon_tools(tools: &[Value]) {
+    *lock(&SHARED.addon_tools) = tools.to_vec();
+}
+
+async fn refresh_tools(state: &crate::AppState, include_addons: bool) {
+    if include_addons {
+        if let Ok(_guard) = SHARED.refreshing.try_lock() {
+            let listed = tokio::time::timeout(Duration::from_secs(240), async {
+                let mut manager = state.addons.lock().await;
+                manager.list_tools().await
+            }).await;
+            if let Ok((tools, servers)) = listed {
+                state.ui.set_addon_tools(&tools, servers);
+                remember_addon_tools(&tools);
+            }
+        }
+    }
+    rebuild(state);
+}
+
+fn rebuild(state: &crate::AppState) {
+    let mut out = vec![
+        ExposedTool { exposed: "adicode_status".into(), internal: String::new(), schema: status_tool() },
+        ExposedTool { exposed: "adicode_job".into(), internal: String::new(), schema: job_tool() },
+        ExposedTool { exposed: "adicode_skill".into(), internal: String::new(), schema: crate::notion_skills::skill_tool() },
+        ExposedTool { exposed: "adicode_restart_server".into(), internal: String::new(), schema: crate::notion_skills::restart_tool() },
+        ExposedTool { exposed: "adicode_find_tools".into(), internal: String::new(), schema: find_tools_schema() },
+        ExposedTool { exposed: "adicode_call".into(), internal: String::new(), schema: call_schema() },
+    ];
+    for schema in crate::notion_cowork::tools().into_iter()
+        .chain(crate::notion_roblox_plus::tools())
+        .chain(crate::notion_safety::tools())
+        .chain(crate::notion_project_memory::tools())
+        .chain(crate::notion_blender::tools())
+        .chain(crate::notion_devtools::tools())
+            .chain(crate::notion_release::tools()) {
+        let exposed = schema["name"].as_str().unwrap_or("").to_string();
+        out.push(ExposedTool { exposed, internal: String::new(), schema });
+    }
+    let previous_roblox: Vec<ExposedTool> = lock(&SHARED.tools).0.iter().filter(|t| t.exposed.starts_with("roblox_")).cloned().collect();
+    if state.roblox_editor_connected.load(Ordering::Relaxed) {
+        match state.roblox_mcp.try_lock() {
+            Ok(mcp) => {
+                for tool in mcp.tools.iter() {
+                    let Some(name) = tool["name"].as_str() else { continue; };
+                    let exposed = sanitize(&format!("roblox_{name}"));
+                    let mut schema = tool.clone();
+                    schema["name"] = Value::String(exposed.clone());
+                    let desc = tool["description"].as_str().unwrap_or("").to_string();
+                    schema["description"] = Value::String(format!("[Roblox Studio] {desc}"));
+                    if name == "execute_luau" { crate::notion_roblox_plus::extend_execute_luau_schema(&mut schema); }
+                    out.push(ExposedTool { exposed, internal: name.to_string(), schema });
+                }
+            }
+            Err(_) => out.extend(previous_roblox),
+        }
+    }
+    for tool in lock(&SHARED.addon_tools).iter() {
+        let Some(name) = tool["name"].as_str() else { continue; };
+        let exposed = sanitize(&name.replacen("__", "_", 1));
+        let mut schema = json!({
+            "name": exposed,
+            "description": tool["description"].clone(),
+            "inputSchema": tool.get("inputSchema").cloned().unwrap_or_else(|| json!({"type":"object","properties":{}})),
+        });
+        if let Some(a) = tool.get("annotations") { schema["annotations"] = a.clone(); }
+        out.push(ExposedTool { exposed, internal: name.to_string(), schema });
+    }
+    let mut seen = std::collections::HashSet::new();
+    out.retain(|t| seen.insert(t.exposed.clone()));
+    let (mut out, hidden): (Vec<ExposedTool>, Vec<ExposedTool>) = out.into_iter().partition(|t| crate::notion_devtools::profile_allows(&t.exposed));
+    *HIDDEN.lock().unwrap_or_else(|e| e.into_inner()) = hidden;
+    for t in out.iter_mut() { crate::notion_cowork::extend_write_schema(&t.exposed, &mut t.schema); }
+    *lock(&SHARED.tools) = (out, Some(Instant::now()));
+}
+
+async fn list_tools(state: &crate::AppState) -> Vec<Value> {
+    rebuild(state);
+    lock(&SHARED.tools).0.iter().map(|t| slim_tool(t.schema.clone())).collect()
+}
+
+fn status_text(state: &crate::AppState) -> String {
+    let servers = state.ui.servers.lock().map(|v| v.clone()).unwrap_or_default();
+    let ngrok = lock(&SHARED.ngrok).clone();
+    serde_json::to_string_pretty(&json!({
+        "app": format!("AdiCode {} (basiert auf PlazCode, GPL-3.0)", env!("CARGO_PKG_VERSION")),
+        "roblox_studio_running": state.roblox_proc.load(Ordering::Relaxed),
+        "roblox_studio_connected": state.roblox_editor_connected.load(Ordering::Relaxed),
+        "mcp_servers": compact_servers(&servers),
+        "tunnel": {"state": ngrok.0, "error": ngrok.1},
+        "tools": lock(&SHARED.tools).0.len(),
+        "cowork_projects": compact_cowork(crate::notion_cowork::status()),
+        "tool_profile": crate::notion_devtools::current_profile(),
+        "hidden_tools": HIDDEN.lock().map(|v| v.len()).unwrap_or(0),
+        "release": crate::notion_live::release_status(),
+        "safe_shell": safe_shell_enabled(),
+    })).unwrap_or_default()
+}
+
+/// Wer ruft? Explizites agent-Argument, sonst feste Session-Bindung. Leer = unbekannt (kein Live-Status).
+fn live_who(session: &str, args: &Value) -> String {
+    let a = args["agent"].as_str().map(str::trim).unwrap_or("");
+    if !a.is_empty() { return a.to_string(); }
+    crate::notion_cowork::agent_of_session(session).unwrap_or_default()
+}
+
+/// Haengt das Live-Delta (max. 3 Zeilen fremder Aenderungen) an ein Tool-Ergebnis.
+fn attach_delta(out: &mut Value, delta: Option<String>) {
+    let Some(d) = delta else { return };
+    if let Some(arr) = out.get_mut("content").and_then(|c| c.as_array_mut()) {
+        arr.push(json!({"type": "text", "text": d}));
+    }
+}
+
+async fn call_tool(state: &crate::AppState, params: &Value) -> Value {
+    let unwrapped = unwrap_meta_call(params);
+    let params = &unwrapped;
+    let name = params["name"].as_str().unwrap_or("").to_string();
+    let args = params.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
+    let session = params["_session"].as_str().unwrap_or("").to_string();
+    let who = live_who(&session, &args);
+    crate::notion_live::tool_started(&who, &name, &args);
+    let mut out = call_tool_inner(state, params).await;
+    crate::notion_live::tool_finished(&who, &name);
+    attach_delta(&mut out, crate::notion_live::delta_for(&who));
+    attach_delta(&mut out, crate::notion_live::notice_for(if session.is_empty() { &who } else { &session }));
+    attach_delta(&mut out, crate::notion_live::release_notice(if session.is_empty() { &who } else { &session }));
+    out
+}
+
+/// Projekt-Memory mit codebase verbinden: Repo inkrementell neu indexieren und beim Oeffnen die Projekt-ADR anhaengen.
+async fn codebase_enrich(state: &crate::AppState, name: &str, args: &Value, out: &mut Value) {
+    if out.get("isError").and_then(Value::as_bool).unwrap_or(false) { return; }
+    let Some((project, repo)) = crate::notion_project_memory::code_target(args["name"].as_str().unwrap_or("")) else { return; };
+    let mut notes = Vec::new();
+    if std::path::Path::new(&repo).is_dir() {
+        let idx = json!({"repo_path": repo, "name": project, "mode": "moderate", "persistence": true});
+        match crate::roblox_tool(state, "codebase__index_repository", idx).await {
+            Ok(_) => notes.push(format!("[codebase] Index '{project}' ist aktuell.")),
+            Err(e) => notes.push(format!("[codebase] Index '{project}' fehlgeschlagen: {e:#} (Add-on codebase aktiv? adicode_status)")),
+        }
+    } else {
+        notes.push(format!("[codebase] Repo-Pfad nicht gefunden: {repo}"));
+    }
+    if name == "project_memory_open" {
+        if let Ok(adr) = crate::roblox_tool(state, "codebase__manage_adr", json!({"project": project, "mode": "get"})).await {
+            let t = adr.text.trim();
+            if !t.is_empty() { notes.push(format!("Projekt-ADR (codebase):\n{t}")); }
+        }
+    }
+    notes.push(format!("Code lesen/suchen: codebase_search_code, codebase_get_code_snippet, codebase_get_file_outline mit project='{project}'. Entscheidungen festhalten: codebase_manage_adr project='{project}' mode=set_sections."));
+    if let Some(arr) = out["content"].as_array_mut() { arr.push(json!({"type": "text", "text": notes.join("\n\n")})); }
+}
+
+async fn call_tool_inner(state: &crate::AppState, params: &Value) -> Value {
+    let name = params["name"].as_str().unwrap_or("").to_string();
+    let args = params.get("arguments").cloned().filter(|v| v.is_object()).unwrap_or_else(|| json!({}));
+    *lock(&SHARED.last_request) = Some((chrono::Local::now(), name.clone()));
+    let session = params["_session"].as_str().unwrap_or("").to_string();
+    crate::notion_profiles::ensure_gen_monitor(); crate::notion_live::record(&session, &name, &args);
+    if let Some(out) = crate::notion_cowork::call(&name, &args, &session).await {
+        return out;
+    }
+    if let Some(msg) = crate::notion_cowork::bridge_guard(&name, &args, &session) {
+        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
+    }
+    if let Some(msg) = crate::notion_live::guard(&session, &name, &args) {
+        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
+    }
+    if let Some(msg) = crate::notion_safety::guard_tool(&name, &args) {
+        return json!({"isError": true, "content": [{"type": "text", "text": msg}]});
+    }
+    if let Some(mut out) = crate::notion_project_memory::call(&name, &args) {
+        if matches!(name.as_str(), "project_memory_open" | "project_memory_update") { codebase_enrich(state, &name, &args, &mut out).await; }
+        return out;
+    }
+    if let Some(out) = crate::notion_blender::call(&name, &args) { return out; }
+    if let Some(out) = crate::notion_devtools::call(&name, &args) { return out; }
+    if let Some(out) = crate::notion_release::call(&name, &args) { return out; }
+    if let Some(out) = crate::notion_safety::call(&name, &args) {
+        return out;
+    }
+    if let Some(out) = crate::notion_roblox_plus::call(state, &name, &args).await {
+        return out;
+    }
+    if name == "adicode_job" {
+        return job_call(&args).await;
+    }
+    if name == "adicode_status" {
+        return json!({"content": [{"type": "text", "text": status_text(state)}]});
+    }
+    if name == "adicode_skill" {
+        let mut body = crate::notion_skills::skill_text(&args);
+        if let Some(note) = crate::notion_devtools::auto_profile_for_skill(args["name"].as_str().unwrap_or("")) {
+            refresh_tools(state, true).await;
+            body = format!("{note}\n\n{body}");
+        }
+        return json!({"content": [{"type": "text", "text": body}]});
+    }
+    if name == "adicode_restart_server" {
+        let server = args["server"].as_str().unwrap_or("").trim().to_ascii_lowercase();
+        if server.is_empty() || server == "roblox" {
+            return json!({"isError": true, "content": [{"type": "text", "text": "Bitte ein Add-on angeben (z. B. pc, browser, files, git) oder 'all'. Roblox Studio wird nicht neu gestartet."}]});
+        }
+        {
+            let mut manager = state.addons.lock().await;
+            if server == "all" { manager.reset_all().await; } else { manager.reset_tool(&format!("{server}__restart")).await; }
+        }
+        tracing::info!("[notion] restarted add-on {server}");
+        refresh_tools(state, true).await;
+        return json!({"content": [{"type": "text", "text": format!("Add-on '{server}' neu gestartet.\n{}", status_text(state))}]});
+    }
+    if name == "adicode_find_tools" { return find_tools(&args); }
+    if name == "adicode_call" {
+        return json!({"isError": true, "content": [{"type": "text", "text": "adicode_call braucht 'tool' (Name aus adicode_find_tools) und optional 'arguments'."}]});
+    }
+    let mut route = lock(&SHARED.tools).0.iter().find(|t| t.exposed == name).cloned();
+    if route.is_none() {
+        rebuild(state);
+        route = lock(&SHARED.tools).0.iter().find(|t| t.exposed == name).cloned();
+    }
+    if route.is_none() {
+        route = HIDDEN.lock().unwrap_or_else(|e| e.into_inner()).iter().find(|t| t.exposed == name).cloned();
+    }
+    let Some(route) = route else {
+        return json!({"isError": true, "content": [{"type": "text", "text": format!("Unbekanntes Tool '{name}'. Ist der zugehörige Server aktiv? Nutze adicode_status.")}]});
+    };
+    tracing::info!("[notion] tools/call {name}");
+    let is_studio = name.starts_with("roblox_") && !route.internal.contains("__");
+    let mut snapshot = None;
+    if is_studio && crate::notion_roblox_plus::is_guarded(&route.internal) {
+        snapshot = crate::notion_roblox_plus::before_native_write(state, &route.internal, &args).await;
+    }
+    let mut args = args;
+    if name.starts_with("files_") || name.starts_with("pc_") || name.starts_with("git_") {
+        if let Some(o) = args.as_object_mut() { o.remove("agent"); }
+    }
+    let record_args = args.clone();
+    match crate::roblox_tool(state, &route.internal, args).await {
+        Ok(out) => {
+            if is_studio && crate::notion_roblox_plus::is_guarded(&route.internal) {
+                crate::notion_roblox_plus::record_event(state, "change", &route.internal, &record_args, "", snapshot.as_deref()).await;
+            }
+            let mut content = Vec::new();
+            let mut text = out.text;
+            if let Some(id) = &snapshot { text.push_str(&format!("\n[AdiCode] Snapshot vorher angelegt: {id} (rueckgaengig: roblox_studio action=restore_snapshot)")); }
+            if !text.is_empty() || out.images.is_empty() { content.push(json!({"type": "text", "text": text})); }
+            for img in out.images {
+                content.push(json!({"type": "image", "data": img["data"].clone(), "mimeType": img["mimeType"].as_str().unwrap_or("image/png")}));
+            }
+            json!({"content": content})
+        }
+        Err(error) => {
+            tracing::warn!("[notion] {name} failed: {error:#}");
+            json!({"isError": true, "content": [{"type": "text", "text": format!("{error:#}")}]})
+        }
+    }
+}
+
+// ---------------------------------------------------------------- Stabilitaet (AdiCode 1.0.15)
+
+/// Laenger wartet Notion nicht zuverlaessig auf eine Antwort.
+const TOOL_TIMEOUT_SECS: u64 = 55;
+/// Sehr grosse Texte sprengen den Notion-Kontext und verlangsamen alles.
+const MAX_TOOL_TEXT: usize = 120_000;
+
+fn tool_error(text: String) -> Value {
+    json!({"isError": true, "content": [{"type": "text", "text": text}]})
+}
+
+/// Brickwire 1.8.2: Roblox-Ausgaben ohne Base64-Bilder im Text und ohne CDN-/Creator-Store-Links,
+/// damit der Notion-Chat nicht volllaeuft. Echte Bild-Bloecke (Screenshots) bleiben erhalten.
+fn compact_text(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    loop {
+        let next = match (rest.find("data:image/"), rest.find("http")) {
+            (Some(a), Some(b)) => a.min(b),
+            (Some(a), None) => a,
+            (None, Some(b)) => b,
+            (None, None) => { out.push_str(rest); break; }
+        };
+        out.push_str(&rest[..next]);
+        let tail = &rest[next..];
+        if tail.starts_with("data:image/") {
+            let head_end = (0..=tail.len().min(48)).rev().find(|&i| tail.is_char_boundary(i)).unwrap_or(0);
+            let skip = tail[..head_end].find(";base64,").map(|i| i + 8).unwrap_or(11);
+            let end = skip + tail[skip..].find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=' | '-' | '_'))).unwrap_or(tail.len() - skip);
+            out.push_str("[Bild entfernt]");
+            rest = &tail[end..];
+        } else {
+            let end = tail.find(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | ')' | '<' | '>' | ']' | '}' | ',')).unwrap_or(tail.len()).max(1);
+            let url = &tail[..end];
+            let lower = url.to_ascii_lowercase();
+            let noisy = lower.starts_with("http") && (lower.contains("rbxcdn.com") || lower.contains("thumbnails.roblox.com") || lower.contains("/store/asset") || lower.contains("creator-store"));
+            out.push_str(if noisy { "[Link entfernt]" } else { url });
+            rest = &tail[end..];
+        }
+    }
+    out
+}
+
+fn compact_roblox_output(mut out: Value) -> Value {
+    if let Some(items) = out.get_mut("content").and_then(|c| c.as_array_mut()) {
+        for item in items.iter_mut() {
+            let Some(text) = item.get("text").and_then(|t| t.as_str()) else { continue; };
+            let short = compact_text(text);
+            if short.len() != text.len() { item["text"] = Value::String(short); }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod compact_tests {
+    use super::compact_text;
+    #[test]
+    fn notion_compact_roblox_text() {
+        let s = compact_text("a data:image/png;base64,QUJD+/== b https://tr.rbxcdn.com/x.png c https://example.com/ok d");
+        assert_eq!(s, "a [Bild entfernt] b [Link entfernt] c https://example.com/ok d");
+        assert_eq!(compact_text("nur text äöü"), "nur text äöü");
+        assert_eq!(compact_text("http"), "http");
+    }
+}
+
+const SPILL_AT: usize = 80_000;
+const SPILL_HEAD: usize = 60_000;
+const SPILL_TAIL: usize = 15_000;
+const SLIM_DESC: usize = 1500;
+const SLIM_PROP_DESC: usize = 600;
+
+fn floor_cb(s: &str, mut i: usize) -> usize { if i >= s.len() { return s.len(); } while !s.is_char_boundary(i) { i -= 1; } i }
+fn ceil_cb(s: &str, mut i: usize) -> usize { while i < s.len() && !s.is_char_boundary(i) { i += 1; } i }
+
+/// 1.0.108 Token-Diaet: tools/list ohne JSON-Schema-Ballast ($schema, title, additionalProperties:false, default:null),
+/// sehr lange Add-on-Beschreibungen gekappt. Volltext + Originalschema bleiben ueber adicode_find_tools abrufbar.
+fn slim_cut(s: &str, max: usize) -> Option<String> { if s.len() <= max { return None; } let c = floor_cb(s, max); Some(format!("{}\u{2026}", s[..c].trim_end())) }
+fn slim_schema_obj(v: &mut Value) {
+    match v {
+        Value::Array(a) => { for x in a.iter_mut() { slim_schema_obj(x); } }
+        Value::Object(m) => {
+            m.remove("$schema");
+            if matches!(m.get("title"), Some(Value::String(_))) { m.remove("title"); }
+            if matches!(m.get("additionalProperties"), Some(Value::Bool(false))) { m.remove("additionalProperties"); }
+            if matches!(m.get("default"), Some(Value::Null)) { m.remove("default"); }
+            let nd = m.get("description").and_then(|d| d.as_str()).and_then(|d| slim_cut(d, SLIM_PROP_DESC));
+            if let Some(d) = nd { m.insert("description".to_string(), Value::String(d)); }
+            if let Some(Value::Object(props)) = m.get_mut("properties") { for (_, p) in props.iter_mut() { slim_schema_obj(p); } }
+            for k in ["items", "additionalProperties", "not", "anyOf", "oneOf", "allOf"] {
+                if let Some(x) = m.get_mut(k) { if x.is_object() || x.is_array() { slim_schema_obj(x); } }
+            }
+        }
+        _ => {}
+    }
+}
+fn slim_tool(mut t: Value) -> Value {
+    let name = t.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+    let own = ["adicode_", "roblox_", "cowork_", "blender_pro", "project_memory", "safe_"].iter().any(|p| name.starts_with(p));
+    if !own {
+        let nd = t.get("description").and_then(|d| d.as_str()).and_then(|d| slim_cut(d, SLIM_DESC));
+        if let Some(d) = nd { t["description"] = Value::String(format!("{d} (Volltext: adicode_find_tools)")); }
+    }
+    if let Some(is) = t.get_mut("inputSchema") { slim_schema_obj(is); }
+    t
+}
+
+/// Sehr grosse Ausgaben: Anfang + Ende an Notion, die komplette Ausgabe landet als Datei im Shared-Ordner.
+fn spill_full_output(text: &str) -> Option<String> {
+    let dir = crate::mcp_addons::shared_dir().join(".adicode").join("out");
+    std::fs::create_dir_all(&dir).ok()?;
+    let ts = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
+    let name = format!("out-{ts}.txt");
+    std::fs::write(dir.join(&name), text).ok()?;
+    Some(format!(".adicode/out/{name}"))
+}
+
+fn truncate_output(mut out: Value) -> Value {
+    if let Some(items) = out.get_mut("content").and_then(|c| c.as_array_mut()) {
+        for item in items.iter_mut() {
+            let Some(text) = item.get("text").and_then(|t| t.as_str()) else { continue; };
+            let text = if text.contains("\r\n") { text.replace("\r\n", "\n") } else { text.to_string() };
+            if text.len() <= SPILL_AT { item["text"] = Value::String(text); continue; }
+            let h = floor_cb(&text, SPILL_HEAD);
+            let t = ceil_cb(&text, text.len().saturating_sub(SPILL_TAIL).max(h));
+            let hint = spill_full_output(&text)
+                .map(|p| format!("Volle Ausgabe ({} Zeichen) liegt in {p} (relativ zum Shared-Ordner; mit files_read_text_file head/tail gezielt lesen).", text.len()))
+                .unwrap_or_else(|| "Bitte gezielter abfragen (Filter, Ausschnitt, Datei).".to_string());
+            let short = format!("{}\n\n[AdiCode] \u{2026} {} Zeichen ausgelassen. {}\n\n{}", &text[..h], t - h, hint, &text[t..]);
+            item["text"] = Value::String(short);
+        }
+    }
+    out
+}
+/// Jeder Tool-Aufruf laeuft in einer eigenen Task: ein Panic reisst den Server nicht mit,
+/// und nach TOOL_TIMEOUT_SECS bekommt Notion sofort eine Antwort (der Job laeuft weiter).
+/// Anfrage-Drossel: verteilt Tool-Aufrufe zeitlich (Warteschlange), statt sie abzulehnen.
+static THROTTLE_NEXT: Lazy<tokio::sync::Mutex<Option<Instant>>> = Lazy::new(|| tokio::sync::Mutex::new(None));
+async fn throttle_gate() { let ms = lock(&SHARED.settings).throttle_ms; if ms == 0 { return; } let mut next = THROTTLE_NEXT.lock().await; let now = Instant::now(); if let Some(t) = *next { if t > now { tokio::time::sleep(t - now).await; } } *next = Some(Instant::now() + Duration::from_millis(ms)); }
+
+/// Hintergrund-Jobs: braucht ein Tool laenger als soft_timeout_s, antwortet AdiCode sofort und der Aufruf
+/// laeuft weiter. Notion kann parallel weiterarbeiten; das Ergebnis haengt sich an die naechste Tool-Antwort.
+struct BgJob { name: String, session: String, started: Instant, done: Option<(Value, u64)>, delivered: bool }
+static BG_JOBS: Lazy<Mutex<std::collections::HashMap<u64, BgJob>>> = Lazy::new(|| Mutex::new(std::collections::HashMap::new()));
+static BG_NEXT: AtomicU64 = AtomicU64::new(1);
+
+fn job_tool() -> Value {
+    json!({
+        "name": "adicode_job",
+        "description": "AdiCode Hintergrund-Jobs: Tool-Aufrufe ueber dem Soft-Limit laufen als Job weiter, die Antwort kommt sofort und du arbeitest parallel weiter. Fertige Ergebnisse haengen sich automatisch an deine naechste Tool-Antwort. Gezielt abholen: id und optional wait_s (0-45 s warten). Ohne id: Liste aller Jobs.",
+        "inputSchema": {"type": "object", "properties": {
+            "id": {"type": "integer", "description": "Job-Nummer"},
+            "wait_s": {"type": "integer", "minimum": 0, "maximum": 45, "description": "max. Sekunden warten, bis der Job fertig ist"}
+        }}
+    })
+}
+
+fn job_text(v: &Value) -> String {
+    v.get("content").and_then(|c| c.as_array()).map(|a| a.iter().filter_map(|i| i.get("text").and_then(|t| t.as_str())).collect::<Vec<_>>().join("\n")).unwrap_or_default()
+}
+
+fn attach_finished_jobs(out: &mut Value, session: &str) {
+    let mut notes = Vec::new();
+    {
+        let mut map = lock(&BG_JOBS);
+        map.retain(|_, j| j.started.elapsed() < Duration::from_secs(1800));
+        let mut ids: Vec<u64> = map.iter().filter(|(_, j)| j.done.is_some() && !j.delivered && (session.is_empty() || j.session.is_empty() || j.session == session)).map(|(k, _)| *k).collect();
+        ids.sort();
+        for id in ids {
+            if let Some(j) = map.get_mut(&id) {
+                j.delivered = true;
+                let Some((v, secs)) = j.done.as_ref() else { continue; };
+                let mut txt = job_text(v);
+                if txt.len() > 6000 { let mut c = 6000; while !txt.is_char_boundary(c) { c -= 1; } txt.truncate(c); txt.push_str(&format!("\n[... gekuerzt - komplett mit adicode_job {{\"id\":{id}}}]")); }
+                let err = v["isError"].as_bool() == Some(true);
+                notes.push(format!("[AdiCode-Job {id} fertig{}: {} nach {secs} s]\n{txt}", if err { " (Fehler)" } else { "" }, j.name));
+            }
+        }
+    }
+    if notes.is_empty() { return; }
+    if let Some(arr) = out.get_mut("content").and_then(|c| c.as_array_mut()) {
+        for n in notes { arr.push(json!({"type": "text", "text": n})); }
+    }
+}
+
+async fn job_call(args: &Value) -> Value {
+    let wait = args["wait_s"].as_u64().or_else(|| args["wait_s"].as_str().and_then(|s| s.trim().parse().ok())).unwrap_or(0).min(45);
+    let id = args["id"].as_u64().or_else(|| args["id"].as_str().and_then(|s| s.trim().trim_start_matches(|c| c == 'j' || c == 'J').parse().ok()));
+    let Some(id) = id else {
+        let map = lock(&BG_JOBS);
+        let mut rows: Vec<(u64, String)> = map.iter().map(|(k, j)| (*k, format!("Job {k}: {} - {}", j.name, match &j.done {
+            Some((_, s)) => format!("fertig nach {s} s{}", if j.delivered { " (gemeldet)" } else { "" }),
+            None => format!("laeuft seit {} s", j.started.elapsed().as_secs()),
+        }))).collect();
+        rows.sort_by_key(|r| r.0);
+        let txt = if rows.is_empty() { "Keine Hintergrund-Jobs.".to_string() } else { rows.into_iter().map(|r| r.1).collect::<Vec<_>>().join("\n") };
+        return json!({"content": [{"type": "text", "text": txt}]});
+    };
+    let end = Instant::now() + Duration::from_secs(wait);
+    loop {
+        {
+            let mut map = lock(&BG_JOBS);
+            let Some(j) = map.get_mut(&id) else { return tool_error(format!("Job {id} unbekannt (nach 30 min verworfen oder nie gestartet).")); };
+            if let Some((v, secs)) = j.done.clone() {
+                j.delivered = true;
+                let mut out = v;
+                if let Some(arr) = out.get_mut("content").and_then(|c| c.as_array_mut()) { arr.insert(0, json!({"type": "text", "text": format!("[AdiCode-Job {id}: {} fertig nach {secs} s]", j.name)})); }
+                return out;
+            }
+            if Instant::now() >= end {
+                return json!({"content": [{"type": "text", "text": format!("Job {id} ({}) laeuft noch seit {} s. Arbeite parallel weiter; das Ergebnis kommt automatisch mit einer naechsten Tool-Antwort.", j.name, j.started.elapsed().as_secs())}]});
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+}
+
+async fn call_tool_guarded(state: &crate::AppState, params: &Value) -> Value {
+    let name = params["name"].as_str().unwrap_or("").to_string();
+    let session = params["_session"].as_str().unwrap_or("").to_string();
+    let is_job = name == "adicode_job";
+    if !is_job { throttle_gate().await; }
+    let soft = { let v = lock(&SHARED.settings).soft_timeout_s; if v == 0 || is_job { TOOL_TIMEOUT_SECS } else { v.clamp(3, TOOL_TIMEOUT_SECS) } };
+    let task_state = state.clone();
+    let task_params = params.clone();
+    let started = Instant::now();
+    let mut handle = tokio::spawn(async move { call_tool(&task_state, &task_params).await });
+    let res = tokio::time::timeout(Duration::from_secs(soft), &mut handle).await;
+    let mut out = match res {
+        Ok(Ok(value)) => if name.starts_with("roblox") { compact_roblox_output(value) } else { value },
+        Ok(Err(error)) => {
+            tracing::error!("[notion] tool {name} crashed: {error}");
+            tool_error(format!("Tool '{name}' ist intern abgestuerzt ({error}). Der Server laeuft weiter. Bitte erneut versuchen oder adicode_restart_server nutzen."))
+        }
+        Err(_) if soft >= TOOL_TIMEOUT_SECS && is_job => tool_error("adicode_job: Zeitlimit".into()),
+        Err(_) => {
+            let id = BG_NEXT.fetch_add(1, Ordering::SeqCst);
+            lock(&BG_JOBS).insert(id, BgJob { name: name.clone(), session: session.clone(), started, done: None, delivered: false });
+            tracing::info!("[notion] tool {name} > {soft}s -> Hintergrund-Job {id}");
+            let jname = name.clone();
+            tokio::spawn(async move {
+                let v = match handle.await { Ok(v) => v, Err(e) => tool_error(format!("Tool '{jname}' ist intern abgestuerzt ({e}).")) };
+                let v = truncate_output(if jname.starts_with("roblox") { compact_roblox_output(v) } else { v });
+                let secs = started.elapsed().as_secs();
+                if let Some(j) = lock(&BG_JOBS).get_mut(&id) { j.done = Some((v, secs)); }
+            });
+            json!({"content": [{"type": "text", "text": format!("[AdiCode] '{name}' braucht laenger als {soft} s und laeuft jetzt als Hintergrund-Job {id} weiter. Nicht warten und nicht neu starten: mach direkt mit dem naechsten Schritt weiter, andere Tools laufen parallel. Das Ergebnis haengt sich automatisch an eine deiner naechsten Tool-Antworten; gezielt abholen mit adicode_job {{\"id\":{id},\"wait_s\":30}}.")}]})
+        }
+    };
+    if !is_job { attach_finished_jobs(&mut out, &session); }
+    truncate_output(out)
+}
+// ---------------------------------------------------------------- HTTP
+
+/// Token aus Header/Feld saeubern: Leerzeichen, Anfuehrungszeichen, <>, Zero-Width, und (mehrfach)
+/// vorangestellte "Authorization:", "Bearer ", "Token " - z. B. wenn jemand "Bearer abc" ins Bearer-Feld kopiert.
+fn clean_tok(raw: &str) -> String {
+    let strip = |s: &str| s.trim_matches(|c: char| c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>' | '\u{200b}' | '\u{feff}' | '\u{a0}')).to_string();
+    let mut t = strip(raw);
+    loop {
+        let low = t.to_ascii_lowercase();
+        let cut = ["authorization:", "bearer:", "bearer ", "token:", "token "].iter().find(|p| low.starts_with(**p)).map(|p| p.len());
+        match cut { Some(n) => t = strip(&t[n..]), None => break }
+    }
+    t
+}
+
+/// Alle Stellen, an denen ein Client den Token mitschicken koennte (Quelle, Wert).
+fn token_candidates(headers: &HeaderMap, uri: &Uri) -> Vec<(&'static str, String)> {
+    let mut v: Vec<(&'static str, String)> = Vec::new();
+    for name in ["authorization", "x-api-key", "api-key", "x-auth-token", "x-adicode-token"] {
+        for val in headers.get_all(name).iter() {
+            if let Ok(s) = val.to_str() { let c = clean_tok(s); if !c.is_empty() { v.push((name, c)); } }
+        }
+    }
+    if let Some(rest) = uri.path().strip_prefix("/k/") {
+        let c = clean_tok(rest.split('/').next().unwrap_or("")); if !c.is_empty() { v.push(("url-pfad /k/", c)); }
+    }
+    for pair in uri.query().unwrap_or("").split('&') {
+        if let Some((k, val)) = pair.split_once('=') {
+            if matches!(k.to_ascii_lowercase().as_str(), "token" | "key" | "apikey" | "api_key" | "access_token") {
+                let c = clean_tok(val); if !c.is_empty() { v.push(("url-parameter", c)); }
+            }
+        }
+    }
+    v
+}
+
+/// Ok = erlaubt, Err = Grund (ohne Token-Inhalt) fuer die Diagnose.
+fn auth_check(headers: &HeaderMap, uri: &Uri, token: &str) -> Result<(), String> {
+    let token = token.trim();
+    if token.is_empty() { return Err("Server hat noch keinen Token".into()); }
+    use sha2::Digest;
+    let b = sha2::Sha256::digest(token.as_bytes());
+    let same = |got: &str| { let a = sha2::Sha256::digest(got.as_bytes()); a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0 };
+    let cands = token_candidates(headers, uri);
+    if cands.iter().any(|(_, c)| same(c)) { return Ok(()); }
+    if cands.is_empty() {
+        return Err("kein Token mitgeschickt (kein Authorization-Header, keine URL mit Schluessel) - in Notion Bearer-Token eintragen oder die 'URL mit Schluessel' nutzen".into());
+    }
+    let what = cands.iter().map(|(k, c)| format!("{k} (Laenge {}{})", c.len(), if c.len() == token.len() { ", anderer Token" } else { "" })).collect::<Vec<_>>().join(", ");
+    Err(format!("Token passt nicht: {what}; erwartet Laenge {} - Token dieses PCs aus AdiCode > Notion AI kopieren", token.len()))
+}
+
+fn authorized(headers: &HeaderMap, uri: &Uri, token: &str) -> bool { auth_check(headers, uri, token).is_ok() }
+
+static AUTH_FAILS: Lazy<Mutex<std::collections::VecDeque<Value>>> = Lazy::new(|| Mutex::new(std::collections::VecDeque::new()));
+static AUTH_FAIL_COUNT: AtomicU64 = AtomicU64::new(0);
+
+fn redact_path(uri: &Uri) -> String {
+    let p = uri.path();
+    match p.strip_prefix("/k/") { Some(rest) => format!("/k/***{}", rest.find('/').map(|i| &rest[i..]).unwrap_or("")), None => p.to_string() }
+}
+
+fn note_auth_fail(method: &axum::http::Method, uri: &Uri, headers: &HeaderMap, reason: &str) {
+    AUTH_FAIL_COUNT.fetch_add(1, Ordering::Relaxed);
+    let ua: String = headers.get("user-agent").and_then(|v| v.to_str().ok()).unwrap_or("").chars().take(80).collect();
+    let time = chrono::Local::now();
+    let entry = json!({"time": time.format("%H:%M:%S").to_string(), "method": method.as_str(), "path": redact_path(uri), "ua": ua, "reason": reason});
+    tracing::warn!("[notion] MCP-Anfrage abgelehnt: {} {} - {}", method, redact_path(uri), reason);
+    let line = format!("{} {} {} ua={} - {}\n", time.format("%Y-%m-%d %H:%M:%S"), method, redact_path(uri), ua, reason);
+    let dir = data_dir().join("logs");
+    let _ = std::fs::create_dir_all(&dir);
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("mcp-auth.log")) { use std::io::Write; let _ = f.write_all(line.as_bytes()); }
+    let mut q = lock(&AUTH_FAILS);
+    q.push_back(entry);
+    while q.len() > 15 { q.pop_front(); }
+}
+
+fn with_cors(mut r: axum::response::Response) -> axum::response::Response {
+    let h = r.headers_mut();
+    for (k, v) in [("access-control-allow-origin", "*"), ("access-control-allow-methods", "GET, POST, DELETE, OPTIONS"),
+        ("access-control-allow-headers", "authorization, content-type, accept, mcp-session-id, mcp-protocol-version, last-event-id, x-api-key"),
+        ("access-control-expose-headers", "mcp-session-id, www-authenticate"), ("access-control-max-age", "600")] {
+        if let Ok(v) = axum::http::HeaderValue::from_str(v) { h.insert(k, v); }
+    }
+    r
+}
+
+async fn handle_one(state: &crate::AppState, msg: &Value) -> Option<Value> {
+    let id = msg.get("id").cloned().filter(|v| !v.is_null());
+    let method = msg["method"].as_str().unwrap_or("");
+    let params = msg.get("params").cloned().unwrap_or(Value::Null);
+    let result: Result<Value, (i64, String)> = match method {
+        "initialize" => {
+            let asked = params["protocolVersion"].as_str().unwrap_or("");
+            let version = PROTOCOLS.iter().find(|v| **v == asked).copied().unwrap_or(PROTOCOLS[1]);
+            Ok(json!({
+                "protocolVersion": version,
+                "capabilities": {"tools": {"listChanged": false}},
+                "serverInfo": {"name": "AdiCode", "version": env!("CARGO_PKG_VERSION")},
+                "instructions": format!("{}\n\n{}", crate::notion_skills::INSTRUCTIONS, crate::notion_roblox_plus::INSTRUCTIONS_EXTRA)
+            }))
+        }
+        "ping" => Ok(json!({})),
+        "tools/list" => Ok(json!({"tools": list_tools(state).await})),
+        "tools/call" => Ok(call_tool_guarded(state, &params).await),
+        "resources/list" => Ok(json!({"resources": []})),
+        "resources/templates/list" => Ok(json!({"resourceTemplates": []})),
+        "prompts/list" => Ok(json!({"prompts": []})),
+        m if m.starts_with("notifications/") => return None,
+        m => Err((-32601, format!("Methode nicht gefunden: {m}"))),
+    };
+    let id = id?;
+    Some(match result {
+        Ok(r) => json!({"jsonrpc": "2.0", "id": id, "result": r}),
+        Err((code, message)) => json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message}}),
+    })
+}
+
+async fn mcp_endpoint(State(state): State<crate::AppState>, method: axum::http::Method, uri: Uri, headers: HeaderMap, body: Bytes) -> axum::response::Response {
+    with_cors(mcp_inner(state, method, uri, headers, body).await)
+}
+
+fn is_mcp_path(path: &str) -> bool {
+    // "" = Root (https://<domain>/), /mcp, /k/<token>, /k/<token>/mcp
+    if path.is_empty() || path == "/mcp" { return true; }
+    match path.strip_prefix("/k/") { Some(rest) => { let parts: Vec<&str> = rest.split('/').collect(); parts.len() == 1 || (parts.len() == 2 && parts[1] == "mcp") } None => false }
+}
+
+async fn mcp_inner(state: crate::AppState, method: axum::http::Method, uri: Uri, headers: HeaderMap, body: Bytes) -> axum::response::Response {
+    let path = uri.path().trim_end_matches('/');
+    if path == "/health" { return "ok".into_response(); }
+    if method == axum::http::Method::OPTIONS { return StatusCode::NO_CONTENT.into_response(); }
+    if !is_mcp_path(path) { return StatusCode::NOT_FOUND.into_response(); }
+    let token = settings().token;
+    if let Err(reason) = auth_check(&headers, &uri, &token) {
+        if path.is_empty() && method == axum::http::Method::GET { return "AdiCode MCP-Server laeuft. In Notion https://<domain>/mcp + Bearer-Token oder die URL mit Schluessel eintragen.".into_response(); }
+        note_auth_fail(&method, &uri, &headers, &reason);
+        return (StatusCode::UNAUTHORIZED, [("www-authenticate", "Bearer realm=\"AdiCode\"")], format!("unauthorized: {reason}")).into_response();
+    }
+    if method == axum::http::Method::DELETE { return StatusCode::OK.into_response(); }
+    if method != axum::http::Method::POST {
+        return (StatusCode::METHOD_NOT_ALLOWED, [("allow", "POST, DELETE")], "method not allowed").into_response();
+    }
+    SHARED.requests.fetch_add(1, Ordering::Relaxed);
+    let parsed: Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(_) => return Json(json!({"jsonrpc": "2.0", "id": null, "error": {"code": -32700, "message": "Parse error"}})).into_response(),
+    };
+    let batch = parsed.is_array();
+    let msgs: Vec<Value> = if let Value::Array(a) = parsed { a } else { vec![parsed] };
+    let has_init = msgs.iter().any(|m| m["method"] == "initialize");
+    let first_request = lock(&SHARED.last_request).is_none();
+    if first_request {
+        *lock(&SHARED.last_request) = Some((chrono::Local::now(), msgs.first().and_then(|m| m["method"].as_str()).unwrap_or("").to_string()));
+    }
+    let mut out = Vec::new();
+    let session = headers.get("mcp-session-id").and_then(|v| v.to_str().ok()).unwrap_or("").trim().to_string();
+    for m in &msgs {
+        let mut m = m.clone();
+        if !session.is_empty() && m["method"] == "tools/call" && m["params"].is_object() { m["params"]["_session"] = Value::String(session.clone()); }
+        if let Some(r) = handle_one(&state, &m).await { out.push(r); }
+    }
+    if out.is_empty() { return StatusCode::ACCEPTED.into_response(); }
+    let mut response = if batch { Json(Value::Array(out)).into_response() } else { Json(out.remove(0)).into_response() };
+    if has_init {
+        if let Ok(v) = axum::http::HeaderValue::from_str(&random_token()[..32]) { response.headers_mut().insert("mcp-session-id", v); }
+    }
+    response
+}
+
+async fn run_listener(state: crate::AppState) {
+    let port = settings().port;
+    let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
+    let listener = loop {
+        match tokio::net::TcpListener::bind(addr).await {
+            Ok(l) => break l,
+            Err(e) => {
+                set_listener("Fehler", &format!("Port {port} ist belegt ({e}). Läuft noch die alte PlazCode-Notion-Bridge? Bitte beenden – neuer Versuch alle 5 s."));
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+        }
+    };
+    set_listener("online", "");
+    tracing::info!("[notion] MCP-Endpunkt bereit: http://{addr}/mcp");
+    let app = Router::new()
+        .fallback(mcp_endpoint)
+        .layer(axum::extract::DefaultBodyLimit::max(32 * 1024 * 1024))
+        .with_state(state);
+    if let Err(e) = axum::serve(listener, app).await {
+        set_listener("Fehler", &e.to_string());
+    }
+}
+
+// ---------------------------------------------------------------- ngrok
+
+pub(crate) fn ngrok_exe() -> Option<PathBuf> { find_ngrok(&settings()) }
+pub(crate) fn restart_tunnel() { SHARED.restart.notify_one(); }
+/// Nach der Installation: neues ngrok fest eintragen und alle alten ngrok-Prozesse beenden.
+pub(crate) fn use_ngrok_exe(p: &std::path::Path) { let mut s = lock(&SHARED.settings); s.ngrok_path = p.display().to_string(); let _ = save_settings(&s); }
+pub(crate) fn stop_all_ngrok() { kill_all_ngrok(); }
+
+fn find_ngrok(s: &NotionSettings) -> Option<PathBuf> {
+    if !s.ngrok_path.trim().is_empty() {
+        let p = PathBuf::from(s.ngrok_path.trim());
+        if p.is_file() { return Some(p); }
+    }
+    let exe = if cfg!(windows) { "ngrok.exe" } else { "ngrok" };
+    // Von AdiCode installiertes ngrok zuerst - sonst gewinnt ein altes ngrok aus PATH ("ngrok ist zu alt").
+    let own = crate::notion_updates::base_dir().join(exe);
+    if own.is_file() { return Some(own); }
+    let mut dirs: Vec<PathBuf> = std::env::var_os("PATH").map(|p| std::env::split_paths(&p).collect()).unwrap_or_default();
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    if let Some(la) = env("LOCALAPPDATA") {
+        dirs.push(la.join("Microsoft").join("WinGet").join("Links"));
+        dirs.push(la.join("ngrok"));
+        dirs.push(la.join("Programs").join("ngrok"));
+        dirs.push(la.join("PlazCodeNotion"));
+        if let Ok(entries) = std::fs::read_dir(la.join("Microsoft").join("WinGet").join("Packages")) {
+            dirs.extend(entries.flatten().map(|e| e.path()).filter(|p| p.to_string_lossy().to_ascii_lowercase().contains("ngrok")));
+        }
+    }
+    if let Some(up) = env("USERPROFILE").or_else(|| env("HOME")) {
+        dirs.push(up.join("ngrok"));
+        dirs.push(up.join("scoop").join("shims"));
+        dirs.push(up.join(".local").join("bin"));
+    }
+    dirs.push(PathBuf::from(r"C:\ProgramData\chocolatey\bin"));
+    if let Ok(app) = std::env::current_exe() { if let Some(d) = app.parent() { dirs.push(d.to_path_buf()); } }
+    dirs.into_iter().map(|d| d.join(exe)).find(|p| p.is_file())
+}
+
+/// ngrok sessions orphaned by an earlier run (or by the standalone bridge) keep
+/// the fixed domain bound; stop only those that serve our domain.
+fn kill_stale_ngrok(domain: &str) {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new().with_cmd(UpdateKind::Always));
+    for p in sys.processes().values() {
+        let name = p.name().to_string_lossy().to_ascii_lowercase();
+        if !name.starts_with("ngrok") { continue; }
+        let cmd = p.cmd().iter().map(|a| a.to_string_lossy().to_string()).collect::<Vec<_>>().join(" ");
+        if cmd.contains(domain) {
+            tracing::info!("[notion] stoppe alte ngrok-Sitzung (pid {})", p.pid());
+            p.kill();
+        }
+    }
+}
+
+fn ngrok_error_text(line: &str) -> String {
+    let l = line.to_ascii_lowercase();
+    if l.contains("err_ngrok_4018") || l.contains("authtoken") { return "ngrok-Authtoken fehlt: einmal „ngrok config add-authtoken <TOKEN>“ ausführen.".into(); }
+    if l.contains("err_ngrok_108") { return "Es läuft bereits eine andere ngrok-Sitzung (z. B. die alte Bridge). Bitte beenden.".into(); }
+    if l.contains("err_ngrok_334") || l.contains("already bound") || l.contains("already online") { return "Die Domain ist schon an einen anderen ngrok-Tunnel gebunden. Alte Bridge/ngrok beenden.".into(); }
+    if l.contains("err_ngrok_319") || l.contains("err_ngrok_320") { return "Diese Domain gehört nicht zu deinem ngrok-Konto.".into(); }
+    if l.contains("err_ngrok_8012") { return "ngrok erreicht AdiCode lokal nicht (Port belegt/Firewall). AdiCode neu starten.".into(); }
+    if l.contains("err_ngrok_121") || l.contains("too old") { return "ngrok ist zu alt: auf Notion AI > Tunnel ngrok neu installieren.".into(); }
+    if l.contains("err_ngrok_105") || l.contains("err_ngrok_107") { return "ngrok-Authtoken ist ungueltig: neuen Authtoken aus dashboard.ngrok.com eintragen.".into(); }
+    let msg = line.split("err=").nth(1).unwrap_or(line).trim().trim_matches('"');
+    msg.chars().take(300).collect()
+}
+
+async fn wait_restart(d: Duration) { let _ = tokio::time::timeout(d, SHARED.restart.notified()).await; }
+
+/// ngrok can keep running although the public edge no longer routes the reserved domain.
+/// Verify the unauthenticated health endpoint and force a reconnect after repeated failures.
+async fn monitor_public_tunnel(domain: String) -> String {
+    tokio::time::sleep(Duration::from_secs(8)).await;
+    let client = match reqwest::Client::builder().timeout(Duration::from_secs(8)).build() {
+        Ok(c) => c,
+        Err(e) => return format!("Tunnel-Pruefung konnte nicht gestartet werden: {e}"),
+    };
+    let url = format!("https://{domain}/health");
+    let mut failures = 0u8;
+    loop {
+        let ok = client.get(&url)
+            .header("ngrok-skip-browser-warning", "1")
+            .send().await.map(|r| r.status().is_success()).unwrap_or(false);
+        if ok {
+            failures = 0;
+            set_ngrok("online", "");
+        } else {
+            failures += 1;
+            if failures >= 3 {
+                return format!("Die oeffentliche URL {domain} ist nicht erreichbar. Tunnel wird neu gestartet.");
+            }
+        }
+        tokio::time::sleep(Duration::from_secs(15)).await;
+    }
+}
+
+async fn run_ngrok() {
+    let mut use_domain_flag = false;
+    loop {
+        let s = settings();
+        if !s.ngrok_enabled { set_ngrok("aus", ""); wait_restart(Duration::from_secs(3600)).await; continue; }
+        if s.domain.is_empty() { set_ngrok("nicht eingerichtet", "Trage deine feste ngrok-Domain ein (z. B. name.ngrok-free.dev)."); wait_restart(Duration::from_secs(3600)).await; continue; }
+        let Some(exe) = find_ngrok(&s) else {
+            set_ngrok("Fehler", "ngrok.exe wurde nicht gefunden. Installiere ngrok (winget install ngrok.ngrok) oder lege ngrok.exe neben PlazCode.exe.");
+            wait_restart(Duration::from_secs(30)).await;
+            continue;
+        };
+        let domain = s.domain.clone();
+        tokio::task::spawn_blocking({ let d = domain.clone(); move || kill_stale_ngrok(&d) }).await.ok();
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        set_ngrok("verbindet", "");
+        let mut cmd = tokio::process::Command::new(&exe);
+        cmd.arg("http").arg(format!("127.0.0.1:{}", s.port));
+        if use_domain_flag { cmd.arg(format!("--domain={domain}")); } else { cmd.arg(format!("--url=https://{domain}")); }
+        cmd.args(["--log", "stdout", "--log-format", "logfmt"])
+            .stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped())
+            .kill_on_drop(true);
+        #[cfg(windows)]
+        cmd.creation_flags(CREATE_NO_WINDOW);
+        let mut child = match cmd.spawn() {
+            Ok(c) => c,
+            Err(e) => { set_ngrok("Fehler", &format!("ngrok konnte nicht gestartet werden: {e}")); wait_restart(Duration::from_secs(20)).await; continue; }
+        };
+        SHARED.ngrok_pid.store(child.id().unwrap_or(0), Ordering::Relaxed);
+        let last_error = std::sync::Arc::new(Mutex::new(String::new()));
+        if let Some(out) = child.stdout.take() {
+            let (d, le) = (domain.clone(), last_error.clone());
+            tokio::spawn(async move {
+                let mut lines = tokio::io::BufReader::new(out).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    if line.contains("started tunnel") || (line.contains("url=https://") && line.contains(&d)) {
+                        set_ngrok("online", "");
+                        tracing::info!("[notion] ngrok online: https://{d}/mcp");
+                    }
+                    if line.contains("lvl=eror") || line.contains("lvl=crit") || line.contains("ERR_NGROK") || line.contains("unknown flag") {
+                        *lock(&le) = line.clone();
+                    }
+                }
+            });
+        }
+        if let Some(err) = child.stderr.take() {
+            let le = last_error.clone();
+            tokio::spawn(async move {
+                let mut lines = tokio::io::BufReader::new(err).lines();
+                while let Ok(Some(line)) = lines.next_line().await {
+                    let part = line.trim().trim_start_matches("ERROR:").trim().to_string(); if !part.is_empty() { let mut g = lock(&le); if g.contains("lvl=") { g.clear(); } if g.len() < 700 { if !g.is_empty() { g.push(' '); } g.push_str(&part); } }
+                }
+            });
+        }
+        tokio::select! {
+            status = child.wait() => {
+                SHARED.ngrok_pid.store(0, Ordering::Relaxed);
+                tokio::time::sleep(Duration::from_millis(300)).await;
+                let raw = lock(&last_error).clone();
+                if raw.contains("unknown flag") && raw.contains("url") && !use_domain_flag { use_domain_flag = true; continue; }
+                let text = if raw.is_empty() { format!("ngrok wurde beendet ({})", status.map(|s| s.to_string()).unwrap_or_default()) } else { ngrok_error_text(&raw) };
+                tracing::warn!("[notion] ngrok: {text}");
+                set_ngrok("Fehler", &text);
+                wait_restart(Duration::from_secs(15)).await;
+            }
+            problem = monitor_public_tunnel(domain.clone()) => {
+                tracing::warn!("[notion] ngrok: {problem}");
+                set_ngrok("Fehler", &problem);
+                if let Some(pid) = child.id() { kill_pid(pid); }
+                let _ = child.kill().await;
+                SHARED.ngrok_pid.store(0, Ordering::Relaxed);
+                wait_restart(Duration::from_secs(3)).await;
+            }
+            _ = SHARED.restart.notified() => {
+                if let Some(pid) = child.id() { kill_pid(pid); }
+                let _ = child.kill().await;
+                SHARED.ngrok_pid.store(0, Ordering::Relaxed);
+                set_ngrok("startet neu", "");
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- ngrok-Schnellstart
+
+static QUICK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+fn kill_all_ngrok() {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+    let mut sys = System::new();
+    sys.refresh_processes_specifics(ProcessesToUpdate::All, true, ProcessRefreshKind::new());
+    for p in sys.processes().values() { if p.name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { kill_pid(p.pid().as_u32()); } }
+}
+
+/// Feste Gratis-Domain des ngrok-Kontos ermitteln: ngrok ohne --url starten (nimmt automatisch die
+/// Dev-Domain des Kontos) und die URL aus dem Log lesen.
+async fn detect_domain(exe: &PathBuf, port: u16) -> Result<String, String> {
+    let mut cmd = tokio::process::Command::new(exe);
+    cmd.arg("http").arg(format!("127.0.0.1:{port}")).args(["--log", "stdout", "--log-format", "logfmt"])
+        .stdin(std::process::Stdio::null()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).kill_on_drop(true);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let mut child = cmd.spawn().map_err(|e| format!("ngrok startet nicht: {e}"))?;
+    let errtxt = std::sync::Arc::new(Mutex::new(String::new()));
+    if let Some(err) = child.stderr.take() {
+        let le = errtxt.clone();
+        tokio::spawn(async move {
+            let mut lines = tokio::io::BufReader::new(err).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let part = line.trim().trim_start_matches("ERROR:").trim().to_string();
+                if !part.is_empty() { let mut g = lock(&le); if g.len() < 700 { if !g.is_empty() { g.push(' '); } g.push_str(&part); } }
+            }
+        });
+    }
+    let mut last = String::new();
+    let found = match child.stdout.take() {
+        Some(out) => tokio::time::timeout(Duration::from_secs(25), async {
+            let mut lines = tokio::io::BufReader::new(out).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                if let Some(i) = line.find("url=https://") {
+                    let d = clean_domain(line[i + 4..].split_whitespace().next().unwrap_or(""));
+                    if d.contains('.') { return Some(d); }
+                }
+                if line.contains("lvl=eror") || line.contains("lvl=crit") || line.contains("ERR_NGROK") { last = line.clone(); }
+            }
+            None
+        }).await.ok().flatten(),
+        None => None,
+    };
+    if let Some(pid) = child.id() { kill_pid(pid); }
+    let _ = child.kill().await;
+    if let Some(d) = found { return Ok(d); }
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    let e = format!("{} {}", lock(&errtxt).clone(), last).trim().to_string();
+    Err(if e.is_empty() { "ngrok hat in 25 s keine Domain gemeldet. Internet/Firewall pruefen.".into() } else { ngrok_error_text(&e) })
+}
+
+/// Ein Klick: ngrok installieren (falls noetig) -> Authtoken -> Domain (eingegeben oder automatisch) -> Tunnel -> oeffentlicher Test.
+pub(crate) async fn quick_start(v: &Value) -> Result<String, String> {
+    let _g = QUICK.try_lock().map_err(|_| "Schnellstart laeuft schon - kurz warten.".to_string())?;
+    let auth = v["authtoken"].as_str().unwrap_or("").trim().to_string();
+    if auth.is_empty() && !crate::notion_updates::has_authtoken() && ngrok_exe().is_none() { return Err("Bitte zuerst den ngrok-Authtoken einfuegen (dashboard.ngrok.com -> Your Authtoken).".into()); }
+    let typed = clean_domain(v["domain"].as_str().unwrap_or(""));
+    set_ngrok("einrichten", "Schnellstart: ngrok wird vorbereitet ...");
+    let fail = |e: String| { set_ngrok("Fehler", &e); e };
+    let own = crate::notion_updates::base_dir().join(if cfg!(windows) { "ngrok.exe" } else { "ngrok" });
+    if !own.is_file() { set_ngrok("einrichten", "Schnellstart: aktuelles ngrok wird installiert ..."); crate::notion_updates::install_ngrok().await.map_err(fail)?; }
+    crate::notion_updates::ensure_real_ngrok_config();
+    use_ngrok_exe(&own);
+    let exe = ngrok_exe().ok_or_else(|| fail("ngrok.exe fehlt auch nach der Installation.".into()))?;
+    if !auth.is_empty() { crate::notion_updates::set_authtoken(&auth).await.map_err(fail)?; }
+    let old = settings().domain;
+    // Supervisor parken (Domain leer) und alle ngrok-Sitzungen beenden - Gratis-Konten erlauben nur eine.
+    { let mut s = lock(&SHARED.settings); s.ngrok_enabled = true; s.domain.clear(); let _ = save_settings(&s); }
+    SHARED.restart.notify_one();
+    tokio::time::sleep(Duration::from_millis(800)).await;
+    let _ = tokio::task::spawn_blocking(kill_all_ngrok).await;
+    tokio::time::sleep(Duration::from_millis(600)).await;
+    let domain = if !typed.is_empty() { typed } else {
+        set_ngrok("einrichten", "Schnellstart: Domain deines ngrok-Kontos wird ermittelt ...");
+        let first = match detect_domain(&exe, settings().port).await {
+            Err(e) if e.contains("zu alt") => { set_ngrok("einrichten", "Schnellstart: ngrok ist zu alt - wird neu installiert ..."); crate::notion_updates::install_ngrok().await.map_err(fail)?; detect_domain(&exe, settings().port).await }
+            r => r,
+        };
+        match first {
+            Ok(d) => d,
+            Err(e) => { { let mut s = lock(&SHARED.settings); s.domain = old; let _ = save_settings(&s); } SHARED.restart.notify_one(); return Err(fail(e)); }
+        }
+    };
+    { let mut s = lock(&SHARED.settings); s.domain = domain.clone(); let _ = save_settings(&s); }
+    SHARED.restart.notify_one();
+    let mut online = false;
+    for i in 0..45 {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        let st = lock(&SHARED.ngrok).clone();
+        if st.0 == "online" { online = true; break; }
+        if st.0 == "Fehler" && i > 6 { return Err(format!("Tunnel-Fehler: {}", st.1)); }
+    }
+    if !online { return Err(fail(format!("Tunnel fuer {domain} kam nicht online (45 s)."))); }
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    let url = format!("https://{domain}/mcp");
+    let r = reqwest::Client::new().post(&url).header("content-type", "application/json").header("ngrok-skip-browser-warning", "1").body("{}").timeout(Duration::from_secs(12)).send().await;
+    match r {
+        Ok(resp) if resp.status() == 401 && resp.headers().get("ngrok-error-code").is_none() =>
+            Ok(format!("Fertig! Tunnel online: {url} (oeffentlich getestet). In Notion: Einstellungen > Verbindungen > Individueller MCP-Server > die 'URL mit Schluessel' eintragen (Authentifizierung: keine) oder diese URL + Bearer-Token.")),
+        Ok(resp) => { let code = resp.headers().get("ngrok-error-code").and_then(|v| v.to_str().ok()).unwrap_or("").to_string(); Err(format!("Tunnel antwortet falsch (HTTP {} {}). Tunnel neu starten oder Start nochmal druecken.", resp.status().as_u16(), code)) }
+        Err(e) => Err(format!("Oeffentliche URL nicht erreichbar: {e}")),
+    }
+}
+
+// ---------------------------------------------------------------- desktop API
+
+pub(crate) async fn state_handler(State(_state): State<crate::AppState>) -> impl IntoResponse {
+    let s = settings();
+    let listener = lock(&SHARED.listener).clone();
+    let ngrok = lock(&SHARED.ngrok).clone();
+    let (tools, refreshed) = { let t = lock(&SHARED.tools); (t.0.iter().map(|t| t.exposed.clone()).collect::<Vec<_>>(), t.1) };
+    let last = lock(&SHARED.last_request).clone();
+    let public = if s.domain.is_empty() { String::new() } else { format!("https://{}/mcp", s.domain) };
+    let key_url = if s.domain.is_empty() { String::new() } else { format!("https://{}/k/{}/mcp", s.domain, s.token) };
+    Json(json!({
+        "ok": true,
+        "url": public,
+        "key_url": key_url,
+        "local_url": format!("http://127.0.0.1:{}/mcp", s.port),
+        "token": s.token,
+        "domain": s.domain,
+        "port": s.port,
+        "ngrok_enabled": s.ngrok_enabled,
+        "ngrok_path": s.ngrok_path,
+        "safe_shell": s.safe_shell,
+        "throttle_ms": s.throttle_ms,
+        "soft_timeout_s": s.soft_timeout_s,
+        "notion_profiles": crate::notion_profiles::list(),
+        "browser": crate::notion_profiles::browser_name(),
+        "ngrok_found": find_ngrok(&s).is_some(),
+        "ngrok_authtoken": crate::notion_updates::has_authtoken(),
+        "ngrok_authtoken_mask": crate::notion_updates::authtoken_mask(),
+        "ngrok_exe": find_ngrok(&s).map(|p| p.display().to_string()).unwrap_or_default(),
+        "version": crate::notion_updates::current_version(),
+        "listener": {"state": listener.0, "error": listener.1},
+        "ngrok": {"state": ngrok.0, "error": ngrok.1},
+        "tools": tools,
+        "tools_age_s": refreshed.map(|r| r.elapsed().as_secs()),
+        "requests": SHARED.requests.load(Ordering::Relaxed),
+        "auth_fail_count": AUTH_FAIL_COUNT.load(Ordering::Relaxed),
+        "auth_failures": lock(&AUTH_FAILS).iter().cloned().collect::<Vec<_>>(),
+        "last_request": last.map(|(t, m)| json!({"time": t.format("%H:%M:%S").to_string(), "what": m})),
+    }))
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ActionReq { action: String, #[serde(default)] value: Value }
+
+pub(crate) async fn action_handler(State(state): State<crate::AppState>, Json(req): Json<ActionReq>) -> impl IntoResponse {
+    if let Some(r) = crate::notion_profiles::action(&req.action, &req.value) {
+        return match r {
+            Ok(m) => Json(json!({"ok": true, "message": m})).into_response(),
+            Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"ok": false, "error": e}))).into_response(),
+        };
+    }
+    if req.action == "ngrok_quick_start" {
+        return match quick_start(&req.value).await {
+            Ok(m) => Json(json!({"ok": true, "message": m})).into_response(),
+            Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"ok": false, "error": e}))).into_response(),
+        };
+    }
+    if let Some(r) = crate::notion_updates::action(&req.action, &req.value).await {
+        return match r {
+            Ok(m) => Json(json!({"ok": true, "message": m})).into_response(),
+            Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"ok": false, "error": e}))).into_response(),
+        };
+    }    let result: anyhow::Result<&'static str> = (|| -> anyhow::Result<&'static str> {
+        let mut s = lock(&SHARED.settings);
+        match req.action.as_str() {
+            "regenerate_token" => { s.token = random_token(); save_settings(&s)?; Ok("Neuer Token erstellt. Aktualisiere die Verbindung in Notion.") }
+            "set_domain" => {
+                s.domain = clean_domain(req.value.as_str().unwrap_or(""));
+                save_settings(&s)?; SHARED.restart.notify_one(); Ok("Domain gespeichert.")
+            }
+            "set_ngrok_path" => { s.ngrok_path = req.value.as_str().unwrap_or("").trim().trim_matches('"').to_string(); save_settings(&s)?; SHARED.restart.notify_one(); Ok("ngrok-Pfad gespeichert.") }
+            "toggle_ngrok" => { s.ngrok_enabled = req.value.as_bool().unwrap_or(!s.ngrok_enabled); save_settings(&s)?; SHARED.restart.notify_one(); Ok("Tunnel-Einstellung gespeichert.") }
+            "restart_ngrok" => { SHARED.restart.notify_one(); Ok("Tunnel wird neu gestartet.") }
+            "set_throttle" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(30_000); s.throttle_ms = v; save_settings(&s)?; Ok(if v == 0 { "Anfrage-Drossel aus." } else { "Anfrage-Drossel gespeichert." }) }
+            "set_soft_timeout" => { let v = req.value.as_u64().or_else(|| req.value.as_f64().map(|f| f.max(0.0) as u64)).or_else(|| req.value.as_str().and_then(|x| x.trim().parse().ok())).unwrap_or(0).min(50); s.soft_timeout_s = v; save_settings(&s)?; Ok(if v == 0 { "Hintergrund-Jobs aus (Antwort erst nach max. 55 s)." } else { "Hintergrund-Jobs gespeichert." }) }            "toggle_safe_shell" => { s.safe_shell = req.value.as_bool().unwrap_or(!s.safe_shell); save_settings(&s)?; Ok(if s.safe_shell { "Sicherheitsmodus an: Shell nur mit erlaubten Einzelbefehlen." } else { "Sicherheitsmodus aus." }) }
+            "refresh_tools" => Ok("Tools werden aktualisiert."),
+            other => anyhow::bail!("Unbekannte Aktion: {other}"),
+        }
+    })();
+    match result {
+        Ok(message) => {
+            if req.action == "refresh_tools" || req.action == "set_domain" {
+                let st = state.clone();
+                tokio::spawn(async move { refresh_tools(&st, true).await; });
+            }
+            Json(json!({"ok": true, "message": message})).into_response()
+        }
+        Err(e) => (StatusCode::BAD_REQUEST, Json(json!({"ok": false, "error": e.to_string()}))).into_response(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn domain_and_names() {
+        assert_eq!(clean_domain("https://Veal-Zipping-Ascent.ngrok-free.dev/mcp"), "veal-zipping-ascent.ngrok-free.dev");
+        assert_eq!(sanitize("pc_App Tool"), "pc_App_Tool");
+        assert!(sanitize(&"x".repeat(80)).len() <= 64);
+    }
+    #[test]
+    fn notion_auth_variants() {
+        let tok = "abcdef0123456789abcdef0123456789";
+        let u: Uri = "/mcp".parse().unwrap();
+        let mk = |k: &str, v: &str| { let mut h = HeaderMap::new(); h.insert(axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(), v.parse().unwrap()); h };
+        for v in [format!("Bearer {tok}"), format!("Bearer Bearer {tok}"), format!("bearer \"{tok}\" "), tok.to_string(), format!("Authorization: Bearer {tok}"), format!("Token {tok}")] { assert!(authorized(&mk("authorization", &v), &u, tok), "{v}"); }
+        assert!(authorized(&mk("x-api-key", tok), &u, tok));
+        assert!(!authorized(&mk("authorization", "Bearer falsch"), &u, tok));
+        assert!(!authorized(&HeaderMap::new(), &u, tok));
+        assert!(authorized(&mk("authorization", "Bearer falsch"), &format!("/k/{tok}/mcp").parse().unwrap(), tok));
+        assert!(authorized(&HeaderMap::new(), &format!("/k/{tok}").parse().unwrap(), tok));
+        assert!(authorized(&HeaderMap::new(), &format!("/mcp?token={tok}").parse().unwrap(), tok));
+        assert!(is_mcp_path("") && is_mcp_path("/mcp") && is_mcp_path("/k/x") && is_mcp_path("/k/x/mcp") && !is_mcp_path("/k/x/y") && !is_mcp_path("/.well-known/oauth-protected-resource"));
+        assert_eq!(redact_path(&format!("/k/{tok}/mcp").parse().unwrap()), "/k/***/mcp");
+    }
+}
+
+// ---------------------------------------------------------------- Lokales Modell (1.0.120)
+
+/// Tool-Schemas fuer das lokale Modell (gleiche Liste wie fuer Notion, profilabhaengig).
+pub(crate) async fn local_tool_schemas(state: &crate::AppState) -> Vec<Value> { list_tools(state).await }
+
+/// Direkter Tool-Aufruf fuer das lokale Modell: gleicher Router wie /mcp, ohne Tunnel und Soft-Timeout.
+pub(crate) async fn local_call(state: &crate::AppState, name: &str, args: Value) -> Value {
+    call_tool(state, &json!({"name": name, "arguments": args, "_session": "local-llm"})).await
+}
+
+// ---------------------------------------------------------------- AdiCode Power-Upgrade (1.0.96)
+
+fn find_tools_schema() -> Value {
+    json!({
+        "name": "adicode_find_tools",
+        "description": "AdiCode: durchsucht ALLE Tools, auch die vom Tool-Profil ausgeblendeten Add-ons (lean blendet comfyui, robloxstudio, codebase aus). Liefert Name, Beschreibung und inputSchema. Ausgeblendete Tools (hidden=true) danach mit adicode_call aufrufen.",
+        "inputSchema": {"type": "object", "properties": {
+            "query": {"type": "string", "description": "Suchwoerter, z. B. 'comfyui workflow' oder 'blender material'."},
+            "limit": {"type": "integer", "default": 15, "description": "1-50"}
+        }, "required": ["query"]}
+    })
+}
+
+fn call_schema() -> Value {
+    json!({
+        "name": "adicode_call",
+        "description": "AdiCode: ruft ein beliebiges AdiCode-Tool per Namen auf, auch ausgeblendete (siehe adicode_find_tools). arguments = die Argumente des Ziel-Tools.",
+        "inputSchema": {"type": "object", "properties": {
+            "tool": {"type": "string", "description": "Exakter Tool-Name aus adicode_find_tools."},
+            "arguments": {"type": "object", "description": "Argumente fuer das Ziel-Tool."}
+        }, "required": ["tool"]}
+    })
+}
+
+/// adicode_call {tool, arguments} wird vor allen Guards in einen normalen Aufruf des Ziel-Tools umgeschrieben.
+fn unwrap_meta_call(params: &Value) -> Value {
+    let mut p = params.clone();
+    if params["name"].as_str() == Some("adicode_call") {
+        let target = params["arguments"]["tool"].as_str().unwrap_or("").trim().to_string();
+        if !target.is_empty() && target != "adicode_call" {
+            let inner = params["arguments"]["arguments"].clone();
+            p["arguments"] = if inner.is_object() { inner } else { json!({}) };
+            p["name"] = Value::String(target);
+        }
+    }
+    p
+}
+
+fn find_tools(args: &Value) -> Value {
+    let q = args["query"].as_str().unwrap_or("").trim().to_ascii_lowercase();
+    let limit = args["limit"].as_u64().unwrap_or(15).clamp(1, 50) as usize;
+    let words: Vec<&str> = q.split_whitespace().collect();
+    let hidden = HIDDEN.lock().unwrap_or_else(|e| e.into_inner()).clone();
+    let visible = lock(&SHARED.tools).0.clone();
+    let mut hits: Vec<(usize, bool, ExposedTool)> = Vec::new();
+    for (is_hidden, t) in hidden.into_iter().map(|t| (true, t)).chain(visible.into_iter().map(|t| (false, t))) {
+        let name_l = t.exposed.to_ascii_lowercase();
+        let hay = format!("{} {}", name_l, t.schema["description"].as_str().unwrap_or("").to_ascii_lowercase());
+        let score = if words.is_empty() { 1 } else {
+            words.iter().filter(|w| hay.contains(**w)).count() * 2 + words.iter().filter(|w| name_l.contains(**w)).count()
+        };
+        if score > 0 { hits.push((score, is_hidden, t)); }
+    }
+    hits.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.2.exposed.cmp(&b.2.exposed)));
+    let total = hits.len();
+    let list: Vec<Value> = hits.into_iter().take(limit).map(|(_, h, t)| json!({
+        "name": t.exposed,
+        "hidden": h,
+        "description": t.schema["description"].as_str().unwrap_or("").chars().take(300).collect::<String>(),
+        "inputSchema": t.schema["inputSchema"].clone(),
+    })).collect();
+    let body = json!({"query": q, "treffer": total, "tools": list, "hinweis": "hidden=true: mit adicode_call {tool, arguments} aufrufen. Sichtbare Tools direkt aufrufen."});
+    json!({"content": [{"type": "text", "text": serde_json::to_string_pretty(&body).unwrap_or_default()}]})
+}
+
+/// Kurzer Add-on-Status: laufende Add-ons als Liste, Fehler mit gekuerzter Meldung.
+fn compact_servers(servers: &[crate::mcp_addons::ServerSummary]) -> Value {
+    let alive: Vec<String> = servers.iter().filter(|s| s.alive).map(|s| format!("{} ({})", s.id, s.tools)).collect();
+    let broken: Vec<Value> = servers.iter().filter(|s| !s.alive).map(|s| json!({
+        "id": s.id,
+        "error": s.error.clone().unwrap_or_default().chars().take(300).collect::<String>(),
+    })).collect();
+    json!({"laufen": alive, "fehler": broken})
+}
+
+/// Nur Co-Work-Projekte mit beigetretenen Agents ausfuehrlich, der Rest als Anzahl.
+fn compact_cowork(v: Value) -> Value {
+    let Some(arr) = v.as_array().cloned() else { return v };
+    let active: Vec<Value> = arr.iter().filter(|p| p["agents"].as_u64().unwrap_or(0) > 0).cloned().collect();
+    let inactive = arr.len() - active.len();
+    json!({"aktiv": active, "inaktiv": inactive})
+}
+
+/// Startet nach dem App-Start (auch nach Updates) alle eingeschalteten Add-ons und haelt sie am Leben:
+/// alle 5 Minuten Gesundheitscheck, tote Add-ons werden neu gestartet (max. 3 Versuche pro Stunde und Add-on).
+async fn addon_watchdog(state: crate::AppState) {
+    tokio::time::sleep(Duration::from_secs(8)).await;
+    refresh_tools(&state, true).await;
+    let mut tries: std::collections::HashMap<String, (u32, Instant)> = std::collections::HashMap::new();
+    loop {
+        tokio::time::sleep(Duration::from_secs(300)).await;
+        let recent = lock(&SHARED.last_request).as_ref()
+            .map(|(t, _)| (chrono::Local::now() - *t).num_seconds() < 20)
+            .unwrap_or(false);
+        if recent { continue; }
+        refresh_tools(&state, true).await;
+        let dead: Vec<String> = state.ui.servers.lock()
+            .map(|v| v.iter().filter(|s| !s.alive && s.error.as_deref() != Some("busy")).map(|s| s.id.clone()).collect())
+            .unwrap_or_default();
+        let mut restarted = Vec::new();
+        for id in dead {
+            let entry = tries.entry(id.clone()).or_insert((0, Instant::now()));
+            if entry.1.elapsed() > Duration::from_secs(3600) { *entry = (0, Instant::now()); }
+            if entry.0 >= 3 { continue; }
+            entry.0 += 1;
+            state.addons.lock().await.reset_tool(&format!("{id}__restart")).await;
+            restarted.push(id);
+        }
+        if !restarted.is_empty() {
+            tracing::info!("[notion] Watchdog: Add-ons neu gestartet: {}", restarted.join(", "));
+            refresh_tools(&state, true).await;
+        }
+    }
+}
+
+#[cfg(test)]
+mod power_upgrade_tests {
+    use super::*;
+
+    #[test]
+    fn adicode_call_is_unwrapped() {
+        let p = json!({"name": "adicode_call", "arguments": {"tool": "comfyui_queue_prompt", "arguments": {"x": 1}}, "_session": "s"});
+        let u = unwrap_meta_call(&p);
+        assert_eq!(u["name"], "comfyui_queue_prompt");
+        assert_eq!(u["arguments"]["x"], 1);
+        assert_eq!(u["_session"], "s");
+        let bad = unwrap_meta_call(&json!({"name": "adicode_call", "arguments": {}}));
+        assert_eq!(bad["name"], "adicode_call");
+    }
+
+    #[test]
+    fn cowork_is_compacted() {
+        let v = compact_cowork(json!([{"id": "p1", "agents": 0}, {"id": "p2", "agents": 2}]));
+        assert_eq!(v["inaktiv"], 1);
+        assert_eq!(v["aktiv"][0]["id"], "p2");
+    }
+}

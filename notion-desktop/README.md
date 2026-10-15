@@ -9,6 +9,13 @@ Copyright- und Branding-Hinweise (LICENSE, BRANDING-NOTICE.txt, THIRD-PARTY-NOTI
 - Notion sieht `roblox_*`, `pc_*`, `browser_*` und alle weiteren aktivierten MCP-Server.
 - Automatische Updates über den eigenen Launcher (Original-Update deaktiviert).
 
+## Neu in 1.0.150
+
+- Workspace-Refresh: Notion oeffnet 'New workspace' als Dialog auf derselben Seite - AdiCode navigiert nicht mehr blind nach /onboarding (das zerstoerte den Dialog, Refresh hing 8 min). Ablauf: For work, Continue, Plan: Free-Plan (kein Business-Trial/Abo).
+- Refresh erkennt die neue Workspace-ID schon waehrend des Onboardings, setzt danach alle workspace-gebundenen Merker zurueck und macht vor dem Loeschen des alten Workspaces einen Voll-Check (MCP, Run automatically, Modell, Usage, Chats, Chats benennen). Fehler = Stopp, alter Workspace bleibt.
+- Ein fertiger Refresh-Lauf wird nicht mehr wiederverwendet (zweiter Refresh tat sonst nichts).
+- Haekchen ehrlich: Chat-Fehler ist nicht mehr gruen, MCP 'Fehlt' nicht mehr gruen durch alte Merker, Free-Plan wird als gewaehlt angezeigt.
+
 ## Neu in 1.0.149
 
 - Co-Work: Kein zweiter Tab mehr, der immer wieder aufgeht und neu laedt. Ursache: zwei eingetragene Coworker-Chats hatten keinen Zugriff mehr (You don't have access) - AdiCode hat trotzdem alle 1-2 Minuten versucht, ihnen etwas zuzustellen. Solche Chats werden jetzt erkannt und sofort entfernt, ebenso alle, die nicht in der Chat-Liste des Kontos stehen.

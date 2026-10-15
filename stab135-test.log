@@ -1,0 +1,504 @@
+warning: function `valid_key` is never used
+ --> src\security.rs:4:8
+  |
+4 | pub fn valid_key(key: &str) -> bool {
+  |        ^^^^^^^^^
+  |
+  = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `chromium_id` is never used
+ --> src\security.rs:8:4
+  |
+8 | fn chromium_id(id: &str) -> bool {
+  |    ^^^^^^^^^^^
+
+warning: function `firefox_uuid` is never used
+  --> src\security.rs:12:4
+   |
+12 | fn firefox_uuid(id: &str) -> bool {
+   |    ^^^^^^^^^^^^
+
+warning: function `can_auto_pair` is never used
+  --> src\security.rs:18:8
+   |
+18 | pub fn can_auto_pair(headers: &HeaderMap) -> bool {
+   |        ^^^^^^^^^^^^^
+
+warning: function `allowed_origin` is never used
+  --> src\security.rs:29:8
+   |
+29 | pub fn allowed_origin(headers: &HeaderMap) -> bool {
+   |        ^^^^^^^^^^^^^^
+
+warning: function `authorized` is never used
+  --> src\security.rs:43:8
+   |
+43 | pub fn authorized(headers: &HeaderMap, key: &str) -> bool {
+   |        ^^^^^^^^^^
+
+warning: function `load_key` is never used
+  --> src\security.rs:54:8
+   |
+54 | pub fn load_key() -> anyhow::Result<String> {
+   |        ^^^^^^^^
+
+warning: function `require_pairing` is never used
+   --> src\security.rs:111:14
+    |
+111 | pub async fn require_pairing(
+    |              ^^^^^^^^^^^^^^^
+
+warning: function `load_key` is never used
+  --> src\security.rs:54:8
+   |
+54 | pub fn load_key() -> anyhow::Result<String> {
+   |        ^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `plazcode-agent` (lib) generated 8 warnings
+warning: `plazcode-agent` (lib test) generated 1 warning
+   Compiling plazcode-agent v1.19.36 (C:\Users\liket\PlazCode-Shared\work\PlazCode-Notion\build-src\PlazCode\agent)
+warning: unnecessary parentheses around `match` scrutinee expression
+  --> src\notion_profiles.rs:84:120
+   |
+84 | ...ch (match google_ws(port).await{Some(ws)=>tokio::time::timeout(Duration::from_secs(8),cdp_ws(&ws,vec![json!({"method":"Runtime.evaluate","params":{"expression":js.as_str(),"awaitPromise":true,"returnByValue":true}})])).await.unwrap_or_else(|_|Err("Popup geschlossen".to_string())).map(|v|v.last().and_then(|x|x.pointer("/result/result/value")).cloned().unwrap_or(Value::Null)),None=>js_eval(port,&js).await}){Ok...
+   |       ^                                                                                                                                                                                                                                                                                                                                                                                                                   ^
+   |
+   = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default
+help: remove these parentheses
+   |
+84 - async fn setup_phase(port:u16,ph:&str,em:&str)->String{let js=SETUP_JS.replace("__PH__",ph).replace("__EM__",em);match (match google_ws(port).await{Some(ws)=>tokio::time::timeout(Duration::from_secs(8),cdp_ws(&ws,vec![json!({"method":"Runtime.evaluate","params":{"expression":js.as_str(),"awaitPromise":true,"returnByValue":true}})])).await.unwrap_or_else(|_|Err("Popup geschlossen".to_string())).map(|v|v.last().and_then(|x|x.pointer("/result/result/value")).cloned().unwrap_or(Value::Null)),None=>js_eval(port,&js).await}){Ok(r)=>{let st=r["state"].as_str().unwrap_or("?").to_string();if st=="google-error"{google_close(port).await;}if let Some(m)=r["msg"].as_str(){format!("{} {}",st,m)}else{st}}Err(e)=>format!("err {}",e)}}
+84 + async fn setup_phase(port:u16,ph:&str,em:&str)->String{let js=SETUP_JS.replace("__PH__",ph).replace("__EM__",em);match match google_ws(port).await{Some(ws)=>tokio::time::timeout(Duration::from_secs(8),cdp_ws(&ws,vec![json!({"method":"Runtime.evaluate","params":{"expression":js.as_str(),"awaitPromise":true,"returnByValue":true}})])).await.unwrap_or_else(|_|Err("Popup geschlossen".to_string())).map(|v|v.last().and_then(|x|x.pointer("/result/result/value")).cloned().unwrap_or(Value::Null)),None=>js_eval(port,&js).await}{Ok(r)=>{let st=r["state"].as_str().unwrap_or("?").to_string();if st=="google-error"{google_close(port).await;}if let Some(m)=r["msg"].as_str(){format!("{} {}",st,m)}else{st}}Err(e)=>format!("err {}",e)}}
+   |
+
+warning: variable does not need to be mutable
+   --> src\notion_mcp.rs:690:9
+    |
+690 |     let mut out = match res {
+    |         ----^^^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `open`
+   --> src\notion_profiles.rs:934:439
+    |
+934 | ...e{"true"}else{"false"});let open=open_s.as_str();let ok=poll_js(port,verify,20).await.as_bool().unwrap_or(false);if ok{mcp_finis...
+    |                                ^^^^ help: if this is intentional, prefix it with an underscore: `_open`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `Point` is never constructed
+   --> src\workspace.rs:985:16
+    |
+985 |     pub struct Point { pub x: i32, pub y: i32 }
+    |                ^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `MOUSEEVENTF_MOVE` is never used
+    --> src\workspace.rs:1004:15
+     |
+1004 |     pub const MOUSEEVENTF_MOVE: u32 = 0x0001;
+     |               ^^^^^^^^^^^^^^^^
+
+warning: constant `MOUSEEVENTF_WHEEL` is never used
+    --> src\workspace.rs:1009:15
+     |
+1009 |     pub const MOUSEEVENTF_WHEEL: u32 = 0x0800;
+     |               ^^^^^^^^^^^^^^^^^
+
+warning: function `GetWindowThreadProcessId` is never used
+    --> src\workspace.rs:1144:16
+     |
+1144 |         pub fn GetWindowThreadProcessId(hwnd: Hwnd, pid: *mut u32) -> u32;
+     |                ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `update` and `path` are never used
+   --> src\preferences.rs:145:12
+    |
+ 99 | impl PreferencesStore {
+    | --------------------- methods in this implementation
+...
+145 |     pub fn update<F>(&self, mut edit: F) -> anyhow::Result<DesktopPreferences>
+    |            ^^^^^^
+...
+167 |     pub fn path(&self) -> &Path {
+    |            ^^^^
+
+warning: function `matching` is never used
+  --> src\templates.rs:80:16
+   |
+80 | #[cfg(test)]fn matching(catalog:&Catalog,query:&str)->Vec<Value>{matching_with_limit(catalog,query,3)}
+   |                ^^^^^^^^
+
+warning: function `is_enabled` is never used
+   --> src\mcp_addons.rs:247:8
+    |
+247 | pub fn is_enabled(id: &str) -> bool {
+    |        ^^^^^^^^^^
+
+warning: method `same_spec` is never used
+   --> src\mcp_addons.rs:362:8
+    |
+341 | impl AddonRuntime {
+    | ----------------- method in this implementation
+...
+362 |     fn same_spec(&self, spec: &ServerSpec) -> bool {
+    |        ^^^^^^^^^
+
+warning: methods `runtime_for` and `call_tool` are never used
+   --> src\mcp_addons.rs:709:14
+    |
+596 | impl AddonManager {
+    | ----------------- methods in this implementation
+...
+709 |     async fn runtime_for(&mut self, id: &str) -> anyhow::Result<SharedRuntime> {
+    |              ^^^^^^^^^^^
+...
+715 |     pub async fn call_tool(&mut self, advertised: &str, args: serde_json::Value) -> anyhow::Result<(String, Vec<serde_json::Value>)> {
+    |                  ^^^^^^^^^
+
+warning: constant `MAX_TOOL_TEXT` is never used
+   --> src\notion_mcp.rs:463:7
+    |
+463 | const MAX_TOOL_TEXT: usize = 120_000;
+    |       ^^^^^^^^^^^^^
+
+warning: function `slim_schema_obj` is never used
+   --> src\notion_mcp.rs:539:4
+    |
+539 | fn slim_schema_obj(v: &mut Value) { slim_schema_max(v, SLIM_PROP_DESC) }
+    |    ^^^^^^^^^^^^^^^
+
+warning: function `latest_lead` is never used
+   --> src\notion_cowork.rs:120:15
+    |
+120 | pub(crate) fn latest_lead() -> String { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by_key(|p|p.cr...
+    |               ^^^^^^^^^^^
+
+warning: function `open_task_count` is never used
+   --> src\notion_cowork.rs:126:15
+    |
+126 | pub(crate) fn open_task_count() -> usize { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().map(|p|p.tasks....
+    |               ^^^^^^^^^^^^^^^
+
+warning: function `latest_agent_roles` is never used
+   --> src\notion_cowork.rs:127:15
+    |
+127 | pub(crate) fn latest_agent_roles() -> Vec<String> { let b=BOARD.lock().unwrap_or_else(|e|e.into_inner());b.projects.values().max_by...
+    |               ^^^^^^^^^^^^^^^^^^
+
+warning: function `specialist_alive` is never used
+   --> src\notion_cowork.rs:229:4
+    |
+229 | fn specialist_alive(p: &Project, role: &str, exclude: &str) -> bool {
+    |    ^^^^^^^^^^^^^^^^
+
+warning: function `ps_writes` is never used
+    --> src\notion_cowork.rs:1577:15
+     |
+1577 | pub(crate) fn ps_writes(cmd_lower: &str) -> bool { PS_WRITE.iter().any(|w| cmd_lower.contains(w)) }
+     |               ^^^^^^^^^
+
+warning: function `enc` is never used
+   --> src\notion_profiles.rs:360:4
+    |
+360 | fn enc(s:&str)->String{s.bytes().map(|b|if b.is_ascii_alphanumeric()||b"-_.~".contains(&b){(b as char).to_string()}else{format!("%{...
+    |    ^^^
+
+warning: static `WAKE_LAST` is never used
+   --> src\notion_profiles.rs:385:8
+    |
+385 | static WAKE_LAST: Lazy<Mutex<BTreeMap<String,std::time::Instant>>> = Lazy::new(|| Mutex::new(BTreeMap::new()));
+    |        ^^^^^^^^^
+
+warning: function `wake_agent` is never used
+   --> src\notion_profiles.rs:388:15
+    |
+388 | pub(crate) fn wake_agent(agent:&str,text:String)->bool{
+    |               ^^^^^^^^^^
+
+warning: constant `MCP_HINT` is never used
+   --> src\notion_profiles.rs:419:7
+    |
+419 | const MCP_HINT:&str="Verbinde dich mit dem AdiCode MCP (Connection \"AdiCode\") und nutze dessen Tools - das ist meine eigene Einri...
+    |       ^^^^^^^^
+
+warning: function `with_mcp_hint` is never used
+   --> src\notion_profiles.rs:420:4
+    |
+420 | fn with_mcp_hint(agent:&str,text:String)->String{match tab_of_agent(agent){Some(t) if mem_get(&t.email,"adicode_used").as_bool()!=S...
+    |    ^^^^^^^^^^^^^
+
+warning: constant `SLOT_GEN_JS` is never used
+    --> src\notion_profiles.rs:1233:7
+     |
+1233 | const SLOT_GEN_JS:&str=r#"(()=>{if(!document.querySelector('[data-testid="agent-chat-stop-button"],[data-testid="agent-stop-infere...
+     |       ^^^^^^^^^^^
+
+warning: constant `SLOT_STOP_JS` is never used
+    --> src\notion_profiles.rs:1235:7
+     |
+1235 | const SLOT_STOP_JS:&str=r#"(()=>{const b=document.querySelector('[data-testid="agent-chat-stop-button"],[data-testid="agent-stop-i...
+     |       ^^^^^^^^^^^^
+
+warning: function `find_slot` is never used
+    --> src\notion_profiles.rs:1252:4
+     |
+1252 | fn find_slot(tabs:&[Tab],agent:&str)->Option<(usize,Tab,String)>{let all=slots_all();tabs.iter().enumerate().find_map(|(i,t)|all.g...
+     |    ^^^^^^^^^
+
+warning: function `wake_slot` is never used
+    --> src\notion_profiles.rs:1369:4
+     |
+1369 | fn wake_slot(i:usize,tid:String,agent:String,text:String){
+     |    ^^^^^^^^^
+
+warning: function `send_text` is never used
+   --> src\notion_chat.rs:403:21
+    |
+403 | pub(crate) async fn send_text(t: &str) -> Result<Value, String> { send(t.to_string(), Vec::new()).await }
+    |                     ^^^^^^^^^
+
+warning: function `events_since` is never used
+   --> src\notion_live.rs:284:15
+    |
+284 | pub(crate) fn events_since(seq: u64) -> Vec<Ev> { bus().evs.iter().filter(|e| e.seq > seq).cloned().collect() }
+    |               ^^^^^^^^^^^^
+
+warning: function `note_task` is never used
+   --> src\notion_live.rs:368:15
+    |
+368 | pub(crate) fn note_task(agent: &str, task: u64, status: &str, title: &str, files: &[String]) {
+    |               ^^^^^^^^^
+
+warning: `EnumWindows` redeclared with a different signature
+    --> src\notion_profiles.rs:264:23
+     |
+ 264 |     extern "system" { fn EnumWindows(cb: unsafe extern "system" fn(isize,isize)->i32, data:isize)->i32; fn GetWindowThreadProcessI...
+     |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+     |
+    ::: src\workspace.rs:1137:9
+     |
+1137 |         pub fn EnumWindows(cb: extern "system" fn(Hwnd, isize) -> i32, lparam: isize) -> i32;
+     |         ------------------------------------------------------------------------------------- `EnumWindows` previously declared here
+     |
+     = note: expected `unsafe extern "system" fn(extern "system" fn(*mut c_void, isize) -> i32, isize) -> i32`
+                found `unsafe extern "system" fn(unsafe extern "system" fn(isize, isize) -> i32, isize) -> i32`
+     = note: `#[warn(clashing_extern_declarations)]` on by default
+
+warning: `GetWindowThreadProcessId` redeclared with a different signature
+    --> src\notion_profiles.rs:264:105
+     |
+ 264 | ...->i32; fn GetWindowThreadProcessId(hwnd:isize,pid:*mut u32)->u32; fn ShowWindowAsync(hwnd:isize,cmd:i32)->i32; fn EnableWindow(...
+     |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+     |
+    ::: src\workspace.rs:1144:9
+     |
+1144 |         pub fn GetWindowThreadProcessId(hwnd: Hwnd, pid: *mut u32) -> u32;
+     |         ------------------------------------------------------------------ `GetWindowThreadProcessId` previously declared here
+     |
+     = note: expected `unsafe extern "system" fn(*mut c_void, *mut u32) -> u32`
+                found `unsafe extern "system" fn(isize, *mut u32) -> u32`
+
+warning: `SetForegroundWindow` redeclared with a different signature
+   --> src\notion_profiles.rs:264:250
+    |
+264 | ...ze,en:i32)->i32; fn SetForegroundWindow(hwnd:isize)->i32; fn IsWindowVisible(hwnd:isize)->i32; fn GetWindowTextLengthW(hwnd:isiz...
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+    |
+   ::: src\tray.rs:39:5
+    |
+ 39 |     fn SetForegroundWindow(window: Handle) -> i32;
+    |     ---------------------------------------------- `SetForegroundWindow` previously declared here
+    |
+    = note: expected `unsafe extern "system" fn(*mut c_void) -> i32`
+               found `unsafe extern "system" fn(isize) -> i32`
+
+warning: `IsWindowVisible` redeclared with a different signature
+    --> src\notion_profiles.rs:264:291
+     |
+ 264 | ...hwnd:isize)->i32; fn IsWindowVisible(hwnd:isize)->i32; fn GetWindowTextLengthW(hwnd:isize)->i32; fn GetWindow(hwnd:isize,cmd:u3...
+     |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+     |
+    ::: src\workspace.rs:1138:9
+     |
+1138 |         pub fn IsWindowVisible(hwnd: Hwnd) -> i32;
+     |         ------------------------------------------ `IsWindowVisible` previously declared here
+     |
+     = note: expected `unsafe extern "system" fn(*mut c_void) -> i32`
+                found `unsafe extern "system" fn(isize) -> i32`
+
+warning: `GetWindowTextLengthW` redeclared with a different signature
+    --> src\notion_profiles.rs:264:328
+     |
+ 264 | ...nd:isize)->i32; fn GetWindowTextLengthW(hwnd:isize)->i32; fn GetWindow(hwnd:isize,cmd:u32)->isize; fn GetClassNameW(hwnd:isize,...
+     |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+     |
+    ::: src\workspace.rs:1140:9
+     |
+1140 |         pub fn GetWindowTextLengthW(hwnd: Hwnd) -> i32;
+     |         ----------------------------------------------- `GetWindowTextLengthW` previously declared here
+     |
+     = note: expected `unsafe extern "system" fn(*mut c_void) -> i32`
+                found `unsafe extern "system" fn(isize) -> i32`
+
+warning: `EnumWindows` redeclared with a different signature
+    --> src\notion_tabs_stop.rs:78:9
+     |
+  78 |         fn EnumWindows(cb: unsafe extern "system" fn(isize, isize) -> i32, data: isize) -> i32;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+     |
+    ::: src\workspace.rs:1137:9
+     |
+1137 |         pub fn EnumWindows(cb: extern "system" fn(Hwnd, isize) -> i32, lparam: isize) -> i32;
+     |         ------------------------------------------------------------------------------------- `EnumWindows` previously declared here
+     |
+     = note: expected `unsafe extern "system" fn(extern "system" fn(*mut c_void, isize) -> i32, isize) -> i32`
+                found `unsafe extern "system" fn(unsafe extern "system" fn(isize, isize) -> i32, isize) -> i32`
+
+warning: `GetWindowThreadProcessId` redeclared with a different signature
+    --> src\notion_tabs_stop.rs:79:9
+     |
+  79 |         fn GetWindowThreadProcessId(h: isize, pid: *mut u32) -> u32;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+     |
+    ::: src\workspace.rs:1144:9
+     |
+1144 |         pub fn GetWindowThreadProcessId(hwnd: Hwnd, pid: *mut u32) -> u32;
+     |         ------------------------------------------------------------------ `GetWindowThreadProcessId` previously declared here
+     |
+     = note: expected `unsafe extern "system" fn(*mut c_void, *mut u32) -> u32`
+                found `unsafe extern "system" fn(isize, *mut u32) -> u32`
+
+warning: `IsWindowVisible` redeclared with a different signature
+    --> src\notion_tabs_stop.rs:80:9
+     |
+  80 |         fn IsWindowVisible(h: isize) -> i32;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+     |
+    ::: src\workspace.rs:1138:9
+     |
+1138 |         pub fn IsWindowVisible(hwnd: Hwnd) -> i32;
+     |         ------------------------------------------ `IsWindowVisible` previously declared here
+     |
+     = note: expected `unsafe extern "system" fn(*mut c_void) -> i32`
+                found `unsafe extern "system" fn(isize) -> i32`
+
+warning: `GetWindowTextW` redeclared with a different signature
+    --> src\notion_tabs_stop.rs:83:9
+     |
+  83 |         fn GetWindowTextW(h: isize, b: *mut u16, n: i32) -> i32;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+     |
+    ::: src\workspace.rs:1139:9
+     |
+1139 |         pub fn GetWindowTextW(hwnd: Hwnd, buf: *mut u16, max: i32) -> i32;
+     |         ------------------------------------------------------------------ `GetWindowTextW` previously declared here
+     |
+     = note: expected `unsafe extern "system" fn(*mut c_void, *mut u16, i32) -> i32`
+                found `unsafe extern "system" fn(isize, *mut u16, i32) -> i32`
+
+warning: `SetForegroundWindow` redeclared with a different signature
+  --> src\notion_tabs_stop.rs:84:9
+   |
+84 |         fn SetForegroundWindow(h: isize) -> i32;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this signature doesn't match the previous declaration
+   |
+  ::: src\tray.rs:39:5
+   |
+39 |     fn SetForegroundWindow(window: Handle) -> i32;
+   |     ---------------------------------------------- `SetForegroundWindow` previously declared here
+   |
+   = note: expected `unsafe extern "system" fn(*mut c_void) -> i32`
+              found `unsafe extern "system" fn(isize) -> i32`
+
+warning: `plazcode-agent` (bin "PlazCode" test) generated 41 warnings (run `cargo fix --bin "PlazCode" -p plazcode-agent --tests` to apply 3 suggestions)
+    Finished `release` profile [optimized] target(s) in 1m 57s
+     Running unittests src\lib.rs (target\release\deps\plazcode_agent-021f7a74c1a4721c.exe)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.00s
+
+     Running unittests src\main.rs (target\release\deps\PlazCode-974e563e439edd74.exe)
+
+running 71 tests
+test notion_chat::tests::upload_names_are_safe ... ok
+test notion_chat::tests::chat_urls_keep_only_thread_id ... ok
+test notion_brave_prefs::brave_prefs_tests::brave_prefs_patch_is_idempotent_and_keeps_keys ... ok
+test notion_cowork::help_rule_tests::help_rule_pushes_parallel_work ... ok
+test notion_cowork::tests::roles_are_focus_and_prompts_get_assessed ... ignored, veraltet: feste Co-Work-Rollen wurden entfernt (jeder hilft bei allem)
+test notion_cowork::tests::roles_review_and_fix_loop ... ignored, veraltet: feste Co-Work-Rollen wurden entfernt (jeder hilft bei allem)
+test notion_cowork::tests::unfilled_role_falls_back ... ignored, veraltet: feste Co-Work-Rollen wurden entfernt (jeder hilft bei allem)
+test notion_cowork::release_tests::two_tabs_coordinate_one_version ... ok
+test notion_blender::tests::blender_pro_basics ... ok
+test notion_cowork::release_tests::four_tabs_one_train_and_late_tab_moves_on ... ok
+test notion_cowork::tests::claim_flow ... ok
+test notion_cowork::tests::lanes_split_project_by_files_and_area ... ok
+test notion_cowork::tests::idle_agent_offers_help_to_busy_agent ... ok
+test notion_cowork::tests::two_accounts_share_one_project ... ok
+test notion_cowork::tests::reconnect_nudges_idle_agent_once ... ok
+test notion_devtools::tests::lean_hides_rare_addons ... ok
+test notion_devtools::tests::profiles_filter_tools ... ok
+test notion_chat::tests::chat_ui_is_embedded ... ok
+test notion_live::notice_tests::update_notice_once_per_tab ... ok
+test notion_live::tests::notion_live_delta_for ... ok
+test notion_live::update_wait_tests::notion_update_pending_tabs ... ok
+test notion_local_llm::tests::notion_local_core_tools ... ok
+test notion_mcp::compact_tests::notion_compact_roblox_text ... ok
+test notion_local_llm::tests::notion_local_pick_and_trim ... ok
+test notion_mcp::power_upgrade_tests::adicode_call_is_unwrapped ... ok
+test notion_mcp::power_upgrade_tests::cowork_is_compacted ... ok
+test notion_mcp::tests::domain_and_names ... ok
+test notion_output::tests::notion_output_ignores_other_tools ... ok
+test notion_output::tests::notion_output_keeps_has_more_true ... ok
+test notion_mcp::tests::notion_auth_variants ... ok
+test notion_cowork::tests::unjoined_tab_gets_auto_join_nudge ... ok
+test notion_output::tests::notion_output_squeezes_blank_lines ... ok
+test notion_live::tests::notion_live_lock_only_while_live ... ok
+test notion_cowork::tests::bridge_blocks_foreign_writes_and_autolocks ... ok
+test notion_live::tests::notion_live_ps_targets ... ok
+test notion_profiles::login_tests::gestopptes_profil_wird_gestartet ... ok
+test notion_output::tests::notion_output_strips_meta_keeps_hits ... ok
+test notion_profiles::login_tests::laufendes_profil_startet_kein_zweites_fenster ... ok
+test notion_profiles::login_tests::login_url_bleibt_https ... ok
+test notion_profiles::multichat_tests::notion_multichat_origin ... ok
+test notion_profiles::multichat_tests::notion_multichat_rate ... ok
+test notion_profiles::multichat_tests::notion_multichat_slot_agent ... ok
+test notion_profiles::multichat_tests::notion_multichat_tid ... ok
+test notion_profiles::multichat_tests::notion_multichat_never_new_chat ... ok
+test notion_profiles::team_tests::notion_team_updated_age ... ok
+test notion_profiles::p15_12_tests::mcp_url_fresh_rejects_old_ngrok ... ok
+test notion_profiles::team_tests::notion_team_prompt_has_join_and_mcp_hint ... ok
+test notion_release::tests::files_string ... ok
+test notion_release::tests::list_default ... ok
+test notion_release::tests::reject_and_unknown ... ok
+test notion_release::tests::submit_args ... ok
+test notion_release::tests::submit_needs_agent ... ok
+test notion_release::tests::submit_needs_test ... ok
+test notion_release::tests::tool_listed ... ok
+test notion_safety::tests::paths ... ok
+test notion_local_llm::tests::notion_local_ddg_parse ... ok
+test notion_skills::tests::skills_resolve ... ok
+test notion_stage::tests::stage_versions_and_paths ... ok
+test notion_devtools::tests::plan_detects_node_scripts ... ok
+test notion_tabs_stop::tests::ports_and_titles ... ok
+test notion_updates::notes_any_tests::falls_back_to_other_bodies ... ok
+test notion_safety::tests::shell_rules ... ok
+test notion_updates::tests::versions_and_notes ... ok
+test proxy_tests::notion_proxy_out_of_date ... ok
+test notion_live::tests::notion_live_inflight ... ok
+test notion_live::tests::notion_live_translates_tool_calls ... ok
+test notion_brave_prefs::brave_prefs_tests::brave_prefs_apply_writes_once ... ok
+test notion_roblox_plus::tests::paths_and_luau ... ok
+test notion_stage::tests::stage_payload_checks ... ok
+test notion_safety::tests::luau_risk_levels ... ok
+test notion_stage::tests::stage_verify_and_cleanup ... ok
+
+test result: ok. 68 passed; 0 failed; 3 ignored; 0 measured; 83 filtered out; finished in 0.04s
+
+EXIT=0  

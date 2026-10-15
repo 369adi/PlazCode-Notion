@@ -1,0 +1,251 @@
+//! AdiCode: Update-Anzeige (GitHub-Releases des Forks) und ngrok-Ersteinrichtung.
+//! Installiert werden Updates vom Launcher (PlazCode-Notion.exe); die App zeigt sie nur an
+//! und kann per Datei `update-now` eine sofortige Pruefung anstossen.
+use axum::{extract::Query, response::IntoResponse, Json};
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::path::PathBuf;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+const REPO: &str = "369adi/PlazCode-Notion";
+const TAG_PREFIX: &str = "notion-desktop-v";
+const NGROK_ZIP: &str = "https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-windows-amd64.zip";
+const CACHE_SECS: u64 = 600;
+
+static CACHE: Mutex<Option<(Instant, Value)>> = Mutex::new(None);
+
+fn cache() -> std::sync::MutexGuard<'static, Option<(Instant, Value)>> { CACHE.lock().unwrap_or_else(|e| e.into_inner()) }
+
+pub fn base_dir() -> PathBuf {
+    std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join("PlazCodeNotion")
+}
+
+pub fn current_version() -> String {
+    std::env::current_exe().ok()
+        .and_then(|e| e.parent().map(|d| d.join(".version")))
+        .and_then(|p| std::fs::read_to_string(p).ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "dev".into())
+}
+
+fn parse_ver(s: &str) -> Option<(u32, u32, u32)> {
+    let p = s.trim().split('.').map(|x| x.parse::<u32>().ok()).collect::<Option<Vec<u32>>>()?;
+    if p.is_empty() || p.len() > 4 { return None; }
+    Some((p[0], *p.get(1).unwrap_or(&0), *p.get(2).unwrap_or(&0)))
+}
+
+/// Abschnitt "## Neu in <version>" aus den Release-Notes (README) herausschneiden.
+fn notes_for(body: &str, version: &str) -> String {
+    let body = body.replace("\r\n", "\n");
+    let head = format!("## Neu in {version}");
+    let Some(rest) = body.match_indices(&head).map(|(i, _)| &body[i + head.len()..]).find(|r| !r.starts_with(|c: char| c.is_ascii_digit() || c == '.')) else { return String::new() };
+    let end = rest.find("\n## ").unwrap_or(rest.len());
+    rest[..end].trim().trim_start_matches(':').trim().to_string()
+}
+
+fn log_tail() -> String {
+    let raw = std::fs::read_to_string(base_dir().join("logs").join("launcher.log")).unwrap_or_default();
+    let lines: Vec<&str> = raw.lines().collect();
+    lines[lines.len().saturating_sub(8)..].join("\n")
+}
+
+fn client(secs: u64) -> Result<reqwest::Client, String> {
+    reqwest::Client::builder().timeout(Duration::from_secs(secs)).user_agent("PlazCode-Notion").build().map_err(|e| e.to_string())
+}
+
+async fn fetch_releases() -> Result<Vec<Value>, String> {
+    let r = client(15)?
+        .get(format!("https://api.github.com/repos/{REPO}/releases?per_page=15"))
+        .header("Accept", "application/vnd.github+json")
+        .send().await.map_err(|e| format!("GitHub nicht erreichbar: {e}"))?;
+    if !r.status().is_success() { return Err(format!("GitHub antwortet mit HTTP {}", r.status())); }
+    let list: Vec<Value> = r.json().await.map_err(|e| e.to_string())?;
+    let mut out: Vec<((u32, u32, u32), Value)> = list.into_iter().filter_map(|rel| {
+        if rel.get("draft").and_then(Value::as_bool).unwrap_or(false) { return None; }
+        let ver = rel.get("tag_name")?.as_str()?.strip_prefix(TAG_PREFIX)?.to_string();
+        let key = parse_ver(&ver)?;
+        let body = rel.get("body").and_then(Value::as_str).unwrap_or("");
+        let date = rel.get("published_at").and_then(Value::as_str).and_then(|d| d.get(..10)).unwrap_or("").to_string();
+        Some((key, json!({"version": ver, "date": date, "url": rel.get("html_url").cloned().unwrap_or(Value::Null), "notes": notes_for(body, &ver)})))
+    }).collect();
+    out.sort_by(|a, b| b.0.cmp(&a.0));
+    Ok(out.into_iter().map(|(_, v)| v).collect())
+}
+
+pub async fn info(force: bool) -> Value {
+    let current = current_version();
+    let cached = cache().as_ref().filter(|(t, _)| !force && t.elapsed().as_secs() < CACHE_SECS).map(|(_, v)| v.clone());
+    let mut v = match cached {
+        Some(v) => v,
+        None => match fetch_releases().await {
+            Ok(releases) => {
+                let latest = releases.first().and_then(|r| r["version"].as_str()).unwrap_or("").to_string();
+                let v = json!({"releases": releases, "latest": latest, "checked": chrono::Local::now().format("%H:%M:%S").to_string()});
+                *cache() = Some((Instant::now(), v.clone()));
+                v
+            }
+            Err(e) => { let mut old = cache().as_ref().map(|(_, v)| v.clone()).unwrap_or_else(|| json!({"releases": [], "latest": ""})); old["error"] = json!(e); old }
+        },
+    };
+    let available = match (parse_ver(v["latest"].as_str().unwrap_or("")), parse_ver(&current)) { (Some(l), Some(c)) => l > c, _ => false };
+    v["ok"] = json!(true);
+    v["current"] = json!(current);
+    v["update_available"] = json!(available);
+    v["log"] = json!(log_tail());
+    v
+}
+
+#[derive(Deserialize)]
+pub struct UpdatesQuery { #[serde(default)] force: Option<u8> }
+
+pub async fn updates_handler(Query(q): Query<UpdatesQuery>) -> impl IntoResponse {
+    Json(info(q.force.unwrap_or(0) == 1).await)
+}
+
+// ---------- ngrok-Ersteinrichtung ----------
+
+/// Liegt die ngrok.yml nur virtualisiert beim Store-ngrok, in %LOCALAPPDATA%\ngrok kopieren (sonst fehlt dem eigenen ngrok der Token).
+pub fn ensure_real_ngrok_config() {
+    let Some(la) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) else { return };
+    let real = la.join("ngrok").join("ngrok.yml");
+    if real.is_file() { return; }
+    if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
+        for e in rd.flatten() {
+            if !e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { continue; }
+            let f = e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml");
+            if f.is_file() { let _ = std::fs::create_dir_all(la.join("ngrok")); let _ = std::fs::copy(&f, &real); return; }
+        }
+    }
+}
+
+pub fn has_authtoken() -> bool { !authtoken_mask().is_empty() }
+
+/// Gespeicherter Authtoken maskiert (z. B. "2abc...wxyz"), leer = keiner.
+pub fn authtoken_mask() -> String {
+    let env = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let mut files = Vec::new();
+    if let Some(la) = env("LOCALAPPDATA") {
+        files.push(la.join("ngrok").join("ngrok.yml"));
+        if let Ok(rd) = std::fs::read_dir(la.join("Packages")) {
+            for e in rd.flatten() { if e.file_name().to_string_lossy().to_ascii_lowercase().starts_with("ngrok") { files.push(e.path().join("LocalCache").join("Local").join("ngrok").join("ngrok.yml")); } }
+        }
+    }
+    if let Some(up) = env("USERPROFILE") {
+        files.push(up.join(".config").join("ngrok").join("ngrok.yml"));
+        files.push(up.join(".ngrok2").join("ngrok.yml"));
+    }
+    if let Some(ad) = env("APPDATA") { files.push(ad.join("ngrok").join("ngrok.yml")); }
+    for f in &files {
+        if let Ok(t) = std::fs::read_to_string(f) {
+            for l in t.lines() {
+                if let Some(v) = l.trim_start().strip_prefix("authtoken:") {
+                    let v = v.trim().trim_matches(|c| c == '"' || c == '\'');
+                    if v.len() > 15 && v.is_ascii() { return format!("{}…{}", &v[..4], &v[v.len() - 4..]); }
+                }
+            }
+        }
+    }
+    String::new()
+}
+
+fn hidden(cmd: &mut tokio::process::Command) -> &mut tokio::process::Command {
+    #[cfg(windows)]
+    { cmd.creation_flags(0x0800_0000); }
+    cmd
+}
+
+pub(crate) async fn install_ngrok() -> Result<String, String> {
+    let dir = base_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let zip = dir.join("ngrok-download.zip");
+    let bytes = client(240)?.get(NGROK_ZIP).send().await.map_err(|e| format!("Download fehlgeschlagen: {e}"))?
+        .error_for_status().map_err(|e| format!("Download fehlgeschlagen: {e}"))?
+        .bytes().await.map_err(|e| format!("Download fehlgeschlagen: {e}"))?;
+    if bytes.len() < 1_000_000 { return Err("Download unvollständig. Bitte nochmal versuchen.".into()); }
+    tokio::fs::write(&zip, &bytes).await.map_err(|e| e.to_string())?;
+    let tar = std::env::var_os("SystemRoot").map(|r| PathBuf::from(r).join("System32").join("tar.exe")).filter(|p| p.is_file()).unwrap_or_else(|| PathBuf::from("tar"));
+    let _ = tokio::task::spawn_blocking(crate::notion_mcp::stop_all_ngrok).await;
+    tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+    let _ = std::fs::remove_file(dir.join("ngrok.exe"));
+    let mut cmd = tokio::process::Command::new(tar);
+    let st = hidden(cmd.arg("-xf").arg(&zip).arg("-C").arg(&dir)).status().await.map_err(|e| format!("Entpacken fehlgeschlagen: {e}"))?;
+    let _ = tokio::fs::remove_file(&zip).await;
+    let exe = dir.join("ngrok.exe");
+    if !st.success() || !exe.is_file() { return Err("ngrok konnte nicht entpackt werden.".into()); }
+    ensure_real_ngrok_config();
+    crate::notion_mcp::use_ngrok_exe(&exe);
+    crate::notion_mcp::restart_tunnel();
+    Ok(format!("ngrok installiert ({}). Jetzt den Authtoken eintragen.", exe.display()))
+}
+
+pub(crate) async fn set_authtoken(raw: &str) -> Result<String, String> {
+    let tok: String = raw.trim().chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-').collect();
+    if tok.len() < 20 { return Err("Das sieht nicht nach einem ngrok-Authtoken aus (dashboard.ngrok.com → Your Authtoken).".into()); }
+    let exe = crate::notion_mcp::ngrok_exe().ok_or("ngrok.exe fehlt – klicke zuerst auf „ngrok installieren“.")?;
+    let mut cmd = tokio::process::Command::new(exe);
+    let out = hidden(cmd.args(["config", "add-authtoken", tok.as_str()])).output().await.map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr).trim().chars().take(300).collect::<String>();
+        return Err(format!("ngrok meldet: {err}"));
+    }
+    crate::notion_mcp::restart_tunnel();
+    Ok("Authtoken gespeichert. Der Tunnel startet neu.".into())
+}
+
+/// Nur manuell (Knopf in AdiCode): sofort installieren. Laufende Notion-Chats werden nicht angefasst.
+async fn update_now() -> Result<String, String> {
+    let mut v = info(false).await;
+    if !v["update_available"].as_bool().unwrap_or(false) { v = info(true).await; }
+    if !v["update_available"].as_bool().unwrap_or(false) { return Ok(format!("Kein neues Update ({} ist aktuell).", current_version())); }
+    std::fs::create_dir_all(base_dir()).map_err(|e| e.to_string())?;
+    let trig = base_dir().join("update-now");
+    std::fs::write(&trig, "1").map_err(|e| e.to_string())?;
+    *cache() = None;
+    // Sofort-Update: der Launcher holt den Trigger binnen 1 s ab. Liegt er nach 4 s noch da
+    // (Launcher laeuft nicht), installiert die App das neue Release selbst.
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(4)).await;
+        if !trig.is_file() { return; }
+        let _ = std::fs::remove_file(&trig);
+        if let Err(e) = direct_install().await { eprintln!("[updates] Direkt-Update: {e}"); }
+    });
+    Ok(format!("Update auf {} startet sofort - AdiCode schliesst sich und startet gleich neu.", v["latest"].as_str().unwrap_or("?")))
+}
+
+async fn direct_install() -> Result<(), String> {
+    let v = info(true).await;
+    if !v["update_available"].as_bool().unwrap_or(false) { return Err("kein neueres Release".into()); }
+    let url = format!("https://github.com/{}/releases/latest/download/PlazCode-Notion.exe", REPO);
+    let bytes = client(180)?.get(url).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?.bytes().await.map_err(|e| e.to_string())?;
+    if bytes.len() < 1_000_000 || &bytes[..2] != b"MZ" { return Err("Download ist keine gueltige exe".into()); }
+    let p = std::env::temp_dir().join("AdiCode-update.exe");
+    std::fs::write(&p, &bytes).map_err(|e| e.to_string())?;
+    std::process::Command::new(&p).spawn().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Aktionen der Notion-AI-/Updates-Seite. `None` = nicht zustaendig.
+pub async fn action(name: &str, v: &Value) -> Option<Result<String, String>> {
+    Some(match name {
+        "update_now" => update_now().await,
+        "install_ngrok" => install_ngrok().await,
+        "set_ngrok_authtoken" => set_authtoken(v.as_str().unwrap_or("")).await,
+        _ => return None,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn versions_and_notes() {
+        assert!(parse_ver("1.0.10") > parse_ver("1.0.9"));
+        assert_eq!(parse_ver("x"), None);
+        let body = "# T\r\n## Neu in 1.0.10: Updates\r\n- a\r\n## Neu in 1.0.1\r\n- b\r\n## Start\r\n";
+        assert_eq!(notes_for(body, "1.0.10"), "Updates\n- a");
+        assert_eq!(notes_for(body, "1.0.1"), "- b");
+        assert_eq!(notes_for(body, "1.0.2"), "");
+    }
+}
